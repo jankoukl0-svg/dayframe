@@ -44,6 +44,18 @@ test("honors an explicit day and its deadline", () => {
   assert.equal(planCapturedTasks([], [], [tomorrow], now()).placements[0].day, "tomorrow");
 });
 
+test("does not carry a stale task forward until the user chooses a day", () => {
+  const stale = capture(1, { createdAt: "2026-09-15T09:00:00Z" });
+  const untouched = planCapturedTasks([], [], [stale], now());
+  assert.deepEqual(untouched.pending, [stale]);
+  assert.equal(untouched.placements.length, 0);
+
+  const chosenTomorrow = { ...stale, targetDate: "2026-09-17" };
+  const moved = planCapturedTasks([], [], [chosenTomorrow], now());
+  assert.equal(moved.pending.length, 0);
+  assert.equal(moved.placements[0].day, "tomorrow");
+});
+
 test("migrates old captures, uses priority, and never duplicates placed IDs", () => {
   const result = planCapturedTasks([], [], [capture(1), capture(2, { priority: "high" }), capture(2)], now());
   assert.equal(result.placements[0].id, 2);
