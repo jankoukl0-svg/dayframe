@@ -8,10 +8,16 @@ Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan ch
 
 Repo: https://github.com/jankoukl0-svg/dayframe  
 Výchozí větev: `main`  
-Aktuální hlavní commit po poslední funkční změně: `80c35d771378c28ebdbe2b630c3a54569a8568c4`  
+Aktuální hlavní commit po přípravě Vercel preview: `08dccd743adcc13d8f33b2e36c451a2446397466`  
 Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
 **GitHub → Sites není automaticky zapojené. Commit neznamená nasazení.** Work musí změny z `web/` přenést do existujícího Sites projektu a publikovat. Neměnit identitu Site v `web/.openai/hosting.json`. Sites project ID: `appgprj_6aa9d908ba108191965d2abe4da24cf3`.
+
+## Vercel preview
+
+Cíl: mít jeden stálý vývojový odkaz, který se po každém pushi do `main` automaticky aktualizuje. V `web/vercel.json` je připraven build `pnpm preview:build`, output `preview-dist` a install `pnpm install --frozen-lockfile`. GitHub Actions už stejný statický preview build ověřuje přes `.github/workflows/preview-build.yml`.
+
+Vercel plugin v ChatGPT je připojený a přímý deploy funguje, ale projekt zatím není Git-linked na repo. Uživatel musí jednorázově ve Vercelu importovat existující repo `jankoukl0-svg/dayframe` a nastavit Root Directory na `web`. Potom se mají změny z `main` nasazovat automaticky. Až je projekt vytvořený, zapiš sem jeho stálou URL a ověř první build.
 
 ## Kde se pracuje
 
@@ -25,6 +31,7 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 | `web/app/compact-copy.css` | Redukce duplicitního textu + malé UX doplňky |
 | `web/lib/dayframe-planning.test.mjs` | Regresní testy plánování |
 | `web/lib/dayframe-smart-input.test.mjs` | Testy podporovaných smart-input vzorů |
+| `web/vercel.json` | Konfigurace statického Vercel preview buildu |
 
 ## Schválené produktové principy
 
@@ -41,19 +48,9 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
 `Přidat úkol` používá výchozích 45 minut, hledá volné místo dnes a případně zítra, chrání oběd 13–14 a bez explicitního času nepřesouvá existující bloky.
 
-Smart input nyní rozpoznává mimo jiné:
+Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17:30 45 min`, `CFI zítra od 16 na hodinu`, `Angličtina od 18 do 19:30` a `matika 40 min od 17:00`. Konkrétní čas je začátek úkolu, ne deadline. Při exact-start zadání vznikne pevný blok; pokud se do požadovaného času nevejde, zůstane čekat.
 
-- `Matematika v 17:30 na 60 minut`
-- `Matika 17:30 45 min`
-- `CFI zítra od 16 na hodinu`
-- `Angličtina od 18 do 19:30`
-- `Ekonomie dnes do 18:00 důležité`
-
-Konkrétní čas typu `v 17:30`, `od 17:30` nebo samotné `17:30` je **začátek úkolu**, ne deadline. Při exact-start zadání vznikne pevný blok. Pokud se přesně do požadovaného času nevejde, nesmí se potichu přesunout jinam; zůstane čekat.
-
-Ruční podrobnosti mají nově přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Prázdné pole znamená, že Dayframe čas najde automaticky. Ruční přesný začátek má přednost před časem napsaným v názvu.
-
-Smart input je deterministický parser, ne obecné AI/NLP. Samotný titul bez údajů dál používá standardní formulář a výchozí hodnoty.
+Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Smart input je deterministický parser, ne obecné AI/NLP.
 
 ## Důležité předchozí změny
 
@@ -61,13 +58,13 @@ Smart input je deterministický parser, ne obecné AI/NLP. Samotný titul bez ú
 - PR #2: zastaven automatický stale-task carryover; merge `c1beae33087c9f92784a7a29b3648087ff8b1f87`.
 - PR #3: smart input + missed-task actions; merge `861c04e5bb36fafc5a6d3745507cbe300f597aec`.
 - PR #4: kompatibilita čekajících úkolů; merge `d1b195881357d5700ad7ac3f265d28f3ce501a34`.
-- PR #5: oprava exact start-time inputu + ruční `Začít v`; squash merge `80c35d771378c28ebdbe2b630c3a54569a8568c4`.
+- PR #5: exact start-time input + ruční `Začít v`; merge `80c35d771378c28ebdbe2b630c3a54569a8568c4`.
+- PR #6: regresní test přesně pro `matika 40 min od 17:00`; merge `9f004f9b2063815e268a456d48112c33c964049d`.
+- `web/vercel.json`: příprava automatického Vercel preview buildu; commit `08dccd743adcc13d8f33b2e36c451a2446397466`.
 
 ## Testování a rizika
 
-Před PR #5 prošla plánovací sada po opravě PR #4 jako 11/11 PASS. V kole PR #5 byly přidány další regresní testy pro exact-start a samostatný smart-input test soubor. Reprezentativní parser scénáře (`v 17:30 na 60 minut`, bare `17:30 45 min`, `od 16 na hodinu`, interval `od 18 do 19:30`, ruční override token) byly ověřeny lokálním Node harness a vracely očekávané hodnoty.
-
-**V tomto kole nebyl spuštěn kompletní webový TypeScript check, produkční build ani browser/E2E test ručního pole `Začít v`.** GitHub neměl připojené CI statusy. Work má před publikováním zkontrolovat celý diff, spustit testy/typecheck/build a ručně ověřit submit ručního exact-start pole v prohlížeči.
+Před PR #5 prošla plánovací sada po opravě PR #4 jako 11/11 PASS. Exact-start parser scénáře byly ověřeny samostatně. Kompletní browser/E2E ověření ručního pole `Začít v` stále není provedeno. Vercel Git-linked build zatím také není ověřen, dokud uživatel projekt jednorázově neimportuje.
 
 Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Pole `requestedStart` je volitelné v čekajícím úkolu; není nutná destruktivní migrace.
 
@@ -88,6 +85,7 @@ Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Pole `requestedS
 3. Dělej nejmenší smysluplné změny a zachovej data i design.
 4. Rozlišuj NAVRŽENO / UPRAVENO / OTESTOVÁNO / NASAZENO.
 5. Po každé práci aktualizuj tento handoff.
+6. Po zprovoznění Git-linked Vercel preview má každý push do `main` automaticky vytvořit novou viditelnou verzi; uživatel má používat jeden stálý Vercel odkaz a jen refreshovat.
 
 Pro testy z `web/`: `node --test lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs`. Kontrola typů: `node node_modules/typescript/bin/tsc --noEmit`. Produkční build spusť přes existující skript v `web/package.json`.
 
