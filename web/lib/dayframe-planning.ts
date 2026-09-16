@@ -1,3 +1,5 @@
+import { parseSmartTaskInput } from "./dayframe-smart-input";
+
 export type Priority = "high" | "normal" | "low";
 export type Task = {
   id: number;
@@ -44,6 +46,35 @@ function rank(priority: Priority) {
   return priority === "high" ? 0 : priority === "low" ? 2 : 1;
 }
 
+function nextLocalDate(date: Date) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + 1);
+  return next;
+}
+
+function normalizeSmartCapture(item: InboxTask) {
+  const parsed = parseSmartTaskInput(item.title);
+  const created = new Date(item.createdAt);
+  const reference = Number.isNaN(created.getTime()) ? new Date() : created;
+  const parsedTargetDate = parsed.day === "today"
+    ? localDateKey(reference)
+    : parsed.day === "tomorrow"
+      ? localDateKey(nextLocalDate(reference))
+      : undefined;
+
+  return {
+    ...item,
+    title: parsed.title,
+    // Manual controls keep priority. Smart hints only fill untouched defaults.
+    duration: item.duration === 45 && parsed.duration ? parsed.duration : item.duration,
+    priority: item.priority === "normal" && parsed.priority ? parsed.priority : item.priority,
+    deadline: (item.deadline ?? "22:30") === "22:30" && parsed.deadline
+      ? parsed.deadline
+      : item.deadline,
+    targetDate: item.targetDate ?? parsedTargetDate,
+  } satisfies InboxTask;
+}
+
 function findSpace(item: InboxTask, tasks: Task[], from: number) {
   const duration = Number(item.duration);
   const deadline = minutes(item.deadline ?? "22:30");
@@ -72,7 +103,7 @@ export function planCapturedTasks(todayTasks: Task[], tomorrowTasks: Task[], wai
   next.setDate(next.getDate() + 1);
   const tomorrowKey = localDateKey(next);
   const occupiedIds = new Set([...today, ...tomorrow].map((task) => task.id));
-  const queue = [...waiting].sort((a, b) =>
+  const queue = waiting.map(normalizeSmartCapture).sort((a, b) =>
     (a.targetDate ?? tomorrowKey).localeCompare(b.targetDate ?? tomorrowKey)
     || rank(a.priority) - rank(b.priority)
     || (a.deadline ?? "22:30").localeCompare(b.deadline ?? "22:30")

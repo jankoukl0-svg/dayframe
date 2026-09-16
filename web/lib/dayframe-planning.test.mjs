@@ -56,6 +56,33 @@ test("does not carry a stale task forward until the user chooses a day", () => {
   assert.equal(moved.placements[0].day, "tomorrow");
 });
 
+test("understands optional scheduling hints in the title", () => {
+  const smart = capture(10, { title: "Matematika zítra 60 min do 18:00 důležité" });
+  const result = planCapturedTasks([], [], [smart], now());
+  const placed = result.tomorrow.find(task => task.id === 10);
+  assert.equal(result.placements[0].day, "tomorrow");
+  assert.equal(result.placements[0].title, "Matematika");
+  assert.equal(placed.duration, 60);
+  assert.equal(placed.deadline, "18:00");
+  assert.equal(placed.priority, "high");
+});
+
+test("manual controls override smart hints field by field", () => {
+  const manual = capture(11, {
+    title: "Ekonomie zítra 60 min do 18:00 důležité",
+    duration: 30,
+    targetDate: "2026-09-16",
+    deadline: "17:00",
+    priority: "low",
+  });
+  const result = planCapturedTasks([], [], [manual], now());
+  const placed = result.today.find(task => task.id === 11);
+  assert.equal(result.placements[0].day, "today");
+  assert.equal(placed.duration, 30);
+  assert.equal(placed.deadline, "17:00");
+  assert.equal(placed.priority, "low");
+});
+
 test("migrates old captures, uses priority, and never duplicates placed IDs", () => {
   const result = planCapturedTasks([], [], [capture(1), capture(2, { priority: "high" }), capture(2)], now());
   assert.equal(result.placements[0].id, 2);
