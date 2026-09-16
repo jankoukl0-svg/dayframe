@@ -29,15 +29,15 @@ jobs:
 
       - name: Install Tauri CLI
         shell: pwsh
-        run: cargo install tauri-cli --version "^2" --locked
+        run: npm install --global "@tauri-apps/cli@^2"
 
       - name: Generate application icons
         shell: pwsh
-        run: cargo tauri icon ui/icon.svg
+        run: tauri icon ui/icon.svg
 
       - name: Build MSI and EXE installers
         shell: pwsh
-        run: cargo tauri build --bundles msi,nsis
+        run: tauri build --bundles msi,nsis
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
