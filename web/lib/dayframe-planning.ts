@@ -81,6 +81,18 @@ export function planCapturedTasks(todayTasks: Task[], tomorrowTasks: Task[], wai
 
   for (const item of queue) {
     if (occupiedIds.has(item.id)) continue;
+
+    // An unfinished task from an earlier day must not snowball into a new day by itself.
+    // It stays pending until the user explicitly chooses today or tomorrow.
+    const createdDate = new Date(item.createdAt);
+    const staleWithoutChosenDay = !item.targetDate
+      && !Number.isNaN(createdDate.getTime())
+      && localDateKey(createdDate) < todayKey;
+    if (staleWithoutChosenDay) {
+      pending.push(item);
+      continue;
+    }
+
     const todayAllowed = !item.targetDate || item.targetDate === todayKey;
     const tomorrowAllowed = !item.targetDate || item.targetDate === tomorrowKey;
     let day: "today" | "tomorrow" = "today";
