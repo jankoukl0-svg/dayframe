@@ -26,6 +26,7 @@ export type InboxTask = {
   category: string;
   createdAt: string;
   targetDate?: string;
+  requestedStart?: string;
   deadline?: string;
 };
 
@@ -71,6 +72,7 @@ function normalizeSmartCapture(item: InboxTask) {
   };
   if ((item.deadline ?? "22:30") === "22:30" && parsed.deadline) normalized.deadline = parsed.deadline;
   if (!item.targetDate && parsedTargetDate) normalized.targetDate = parsedTargetDate;
+  if (!item.requestedStart && parsed.start) normalized.requestedStart = parsed.start;
   return normalized;
 }
 
@@ -78,11 +80,25 @@ function findSpace(item: InboxTask, tasks: Task[], from: number) {
   const duration = Number(item.duration);
   const deadline = minutes(item.deadline ?? "22:30");
   if (!Number.isFinite(duration) || duration < 15 || !Number.isFinite(deadline)) return null;
-  // Preserve every existing block. Breakfast and lunch are also unavailable.
+
+  // Preserve every existing block. Lunch is also unavailable.
   const occupied = [{ start: 13 * 60, end: 14 * 60 }, ...tasks.map((task) => ({
     start: minutes(task.start), end: minutes(task.end),
   }))];
   const cutoff = Math.min(22 * 60 + 30, deadline);
+
+  if (item.requestedStart) {
+    const exactStart = minutes(item.requestedStart);
+    if (!Number.isFinite(exactStart)
+      || exactStart < 10 * 60
+      || exactStart < from
+      || exactStart + duration > cutoff
+      || occupied.some((block) => exactStart < block.end && exactStart + duration > block.start)) {
+      return null;
+    }
+    return { start: time(exactStart), end: time(exactStart + duration) };
+  }
+
   for (let start = Math.max(10 * 60, Math.ceil(from / 15) * 15); start + duration <= cutoff; start += 15) {
     if (!occupied.some((block) => start < block.end && start + duration > block.start)) {
       return { start: time(start), end: time(start + duration) };
@@ -138,7 +154,7 @@ export function planCapturedTasks(todayTasks: Task[], tomorrowTasks: Task[], wai
     const task: Task = {
       id: item.id, title: item.title, category: item.category,
       duration: item.duration, priority: item.priority, deadline: item.deadline ?? "22:30",
-      completed: false, fixed: false, autoScheduled: true, late: false, ...slot,
+      completed: false, fixed: Boolean(item.requestedStart), autoScheduled: !item.requestedStart, late: false, ...slot,
     };
     (day === "today" ? today : tomorrow).push(task);
     occupiedIds.add(item.id);
