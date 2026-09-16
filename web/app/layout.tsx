@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./compact-copy.css";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
