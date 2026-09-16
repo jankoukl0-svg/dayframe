@@ -1,3 +1,15 @@
+# Dayframe — společný projekt
+
+**Začni v [HANDOFF.md](HANDOFF.md)**: kontext, aktuální funkce, známá omezení a postup mezi chaty.
+
+- **[web/](web/)** — aktuální webové rozhraní a plánovací logika, import Sites verze 8. Další UX vývoj patří sem.
+- **ui/ a src-tauri/** — původní Windows aplikace, zachovaná beze změn; zatím nepoužívá nové webové rozhraní.
+- GitHub změny se zatím automaticky nepublikují do Sites. Uložený commit není nasazení.
+
+Níže je původní dokumentace nativní verze.
+
+---
+
 # Dayframe Native
 
 Dayframe is a local-first productivity app for Windows with a shared path to iOS. It combines a daily countdown, time-blocked tasks, milestone backplanning, focus sessions, and an attention guard that reacts when the user opens a distracting app.
