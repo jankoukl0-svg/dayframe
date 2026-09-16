@@ -58,13 +58,8 @@ export function MissedTaskActions() {
 
   useEffect(() => {
     refresh();
-    const interval = window.setInterval(refresh, 15_000);
-    const observer = new MutationObserver(refresh);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      window.clearInterval(interval);
-      observer.disconnect();
-    };
+    const interval = window.setInterval(refresh, 2_000);
+    return () => window.clearInterval(interval);
   }, [refresh]);
 
   function markDone(task: Task) {
