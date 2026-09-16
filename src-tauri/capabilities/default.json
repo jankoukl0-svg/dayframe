@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions required by the Dayframe main window",
+  "windows": ["main"],
+  "permissions": ["core:default", "notification:default"]
+}
+

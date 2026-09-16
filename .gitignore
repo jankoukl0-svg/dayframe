@@ -1,0 +1,6 @@
+/src-tauri/target/
+/.tauri/
+.DS_Store
+*.pdb
+*.log
+

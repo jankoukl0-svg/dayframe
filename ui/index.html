@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#081018" />
+    <title>Dayframe</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-nav" aria-label="Hlavní navigace">
+        <button class="brand" data-view="today" aria-label="Dayframe">DF</button>
+        <nav>
+          <button class="nav-button active" data-view="today" title="Dnes"><span>01</span><em>Dnes</em></button>
+          <button class="nav-button" data-view="focus" title="Soustředění"><span>02</span><em>Focus</em></button>
+          <button class="nav-button" data-view="milestones" title="Milníky"><span>03</span><em>Cíle</em></button>
+          <button class="nav-button" data-view="settings" title="Nastavení"><span>04</span><em>Nastavení</em></button>
+        </nav>
+        <div class="agent-dot" title="Windows agent je připraven"><i></i><span>Agent</span></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div><p class="eyebrow" id="date-label">DNES</p><h1 id="view-title">Dnešní rámec</h1></div>
+          <div class="device-status"><span class="monitor-icon">▣</span> Windows <i></i></div>
+        </header>
+
+        <section class="view active" id="view-today">
+          <article class="countdown-card">
+            <div><p class="eyebrow">DO VYPNUTÍ DNE V 00:30 ZBÝVÁ</p><div class="day-countdown"><span id="hours">00</span><b>:</b><span id="minutes">00</span><b>:</b><span class="gold" id="seconds">00</span></div><div class="countdown-labels"><span>HODIN</span><span>MINUT</span><span>SEKUND</span></div></div>
+            <div class="completion"><div class="completion-ring" id="completion-ring"><strong id="completion-percent">0%</strong></div><p><span>Splněno</span><b id="completed-time">0 h 0 min</b></p></div>
+          </article>
+
+          <article class="next-card" id="next-card">
+            <p class="next-label"><i></i> START NEXT</p>
+            <div class="next-row"><div><small id="next-meta">—</small><h2 id="next-title">Načítám plán…</h2></div><button class="primary" id="start-next">Zahájit blok</button></div>
+            <p class="coach">Jediný úkol teď je začít. Ostatní plán počká.</p>
+          </article>
+
+          <div class="section-heading"><div><p class="eyebrow">ČASOVÁ OSA</p><h2>Dnešní úkoly</h2></div><button class="secondary" id="open-task-dialog">+ Přidat úkol</button></div>
+          <div class="task-list" id="task-list"></div>
+        </section>
+
+        <section class="view" id="view-focus">
+          <div class="focus-page">
+            <div class="focus-clock"><strong><span id="focus-minutes">50</span><b>:</b><span id="focus-seconds">00</span></strong><small id="focus-status">PŘIPRAVENO NA HLUBOKOU PRÁCI</small></div>
+            <p class="eyebrow">AKTUÁLNÍ BLOK</p><h2 id="focus-task-title">Volný focus blok</h2>
+            <div class="focus-actions"><button class="primary" id="toggle-focus">Spustit 50 minut</button><button class="secondary" id="reset-focus">Reset</button></div>
+            <article class="guard-card">
+              <div class="guard-head"><div class="shield">!</div><div><h3>Stupňované zásahy</h3><p>Windows agent kontroluje aktivní program každé 2 sekundy.</p></div><label class="switch"><input type="checkbox" id="guard-enabled" checked /><span></span></label></div>
+              <ol><li><b>1</b><p><strong>Jemné vrácení</strong><span>Krátké systémové upozornění.</span></p></li><li><b>2</b><p><strong>Důrazné varování</strong><span>Druhé odbočení během deseti minut.</span></p></li><li><b>3</b><p><strong>Intent Gate</strong><span>Dayframe se vrátí dopředu a vyžádá si důvod.</span></p></li></ol>
+            </article>
+            <article class="policy-card"><p class="eyebrow">RUŠIVÉ APLIKACE A WEBY</p><div id="blocked-tags"></div><button class="text-button" id="edit-blocked">Upravit seznam</button></article>
+          </div>
+        </section>
+
+        <section class="view" id="view-milestones">
+          <div class="section-heading"><div><p class="eyebrow">DLOUHÝ HORIZONT</p><h2>Milníky</h2></div><button class="primary" id="open-milestone-dialog">+ Nový milník</button></div>
+          <div class="milestone-grid" id="milestone-grid"></div>
+        </section>
+
+        <section class="view" id="view-settings">
+          <p class="eyebrow">CHOVÁNÍ APLIKACE</p><h2>Nastavení</h2>
+          <article class="settings-list">
+            <label><span><strong>Konec dne</strong><small>Čas, ke kterému směřuje hlavní odpočet</small></span><input type="time" id="day-end" value="00:30" /></label>
+            <label><span><strong>Systémová upozornění</strong><small>Začátky bloků a odbočení</small></span><span class="switch"><input type="checkbox" id="notifications-enabled" checked /><span></span></span></label>
+            <label><span><strong>Hlídač pozornosti</strong><small>Kontrola aktivního programu během focus bloku</small></span><span class="switch"><input type="checkbox" id="settings-guard-enabled" checked /><span></span></span></label>
+          </article>
+          <article class="account-card"><p class="eyebrow">ÚČET A SYNCHRONIZACE</p><h3>Lokální režim</h3><p>Tato první nativní verze ukládá data do počítače. Přihlášení a synchronizaci s iOS zapojíme přes připravenou cloudovou databázi.</p><button class="secondary" disabled>Připojení účtu — další verze</button></article>
+        </section>
+      </main>
+
+      <aside class="right-rail">
+        <article><p class="eyebrow">NEJBLIŽŠÍ MILNÍK</p><h2 id="rail-milestone-title">Zkouška VŠE</h2><div class="big-days"><strong id="rail-days">0</strong><span>dní</span></div><p class="muted" id="rail-date">5. dubna 2027</p></article>
+        <article><p class="eyebrow">TENTO TÝDEN</p><h2>Studijní rytmus</h2><div class="week-bars" id="week-bars"></div></article>
+        <article><p class="eyebrow">HLÍDAČ POZORNOSTI</p><h2>Windows agent</h2><p class="online"><i></i><span id="agent-state">Připraven zasáhnout</span></p><p class="muted" id="active-app">Aktivní program se začne hlídat po spuštění focus bloku.</p></article>
+      </aside>
+    </div>
+
+    <dialog id="task-dialog"><form method="dialog"><div class="dialog-head"><div><p class="eyebrow">NOVÝ BLOK</p><h2>Přidat úkol</h2></div><button class="close" value="cancel" aria-label="Zavřít">×</button></div><label>Název<input id="task-name" placeholder="Např. projít 20 příkladů" required /></label><div class="two-columns"><label>Od<input id="task-start" type="time" value="16:30" /></label><label>Do<input id="task-end" type="time" value="17:00" /></label></div><label>Kategorie<input id="task-category" value="Vlastní" /></label><button class="primary full" id="save-task" value="default">Přidat do dne</button></form></dialog>
+    <dialog id="milestone-dialog"><form method="dialog"><div class="dialog-head"><div><p class="eyebrow">NOVÝ TERMÍN</p><h2>Přidat milník</h2></div><button class="close" value="cancel" aria-label="Zavřít">×</button></div><label>Název<input id="milestone-name" placeholder="Např. přijímací zkouška" required /></label><label>Datum<input id="milestone-date" type="date" value="2027-04-05" /></label><button class="primary full" id="save-milestone" value="default">Uložit milník</button></form></dialog>
+    <dialog id="blocked-dialog"><form method="dialog"><div class="dialog-head"><div><p class="eyebrow">HLÍDAČ</p><h2>Rušivé aplikace</h2></div><button class="close" value="cancel" aria-label="Zavřít">×</button></div><label>Názvy oddělené čárkou<textarea id="blocked-input" rows="5"></textarea><small>Dayframe hledá tyto výrazy v názvu procesu nebo okna, například youtube, instagram, steam.</small></label><button class="primary full" id="save-blocked" value="default">Uložit seznam</button></form></dialog>
+    <dialog id="intent-dialog" class="intent-dialog"><form method="dialog"><p class="eyebrow">INTENT GATE</p><h2>Proč teď opouštíš svůj blok?</h2><p id="intent-copy">Právě máš pracovat. Tohle je třetí odbočení.</p><textarea id="intent-reason" rows="3" placeholder="Napiš konkrétní důvod…"></textarea><div><button class="primary" id="return-focus" value="default">Vrátit se k práci</button><button class="secondary" id="allow-break" value="cancel">Potřebuji 5 minut</button></div></form></dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
