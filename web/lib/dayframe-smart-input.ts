@@ -4,6 +4,7 @@ export type SmartTaskDetails = {
   title: string;
   duration?: number;
   day?: "today" | "tomorrow";
+  start?: string;
   deadline?: string;
   priority?: Priority;
 };
@@ -16,28 +17,69 @@ function toClock(hours: number, minutes: number) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+function clockFromMatch(hours: string, minutes?: string) {
+  const parsedHours = Number(hours);
+  const parsedMinutes = Number(minutes ?? "00");
+  return validClock(parsedHours, parsedMinutes) ? toClock(parsedHours, parsedMinutes) : undefined;
+}
+
+function clockMinutes(clock: string) {
+  const [hours, minutes] = clock.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 /**
  * Reads optional Czech/English scheduling hints from a task title.
- * The feature is deliberately conservative: plain titles remain untouched.
+ * Plain titles stay plain; all hints are optional and manual controls can override them.
  */
 export function parseSmartTaskInput(input: string): SmartTaskDetails {
   let remaining = input.trim();
   let duration: number | undefined;
   let day: "today" | "tomorrow" | undefined;
+  let start: string | undefined;
   let deadline: string | undefined;
   let priority: Priority | undefined;
 
-  const durationMinutes = remaining.match(/(?:^|\s)(\d{1,3})\s*(?:min(?:ut(?:a|y)?)?|mins?|minutes?)(?=\s|$|[,;])/i);
-  if (durationMinutes) {
-    const parsed = Number(durationMinutes[1]);
-    if (parsed >= 15 && parsed <= 360) duration = parsed;
-    remaining = remaining.replace(durationMinutes[0], " ");
+  // Internal token is used by the manual exact-start control. It has precedence over text hints.
+  const manualStarts = [...remaining.matchAll(/\[\[start:(\d{1,2}):(\d{2})\]\]/gi)];
+  const manualStart = manualStarts.at(-1);
+  if (manualStart) start = clockFromMatch(manualStart[1], manualStart[2]);
+  remaining = remaining.replace(/\s*\[\[start:\d{1,2}:\d{2}\]\]\s*/gi, " ");
+
+  // "od 17:30 do 18:30" supplies both exact start and duration.
+  const range = remaining.match(/(?:^|\s)od\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:do|[-–—])\s*(\d{1,2})(?:[:.](\d{2}))?(?=\s|$|[,;])/i);
+  if (range) {
+    const rangeStart = clockFromMatch(range[1], range[2]);
+    const rangeEnd = clockFromMatch(range[3], range[4]);
+    if (!start && rangeStart) start = rangeStart;
+    if (rangeStart && rangeEnd) {
+      const length = clockMinutes(rangeEnd) - clockMinutes(rangeStart);
+      if (length >= 15 && length <= 360) duration = length;
+    }
+    remaining = remaining.replace(range[0], " ");
+  }
+
+  const halfHour = remaining.match(/(?:^|\s)(?:na\s+)?p[uů]l\s+hod(?:iny|inu)?(?=\s|$|[,;])/i);
+  const oneHour = remaining.match(/(?:^|\s)(?:na\s+)?(?:jednu\s+)?hodinu(?=\s|$|[,;])/i);
+  if (!duration && halfHour) {
+    duration = 30;
+    remaining = remaining.replace(halfHour[0], " ");
+  } else if (!duration && oneHour) {
+    duration = 60;
+    remaining = remaining.replace(oneHour[0], " ");
   } else {
-    const durationHours = remaining.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(?:h|hod(?:in(?:a|y)?)?|hours?)(?=\s|$|[,;])/i);
-    if (durationHours) {
-      const parsed = Math.round(Number(durationHours[1].replace(",", ".")) * 60);
+    const durationMinutes = remaining.match(/(?:^|\s)(?:na\s+)?(\d{1,3})\s*(?:min(?:ut(?:u|a|y)?)?|mins?|minutes?)(?=\s|$|[,;])/i);
+    if (durationMinutes) {
+      const parsed = Number(durationMinutes[1]);
       if (parsed >= 15 && parsed <= 360) duration = parsed;
-      remaining = remaining.replace(durationHours[0], " ");
+      remaining = remaining.replace(durationMinutes[0], " ");
+    } else {
+      const durationHours = remaining.match(/(?:^|\s)(?:na\s+)?(\d+(?:[.,]\d+)?)\s*(?:h|hod(?:in(?:u|a|y)?)?|hours?)(?=\s|$|[,;])/i);
+      if (durationHours) {
+        const parsed = Math.round(Number(durationHours[1].replace(",", ".")) * 60);
+        if (parsed >= 15 && parsed <= 360) duration = parsed;
+        remaining = remaining.replace(durationHours[0], " ");
+      }
     }
   }
 
@@ -53,10 +95,14 @@ export function parseSmartTaskInput(input: string): SmartTaskDetails {
 
   const deadlineMatch = remaining.match(/(?:^|\s)(?:do|nejpozd[eě]ji(?:\s+v)?|by)\s*(\d{1,2})(?:[:.](\d{2}))?(?=\s|$|[,;])/i);
   if (deadlineMatch) {
-    const hours = Number(deadlineMatch[1]);
-    const minutes = Number(deadlineMatch[2] ?? "00");
-    if (validClock(hours, minutes)) deadline = toClock(hours, minutes);
+    deadline = clockFromMatch(deadlineMatch[1], deadlineMatch[2]);
     remaining = remaining.replace(deadlineMatch[0], " ");
+  }
+
+  const startMatch = remaining.match(/(?:^|\s)(?:v|ve|od)\s*(\d{1,2})(?:[:.](\d{2}))?(?=\s|$|[,;])/i);
+  if (startMatch) {
+    if (!start) start = clockFromMatch(startMatch[1], startMatch[2]);
+    remaining = remaining.replace(startMatch[0], " ");
   }
 
   const highPriority = remaining.match(/(?:^|\s)(d[uů]le[zž]it[eé]|urgentn[ií]|urgent|vysok[aá]\s+priorita)(?=\s|$|[,;])/i);
@@ -78,6 +124,7 @@ export function parseSmartTaskInput(input: string): SmartTaskDetails {
     title: title || input.trim(),
     duration,
     day,
+    start,
     deadline,
     priority,
   };
