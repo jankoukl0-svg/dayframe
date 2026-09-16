@@ -67,20 +67,50 @@ test("understands optional scheduling hints in the title", () => {
   assert.equal(placed.priority, "high");
 });
 
+test("understands exact start plus natural duration", () => {
+  const smart = capture(12, { title: "Matematika v 17:30 na 60 minut" });
+  const result = planCapturedTasks([], [], [smart], now());
+  const placed = result.today.find(task => task.id === 12);
+  assert.deepEqual(result.placements[0], { id: 12, title: "Matematika", day: "today", start: "17:30", end: "18:30" });
+  assert.equal(placed.duration, 60);
+  assert.equal(placed.fixed, true);
+});
+
+test("understands an hour and a start-end range", () => {
+  const hour = planCapturedTasks([], [], [capture(13, { title: "CFI zítra od 16 na hodinu" })], now());
+  assert.equal(hour.placements[0].start, "16:00");
+  assert.equal(hour.placements[0].end, "17:00");
+  assert.equal(hour.placements[0].day, "tomorrow");
+
+  const range = planCapturedTasks([], [], [capture(14, { title: "Angličtina od 18 do 19:30" })], now());
+  assert.equal(range.placements[0].start, "18:00");
+  assert.equal(range.placements[0].end, "19:30");
+});
+
 test("manual controls override smart hints field by field", () => {
   const manual = capture(11, {
-    title: "Ekonomie zítra 60 min do 18:00 důležité",
+    title: "Ekonomie zítra v 17:00 60 min do 18:00 důležité",
     duration: 30,
     targetDate: "2026-09-16",
+    requestedStart: "15:00",
     deadline: "17:00",
     priority: "low",
   });
   const result = planCapturedTasks([], [], [manual], now());
   const placed = result.today.find(task => task.id === 11);
   assert.equal(result.placements[0].day, "today");
+  assert.equal(result.placements[0].start, "15:00");
   assert.equal(placed.duration, 30);
   assert.equal(placed.deadline, "17:00");
   assert.equal(placed.priority, "low");
+});
+
+test("an occupied exact start stays pending instead of moving silently", () => {
+  const item = capture(15, { title: "Matika dnes v 17 na 60 min" });
+  const occupied = [block(99, "17:00", "18:00")];
+  const result = planCapturedTasks(occupied, [], [item], now());
+  assert.equal(result.placements.length, 0);
+  assert.equal(result.pending[0].requestedStart, "17:00");
 });
 
 test("migrates old captures, uses priority, and never duplicates placed IDs", () => {

@@ -38,6 +38,43 @@
   margin-bottom: 0;
 }
 
+/* Manual exact start remains optional; blank keeps automatic scheduling. */
+.capture-manual-start {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 180px);
+  align-items: center;
+  gap: 6px 16px;
+  padding: 2px 0;
+}
+
+.capture-manual-start label {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.capture-manual-start label span {
+  margin-left: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.capture-manual-start input {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.capture-manual-start small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* Missed work should require an explicit choice instead of silently snowballing. */
 .planner-strip:has(.missed-task-actions) {
   flex-wrap: wrap;
@@ -99,6 +136,10 @@
 }
 
 @media (max-width: 760px) {
+  .capture-manual-start {
+    grid-template-columns: 1fr;
+  }
+
   .missed-task-row {
     align-items: flex-start;
     flex-direction: column;
