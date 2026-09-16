@@ -36,6 +36,7 @@ Soukromý živý náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 - Uživatel vstává v 9:00, učí se od 10:00, má oběd 13–14, konec dne 00:30. Střídá CFI/Excel, ekonomii, matematiku a angličtinu; chce VŠE AJ obden po 15:00, později SCIO a večer 20 minut knihy.
 - Výzva „Přepočítat od teď“ musí zmizet po kliknutí a vrátit se až při dalším nově zmeškaném bloku. Nenahrazovat ji trvalým potvrzovacím bannerem.
 - Nevracet Inbox s povinným tříděním Dnes/Zítra/Do Inboxu. Základní přidání má vyžadovat pouze název, další volby jsou volitelné.
+- Nedokončené úkoly z minulého dne se nesmí samy přesouvat do dalšího dne. Bez výslovné volby uživatele zůstávají čekat; uživatel může přes úpravu zvolit dnešek nebo zítřek. Tím se má zabránit efektu sněhové koule.
 
 ## Co už je ve webu
 
@@ -43,9 +44,11 @@ Dnešní plán, odpočet, hotové úkoly, úpravy a mazání, pevné i přesunut
 
 „Přidat úkol“ přijme název, předvyplní 45 minut a najde volno dnes, jinak zítra. Při přidání nepřesouvá stávající bloky. Hledá mezi 10:00 a 22:30 a chrání oběd 13–14. Podrobnosti dovolují změnit délku, důležitost, oblast, nejzazší čas a volitelně konkrétní den. Potvrzení ukáže skutečný čas a umožní vzít přidání zpět.
 
-Když se úkol nevejde, zůstane uložený a jasně označený. Uvolněné místo se znovu automaticky kontroluje. Původní zachycené úkoly se migrují. Zítřejší plán se při změně data stane dnešním; vlastní nedokončené úkoly se zachovávají.
+Když se nový úkol nevejde, zůstane uložený a jasně označený. Uvolněné místo se znovu automaticky kontroluje. Původní zachycené úkoly se migrují. Zítřejší plán se při změně data stane dnešním. Nedokončený úkol z předchozího dne bez explicitního `targetDate` se už automaticky nezařadí do dneška ani zítřka; zůstane v čekajících, dokud uživatel nevybere konkrétní den.
 
 Dne 16. 9. 2026 proběhl první UX průchod zaměřený na méně textu. PR #1 byl squash-merge do `main` jako commit `b22ae165130c7409a98dd52194f53218bb7af446`. Přidán `web/app/compact-copy.css` a import v `web/app/layout.tsx`. Skryty byly hlavně duplicitní helper odstavce v Dnes, Přidat úkol, Milníky, Nastavení a pravém kontextovém panelu. Zachovány zůstaly časy, stav, ovládací prvky, kapacita, důvody čekajících úkolů a důležité akce. Plánovací logika ani data se neměnily. Build, TypeScript ani browser/E2E test tohoto konkrétního UX kola nebyly spuštěny. Změna je v GitHubu, ale nebyla publikována do Sites.
+
+Dne 16. 9. 2026 bylo v PR #2 změněno přenášení nedokončených úkolů. Squash-merge do `main`: `c1beae33087c9f92784a7a29b3648087ff8b1f87`. `web/lib/dayframe-planning.ts` nyní rozpozná čekající úkol bez zvoleného dne, který vznikl v dřívější den, a ponechá ho čekat místo automatického přesunu. Explicitně zvolený dnešek nebo zítřek se dál naplánuje běžně. Přidán regresní test v `web/lib/dayframe-planning.test.mjs`; plánovací testy 9/9 PASS po lokální TypeScript kompilaci a spuštění Node testů. Build, kontrola celé aplikace ani browser/E2E test v tomto kole provedeny nebyly. Změna je v GitHubu, ale nebyla publikována do Sites.
 
 Stack: React, TypeScript, Vinext/Vite, Next-style struktura a stávající UI komponenty. Zachovat `pnpm-lock.yaml`, strukturu a závislosti. Data: localStorage `dayframe-v1`, schema 4. Interní pole `inboxTasks` je ponecháno kvůli kompatibilitě, v rozhraní Inbox není. Nemazat úložiště jako běžný krok při testování.
 
