@@ -20,6 +20,13 @@ test("parses a bare HH:MM start without requiring wording", () => {
   assert.equal(parsed.duration, 45);
 });
 
+test("parses the exact user phrasing with duration before start", () => {
+  const parsed = parseSmartTaskInput("matika 40 min od 17:00");
+  assert.equal(parsed.title, "matika");
+  assert.equal(parsed.start, "17:00");
+  assert.equal(parsed.duration, 40);
+});
+
 test("parses common Czech duration wording and a day", () => {
   const parsed = parseSmartTaskInput("CFI zítra od 16 na hodinu");
   assert.equal(parsed.title, "CFI");
