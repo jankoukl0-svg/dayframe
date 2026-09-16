@@ -62,17 +62,16 @@ function normalizeSmartCapture(item: InboxTask) {
       ? localDateKey(nextLocalDate(reference))
       : undefined;
 
-  return {
+  const normalized: InboxTask = {
     ...item,
     title: parsed.title,
     // Manual controls keep priority. Smart hints only fill untouched defaults.
     duration: item.duration === 45 && parsed.duration ? parsed.duration : item.duration,
     priority: item.priority === "normal" && parsed.priority ? parsed.priority : item.priority,
-    deadline: (item.deadline ?? "22:30") === "22:30" && parsed.deadline
-      ? parsed.deadline
-      : item.deadline,
-    targetDate: item.targetDate ?? parsedTargetDate,
-  } satisfies InboxTask;
+  };
+  if ((item.deadline ?? "22:30") === "22:30" && parsed.deadline) normalized.deadline = parsed.deadline;
+  if (!item.targetDate && parsedTargetDate) normalized.targetDate = parsedTargetDate;
+  return normalized;
 }
 
 function findSpace(item: InboxTask, tasks: Task[], from: number) {
