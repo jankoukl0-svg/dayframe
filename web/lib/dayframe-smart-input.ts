@@ -103,6 +103,13 @@ export function parseSmartTaskInput(input: string): SmartTaskDetails {
   if (startMatch) {
     if (!start) start = clockFromMatch(startMatch[1], startMatch[2]);
     remaining = remaining.replace(startMatch[0], " ");
+  } else {
+    // A bare HH:MM is unambiguous enough to be treated as a start time.
+    const bareStart = remaining.match(/(?:^|\s)(\d{1,2})[:.](\d{2})(?=\s|$|[,;])/i);
+    if (bareStart) {
+      if (!start) start = clockFromMatch(bareStart[1], bareStart[2]);
+      remaining = remaining.replace(bareStart[0], " ");
+    }
   }
 
   const highPriority = remaining.match(/(?:^|\s)(d[uů]le[zž]it[eé]|urgentn[ií]|urgent|vysok[aá]\s+priorita)(?=\s|$|[,;])/i);
