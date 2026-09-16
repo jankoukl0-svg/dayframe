@@ -17,6 +17,7 @@ Společný repozitář: https://github.com/jankoukl0-svg/dayframe — výchozí 
 | `web/lib/dayframe-planning.ts` | Automatické hledání času pro nové a čekající úkoly |
 | `web/lib/dayframe-planning.test.mjs` | Testy této plánovací logiky |
 | `web/app/globals.css` | Stávající design a responzivní rozložení |
+| `web/app/compact-copy.css` | Jemné UX override pro omezení opakujícího se vysvětlujícího textu |
 | `ui/`, `src-tauri/` | Starší nativní Windows verze, zatím nezapojená do nového webového rozhraní |
 | `supabase/schema.sql` | Návrh databáze, ne důkaz hotové synchronizace |
 | `.github/workflows/windows-build.yml` | Stávající sestavení Windows instalátoru |
@@ -31,6 +32,7 @@ Soukromý živý náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
 - Klidná světlá pracovní plocha, přehledná časová osa, jemné linky, cihlový akcent. Tmavý režim jen pro soustředění.
 - Zachovat stávající design. Žádný generický AI dashboard, fialové gradienty, svítící koule, přemíra karet ani marketingová výplň.
+- UX má být stručné: vysvětlit jen to, co pomáhá udělat rozhodnutí. Neopakovat stejnou informaci v nadpisu, helper textu a pravém panelu.
 - Uživatel vstává v 9:00, učí se od 10:00, má oběd 13–14, konec dne 00:30. Střídá CFI/Excel, ekonomii, matematiku a angličtinu; chce VŠE AJ obden po 15:00, později SCIO a večer 20 minut knihy.
 - Výzva „Přepočítat od teď“ musí zmizet po kliknutí a vrátit se až při dalším nově zmeškaném bloku. Nenahrazovat ji trvalým potvrzovacím bannerem.
 - Nevracet Inbox s povinným tříděním Dnes/Zítra/Do Inboxu. Základní přidání má vyžadovat pouze název, další volby jsou volitelné.
@@ -39,9 +41,11 @@ Soukromý živý náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
 Dnešní plán, odpočet, hotové úkoly, úpravy a mazání, pevné i přesunutelné bloky, přepočet dne, milníky, 50minutový focus timer, lokální ukládání a zítřejší plán.
 
-Poslední změna odstranila uživatelský Inbox. „Přidat úkol“ přijme název, předvyplní 45 minut a najde volno dnes, jinak zítra. Při přidání nepřesouvá stávající bloky. Hledá mezi 10:00 a 22:30 a chrání oběd 13–14. Podrobnosti dovolují změnit délku, důležitost, oblast, nejzazší čas a volitelně konkrétní den. Potvrzení ukáže skutečný čas a umožní vzít přidání zpět.
+„Přidat úkol“ přijme název, předvyplní 45 minut a najde volno dnes, jinak zítra. Při přidání nepřesouvá stávající bloky. Hledá mezi 10:00 a 22:30 a chrání oběd 13–14. Podrobnosti dovolují změnit délku, důležitost, oblast, nejzazší čas a volitelně konkrétní den. Potvrzení ukáže skutečný čas a umožní vzít přidání zpět.
 
 Když se úkol nevejde, zůstane uložený a jasně označený. Uvolněné místo se znovu automaticky kontroluje. Původní zachycené úkoly se migrují. Zítřejší plán se při změně data stane dnešním; vlastní nedokončené úkoly se zachovávají.
+
+Dne 16. 9. 2026 proběhl první UX průchod zaměřený na méně textu. PR #1 byl squash-merge do `main` jako commit `b22ae165130c7409a98dd52194f53218bb7af446`. Přidán `web/app/compact-copy.css` a import v `web/app/layout.tsx`. Skryty byly hlavně duplicitní helper odstavce v Dnes, Přidat úkol, Milníky, Nastavení a pravém kontextovém panelu. Zachovány zůstaly časy, stav, ovládací prvky, kapacita, důvody čekajících úkolů a důležité akce. Plánovací logika ani data se neměnily. Build, TypeScript ani browser/E2E test tohoto konkrétního UX kola nebyly spuštěny. Změna je v GitHubu, ale nebyla publikována do Sites.
 
 Stack: React, TypeScript, Vinext/Vite, Next-style struktura a stávající UI komponenty. Zachovat `pnpm-lock.yaml`, strukturu a závislosti. Data: localStorage `dayframe-v1`, schema 4. Interní pole `inboxTasks` je ponecháno kvůli kompatibilitě, v rozhraní Inbox není. Nemazat úložiště jako běžný krok při testování.
 
