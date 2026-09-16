@@ -25,7 +25,7 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri -> src-tauri/target"
+          workspaces: "src-tauri -> target"
 
       - name: Install Tauri CLI
         shell: pwsh
@@ -37,7 +37,7 @@ jobs:
 
       - name: Build MSI and EXE installers
         shell: pwsh
-        run: tauri build --bundles msi,nsis
+        run: tauri build --bundles "msi,nsis"
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
