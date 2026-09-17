@@ -57,7 +57,7 @@ test("dragging a task to a concrete time makes it fixed", () => {
   let state = migrateStoredState(null, now);
   state.routines = [];
   const added = addTask(state, { title: "Matika", date: "2026-09-18", duration: 60, priority: "normal", category: "Matika", repeat: "none" }, now);
-  const moved = moveTask(added.state, added.task.id, "2026-09-19", "16:00");
+  const moved = moveTask(added.state, added.task.id, "2026-09-19", "16:00", now);
   assert.equal(moved.error, undefined);
   assert.equal(moved.task.date, "2026-09-19");
   assert.equal(moved.task.start, "16:00");
