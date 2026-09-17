@@ -13,9 +13,24 @@ type CalendarTask = {
   fixed?: boolean;
 };
 
+type WaitingTask = {
+  id: number;
+  title: string;
+  duration: number;
+  category: string;
+  targetDate?: string;
+  requestedStart?: string;
+};
+
+type DisplayTask = CalendarTask & {
+  pending?: boolean;
+  source: "live" | "template" | "waiting";
+};
+
 type SavedDayframe = {
   date?: string;
   tasks?: CalendarTask[];
+  inboxTasks?: WaitingTask[];
   tomorrowDate?: string;
   tomorrowTasks?: CalendarTask[];
 };
@@ -88,6 +103,7 @@ function addDays(date: Date, days: number) {
 function minutesBetween(start: string, end: string) {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
+  if (![sh, sm, eh, em].every(Number.isFinite)) return 0;
   return eh * 60 + em - (sh * 60 + sm);
 }
 
@@ -97,20 +113,28 @@ function timeToMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
-function sortTasksChronologically(items: CalendarTask[]) {
+function addMinutes(time: string, duration: number) {
+  const total = timeToMinutes(time) + duration;
+  if (!Number.isFinite(total) || total >= 24 * 60) return time;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function sortTasksChronologically(items: DisplayTask[]) {
   return [...items].sort((a, b) => {
     const startDifference = timeToMinutes(a.start) - timeToMinutes(b.start);
     if (startDifference) return startDifference;
+    if (a.pending !== b.pending) return a.pending ? 1 : -1;
     const endDifference = timeToMinutes(a.end) - timeToMinutes(b.end);
     if (endDifference) return endDifference;
     return a.title.localeCompare(b.title, "cs");
   });
 }
 
-function templateTasks(date: Date) {
+function templateTasks(date: Date): DisplayTask[] {
   return (templates[date.getDay()] ?? []).map((task, index) => ({
     ...task,
     id: Number(`${date.getFullYear()}${date.getMonth() + 1}${date.getDate()}${index}`),
+    source: "template",
   }));
 }
 
@@ -121,6 +145,15 @@ function readSaved(): SavedDayframe {
   } catch {
     return {};
   }
+}
+
+function findNavigationButton(label: string) {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>(".side-panel nav > button"))
+    .find((button) => button.textContent?.includes(label));
+}
+
+function afterRender(callback: () => void) {
+  window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
 }
 
 export function WeekCalendar() {
@@ -136,6 +169,61 @@ export function WeekCalendar() {
     const todayButton = document.querySelector<HTMLButtonElement>(".side-panel nav > button");
     todayButton?.click();
     window.requestAnimationFrame(() => setOpen(true));
+  }
+
+  function openCaptureForDate(dateKey: string) {
+    setOpen(false);
+    window.dispatchEvent(new CustomEvent("dayframe:capture-date", { detail: { date: dateKey } }));
+    findNavigationButton("Přidat úkol")?.click();
+    afterRender(() => document.querySelector<HTMLInputElement>("#capture-task-name")?.focus());
+  }
+
+  function openWaitingTask(task: DisplayTask, dateKey: string) {
+    setOpen(false);
+    window.dispatchEvent(new CustomEvent("dayframe:capture-date", { detail: { date: dateKey } }));
+    findNavigationButton("Přidat úkol")?.click();
+    afterRender(() => {
+      const row = Array.from(document.querySelectorAll<HTMLElement>(".waiting-row")).find((candidate) =>
+        candidate.querySelector(".planning-copy strong")?.textContent?.trim() === task.title,
+      );
+      const edit = Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((button) => button.textContent?.trim() === "Upravit");
+      edit?.click();
+    });
+  }
+
+  function openLiveTask(task: DisplayTask, dateKey: string) {
+    const todayKey = localDateKey(new Date());
+    setOpen(false);
+    if (dateKey === todayKey) {
+      afterRender(() => {
+        const row = Array.from(document.querySelectorAll<HTMLElement>(".timeline-row")).find((candidate) =>
+          candidate.querySelector(".task-copy strong")?.textContent?.trim() === task.title
+          && candidate.querySelector(".task-time strong")?.textContent?.trim() === task.start,
+        );
+        row?.querySelector<HTMLButtonElement>(".task-open")?.click();
+      });
+      return;
+    }
+
+    findNavigationButton("Přidat úkol")?.click();
+    afterRender(() => {
+      const row = Array.from(document.querySelectorAll<HTMLElement>(".tomorrow-row")).find((candidate) =>
+        candidate.querySelector(".planning-copy strong")?.textContent?.trim() === task.title
+        && candidate.querySelector(".tomorrow-time strong")?.textContent?.trim() === task.start,
+      );
+      const edit = Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((button) => button.textContent?.trim() === "Upravit");
+      edit?.click();
+    });
+  }
+
+  function openTask(task: DisplayTask, dateKey: string) {
+    if (task.source === "waiting") {
+      openWaitingTask(task, dateKey);
+      return;
+    }
+    if (task.source === "live") openLiveTask(task, dateKey);
   }
 
   useEffect(() => {
@@ -202,9 +290,32 @@ export function WeekCalendar() {
 
   const tasksForDate = (date: Date) => {
     const key = localDateKey(date);
-    if (saved.date === key && Array.isArray(saved.tasks)) return { tasks: sortTasksChronologically(saved.tasks), live: true };
-    if (saved.tomorrowDate === key && Array.isArray(saved.tomorrowTasks)) return { tasks: sortTasksChronologically(saved.tomorrowTasks), live: true };
-    return { tasks: sortTasksChronologically(templateTasks(date)), live: false };
+    let base: DisplayTask[];
+    let live = false;
+    if (saved.date === key && Array.isArray(saved.tasks)) {
+      base = saved.tasks.map((task) => ({ ...task, source: "live" as const }));
+      live = true;
+    } else if (saved.tomorrowDate === key && Array.isArray(saved.tomorrowTasks)) {
+      base = saved.tomorrowTasks.map((task) => ({ ...task, source: "live" as const }));
+      live = true;
+    } else {
+      base = templateTasks(date);
+    }
+
+    const waiting: DisplayTask[] = (saved.inboxTasks ?? [])
+      .filter((task) => task.targetDate === key)
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        start: task.requestedStart ?? "99:99",
+        end: task.requestedStart ? addMinutes(task.requestedStart, task.duration) : "99:99",
+        category: task.category,
+        fixed: Boolean(task.requestedStart),
+        pending: true,
+        source: "waiting" as const,
+      }));
+
+    return { tasks: sortTasksChronologically([...base, ...waiting]), live };
   };
 
   const navButton = (
@@ -244,31 +355,57 @@ export function WeekCalendar() {
             {days.map((date) => {
               const key = localDateKey(date);
               const isToday = key === todayKey;
+              const isPast = key < todayKey;
               const { tasks: dayTasks, live } = tasksForDate(date);
-              const plannedMinutes = dayTasks.reduce((sum, task) => sum + Math.max(0, minutesBetween(task.start, task.end)), 0);
+              const plannedMinutes = dayTasks
+                .filter((task) => !task.pending)
+                .reduce((sum, task) => sum + Math.max(0, minutesBetween(task.start, task.end)), 0);
+              const blockCount = dayTasks.filter((task) => !task.pending).length;
               return (
                 <article className={`week-day ${isToday ? "today" : ""}`} key={key}>
-                  <header className="week-day-header">
+                  <button
+                    type="button"
+                    className="week-day-header"
+                    disabled={isPast}
+                    onClick={() => openCaptureForDate(key)}
+                    aria-label={isPast ? undefined : `Přidat úkol na ${new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long" }).format(date)}`}
+                  >
                     <div>
                       <span>{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", "")}</span>
                       <strong>{date.getDate()}</strong>
                     </div>
-                    <small>{isToday ? "Dnes" : live ? "Plán" : "Šablona"}</small>
-                  </header>
+                    <span className="week-day-header-meta">
+                      <small>{isToday ? "Dnes" : live ? "Plán" : "Šablona"}</small>
+                      {!isPast && <em>+ Úkol</em>}
+                    </span>
+                  </button>
 
                   <div className="week-day-load">
-                    <span>{dayTasks.length} {dayTasks.length === 1 ? "blok" : dayTasks.length >= 2 && dayTasks.length <= 4 ? "bloky" : "bloků"}</span>
+                    <span>{blockCount} {blockCount === 1 ? "blok" : blockCount >= 2 && blockCount <= 4 ? "bloky" : "bloků"}</span>
                     <span>{Math.floor(plannedMinutes / 60)} h {plannedMinutes % 60 ? `${plannedMinutes % 60} min` : ""}</span>
                   </div>
 
                   <div className="week-day-tasks">
-                    {dayTasks.length ? dayTasks.map((task) => (
-                      <div className={`week-task ${task.fixed ? "week-task-fixed" : ""} ${task.completed ? "done" : ""}`} key={`${key}-${task.id}-${task.start}`}>
-                        <span className="week-task-time">{task.start}–{task.end}</span>
-                        <strong>{task.title}</strong>
-                        <small>{task.category}</small>
-                      </div>
-                    )) : <p className="week-empty">Volno</p>}
+                    {dayTasks.length ? dayTasks.map((task) => {
+                      const editable = task.source !== "template";
+                      const content = (
+                        <>
+                          <span className="week-task-time">{task.pending && task.start === "99:99" ? "Čas doplní Dayframe" : `${task.start}–${task.end}`}</span>
+                          <strong>{task.title}</strong>
+                          <small>{task.pending ? `${task.category} · čeká` : task.category}</small>
+                        </>
+                      );
+                      const className = `week-task ${task.fixed ? "week-task-fixed" : ""} ${task.completed ? "done" : ""} ${task.pending ? "pending" : ""} ${editable ? "editable" : ""}`;
+                      return editable ? (
+                        <button type="button" className={className} key={`${key}-${task.id}-${task.start}`} onClick={() => openTask(task, key)} aria-label={`Upravit úkol ${task.title}`}>
+                          {content}
+                        </button>
+                      ) : (
+                        <div className={className} key={`${key}-${task.id}-${task.start}`} title="Šablonový blok zatím není editovatelný">
+                          {content}
+                        </div>
+                      );
+                    }) : <p className="week-empty">Volno</p>}
                   </div>
                 </article>
               );
@@ -277,7 +414,7 @@ export function WeekCalendar() {
 
           <footer className="week-calendar-note">
             <span className="week-note-dot" />
-            <p>Dnes a zítra ukazují skutečný plán. Ostatní dny zatím vycházejí z tvé týdenní šablony.</p>
+            <p>Klikni na den pro nový úkol. Dnešek a zítřek jsou skutečný plán; ostatní bloky jsou zatím šablona.</p>
           </footer>
         </section>,
         mainHost,
