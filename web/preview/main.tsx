@@ -1,20 +1,9 @@
 import { createRoot } from "react-dom/client";
-import { DayframeApp } from "../app/dayframe-app";
-import { CaptureStartControl } from "../app/capture-start-control";
-import { MissedTaskActions } from "../app/missed-task-actions";
-import { WeekCalendar } from "../app/week-calendar";
+import { DayframeV2 } from "../app/dayframe-v2";
 import "../app/globals.css";
-import "../app/compact-copy.css";
-import "../app/week-calendar.css";
+import "../app/dayframe-v2.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
 
-createRoot(root).render(
-  <>
-    <DayframeApp />
-    <CaptureStartControl />
-    <MissedTaskActions />
-    <WeekCalendar />
-  </>,
-);
+createRoot(root).render(<DayframeV2 />);

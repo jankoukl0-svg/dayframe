@@ -1,10 +1,6 @@
-import { DayframeApp } from "./dayframe-app";
-import { CaptureStartControl } from "./capture-start-control";
-import { CaptureResultCleaner } from "./capture-result-cleaner";
-import { MissedTaskActions } from "./missed-task-actions";
-import { WeekCalendar } from "./week-calendar";
-import "./week-calendar.css";
+import { DayframeV2 } from "./dayframe-v2";
+import "./dayframe-v2.css";
 
 export default function Home() {
-  return <><DayframeApp /><CaptureStartControl /><CaptureResultCleaner /><MissedTaskActions /><WeekCalendar /></>;
+  return <DayframeV2 />;
 }
