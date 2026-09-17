@@ -64,6 +64,24 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   expect(weekVisual.contained).toBe(true);
   expect(weekVisual.contentFits).toBe(true);
 
+  await expect(page.locator(".df2-week-task.fixed-block .df2-task-lock").first()).toBeVisible();
+
+  const draggedTitle = "CFI / Excel";
+  const sourceTask = page.locator(".df2-week-day").first().locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
+  const saturdayBody = page.locator(".df2-week-day").nth(5).locator(".df2-time-body");
+  await sourceTask.dragTo(saturdayBody, { targetPosition: { x: 70, y: 378 } });
+  await expect(page.locator(".df2-notice")).toContainText("zamknuto");
+  const movedTask = page.locator(".df2-week-day").nth(5).locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
+  await expect(movedTask).toBeVisible();
+  await expect(movedTask).toContainText("18:00");
+  await expect(movedTask.locator(".df2-task-lock")).toBeVisible();
+
+  await movedTask.click();
+  const modeSelect = page.locator('select[name="mode"]');
+  await expect(modeSelect).toHaveValue("fixed");
+  await expect(modeSelect.locator('option[value="fixed"]')).toHaveText("Zamknutý čas");
+  await page.locator(".df2-modal header > button").click();
+
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   let targetIndex = todayIndex + 1;
   if (targetIndex > 6) {

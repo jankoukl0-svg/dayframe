@@ -7,6 +7,7 @@ import {
   addMilestone,
   addTask,
   calendarBounds,
+  canPlaceAt,
   createEmptyState,
   dateFromKey,
   deleteRoutine,
@@ -36,6 +37,7 @@ import { parseSmartTaskInput } from "@/lib/dayframe-smart-input";
 
 const STORAGE_KEY = "dayframe-v1";
 const MINUTE_HEIGHT = 0.72;
+const DROP_MAGNET_RANGE = 60;
 
 type View = "today" | "week" | "add" | "focus" | "milestones" | "settings";
 
@@ -49,6 +51,20 @@ type Draft = {
   priority: Priority;
   category: string;
   repeat: RepeatRule;
+};
+
+type DragState = {
+  id: string;
+  date: string;
+  duration: number;
+  grabOffsetMinutes: number;
+};
+
+type DropPreview = {
+  date: string;
+  start: string;
+  duration: number;
+  valid: boolean;
 };
 
 const emptyDraft = (): Draft => ({
@@ -101,7 +117,8 @@ export function DayframeV2() {
   const [editing, setEditing] = useState<CalendarTask | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [dragging, setDragging] = useState<{ id: string; date: string } | null>(null);
+  const [dragging, setDragging] = useState<DragState | null>(null);
+  const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [focusTask, setFocusTask] = useState<CalendarTask | null>(null);
   const [focusSeconds, setFocusSeconds] = useState(50 * 60);
   const [focusRunning, setFocusRunning] = useState(false);
@@ -235,7 +252,7 @@ export function DayframeV2() {
     const duration = Number(form.get("duration")) || editing.duration;
     const start = mode === "fixed" ? String(form.get("start") || "") : "";
     if (mode === "fixed" && !start) {
-      setError("Pevný blok potřebuje čas začátku.");
+      setError("Zamknutý blok potřebuje čas začátku.");
       return;
     }
     const result = updateTask(data, editing.id, {
@@ -261,21 +278,72 @@ export function DayframeV2() {
     setEditing(null);
   }
 
+  function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
+    const min = calendarBounds.dayStart;
+    const max = calendarBounds.dayEnd - duration;
+    const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
+    const destination = getTasksForDate(data, date).filter((task) => task.id !== id);
+    const offsets = [0, -15, 15, -30, 30, -45, 45, -60, 60];
+    for (const offset of offsets) {
+      if (Math.abs(offset) > DROP_MAGNET_RANGE) continue;
+      const candidate = rounded + offset;
+      if (candidate < min || candidate > max) continue;
+      if (canPlaceAt(destination, candidate, duration)) return candidate;
+    }
+    return null;
+  }
+
+  function previewForPointer(event: React.DragEvent<HTMLDivElement>, date: string): DropPreview | null {
+    if (!dragging) return null;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const pointerMinute = calendarBounds.dayStart + (event.clientY - rect.top) / MINUTE_HEIGHT;
+    const desiredStart = pointerMinute - dragging.grabOffsetMinutes;
+    const fallback = Math.max(
+      calendarBounds.dayStart,
+      Math.min(calendarBounds.dayEnd - dragging.duration, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot),
+    );
+    const snapped = nearestOpenDrop(date, desiredStart, dragging.duration, dragging.id);
+    return {
+      date,
+      start: minutesToTime(snapped ?? fallback),
+      duration: dragging.duration,
+      valid: snapped !== null,
+    };
+  }
+
+  function onDragOver(event: React.DragEvent<HTMLDivElement>, date: string) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const preview = previewForPointer(event, date);
+    if (!preview) return;
+    setDropPreview((current) => current?.date === preview.date
+      && current.start === preview.start
+      && current.valid === preview.valid
+      && current.duration === preview.duration
+      ? current
+      : preview);
+  }
+
   function onDrop(event: React.DragEvent<HTMLDivElement>, date: string) {
     event.preventDefault();
     if (!dragging) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const relative = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
-    const minute = calendarBounds.dayStart + relative / MINUTE_HEIGHT;
-    const start = minutesToTime(Math.round(minute / 15) * 15);
-    const result = moveTask(data, dragging.id, date, start);
+    const preview = previewForPointer(event, date);
+    if (!preview?.valid) {
+      setDragging(null);
+      setDropPreview(null);
+      setNotice("Tady není volný 15min slot poblíž. Blok zůstal na původním místě.");
+      return;
+    }
+    const result = moveTask(data, dragging.id, date, preview.start);
     setDragging(null);
+    setDropPreview(null);
     if (result.error) {
       setNotice(result.error);
       return;
     }
     setData(result.state);
-    setNotice(`${result.task?.title ?? "Úkol"} přesunut na ${shortDate(date)} v ${start}.`);
+    const actualStart = result.task?.start ?? preview.start;
+    setNotice(`${result.task?.title ?? "Úkol"} · zamknuto na ${shortDate(date)} v ${actualStart}.`);
   }
 
   function startFocus(task: CalendarTask | null) {
@@ -358,12 +426,25 @@ export function DayframeV2() {
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
                         </div>
                         <div
-                          className="df2-time-body"
-                          onDragOver={(event) => event.preventDefault()}
+                          className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
+                          onDragOver={(event) => onDragOver(event, key)}
                           onDrop={(event) => onDrop(event, key)}
                         >
                           {Array.from({ length: 14 }, (_, index) => <span className="df2-hour-line" key={index} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{10 + index}:00</em></span>)}
                           <div className="df2-lunch" style={{ top: `${(calendarBounds.lunchStart - calendarBounds.dayStart) * MINUTE_HEIGHT}px`, height: `${60 * MINUTE_HEIGHT}px` }}><span>oběd</span></div>
+                          {dropPreview?.date === key && (
+                            <div
+                              className={`df2-drop-preview ${dropPreview.valid ? "valid" : "invalid"}`}
+                              style={{
+                                top: `${(timeToMinutes(dropPreview.start) - calendarBounds.dayStart) * MINUTE_HEIGHT}px`,
+                                height: `${Math.max(30, dropPreview.duration * MINUTE_HEIGHT)}px`,
+                              }}
+                              aria-hidden="true"
+                            >
+                              <i className="df2-lock-glyph" />
+                              <strong>{dropPreview.valid ? dropPreview.start : "není místo"}</strong>
+                            </div>
+                          )}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
                             const height = Math.max(30, task.duration * MINUTE_HEIGHT);
@@ -373,14 +454,22 @@ export function DayframeV2() {
                                 className={`df2-week-task ${task.mode === "fixed" ? "fixed-block" : "flex-block"} ${task.completed ? "done" : ""}`}
                                 style={{ top: `${top}px`, height: `${height}px` }}
                                 draggable={!task.completed}
-                                onDragStart={() => setDragging({ id: task.id, date: key })}
-                                onDragEnd={() => setDragging(null)}
+                                onDragStart={(event) => {
+                                  const rect = event.currentTarget.getBoundingClientRect();
+                                  const grabPixels = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+                                  const grabOffsetMinutes = Math.max(0, Math.min(task.duration, grabPixels / MINUTE_HEIGHT));
+                                  event.dataTransfer.effectAllowed = "move";
+                                  setDragging({ id: task.id, date: key, duration: task.duration, grabOffsetMinutes });
+                                  setDropPreview({ date: key, start: task.start ?? minutesToTime(calendarBounds.dayStart), duration: task.duration, valid: true });
+                                }}
+                                onDragEnd={() => { setDragging(null); setDropPreview(null); }}
                                 onClick={() => setEditing(task)}
-                                title={task.mode === "fixed" ? "Pevný blok · přetažením změníš den a čas" : "Flexibilní blok"}
+                                title={task.mode === "fixed" ? "Zamknutý čas · přetažením změníš a znovu zamkneš" : "Flexibilní blok · přetažením ho zamkneš"}
                               >
                                 <span>{task.start}–{task.end}</span>
                                 <strong>{task.title}</strong>
-                                <small>{task.category} · {task.mode === "fixed" ? "pevný" : "flex"}</small>
+                                <small>{task.category} · {task.mode === "fixed" ? "zamknutý" : "flex"}</small>
+                                {task.mode === "fixed" && <i className="df2-task-lock" aria-hidden="true" />}
                               </button>
                             );
                           })}
@@ -390,7 +479,7 @@ export function DayframeV2() {
                   })}
                 </div>
               </div>
-              <footer className="df2-week-help">Přetáhni blok na jiný den nebo čas. Ruční přesun z něj udělá pevný blok.</footer>
+              <footer className="df2-week-help">Přetažení drží místo, kde blok chytíš, zarovná čas po 15 minutách a po puštění ho zamkne. Odemknout ho můžeš v editoru.</footer>
             </section>
           )}
 
@@ -444,7 +533,7 @@ export function DayframeV2() {
           {view === "settings" && (
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><p>Chování Dayframe</p><h1>Nastavení</h1></div></header>
-              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>Den končí v 00:30</span></div><div><strong>Auto-plánování</strong><span>Celý týden · 15min sloty · respektuje pevné bloky</span></div><div><strong>Ukládání</strong><span>Lokální kalendář podle data · schema 5</span></div></div>
+              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>Den končí v 00:30</span></div><div><strong>Auto-plánování</strong><span>Celý týden · 15min sloty · respektuje zamknuté bloky</span></div><div><strong>Ukládání</strong><span>Lokální kalendář podle data · schema 5</span></div></div>
               <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => setData((current) => ({ ...current, routines: current.routines.map((item) => item.id === routine.id ? { ...item, active: event.target.checked } : item) }))} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id))}>Smazat</button></article>)}</section>
             </section>
           )}
@@ -457,7 +546,7 @@ export function DayframeV2() {
             <header><div><span>Úkol</span><h2>Upravit</h2></div><button type="button" onClick={() => setEditing(null)}>×</button></header>
             <label>Název<input name="title" defaultValue={editing.title} /></label>
             <div className="df2-form-grid"><label>Den<input name="date" type="date" defaultValue={editing.date} /></label><label>Délka<input name="duration" type="number" min="15" step="5" defaultValue={editing.duration} /></label></div>
-            <div className="df2-form-grid"><label>Režim<select name="mode" defaultValue={editing.mode}><option value="fixed">Pevný čas</option><option value="flexible">Flexibilní</option></select></label><label>Začátek<input name="start" type="time" defaultValue={editing.start ?? ""} /></label></div>
+            <div className="df2-form-grid"><label>Čas<select name="mode" defaultValue={editing.mode}><option value="fixed">Zamknutý čas</option><option value="flexible">Flexibilní čas</option></select></label><label>Začátek<input name="start" type="time" defaultValue={editing.start ?? ""} /></label></div>
             <div className="df2-form-grid"><label>Priorita<select name="priority" defaultValue={editing.priority}><option value="high">Vysoká</option><option value="normal">Běžná</option><option value="low">Nízká</option></select></label><label>Oblast<select name="category" defaultValue={editing.category}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
             <div className="df2-form-grid"><label>Dokončit do<input name="dueDate" type="date" defaultValue={editing.dueDate ?? ""} /></label><label>Nejpozději v<input name="deadlineTime" type="time" defaultValue={editing.deadlineTime ?? "22:30"} /></label></div>
             {error && <p className="df2-error">{error}</p>}
@@ -522,10 +611,10 @@ function TodayView({
 
       <section className="df2-now-card">
         <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
-        {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.category} · {activeTask.duration} min · {activeTask.mode === "fixed" ? "pevný blok" : "flexibilní"}</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Teď nemáš žádný blok</h2><p>Přidej úkol nebo si nech volno.</p></div>}
+        {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.category} · {activeTask.duration} min · {activeTask.mode === "fixed" ? "zamknutý blok" : "flexibilní"}</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Teď nemáš žádný blok</h2><p>Přidej úkol nebo si nech volno.</p></div>}
       </section>
       {missed.length > 0 && <section className="df2-missed"><header><span>Vyžaduje rozhodnutí</span><strong>{missed.length} {missed.length === 1 ? "nedokončený blok" : "nedokončené bloky"}</strong></header>{missed.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>měl skončit v {task.end}</small></div><div><button onClick={() => onDone(task.id)}>Hotovo</button><button onClick={() => onTomorrow(task.id)}>Na zítra</button><button onClick={() => onDelete(task.id)}>Zrušit</button></div></article>)}</section>}
-      <section className="df2-next"><div className="df2-section-head"><h2>Co následuje</h2><span>{completed}/{tasks.length} hotovo{unscheduled ? ` · ${unscheduled} bez času` : ""}</span></div>{nextTasks.length ? nextTasks.map((task) => <button key={task.id} onClick={() => onEdit(task)}><time>{task.start}</time><span><strong>{task.title}</strong><small>{task.category} · {task.duration} min</small></span><em>{task.mode === "fixed" ? "pevný" : "flex"}</em></button>) : <div className="df2-empty">Žádný další blok.</div>}</section>
+      <section className="df2-next"><div className="df2-section-head"><h2>Co následuje</h2><span>{completed}/{tasks.length} hotovo{unscheduled ? ` · ${unscheduled} bez času` : ""}</span></div>{nextTasks.length ? nextTasks.map((task) => <button key={task.id} onClick={() => onEdit(task)}><time>{task.start}</time><span><strong>{task.title}</strong><small>{task.category} · {task.duration} min</small></span><em>{task.mode === "fixed" ? "zamknutý" : "flex"}</em></button>) : <div className="df2-empty">Žádný další blok.</div>}</section>
       <footer className="df2-today-status"><span className={missed.length ? "warning" : "ok"} />{missed.length ? "Plán potřebuje rozhodnutí u minulých bloků." : "Plán je realistický. Dayframe nic automaticky nepřenáší do dalšího dne."}</footer>
     </section>
   );
