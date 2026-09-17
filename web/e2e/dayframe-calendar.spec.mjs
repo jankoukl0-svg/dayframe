@@ -4,6 +4,11 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await page.addInitScript(() => window.localStorage.clear());
   await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
 
+  await expect(page.getByText("Do konce dne", { exact: true })).toBeVisible();
+  await expect(page.getByText("Konec 00:30", { exact: true })).toBeVisible();
+  await expect(page.locator(".df2-event-countdown")).toBeVisible();
+  await expect(page.locator(".df2-event-countdown")).toContainText("Nejbližší termín");
+
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 
