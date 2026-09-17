@@ -113,6 +113,8 @@
 @media (max-width: 760px) {
   .mobile-nav { grid-template-columns: repeat(6, 1fr); }
   .mobile-nav button { font-size: 11px; }
+  .week-calendar-active .mobile-nav > button.active { background: transparent; color: #777872; font-weight: 400; }
+  .week-calendar-active .mobile-nav .week-mobile-nav-host button.active { background: var(--paper); color: var(--accent-dark); font-weight: 700; }
   .week-calendar-active .dayframe-shell { display: block; }
   .week-calendar-header { min-height: 62px; align-items: center; margin-bottom: 21px; }
   .week-calendar-header h1 { font-size: 30px; }
