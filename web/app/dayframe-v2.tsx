@@ -337,8 +337,6 @@ export function DayframeV2() {
       return;
     }
     setData(result.state);
-    const actualStart = result.task?.start ?? preview.start;
-    setNotice(`${result.task?.title ?? "Úkol"} · ${shortDate(date)} v ${actualStart}.`);
   }
 
   function startFocus(task: CalendarTask | null) {
