@@ -8,7 +8,7 @@ Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan ch
 
 Repo: https://github.com/jankoukl0-svg/dayframe  
 Výchozí větev: `main`  
-Aktuální hlavní funkční commit: `131d8c89e7884f8f150d18213c5601aef89e15fd`  
+Aktuální hlavní funkční commit: `cd509b758577743f4c5a486825a5cf153d0e6d3f`  
 Vývojový Vercel preview: https://dayframe2.vercel.app  
 Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
@@ -43,6 +43,7 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 - Nedokončené úkoly z minulého dne se nesmí automaticky nabalovat do dalšího dne.
 - U zmeškaného úkolu má uživatel explicitní volbu `Hotovo / Přesunout na zítra / Zrušit`.
 - Týdenní pohled má být rychlý přehled, ne přeplácaná kopie Google Calendar.
+- Úkoly v každém dni týdenního pohledu musí být vždy řazené chronologicky podle začátku.
 
 ## Aktuální chování
 
@@ -52,7 +53,7 @@ Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17
 
 Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Smart input je deterministický parser, ne obecné AI/NLP.
 
-Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
+Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Úkoly v každém dni se před vykreslením řadí podle začátku, při shodě podle konce. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
 
 ## Důležité předchozí změny
 
@@ -64,10 +65,11 @@ Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). 
 - PR #6: regresní test přesně pro `matika 40 min od 17:00`; merge `9f004f9b2063815e268a456d48112c33c964049d`.
 - `web/vercel.json`: příprava automatického Vercel preview buildu; následně byl projekt `dayframe2` správně propojen s repem a rootem `web`.
 - PR #9: týdenní kalendář; squash merge `131d8c89e7884f8f150d18213c5601aef89e15fd`.
+- PR #10: chronologické řazení úkolů v týdenním kalendáři; squash merge `cd509b758577743f4c5a486825a5cf153d0e6d3f`.
 
 ## Testování a rizika
 
-GitHub Actions `Check web preview` pro finální head PR #9 prošel úspěšně; krok `Build static preview` byl PASS. Vercel preview deployment pro PR #9 měl stav `success`. Produkční Vercel deployment po merge spouští Git integrace automaticky.
+GitHub Actions `Check web preview` pro PR #10 prošel úspěšně a Vercel preview deployment pro jeho head měl stav `success` před merge. Produkční Vercel deployment po merge spouští Git integrace automaticky.
 
 Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem, ale klikání a responzivní chování má uživatel průběžně kontrolovat na `https://dayframe2.vercel.app`.
 
