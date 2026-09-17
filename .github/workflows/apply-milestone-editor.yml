@@ -1,0 +1,171 @@
+name: Apply milestone editor patch
+
+on:
+  push:
+    branches:
+      - feature/edit-milestones-2026-09-17
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/edit-milestones-2026-09-17
+      - name: Apply milestone editing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          app_path = Path('web/app/dayframe-v2.tsx')
+          app = app_path.read_text()
+
+          app = replace_once(app,
+          '''  const [milestoneTitle, setMilestoneTitle] = useState("");
+          const [milestoneDate, setMilestoneDate] = useState("");
+          const focusTimer = useRef<number | null>(null);''',
+          '''  const [milestoneTitle, setMilestoneTitle] = useState("");
+          const [milestoneDate, setMilestoneDate] = useState("");
+          const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+          const focusTimer = useRef<number | null>(null);''',
+          'milestone state')
+
+          app = replace_once(app,
+          '''      if (event.key === "Escape") setEditing(null);''',
+          '''      if (event.key === "Escape") {
+                setEditing(null);
+                setEditingMilestoneId(null);
+              }''',
+          'escape handler')
+
+          app = replace_once(app,
+          '''  function addNewMilestone(event: React.FormEvent) {
+            event.preventDefault();
+            if (!milestoneTitle.trim() || !milestoneDate) return;
+            setData((current) => addMilestone(current, milestoneTitle, milestoneDate));
+            setMilestoneTitle("");
+            setMilestoneDate("");
+          }
+
+          return (''',
+          '''  function addNewMilestone(event: React.FormEvent) {
+            event.preventDefault();
+            if (!milestoneTitle.trim() || !milestoneDate) return;
+            setData((current) => addMilestone(current, milestoneTitle, milestoneDate));
+            setMilestoneTitle("");
+            setMilestoneDate("");
+          }
+
+          function saveMilestoneEdit(event: React.FormEvent<HTMLFormElement>) {
+            event.preventDefault();
+            if (!editingMilestoneId) return;
+            const form = new FormData(event.currentTarget);
+            const title = String(form.get("title") || "").trim();
+            const date = String(form.get("date") || "");
+            const note = String(form.get("note") || "").trim();
+            if (!title || !date) return;
+            setData((current) => ({
+              ...current,
+              milestones: current.milestones
+                .map((milestone) => milestone.id === editingMilestoneId
+                  ? { ...milestone, title, date, note: note || "Vlastní termín" }
+                  : milestone)
+                .sort((a, b) => a.date.localeCompare(b.date)),
+            }));
+            setEditingMilestoneId(null);
+          }
+
+          function removeMilestone(id: string) {
+            setData((current) => ({ ...current, milestones: current.milestones.filter((milestone) => milestone.id !== id) }));
+            setEditingMilestoneId(null);
+          }
+
+          const editingMilestone = editingMilestoneId
+            ? data.milestones.find((milestone) => milestone.id === editingMilestoneId) ?? null
+            : null;
+
+          return (''',
+          'milestone edit functions')
+
+          app = replace_once(app,
+          '''              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>''',
+          '''              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id} role="button" tabIndex={0} title="Upravit milník" onClick={() => setEditingMilestoneId(milestone.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEditingMilestoneId(milestone.id); } }}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>''',
+          'milestone list interaction')
+
+          app = replace_once(app,
+          '''      {editing && (
+                <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>''',
+          '''      {editingMilestone && (
+                <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingMilestoneId(null); }}>
+                  <form className="df2-modal" onSubmit={saveMilestoneEdit}>
+                    <header><div><span>Milník</span><h2>Upravit milník</h2></div><button type="button" onClick={() => setEditingMilestoneId(null)}>×</button></header>
+                    <label>Název<input name="title" autoFocus defaultValue={editingMilestone.title} /></label>
+                    <div className="df2-form-grid"><label>Datum<input name="date" type="date" defaultValue={editingMilestone.date} /></label><label>Popisek<input name="note" defaultValue={editingMilestone.note} placeholder="Např. hlavní termín" /></label></div>
+                    <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button type="button" className="danger" onClick={() => removeMilestone(editingMilestone.id)}>Smazat milník</button></div>
+                  </form>
+                </div>
+              )}
+
+              {editing && (
+                <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>''',
+          'milestone modal')
+
+          app_path.write_text(app)
+
+          css_path = Path('web/app/dayframe-v2.css')
+          css = css_path.read_text()
+          css = replace_once(css,
+          '''.df2-milestones article { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 78px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+          .df2-milestones article > div { display: grid; gap: 5px; }''',
+          '''.df2-milestones article { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 78px; padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .12s ease, padding .12s ease; }
+          .df2-milestones article:hover { padding-inline: 10px; background: var(--paper); }
+          .df2-milestones article:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+          .df2-milestones article > div { display: grid; gap: 5px; }''',
+          'milestone styles')
+          css_path.write_text(css)
+
+          test_path = Path('web/e2e/dayframe-calendar.spec.mjs')
+          test = test_path.read_text()
+          test = replace_once(test,
+          '''  await targetAfterSave.locator(".df2-week-task").filter({ hasText: "Zeměpis" }).click();
+            await expect(page.getByRole("heading", { name: "Upravit" })).toBeVisible();
+          });''',
+          '''  await targetAfterSave.locator(".df2-week-task").filter({ hasText: "Zeměpis" }).click();
+            await expect(page.getByRole("heading", { name: "Upravit" })).toBeVisible();
+            await page.locator(".df2-modal header > button").click();
+
+            await page.locator(".df2-sidebar nav button").filter({ hasText: "Milníky" }).click();
+            const milestone = page.locator(".df2-milestones article").filter({ hasText: "Dokončit CFI Excel" });
+            await milestone.click();
+            await expect(page.getByRole("heading", { name: "Upravit milník" })).toBeVisible();
+            await page.locator('.df2-modal input[name="title"]').fill("Dokončit CFI Excel test");
+            await page.locator('.df2-modal input[name="date"]').fill("2026-11-02");
+            await page.locator('.df2-modal input[name="note"]').fill("Aktualizovaný termín");
+            await page.getByRole("button", { name: "Uložit změny" }).click();
+            await expect(page.locator(".df2-milestones")).toContainText("Dokončit CFI Excel test");
+            await expect(page.locator(".df2-milestones")).toContainText("Aktualizovaný termín");
+          });''',
+          'milestone browser test')
+          test_path.write_text(test)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/app/dayframe-v2.tsx web/app/dayframe-v2.css web/e2e/dayframe-calendar.spec.mjs
+          if git diff --cached --quiet; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git commit -m "Add milestone editing"
+          git push origin HEAD:feature/edit-milestones-2026-09-17
