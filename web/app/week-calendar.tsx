@@ -91,6 +91,22 @@ function minutesBetween(start: string, end: string) {
   return eh * 60 + em - (sh * 60 + sm);
 }
 
+function timeToMinutes(time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number.MAX_SAFE_INTEGER;
+  return hours * 60 + minutes;
+}
+
+function sortTasksChronologically(items: CalendarTask[]) {
+  return [...items].sort((a, b) => {
+    const startDifference = timeToMinutes(a.start) - timeToMinutes(b.start);
+    if (startDifference) return startDifference;
+    const endDifference = timeToMinutes(a.end) - timeToMinutes(b.end);
+    if (endDifference) return endDifference;
+    return a.title.localeCompare(b.title, "cs");
+  });
+}
+
 function templateTasks(date: Date) {
   return (templates[date.getDay()] ?? []).map((task, index) => ({
     ...task,
@@ -186,9 +202,9 @@ export function WeekCalendar() {
 
   const tasksForDate = (date: Date) => {
     const key = localDateKey(date);
-    if (saved.date === key && Array.isArray(saved.tasks)) return { tasks: saved.tasks, live: true };
-    if (saved.tomorrowDate === key && Array.isArray(saved.tomorrowTasks)) return { tasks: saved.tomorrowTasks, live: true };
-    return { tasks: templateTasks(date), live: false };
+    if (saved.date === key && Array.isArray(saved.tasks)) return { tasks: sortTasksChronologically(saved.tasks), live: true };
+    if (saved.tomorrowDate === key && Array.isArray(saved.tomorrowTasks)) return { tasks: sortTasksChronologically(saved.tomorrowTasks), live: true };
+    return { tasks: sortTasksChronologically(templateTasks(date)), live: false };
   };
 
   const navButton = (
