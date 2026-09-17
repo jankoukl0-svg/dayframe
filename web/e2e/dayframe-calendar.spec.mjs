@@ -86,7 +86,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   const sourceTask = page.locator(".df2-week-day").first().locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
   const saturdayBody = page.locator(".df2-week-day").nth(5).locator(".df2-time-body");
   await sourceTask.dragTo(saturdayBody, { targetPosition: { x: 70, y: 378 } });
-  await expect(page.locator(".df2-notice")).not.toContainText(/zamknut/i);
+  await expect(page.locator(".df2-notice")).toHaveCount(0);
   const movedTask = page.locator(".df2-week-day").nth(5).locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
   await expect(movedTask).toBeVisible();
   await expect(movedTask).toContainText("18:00");
