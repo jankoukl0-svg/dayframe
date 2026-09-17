@@ -9,6 +9,33 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await expect(page.locator(".df2-event-countdown")).toBeVisible();
   await expect(page.locator(".df2-event-countdown")).toContainText("Nejbližší termín");
 
+  const countdownVisual = await page.locator(".df2-day-ruler").evaluate((element) => {
+    const ruler = getComputedStyle(element);
+    const copy = getComputedStyle(element.querySelector(".df2-day-ruler-copy"));
+    const clock = getComputedStyle(element.querySelector("strong"));
+    const track = getComputedStyle(element.querySelector(".df2-day-track"));
+    return {
+      background: ruler.backgroundColor,
+      borderTop: ruler.borderTopWidth,
+      copyDisplay: copy.display,
+      clockSize: Number.parseFloat(clock.fontSize),
+      trackHeight: track.height,
+    };
+  });
+  expect(countdownVisual.background).toBe("rgba(0, 0, 0, 0)");
+  expect(countdownVisual.borderTop).toBe("1px");
+  expect(countdownVisual.copyDisplay).toBe("grid");
+  expect(countdownVisual.clockSize).toBeGreaterThan(36);
+  expect(countdownVisual.trackHeight).toBe("2px");
+
+  const eventVisual = await page.locator(".df2-event-countdown").evaluate((element) => {
+    const panel = getComputedStyle(element);
+    const days = getComputedStyle(element.querySelector("strong"));
+    return { display: panel.display, daysSize: Number.parseFloat(days.fontSize) };
+  });
+  expect(eventVisual.display).toBe("grid");
+  expect(eventVisual.daysSize).toBeGreaterThan(40);
+
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 
