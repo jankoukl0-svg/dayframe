@@ -211,10 +211,7 @@
 }
 
 .df2-week-help {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  line-height: 1.45;
+  display: none;
 }
 
 /* Week planning is direct-manipulation UI: successful actions are visible in
