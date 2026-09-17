@@ -8,7 +8,7 @@ Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan ch
 
 Repo: https://github.com/jankoukl0-svg/dayframe  
 Výchozí větev: `main`  
-Aktuální hlavní funkční commit: `a4146008441fb0f465c1636ca9ccad8f1f98580e`  
+Aktuální hlavní funkční commit: `a39312cac05352d8f10080edaf0e94d82d2e7754`  
 Vývojový Vercel preview: https://dayframe2.vercel.app  
 Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
@@ -21,12 +21,12 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 | Soubor | Význam |
 | --- | --- |
 | `web/app/dayframe-app.tsx` | Hlavní obrazovky, stav, lokální ukládání |
-| `web/app/week-calendar.tsx` | Týdenní kalendář a navigační vstup `Týden` |
-| `web/app/week-calendar.css` | Layout/responzivita týdenního kalendáře |
+| `web/app/week-calendar.tsx` | Týdenní kalendář, navigace, kliknutí na den/úkol |
+| `web/app/week-calendar.css` | Layout, responzivita a interaktivní stavy týdne |
 | `web/app/week-calendar-fix.css` | Starší ochranný override pro kolizi `.fixed`; po PR #12 už není hlavní řešení |
-| `web/lib/dayframe-planning.ts` | Automatické hledání času |
-| `web/lib/dayframe-smart-input.ts` | Volitelný parser údajů napsaných do názvu |
-| `web/app/capture-start-control.tsx` | Ruční volitelné pole `Začít v` před přidáním úkolu |
+| `web/lib/dayframe-planning.ts` | Automatické hledání času + cílové datum úkolu |
+| `web/lib/dayframe-smart-input.ts` | Volitelný parser údajů napsaných do názvu + interní date/start tokeny |
+| `web/app/capture-start-control.tsx` | Ruční `Začít v` + předvybraný den z týdenního pohledu |
 | `web/app/missed-task-actions.tsx` | Hotovo / Přesunout na zítra / Zrušit u zmeškaných úkolů |
 | `web/app/compact-copy.css` | Redukce duplicitního textu + malé UX doplňky |
 | `web/lib/dayframe-planning.test.mjs` | Regresní testy plánování |
@@ -45,6 +45,7 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 - U zmeškaného úkolu má uživatel explicitní volbu `Hotovo / Přesunout na zítra / Zrušit`.
 - Týdenní pohled má být rychlý přehled, ne přeplácaná kopie Google Calendar.
 - Úkoly v každém dni týdenního pohledu musí být vždy řazené chronologicky podle začátku.
+- Kliknutí na den v týdnu má být rychlá cesta k přidání úkolu pro právě tento den; uživatel stále může délku a čas změnit ručně.
 
 ## Aktuální chování
 
@@ -52,9 +53,19 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
 Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17:30 45 min`, `CFI zítra od 16 na hodinu`, `Angličtina od 18 do 19:30` a `matika 40 min od 17:00`. Konkrétní čas je začátek úkolu, ne deadline. Při exact-start zadání vznikne pevný blok; pokud se do požadovaného času nevejde, zůstane čekat.
 
-Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Smart input je deterministický parser, ne obecné AI/NLP.
+Interní tokeny `[[start:HH:MM]]` a `[[date:YYYY-MM-DD]]` používají jen UI pomocné komponenty; před uložením se odstraní z uživatelského názvu. Absolutní datum umožňuje z týdenního pohledu uložit úkol i na den vzdálenější než zítřek. Takový úkol zůstane v čekajících úkolech, dokud se daný den nepřiblíží na dnes/zítra; pak ho stávající planner umí zařadit. Ruční `Kdy to potřebuješ?` dnes/zítra má před interním datumem přednost.
 
-Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Úkoly v každém dni se před vykreslením řadí podle začátku, při shodě podle konce. Pevné bloky už nepoužívají generickou CSS třídu `fixed`; používají `week-task-fixed`, aby nemohly kolidovat s Tailwind utility `.fixed`. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
+Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Po kliknutí na den v týdnu se v Add Task zobrazí malý štítek s vybraným datem; uživatel jej může zrušit a stále může čas/délku nastavit ručně.
+
+Týdenní kalendář je dostupný přes `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Úkoly se řadí chronologicky. Pevné bloky používají `week-task-fixed`, nikoli generickou `fixed` třídu.
+
+Od PR #13 je týden částečně interaktivní:
+- kliknutí na dnešek nebo budoucí den otevře `Přidat úkol` s tímto přesným datem předvybraným;
+- dnešní a zítřejší skutečné bloky jsou klikací a otevřou existující editor úkolu;
+- budoucí čekající uživatelské úkoly s `targetDate` se zobrazují v příslušném dni; bez konkrétního času mají stav `Čas doplní Dayframe`;
+- kliknutí na čekající uživatelský úkol otevře existující editor čekajícího úkolu a zachová vybrané datum;
+- šablonové bloky ve vzdálenějších dnech jsou stále read-only a mají tooltip, že zatím nejsou editovatelné;
+- minulým dnům nelze přes týden přidat nový úkol.
 
 ## Důležité předchozí změny
 
@@ -69,19 +80,21 @@ Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). 
 - PR #10: chronologické řazení úkolů v týdenním kalendáři; squash merge `cd509b758577743f4c5a486825a5cf153d0e6d3f`.
 - PR #11: první pokus o opravu překrývání pevných bloků pomocí scoped CSS override; squash merge `1061900d8855bc1ba14ea004e7d7155460ec41a0`. Vizuálně problém nevyřešil spolehlivě.
 - PR #12: definitivní odstranění kolize — karty už vůbec nepoužívají třídu `fixed`, ale `week-task-fixed`; squash merge `a4146008441fb0f465c1636ca9ccad8f1f98580e`.
+- PR #13: klikací dny + přidání úkolu na přesné datum + otevření skutečných/čekajících úkolů z týdne; squash merge `a39312cac05352d8f10080edaf0e94d82d2e7754`.
 
 ## Testování a rizika
 
-GitHub Actions `Check web preview` pro PR #12 prošel úspěšně a Vercel preview deployment pro jeho head měl stav `success` před merge. Produkční Vercel deployment merge commitu `a4146008441fb0f465c1636ca9ccad8f1f98580e` měl rovněž stav `success`.
+GitHub Actions `Check web preview` pro head PR #13 skončil `success`. Vercel preview deployment pro PR #13 měl stav `success`. Regresní testy byly rozšířeny o absolutní kalendářní datum a budoucí čekající úkol, ale tento workflow samotné `node --test` nespouští; neoznačovat je tedy jako samostatně provedené v této změně.
 
-Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem; vizuální kontrola na `https://dayframe2.vercel.app` je důležitá zejména po změnách layoutu. Před PR #12 uživatel doložil screenshotem, že PR #11 problém nepřekrývání nevyřešil; PR #12 proto odstranil samotný konfliktní název třídy místo dalšího CSS override.
+Kompletní browser/E2E sada stále není zapojená. Interakce týdne znovu používají existující editory přes DOM navigaci a stabilní CSS selektory (`timeline-row`, `tomorrow-row`, `waiting-row`). To minimalizuje zásah do hlavního stavu aplikace, ale je to technický dluh: pokud se změní markup těchto obrazovek, je nutné zkontrolovat i týdenní klikání.
 
-Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Týdenní kalendář nepřidává migraci ani nový storage schema. Uložená data existují nativně jen pro dnešek a zítřek; vzdálenější dny v týdenním pohledu jsou zatím šablona, nikoli samostatně uložené denní plány.
+Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. PR #13 nepřidává nový storage schema; vzdálenější cílový den se ukládá přes už existující volitelné `InboxTask.targetDate`. Žádná destruktivní migrace není potřeba.
 
 ## Co hotové není
 
-- Plnohodnotné ukládání a editace libovolného dne v týdnu; scheduler stále nativně plánuje jen dnes/zítra.
-- Kliknutí/drag-and-drop úkolů přímo v týdenním kalendáři.
+- Přímá editace šablonových bloků ve vzdálenějších dnech; jsou stále read-only.
+- Drag-and-drop úkolů v týdenním kalendáři.
+- Samostatně uložený plnohodnotný plán pro každý vzdálenější den; vlastní budoucí úkoly se do té doby drží jako `InboxTask` s `targetDate`.
 - Cloud účet a synchronizace zařízení.
 - Propojení nového webu s Tauri a automatické aktualizace Windows aplikace.
 - iOS klient.
