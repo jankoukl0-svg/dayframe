@@ -29,10 +29,7 @@
 }
 
 .df2-day-summary {
-  min-height: 32px;
-  padding: 0 11px;
-  background: rgba(247, 246, 242, .72);
-  font-size: 9px;
+  display: none;
 }
 
 .df2-unscheduled {
