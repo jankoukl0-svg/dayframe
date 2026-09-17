@@ -45,16 +45,23 @@ jobs:
       - name: Build static preview
         run: pnpm preview:build
 
-      - name: Install browser for smoke test
-        run: npx --yes @playwright/test@1.55.0 install chromium --with-deps
+      - name: Install Playwright for browser smoke
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install chromium --with-deps
 
       - name: Run browser smoke test
         run: |
           pnpm preview:dev --host 127.0.0.1 --port 4173 > /tmp/dayframe-preview.log 2>&1 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
+          READY=0
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:4173 >/dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then READY=1; break; fi
             sleep 1
           done
-          npx --yes @playwright/test@1.55.0 test e2e/dayframe-calendar.spec.mjs --workers=1 --reporter=line
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/dayframe-preview.log
+            exit 1
+          fi
+          npx playwright test e2e/dayframe-calendar.spec.mjs --workers=1 --reporter=line
