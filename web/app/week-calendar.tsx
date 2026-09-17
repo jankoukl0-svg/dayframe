@@ -115,6 +115,13 @@ export function WeekCalendar() {
   const [mobileHost, setMobileHost] = useState<HTMLElement | null>(null);
   const [mainHost, setMainHost] = useState<HTMLElement | null>(null);
 
+  function showWeek() {
+    setWeekOffset(0);
+    const todayButton = document.querySelector<HTMLButtonElement>(".side-panel nav > button");
+    todayButton?.click();
+    window.requestAnimationFrame(() => setOpen(true));
+  }
+
   useEffect(() => {
     const sideNav = document.querySelector<HTMLElement>(".side-panel nav");
     const mobileNav = document.querySelector<HTMLElement>(".mobile-nav");
@@ -164,7 +171,7 @@ export function WeekCalendar() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
-      if (event.key.toLowerCase() === "w") setOpen(true);
+      if (event.key.toLowerCase() === "w") showWeek();
       if (event.key === "Escape" && open) setOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
@@ -188,7 +195,7 @@ export function WeekCalendar() {
     <button
       type="button"
       className={`week-nav-button ${open ? "active" : ""}`}
-      onClick={() => { setWeekOffset(0); setOpen(true); }}
+      onClick={showWeek}
       aria-current={open ? "page" : undefined}
     >
       <span className="nav-label">Týden</span><kbd>W</kbd>
@@ -196,7 +203,7 @@ export function WeekCalendar() {
   );
 
   const mobileButton = (
-    <button type="button" className={open ? "active" : ""} onClick={() => { setWeekOffset(0); setOpen(true); }}>Týden</button>
+    <button type="button" className={open ? "active" : ""} onClick={showWeek}>Týden</button>
   );
 
   return (
