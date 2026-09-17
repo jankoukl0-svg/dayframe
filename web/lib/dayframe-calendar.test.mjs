@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   addTask,
+  findSlot,
   getTasksForDate,
   localDateKey,
   materializeRange,
@@ -44,6 +45,37 @@ test("auto planner scans the whole week when no day is locked", () => {
   const result = addTask(state, { title: "Deep work", duration: 60, priority: "high", category: "Studium", repeat: "none" }, now);
   assert.equal(result.status, "scheduled");
   assert.equal(result.task.date, "2026-09-18");
+});
+
+test("automatic scheduling still avoids the lunch preference", () => {
+  const occupied = [{
+    id: "morning",
+    title: "Morning",
+    date: "2026-09-18",
+    duration: 180,
+    start: "10:00",
+    end: "13:00",
+    priority: "normal",
+    category: "X",
+    mode: "fixed",
+    completed: false,
+    source: "user",
+    dateLocked: true,
+    createdAt: now.toISOString(),
+  }];
+  const slot = findSlot(occupied, "2026-09-18", 60, now);
+  assert.deepEqual(slot, { start: "14:00", end: "15:00" });
+});
+
+test("manual drag may lock a task inside the lunch hour", () => {
+  let state = migrateStoredState(null, now);
+  state.routines = [];
+  const added = addTask(state, { title: "Obědový call", date: "2026-09-18", duration: 30, priority: "normal", category: "Osobní", repeat: "none" }, now);
+  const moved = moveTask(added.state, added.task.id, "2026-09-18", "13:15");
+  assert.equal(moved.error, undefined);
+  assert.equal(moved.task.start, "13:15");
+  assert.equal(moved.task.end, "13:45");
+  assert.equal(moved.task.mode, "fixed");
 });
 
 test("a task explicitly assigned to a day stays on that day", () => {
