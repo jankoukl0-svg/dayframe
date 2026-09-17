@@ -4,6 +4,7 @@ export type SmartTaskDetails = {
   title: string;
   duration?: number;
   day?: "today" | "tomorrow";
+  targetDate?: string;
   start?: string;
   deadline?: string;
   priority?: Priority;
@@ -28,6 +29,14 @@ function clockMinutes(clock: string) {
   return hours * 60 + minutes;
 }
 
+function validDateKey(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  const normalized = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return normalized === value;
+}
+
 /**
  * Reads optional Czech/English scheduling hints from a task title.
  * Plain titles stay plain; all hints are optional and manual controls can override them.
@@ -36,11 +45,17 @@ export function parseSmartTaskInput(input: string): SmartTaskDetails {
   let remaining = input.trim();
   let duration: number | undefined;
   let day: "today" | "tomorrow" | undefined;
+  let targetDate: string | undefined;
   let start: string | undefined;
   let deadline: string | undefined;
   let priority: Priority | undefined;
 
-  // Internal token is used by the manual exact-start control. It has precedence over text hints.
+  // Internal tokens are used by manual controls. They are removed before the user-facing title is saved.
+  const manualDates = [...remaining.matchAll(/\[\[date:(\d{4}-\d{2}-\d{2})\]\]/gi)];
+  const manualDate = manualDates.at(-1)?.[1];
+  if (manualDate && validDateKey(manualDate)) targetDate = manualDate;
+  remaining = remaining.replace(/\s*\[\[date:\d{4}-\d{2}-\d{2}\]\]\s*/gi, " ");
+
   const manualStarts = [...remaining.matchAll(/\[\[start:(\d{1,2}):(\d{2})\]\]/gi)];
   const manualStart = manualStarts.at(-1);
   if (manualStart) start = clockFromMatch(manualStart[1], manualStart[2]);
@@ -131,6 +146,7 @@ export function parseSmartTaskInput(input: string): SmartTaskDetails {
     title: title || input.trim(),
     duration,
     day,
+    targetDate,
     start,
     deadline,
     priority,
