@@ -15,21 +15,21 @@ GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `w
 
 ## Aktuální architektura — Calendar Foundation
 
-PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty. PR #17 obnovil jejich původní vizuální hierarchii a opravil chybějící CSS import ve Vercel preview. PR #18 opravil přehuštěný a ořezaný týdenní kalendář. PR #19 opravil logiku drag/drop: blok už při tažení neskáče pod kurzorem, snapuje se předvídatelně a ruční drop explicitně zamyká čas.
+PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty. PR #17 obnovil jejich původní vizuální hierarchii a opravil chybějící CSS import ve Vercel preview. PR #18 opravil přehuštěný a ořezaný týdenní kalendář. PR #19 opravil logiku drag/drop: blok už při tažení neskáče pod kurzorem, snapuje se předvídatelně a ruční drop explicitně zamyká čas. PR #20 sjednotil skutečnou časovou geometrii Týdne a změnil oběd na měkkou preferenci místo tvrdě zakázaného intervalu.
 
 Hlavní soubory:
 
 | Soubor | Úloha |
 | --- | --- |
-| `web/app/dayframe-v2.tsx` | Aktivní UI, sdílený aplikační stav, week drag/snap/lock interakce |
+| `web/app/dayframe-v2.tsx` | Aktivní UI, sdílený aplikační stav, week drag/snap/lock interakce a přesná time-grid geometrie |
 | `web/app/dayframe-v2.css` | Základní aktivní design a responsivita |
 | `web/app/dayframe-countdowns.css` | Motivační odpočet dne a termínů; zachovává původní Dayframe vizuální hierarchii |
-| `web/app/week-calendar-polish.css` | Čitelnost time-gridu, clipping, adaptivní obsah karet, lock/drop preview |
-| `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, validace a moveTask |
-| `web/lib/dayframe-calendar.test.mjs` | Regresní testy kalendářového modelu |
+| `web/app/week-calendar-polish.css` | Čitelnost time-gridu, přesné sloty, adaptivní obsah karet, lock/drop preview |
+| `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, soft lunch preference, validace a moveTask |
+| `web/lib/dayframe-calendar.test.mjs` | Regresní testy kalendářového modelu včetně lunch preference |
 | `web/lib/dayframe-countdown.ts` | Výpočet konce dne 00:30 a dní do milníků |
 | `web/lib/dayframe-countdown.test.mjs` | Regresní testy odpočtů včetně DST hran |
-| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke přes skutečné UI včetně vizuálních invariantů a reálného drag/drop lock scénáře |
+| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke přes skutečné UI včetně geometrie slotů a reálného drag/drop lock scénáře |
 | `web/lib/dayframe-smart-input.ts` | Volitelný deterministický smart input |
 | `web/app/page.tsx` | Framework mount; musí načíst všechny aktivní CSS soubory |
 | `web/preview/main.tsx` | Statický Vercel preview mount; musí explicitně načíst stejné CSS jako framework build |
@@ -83,30 +83,33 @@ Týden je hlavní plánovací plocha:
 - `+` v dni otevře přidání rovnou na tento den;
 - kliknutí na blok otevře společný editor;
 - zamknuté a flexibilní bloky jsou vizuálně i datově odlišné;
-- oběd 13:00–14:00 je chráněný;
+- oběd 13:00–14:00 je **měkká preference**: auto-planner ho obchází, ale ruční čas nebo drag/drop ho smí použít;
 - drag & drop mezi dny/časy je podporovaný;
 - `Přepočítat týden` přeskládá pohyblivé flexibilní úkoly podle priority a termínů, aniž by hýbal zamknutými/date-locked bloky.
 
-#### Týden — vizuální invarianty po PR #18
+#### Týden — vizuální invarianty po PR #18 a #20
 
 - Time-grid musí zůstat skutečný, ale čitelnost má přednost před zobrazováním každé metadata věty.
 - Hour labels se nemají opakovat sedmkrát; v desktop gridu je viditelná jedna časová škála.
-- Krátké bloky zobrazují jen tolik obsahu, kolik se do nich skutečně vejde; režim locked/flex se pozná hlavně z borderu a jemného lock symbolu.
+- **Geometrie musí být matematicky konzistentní:** stejné `MINUTE_HEIGHT` řídí hour lines, pozici i výšku task karet. 60min karta musí přesně vyplnit interval mezi dvěma hodinovými čárami.
+- Výška karty je `duration × MINUTE_HEIGHT`; nesmí existovat vizuální minimum, které by krátký blok prodlužovalo do dalšího časového slotu.
+- Krátké bloky zmenšují množství textu podle dostupné výšky, nikoli skutečnou časovou geometrii.
 - Žádná task karta nesmí být vertikálně oříznutá svým `.df2-time-body`.
-- Denní rutina `Čtení knihy` 22:40–23:00 musí být celá viditelná, přestože planner jinou práci automaticky neplánuje po 22:30.
+- Denní rutina `Čtení knihy` 22:40–23:00 musí být celá viditelná a zabírat skutečných 20 minut.
+- Oběd je v gridu jen jemně vizuálně označený, nesmí překrývat ručně umístěnou kartu ani se chovat jako hard collision.
 - `week-calendar-polish.css` musí být importovaný jak v `page.tsx`, tak v `web/preview/main.tsx`.
 
-#### Týden — drag/drop a lock po PR #19
+#### Týden — drag/drop a lock po PR #19/#20
 
 - Blok při tažení zachovává přesné místo úchopu; kurzor už neurčuje automaticky horní hranu bloku.
 - Návrh startu snapuje po 15 minutách.
-- Pokud je přesný slot obsazený nebo zasahuje do oběda, Dayframe hledá pouze nejbližší volný slot do ±60 minut; blok nesmí bezdůvodně odletět na vzdálenou část dne.
+- Pokud je přesný slot obsazený, Dayframe hledá pouze nejbližší volný slot do ±60 minut; blok nesmí bezdůvodně odletět na vzdálenou část dne.
 - Během dragování je vidět ghost/drop preview s přesným časem, který se po puštění zamkne.
 - Ruční drop vždy nastaví `mode: fixed`, `requestedStart`, `dateLocked: true` a `autoScheduled: false`; tím se blok stává zamknutým.
 - Zamknutý blok má jemný lock glyph v kartě.
 - Editor používá pojmy `Zamknutý čas` a `Flexibilní čas`; odemknutí se dělá změnou režimu v editoru.
-- Pokud poblíž není validní slot, drop se neprovede a původní blok zůstane na místě.
-- Ruční drag stále respektuje planner hranice a kolize definované v `canPlaceAt` / `moveTask`.
+- Pokud poblíž není validní slot kvůli skutečné kolizi s jiným taskem nebo hranici dne, drop se neprovede a původní blok zůstane na místě.
+- Ruční drag může použít 13:00–14:00; lunch preference se aplikuje jen na automatické hledání slotu.
 
 ### Přidat úkol
 
@@ -114,7 +117,7 @@ Základ vyžaduje jen název. Rychlá ruční nastavení: den, délka, `Začít 
 
 Smart input zůstává pouze volitelné zrychlení (`zeměpis 20 min`, `Matematika v 17:30 na 60 minut` atd.). Přesné ruční datum a start jsou datová pole, ne textové tokeny.
 
-Když uživatel neurčí den, planner hledá místo přes celý následující týden a respektuje pracovní okno 10:00–22:30, oběd, existující bloky, přesný start, prioritu a due date/deadline.
+Když uživatel neurčí den, planner hledá místo přes celý následující týden a respektuje pracovní okno 10:00–22:30, existující bloky, přesný start, prioritu a due date/deadline. Automatický planner preferenčně vynechává 13:00–14:00, ale explicitní ruční start může tento interval použít.
 
 ### Rutiny
 
@@ -182,6 +185,23 @@ Změny:
 
 Ověření PR #19: TypeScript PASS, regresní testy PASS, static preview build PASS, Playwright browser smoke PASS. Produkční Vercel deployment merge commitu `08279d70...` skončil `success`.
 
+### PR #20 — exact week geometry + soft lunch
+Merge: `c687032a99635e098768b653ee232b4d74307d37`.
+
+Příčina: time-grid měl skutečné pozice v násobcích 0.72 px/min, ale vizuální background grid používal střídavých 43/44 px a task karta měla minimum 30 px. To způsobovalo optické posuny a krátké bloky byly delší než jejich skutečný čas. Oběd byl zároveň implementovaný jako tvrdá kolize i pro ruční přesun.
+
+Změny:
+- hour lines jsou skutečné absolutně pozicované čáry ze stejné matematiky jako tasky;
+- výška tasku a drop preview je přesně `duration × MINUTE_HEIGHT`, bez 30px minima;
+- 60min task je v browser testu porovnán s přesnou vzdáleností mezi dvěma hodinovými čarami;
+- krátké tasky zmenšují obsah místo toho, aby zvětšovaly kartu;
+- `canPlaceAt` už oběd neblokuje;
+- `findSlot` oběd nadále vynechává pouze při automatickém plánování;
+- explicitní start, editor i drag/drop mohou plánovat 13:00–14:00;
+- přidány regresní testy pro auto-avoid lunch i manual lunch placement.
+
+Ověření PR #20: TypeScript PASS, **33/33** regresních testů PASS, static preview build PASS, Playwright browser smoke PASS. Produkční Vercel deployment merge commitu `c687032a...` skončil `success`.
+
 CI workflow `.github/workflows/preview-build.yml` automaticky spouští typecheck, regresní testy, build a browser smoke.
 
 ## Produktové principy
@@ -189,6 +209,8 @@ CI workflow `.github/workflows/preview-build.yml` automaticky spouští typechec
 - Málo textu, vysoká čitelnost.
 - **Motivační odpočty jsou core feature, musí zůstat prominentní a v původním Dayframe vizuálním jazyku.**
 - Týden nesmí být datově nebo vizuálně přehuštěný; zobrazovat jen informace potřebné pro plánování.
+- Časový grid musí být geometricky pravdivý: vizuální velikost bloku odpovídá jeho skutečné délce.
+- Oběd je preference pro auto-planner, nikoli tvrdý zákaz pro uživatele.
 - Drag/drop musí být předvídatelný: držet grab point, snapovat po 15 min, neházet blok daleko při kolizi.
 - Ručně položený blok je explicitně zamknutý, dokud ho uživatel neodemkne.
 - Smart input není povinný.
@@ -215,8 +237,9 @@ CI workflow `.github/workflows/preview-build.yml` automaticky spouští typechec
 5. U nového CSS vždy zkontroluj import jak v `page.tsx`, tak v `web/preview/main.tsx`.
 6. Každou větší změnu pokryj unit testem nebo Playwright scénářem; u vizuálně zásadních prvků kontroluj computed style / bounding boxes, ne jen přítomnost textu.
 7. U drag/drop změn browser test musí ověřit reálný drop, výsledný čas a locked/flexible stav.
-8. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
-9. Sites je oddělený a automaticky se neaktualizuje.
+8. U time-grid změn testuj skutečné bounding-box rozměry proti hour lines; vizuální minimum nesmí deformovat délku tasku.
+9. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
+10. Sites je oddělený a automaticky se neaktualizuje.
 
 ### Handoff zpět do Work
 
