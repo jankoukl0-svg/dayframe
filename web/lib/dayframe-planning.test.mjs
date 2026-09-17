@@ -113,6 +113,16 @@ test("an occupied exact start stays pending instead of moving silently", () => {
   assert.equal(result.pending[0].requestedStart, "17:00");
 });
 
+test("calendar can save a task for a later exact date without scheduling it early", () => {
+  const item = capture(16, { title: "Pohovor [[date:2026-09-20]] [[start:16:00]]" });
+  const result = planCapturedTasks([], [], [item], now());
+  assert.equal(result.placements.length, 0);
+  assert.equal(result.pending.length, 1);
+  assert.equal(result.pending[0].title, "Pohovor");
+  assert.equal(result.pending[0].targetDate, "2026-09-20");
+  assert.equal(result.pending[0].requestedStart, "16:00");
+});
+
 test("migrates old captures, uses priority, and never duplicates placed IDs", () => {
   const result = planCapturedTasks([], [], [capture(1), capture(2, { priority: "high" }), capture(2)], now());
   assert.equal(result.placements[0].id, 2);
