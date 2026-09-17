@@ -18,7 +18,7 @@ permissions:
 jobs:
   build-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -39,5 +39,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run planning regression tests
+        run: node --experimental-strip-types --test lib/dayframe-calendar.test.mjs lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs
+
       - name: Build static preview
         run: pnpm preview:build
+
+      - name: Install browser for smoke test
+        run: npx --yes @playwright/test@1.55.0 install chromium --with-deps
+
+      - name: Run browser smoke test
+        run: |
+          pnpm preview:dev --host 127.0.0.1 --port 4173 > /tmp/dayframe-preview.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          npx --yes @playwright/test@1.55.0 test e2e/dayframe-calendar.spec.mjs --workers=1 --reporter=line
