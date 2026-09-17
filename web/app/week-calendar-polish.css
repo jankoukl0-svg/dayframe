@@ -243,7 +243,7 @@
   color: var(--accent-dark);
   pointer-events: none;
   box-shadow: 0 6px 18px rgba(57, 45, 36, .08);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .df2-drop-preview.invalid {
@@ -252,8 +252,44 @@
   color: #7d514b;
 }
 
+/* The exact target time must stay unmistakable while the mouse moves. The
+   value itself still comes from the live 15-minute snapped drop preview. */
 .df2-drop-preview strong {
-  font: 700 10px/1 "Cascadia Mono", monospace;
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 9999;
+  transform: translateX(-50%);
+  min-width: 124px;
+  padding: 9px 14px;
+  border: 1px solid #292724;
+  border-radius: 999px;
+  background: #1f1e1b;
+  color: #fffdf8;
+  box-shadow: 0 8px 24px rgba(31, 27, 23, .24);
+  font: 700 15px/1 "Cascadia Mono", monospace;
+  letter-spacing: -.02em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.df2-drop-preview strong::before {
+  content: "Přesun na ";
+  margin-right: 5px;
+  color: #d9d5ce;
+  font: 500 10px/1.1 Arial, sans-serif;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.df2-drop-preview.invalid strong {
+  border-color: #8b5147;
+  background: #6f4038;
+}
+
+.df2-drop-preview.invalid strong::before {
+  content: "Nelze přesunout · ";
+  color: #f5d9d2;
 }
 
 @media (max-width: 1180px) {
@@ -270,5 +306,12 @@
 
   .df2-week-grid {
     min-width: 980px;
+  }
+
+  .df2-drop-preview strong {
+    top: 10px;
+    min-width: 108px;
+    padding: 8px 11px;
+    font-size: 13px;
   }
 }
