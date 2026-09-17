@@ -1,6 +1,6 @@
 # Dayframe — začni tady
 
-Aktualizováno: 16. 9. 2026.
+Aktualizováno: 17. 9. 2026.
 
 ## Kontext
 
@@ -8,22 +8,21 @@ Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan ch
 
 Repo: https://github.com/jankoukl0-svg/dayframe  
 Výchozí větev: `main`  
-Aktuální hlavní commit po přípravě Vercel preview: `08dccd743adcc13d8f33b2e36c451a2446397466`  
+Aktuální hlavní funkční commit: `131d8c89e7884f8f150d18213c5601aef89e15fd`  
+Vývojový Vercel preview: https://dayframe2.vercel.app  
 Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
-**GitHub → Sites není automaticky zapojené. Commit neznamená nasazení.** Work musí změny z `web/` přenést do existujícího Sites projektu a publikovat. Neměnit identitu Site v `web/.openai/hosting.json`. Sites project ID: `appgprj_6aa9d908ba108191965d2abe4da24cf3`.
+**GitHub → Vercel je zapojené.** Projekt `dayframe2` čte `jankoukl0-svg/dayframe`, Root Directory je `web` a push do `main` automaticky spouští nový deployment na stálém odkazu `https://dayframe2.vercel.app`.
 
-## Vercel preview
-
-Cíl: mít jeden stálý vývojový odkaz, který se po každém pushi do `main` automaticky aktualizuje. V `web/vercel.json` je připraven build `pnpm preview:build`, output `preview-dist` a install `pnpm install --frozen-lockfile`. GitHub Actions už stejný statický preview build ověřuje přes `.github/workflows/preview-build.yml`.
-
-Vercel plugin v ChatGPT je připojený a přímý deploy funguje, ale projekt zatím není Git-linked na repo. Uživatel musí jednorázově ve Vercelu importovat existující repo `jankoukl0-svg/dayframe` a nastavit Root Directory na `web`. Potom se mají změny z `main` nasazovat automaticky. Až je projekt vytvořený, zapiš sem jeho stálou URL a ověř první build.
+**GitHub → Sites automaticky zapojené není.** Sites zůstává oddělený starší náhled; Work musí změny z `web/` přenést do existujícího Sites projektu a publikovat. Neměnit identitu Site v `web/.openai/hosting.json`. Sites project ID: `appgprj_6aa9d908ba108191965d2abe4da24cf3`.
 
 ## Kde se pracuje
 
 | Soubor | Význam |
 | --- | --- |
 | `web/app/dayframe-app.tsx` | Hlavní obrazovky, stav, lokální ukládání |
+| `web/app/week-calendar.tsx` | Týdenní kalendář a navigační vstup `Týden` |
+| `web/app/week-calendar.css` | Layout/responzivita týdenního kalendáře |
 | `web/lib/dayframe-planning.ts` | Automatické hledání času |
 | `web/lib/dayframe-smart-input.ts` | Volitelný parser údajů napsaných do názvu |
 | `web/app/capture-start-control.tsx` | Ruční volitelné pole `Začít v` před přidáním úkolu |
@@ -43,6 +42,7 @@ Vercel plugin v ChatGPT je připojený a přímý deploy funguje, ale projekt za
 - Ruční volba má přednost před údajem napsaným v názvu.
 - Nedokončené úkoly z minulého dne se nesmí automaticky nabalovat do dalšího dne.
 - U zmeškaného úkolu má uživatel explicitní volbu `Hotovo / Přesunout na zítra / Zrušit`.
+- Týdenní pohled má být rychlý přehled, ne přeplácaná kopie Google Calendar.
 
 ## Aktuální chování
 
@@ -52,6 +52,8 @@ Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17
 
 Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Smart input je deterministický parser, ne obecné AI/NLP.
 
+Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
+
 ## Důležité předchozí změny
 
 - PR #1: méně duplicitního textu; merge `b22ae165130c7409a98dd52194f53218bb7af446`.
@@ -60,21 +62,26 @@ Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné p
 - PR #4: kompatibilita čekajících úkolů; merge `d1b195881357d5700ad7ac3f265d28f3ce501a34`.
 - PR #5: exact start-time input + ruční `Začít v`; merge `80c35d771378c28ebdbe2b630c3a54569a8568c4`.
 - PR #6: regresní test přesně pro `matika 40 min od 17:00`; merge `9f004f9b2063815e268a456d48112c33c964049d`.
-- `web/vercel.json`: příprava automatického Vercel preview buildu; commit `08dccd743adcc13d8f33b2e36c451a2446397466`.
+- `web/vercel.json`: příprava automatického Vercel preview buildu; následně byl projekt `dayframe2` správně propojen s repem a rootem `web`.
+- PR #9: týdenní kalendář; squash merge `131d8c89e7884f8f150d18213c5601aef89e15fd`.
 
 ## Testování a rizika
 
-Před PR #5 prošla plánovací sada po opravě PR #4 jako 11/11 PASS. Exact-start parser scénáře byly ověřeny samostatně. Kompletní browser/E2E ověření ručního pole `Začít v` stále není provedeno. Vercel Git-linked build zatím také není ověřen, dokud uživatel projekt jednorázově neimportuje.
+GitHub Actions `Check web preview` pro finální head PR #9 prošel úspěšně; krok `Build static preview` byl PASS. Vercel preview deployment pro PR #9 měl stav `success`. Produkční Vercel deployment po merge spouští Git integrace automaticky.
 
-Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Pole `requestedStart` je volitelné v čekajícím úkolu; není nutná destruktivní migrace.
+Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem, ale klikání a responzivní chování má uživatel průběžně kontrolovat na `https://dayframe2.vercel.app`.
+
+Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Týdenní kalendář nepřidává migraci ani nový storage schema. Uložená data existují nativně jen pro dnešek a zítřek; vzdálenější dny v týdenním pohledu jsou zatím šablona, nikoli samostatně uložené denní plány.
 
 ## Co hotové není
 
+- Plnohodnotné ukládání a editace libovolného dne v týdnu; scheduler stále nativně plánuje jen dnes/zítra.
+- Kliknutí/drag-and-drop úkolů přímo v týdenním kalendáři.
 - Cloud účet a synchronizace zařízení.
 - Propojení nového webu s Tauri a automatické aktualizace Windows aplikace.
 - iOS klient.
 - Skutečné blokování/čtení rušivých Windows/iOS aplikací; webový hlídač je demo.
-- Dlouhodobé plánování nad horizont dnes/zítra a automatický rozpad cílů.
+- Dlouhodobé plánování a automatický rozpad cílů.
 - Obecné NLP/AI odhadování délky.
 - Některé starší prvky Nastavení, milníků a týdenních statistik jsou stále ilustrativní nebo nedokončené.
 
@@ -85,9 +92,9 @@ Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Pole `requestedS
 3. Dělej nejmenší smysluplné změny a zachovej data i design.
 4. Rozlišuj NAVRŽENO / UPRAVENO / OTESTOVÁNO / NASAZENO.
 5. Po každé práci aktualizuj tento handoff.
-6. Po zprovoznění Git-linked Vercel preview má každý push do `main` automaticky vytvořit novou viditelnou verzi; uživatel má používat jeden stálý Vercel odkaz a jen refreshovat.
+6. Každý push do `main` má přes Git integraci automaticky vytvořit novou verzi na `https://dayframe2.vercel.app`; uživatel má používat tento jeden stálý odkaz a refreshovat.
 
-Pro testy z `web/`: `node --test lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs`. Kontrola typů: `node node_modules/typescript/bin/tsc --noEmit`. Produkční build spusť přes existující skript v `web/package.json`.
+Pro testy z `web/`: `node --test lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs`. Kontrola typů: `node node_modules/typescript/bin/tsc --noEmit`. Statický preview build: `pnpm preview:build`.
 
 ### Až uživatel řekne „handoff zpět do Work“
 
