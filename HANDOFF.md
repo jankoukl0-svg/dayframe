@@ -8,7 +8,7 @@ Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan ch
 
 Repo: https://github.com/jankoukl0-svg/dayframe  
 Výchozí větev: `main`  
-Aktuální hlavní funkční commit: `cd509b758577743f4c5a486825a5cf153d0e6d3f`  
+Aktuální hlavní funkční commit: `1061900d8855bc1ba14ea004e7d7155460ec41a0`  
 Vývojový Vercel preview: https://dayframe2.vercel.app  
 Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
@@ -23,6 +23,7 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 | `web/app/dayframe-app.tsx` | Hlavní obrazovky, stav, lokální ukládání |
 | `web/app/week-calendar.tsx` | Týdenní kalendář a navigační vstup `Týden` |
 | `web/app/week-calendar.css` | Layout/responzivita týdenního kalendáře |
+| `web/app/week-calendar-fix.css` | Scoped oprava kolize třídy `fixed` s Tailwindem |
 | `web/lib/dayframe-planning.ts` | Automatické hledání času |
 | `web/lib/dayframe-smart-input.ts` | Volitelný parser údajů napsaných do názvu |
 | `web/app/capture-start-control.tsx` | Ruční volitelné pole `Začít v` před přidáním úkolu |
@@ -53,7 +54,7 @@ Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17
 
 Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Smart input je deterministický parser, ne obecné AI/NLP.
 
-Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Úkoly v každém dni se před vykreslením řadí podle začátku, při shodě podle konce. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
+Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Úkoly v každém dni se před vykreslením řadí podle začátku, při shodě podle konce. Pevné bloky zůstávají v normálním toku kalendáře; CSS scoped override brání kolizi s Tailwind utilitou `.fixed`. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
 
 ## Důležité předchozí změny
 
@@ -66,12 +67,13 @@ Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). 
 - `web/vercel.json`: příprava automatického Vercel preview buildu; následně byl projekt `dayframe2` správně propojen s repem a rootem `web`.
 - PR #9: týdenní kalendář; squash merge `131d8c89e7884f8f150d18213c5601aef89e15fd`.
 - PR #10: chronologické řazení úkolů v týdenním kalendáři; squash merge `cd509b758577743f4c5a486825a5cf153d0e6d3f`.
+- PR #11: oprava překrývání pevných bloků způsobeného Tailwind `.fixed`; squash merge `1061900d8855bc1ba14ea004e7d7155460ec41a0`.
 
 ## Testování a rizika
 
-GitHub Actions `Check web preview` pro PR #10 prošel úspěšně a Vercel preview deployment pro jeho head měl stav `success` před merge. Produkční Vercel deployment po merge spouští Git integrace automaticky.
+GitHub Actions `Check web preview` pro PR #11 prošel úspěšně a Vercel preview deployment pro jeho head měl stav `success` před merge. Produkční Vercel deployment po merge spouští Git integrace automaticky.
 
-Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem, ale klikání a responzivní chování má uživatel průběžně kontrolovat na `https://dayframe2.vercel.app`.
+Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem; vizuální kontrola na `https://dayframe2.vercel.app` je důležitá zejména po změnách layoutu.
 
 Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Týdenní kalendář nepřidává migraci ani nový storage schema. Uložená data existují nativně jen pro dnešek a zítřek; vzdálenější dny v týdenním pohledu jsou zatím šablona, nikoli samostatně uložené denní plány.
 
