@@ -1,0 +1,184 @@
+.df2-motivation-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(230px, .8fr);
+  gap: 14px;
+  margin: 0 0 22px;
+}
+
+.df2-day-ruler,
+.df2-event-countdown {
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.df2-day-ruler {
+  padding: 18px 20px 15px;
+}
+
+.df2-day-ruler-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.df2-day-ruler-copy > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.df2-day-ruler-copy strong {
+  justify-self: center;
+  color: var(--ink);
+  font: 650 clamp(30px, 4vw, 48px)/1 "Cascadia Mono", monospace;
+  letter-spacing: -.07em;
+  white-space: nowrap;
+}
+
+.df2-day-ruler-copy strong em {
+  color: var(--accent-dark);
+  font-style: normal;
+}
+
+.df2-day-track {
+  position: relative;
+  height: 4px;
+  margin-top: 16px;
+  background: #dedbd3;
+}
+
+.df2-day-track span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+}
+
+.df2-day-track i {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--accent-dark);
+  box-shadow: 0 0 0 1px var(--accent-dark);
+  transform: translate(-50%, -50%);
+}
+
+.df2-day-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  color: #95938c;
+  font: 9px/1 "Cascadia Mono", monospace;
+}
+
+.df2-event-countdown {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 16px 18px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-event-countdown:hover {
+  border-color: var(--line-strong);
+  background: #f4f1eb;
+}
+
+.df2-event-countdown > span {
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.df2-event-countdown > strong {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 2px 0;
+  font: 650 34px/1 "Cascadia Mono", monospace;
+  letter-spacing: -.06em;
+}
+
+.df2-event-countdown > strong em {
+  color: var(--muted);
+  font: 700 10px/1 sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.df2-event-countdown b {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-event-countdown small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-milestones article {
+  gap: 14px;
+}
+
+.df2-milestone-remaining {
+  min-width: 66px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.df2-milestone-remaining strong {
+  font: 650 25px/1 "Cascadia Mono", monospace;
+  letter-spacing: -.05em;
+}
+
+.df2-milestone-remaining span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  .df2-motivation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .df2-event-countdown {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px 12px;
+  }
+
+  .df2-event-countdown > span { grid-column: 1 / -1; }
+  .df2-event-countdown > strong { font-size: 28px; }
+  .df2-event-countdown b { white-space: normal; }
+}
+
+@media (max-width: 560px) {
+  .df2-day-ruler { padding: 15px 14px 13px; }
+  .df2-day-ruler-copy { grid-template-columns: 1fr auto; gap: 6px 12px; }
+  .df2-day-ruler-copy > span:first-child { grid-column: 1 / -1; }
+  .df2-day-ruler-copy strong { justify-self: start; font-size: 34px; }
+  .df2-day-ruler-copy > span:last-child { justify-self: end; }
+  .df2-day-scale span:nth-child(2),
+  .df2-day-scale span:nth-child(4) { display: none; }
+  .df2-event-countdown { grid-template-columns: auto 1fr; }
+  .df2-event-countdown > span { grid-column: 1 / -1; }
+  .df2-event-countdown b { grid-column: 2; }
+  .df2-event-countdown small { grid-column: 2; }
+  .df2-milestones article { align-items: flex-start; flex-wrap: wrap; }
+  .df2-milestone-remaining { order: 3; margin-left: 0; justify-content: flex-start; }
+  .df2-milestones time { margin-left: auto; }
+}

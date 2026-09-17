@@ -43,7 +43,7 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: Run planning regression tests
-        run: node --experimental-strip-types --test lib/dayframe-calendar.test.mjs lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs
+        run: node --experimental-strip-types --test lib/dayframe-calendar.test.mjs lib/dayframe-countdown.test.mjs lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs
 
       - name: Build static preview
         run: pnpm preview:build
