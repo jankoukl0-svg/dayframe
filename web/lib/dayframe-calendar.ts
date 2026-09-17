@@ -191,6 +191,21 @@ export function createEmptyState(): DayframeState {
   };
 }
 
+function withoutLockMode(task: any): CalendarTask {
+  const start = typeof task.start === "string" ? task.start : undefined;
+  const requestedStart = typeof task.requestedStart === "string"
+    ? task.requestedStart
+    : task.mode === "fixed"
+      ? start
+      : undefined;
+  return {
+    ...task,
+    mode: "flexible",
+    requestedStart,
+    autoScheduled: requestedStart ? false : task.autoScheduled !== false,
+  } as CalendarTask;
+}
+
 function normalizeLegacyTask(raw: any, date: string, index: number): CalendarTask {
   const start = typeof raw.start === "string" ? raw.start : undefined;
   const end = typeof raw.end === "string" ? raw.end : undefined;
@@ -201,25 +216,30 @@ function normalizeLegacyTask(raw: any, date: string, index: number): CalendarTas
     duration: Number(raw.duration) || durationBetween(start, end),
     start,
     end,
+    requestedStart: start,
     dueDate: date,
     deadlineTime: typeof raw.deadline === "string" ? raw.deadline : "22:30",
     priority: raw.priority === "high" || raw.priority === "low" ? raw.priority : "normal",
     category: String(raw.category ?? "Studium"),
-    mode: raw.fixed ? "fixed" : "flexible",
+    mode: "flexible",
     completed: Boolean(raw.completed),
     source: "legacy",
     dateLocked: true,
-    autoScheduled: Boolean(raw.autoScheduled),
+    autoScheduled: start ? false : Boolean(raw.autoScheduled),
     createdAt: new Date().toISOString(),
   };
 }
 
 export function migrateStoredState(raw: any, now = new Date()): DayframeState {
   if (raw?.schema === 5 && raw?.plans && typeof raw.plans === "object") {
+    const plans = Object.fromEntries(Object.entries(raw.plans).map(([date, tasks]) => [
+      date,
+      Array.isArray(tasks) ? tasks.map(withoutLockMode) : [],
+    ]));
     return {
       schema: 5,
-      plans: raw.plans,
-      backlog: Array.isArray(raw.backlog) ? raw.backlog : [],
+      plans,
+      backlog: Array.isArray(raw.backlog) ? raw.backlog.map(withoutLockMode) : [],
       routines: Array.isArray(raw.routines) ? raw.routines : defaultRoutines(),
       routineSkips: Array.isArray(raw.routineSkips) ? raw.routineSkips : [],
       milestones: Array.isArray(raw.milestones) ? raw.milestones : defaultMilestones(),
@@ -240,20 +260,22 @@ export function migrateStoredState(raw: any, now = new Date()): DayframeState {
   if (Array.isArray(raw.inboxTasks)) {
     raw.inboxTasks.forEach((item: any, index: number) => {
       const date = typeof item.targetDate === "string" ? item.targetDate : "";
+      const requestedStart = typeof item.requestedStart === "string" ? item.requestedStart : undefined;
       const task: CalendarTask = {
         id: `legacy-wait-${String(item.id ?? index)}`,
         title: cleanTitle(String(item.title ?? "Úkol")),
         date,
         duration: Number(item.duration) || 45,
-        requestedStart: typeof item.requestedStart === "string" ? item.requestedStart : undefined,
+        requestedStart,
         dueDate: date || undefined,
         deadlineTime: typeof item.deadline === "string" ? item.deadline : "22:30",
         priority: item.priority === "high" || item.priority === "low" ? item.priority : "normal",
         category: String(item.category ?? "Studium"),
-        mode: item.requestedStart ? "fixed" : "flexible",
+        mode: "flexible",
         completed: false,
         source: "legacy",
         dateLocked: Boolean(date),
+        autoScheduled: !requestedStart,
         createdAt: typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString(),
       };
       if (date) state.plans[date] = [...(state.plans[date] ?? []), task];
@@ -331,7 +353,7 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
   const next = [...scheduled];
   waiting.forEach((task) => {
     const slot = findSlot(next, date, task.duration, now, task.deadlineTime, task.requestedStart);
-    if (slot) next.push({ ...task, ...slot, autoScheduled: !task.requestedStart, mode: task.requestedStart ? "fixed" : task.mode });
+    if (slot) next.push({ ...task, ...slot, autoScheduled: !task.requestedStart, mode: "flexible" });
     else next.push(task);
   });
   return { ...state, plans: { ...state.plans, [date]: sortTasks(next) } };
@@ -361,7 +383,7 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
         deadlineTime: routine.start ? minutesToTime(timeToMinutes(routine.start) + routine.duration) : "22:30",
         priority: routine.priority,
         category: routine.category,
-        mode: routine.start ? "fixed" : "flexible",
+        mode: "flexible",
         completed: false,
         source: "routine",
         routineId: routine.id,
@@ -404,7 +426,7 @@ function createTaskFromDraft(draft: TaskDraft, date: string, now: Date, dateLock
     deadlineTime: draft.deadlineTime ?? "22:30",
     priority: draft.priority,
     category: draft.category,
-    mode: draft.start ? "fixed" : "flexible",
+    mode: "flexible",
     completed: false,
     source: "user",
     dateLocked,
@@ -474,7 +496,7 @@ export function updateTask(state: DayframeState, taskIdValue: string, patch: Par
   });
   if (!found) return { state, error: "Úkol nebyl nalezen." };
 
-  const updated: CalendarTask = { ...found, ...patch, id: found.id };
+  const updated: CalendarTask = { ...found, ...patch, id: found.id, mode: "flexible" };
   const toDate = patch.date ?? fromDate;
   updated.date = toDate;
   if (updated.start) {
@@ -484,13 +506,15 @@ export function updateTask(state: DayframeState, taskIdValue: string, patch: Par
     if (!canPlaceAt(destination, start, updated.duration)) return { state, error: "V tomto čase už je jiný blok." };
   } else {
     updated.end = undefined;
+    updated.requestedStart = undefined;
+    updated.autoScheduled = true;
   }
 
   const plans = { ...state.plans };
   plans[fromDate] = (plans[fromDate] ?? []).filter((task) => task.id !== updated.id);
   plans[toDate] = sortTasks([...(plans[toDate] ?? []).filter((task) => task.id !== updated.id), updated]);
   let next = { ...state, plans };
-  if (!updated.start && updated.mode === "flexible") next = scheduleUnscheduledOnDate(next, toDate, now);
+  if (!updated.start) next = scheduleUnscheduledOnDate(next, toDate, now);
   return { state: next, task: updated };
 }
 
@@ -537,7 +561,7 @@ export function moveTask(state: DayframeState, id: string, toDate: string, toSta
     start: minutesToTime(start),
     end: minutesToTime(start + task.duration),
     requestedStart: minutesToTime(start),
-    mode: "fixed",
+    mode: "flexible",
     source: task.source === "routine" ? "user" : task.source,
     routineId: task.source === "routine" ? undefined : task.routineId,
     dateLocked: true,
@@ -573,7 +597,8 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
   for (const date of keys) {
     const keep: CalendarTask[] = [];
     for (const task of plans[date] ?? []) {
-      if (task.completed || task.mode === "fixed" || task.source === "routine" || task.dateLocked) keep.push(task);
+      const manuallyPlaced = Boolean(task.requestedStart) || task.autoScheduled === false;
+      if (task.completed || task.source === "routine" || task.dateLocked || manuallyPlaced) keep.push(task);
       else movable.push({ ...task, start: undefined, end: undefined });
     }
     plans[date] = keep;
@@ -590,7 +615,7 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
     for (const date of allowed) {
       const slot = findSlot(next.plans[date] ?? [], date, task.duration, now, task.deadlineTime);
       if (!slot) continue;
-      const moved = { ...task, date, ...slot, autoScheduled: true };
+      const moved = { ...task, date, ...slot, mode: "flexible" as const, autoScheduled: true };
       next.plans[date] = sortTasks([...(next.plans[date] ?? []), moved]);
       placed = true;
       break;
