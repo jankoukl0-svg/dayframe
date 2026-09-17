@@ -1,0 +1,4 @@
+/* Prevent Tailwind's global .fixed utility from taking weekly task cards out of flow. */
+.week-calendar-page .week-task.fixed {
+  position: static !important;
+}
