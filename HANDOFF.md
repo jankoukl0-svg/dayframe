@@ -4,117 +4,146 @@ Aktualizováno: 17. 9. 2026.
 
 ## Kontext
 
-Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan chce krátké, konkrétní české UX: zadat úkol co nejrychleji a nechat aplikaci vyřešit plán, ale vždy mít možnost den, délku a čas nastavit ručně. Dlouhodobý cíl: Windows aplikace + později propojený iOS klient.
+Dayframe je osobní plánovací a focus aplikace. UX má být krátké, klidné a praktické: uživatel může napsat jen název úkolu, Dayframe navrhne čas, ale den, délku, prioritu a konkrétní začátek lze vždy nastavit ručně.
 
-Repo: https://github.com/jankoukl0-svg/dayframe  
+Repo: `jankoukl0-svg/dayframe`  
 Výchozí větev: `main`  
-Aktuální hlavní funkční commit: `a39312cac05352d8f10080edaf0e94d82d2e7754`  
-Vývojový Vercel preview: https://dayframe2.vercel.app  
-Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
+Vývojový Vercel: https://dayframe2.vercel.app  
+Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site — **není automaticky napojený na GitHub**.
 
-**GitHub → Vercel je zapojené.** Projekt `dayframe2` čte `jankoukl0-svg/dayframe`, Root Directory je `web` a push do `main` automaticky spouští nový deployment na stálém odkazu `https://dayframe2.vercel.app`.
+GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `web` a push do `main` automaticky deployuje stálý URL výše.
 
-**GitHub → Sites automaticky zapojené není.** Sites zůstává oddělený starší náhled; Work musí změny z `web/` přenést do existujícího Sites projektu a publikovat. Neměnit identitu Site v `web/.openai/hosting.json`. Sites project ID: `appgprj_6aa9d908ba108191965d2abe4da24cf3`.
+## Aktuální architektura — Calendar Foundation
 
-## Kde se pracuje
+PR #14 (`feature/calendar-foundation-v2`) nahrazuje původní today/tomorrow/waiting model datovým modelem podle skutečného data.
 
-| Soubor | Význam |
+Hlavní soubory:
+
+| Soubor | Úloha |
 | --- | --- |
-| `web/app/dayframe-app.tsx` | Hlavní obrazovky, stav, lokální ukládání |
-| `web/app/week-calendar.tsx` | Týdenní kalendář, navigace, kliknutí na den/úkol |
-| `web/app/week-calendar.css` | Layout, responzivita a interaktivní stavy týdne |
-| `web/app/week-calendar-fix.css` | Starší ochranný override pro kolizi `.fixed`; po PR #12 už není hlavní řešení |
-| `web/lib/dayframe-planning.ts` | Automatické hledání času + cílové datum úkolu |
-| `web/lib/dayframe-smart-input.ts` | Volitelný parser údajů napsaných do názvu + interní date/start tokeny |
-| `web/app/capture-start-control.tsx` | Ruční `Začít v` + předvybraný den z týdenního pohledu |
-| `web/app/missed-task-actions.tsx` | Hotovo / Přesunout na zítra / Zrušit u zmeškaných úkolů |
-| `web/app/compact-copy.css` | Redukce duplicitního textu + malé UX doplňky |
-| `web/lib/dayframe-planning.test.mjs` | Regresní testy plánování |
-| `web/lib/dayframe-smart-input.test.mjs` | Testy podporovaných smart-input vzorů |
-| `web/vercel.json` | Konfigurace statického Vercel preview buildu |
+| `web/app/dayframe-v2.tsx` | Aktivní UI a sdílený aplikační stav |
+| `web/app/dayframe-v2.css` | Aktivní design a responsivita |
+| `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, drag/drop logika |
+| `web/lib/dayframe-calendar.test.mjs` | Regresní testy nového kalendářového modelu |
+| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke test přes skutečné UI |
+| `web/lib/dayframe-smart-input.ts` | Volitelný deterministický smart input |
+| `web/app/page.tsx` | Mountuje pouze `DayframeV2` |
+| `web/preview/main.tsx` | Statický Vercel/GitHub preview také mountuje pouze `DayframeV2` |
 
-## Schválené produktové principy
+Staré DOM bridge komponenty (`dayframe-app`, starý week calendar, capture start/result bridge, missed-task bridge a jejich CSS workaroundy) byly z aktivní větve odstraněny. Nový Týden nepoužívá simulované DOM klikání ani technické `[[date:...]]` tokeny pro komunikaci mezi obrazovkami.
 
-- Zachovat klidný světlý design, jemné linky a cihlový akcent. Tmavý režim jen pro soustředění.
-- Málo textu. Nevysvětlovat stejnou věc na více místech.
-- Základní přidání úkolu vyžaduje pouze název.
-- Smart input je **volitelné zrychlení**, ne povinný způsob zadání.
-- Den, délka, deadline, priorita a konkrétní začátek musí jít nastavit i ručně.
-- Ruční volba má přednost před údajem napsaným v názvu.
-- Nedokončené úkoly z minulého dne se nesmí automaticky nabalovat do dalšího dne.
-- U zmeškaného úkolu má uživatel explicitní volbu `Hotovo / Přesunout na zítra / Zrušit`.
-- Týdenní pohled má být rychlý přehled, ne přeplácaná kopie Google Calendar.
-- Úkoly v každém dni týdenního pohledu musí být vždy řazené chronologicky podle začátku.
-- Kliknutí na den v týdnu má být rychlá cesta k přidání úkolu pro právě tento den; uživatel stále může délku a čas změnit ručně.
+## Data a migrace
 
-## Aktuální chování
+Storage key zůstává `dayframe-v1`, ale nový formát je `schema: 5`.
 
-`Přidat úkol` používá výchozích 45 minut, hledá volné místo dnes a případně zítra, chrání oběd 13–14 a bez explicitního času nepřesouvá existující bloky.
+Základ:
 
-Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17:30 45 min`, `CFI zítra od 16 na hodinu`, `Angličtina od 18 do 19:30` a `matika 40 min od 17:00`. Konkrétní čas je začátek úkolu, ne deadline. Při exact-start zadání vznikne pevný blok; pokud se do požadovaného času nevejde, zůstane čekat.
+- `plans[YYYY-MM-DD]` obsahuje skutečné úkoly konkrétního dne;
+- `routines` jsou samostatné opakovací definice;
+- `backlog` drží práci, kterou se nepodařilo umístit;
+- `routineSkips` chrání uživatelské výjimky z rutin;
+- schema 4 se při prvním načtení nedestruktivně migruje do schema 5;
+- staré technické date/start tokeny se při migraci vyčistí z názvů.
 
-Interní tokeny `[[start:HH:MM]]` a `[[date:YYYY-MM-DD]]` používají jen UI pomocné komponenty; před uložením se odstraní z uživatelského názvu. Absolutní datum umožňuje z týdenního pohledu uložit úkol i na den vzdálenější než zítřek. Takový úkol zůstane v čekajících úkolech, dokud se daný den nepřiblíží na dnes/zítra; pak ho stávající planner umí zařadit. Ruční `Kdy to potřebuješ?` dnes/zítra má před interním datumem přednost.
+## Produktové chování
 
-Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Po kliknutí na den v týdnu se v Add Task zobrazí malý štítek s vybraným datem; uživatel jej může zrušit a stále může čas/délku nastavit ručně.
+### Dnes
 
-Týdenní kalendář je dostupný přes `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Úkoly se řadí chronologicky. Pevné bloky používají `week-task-fixed`, nikoli generickou `fixed` třídu.
+`Dnes` je execution view, ne druhý kalendář. Primárně odpovídá na:
 
-Od PR #13 je týden částečně interaktivní:
-- kliknutí na dnešek nebo budoucí den otevře `Přidat úkol` s tímto přesným datem předvybraným;
-- dnešní a zítřejší skutečné bloky jsou klikací a otevřou existující editor úkolu;
-- budoucí čekající uživatelské úkoly s `targetDate` se zobrazují v příslušném dni; bez konkrétního času mají stav `Čas doplní Dayframe`;
-- kliknutí na čekající uživatelský úkol otevře existující editor čekajícího úkolu a zachová vybrané datum;
-- šablonové bloky ve vzdálenějších dnech jsou stále read-only a mají tooltip, že zatím nejsou editovatelné;
-- minulým dnům nelze přes týden přidat nový úkol.
+1. Co dělat teď.
+2. Co následuje.
+3. Jestli plán potřebuje rozhodnutí.
 
-## Důležité předchozí změny
+Nedokončený minulý blok se **nikdy automaticky nepřenáší**. Uživatel volí `Hotovo / Na zítra / Zrušit`.
 
-- PR #1: méně duplicitního textu; merge `b22ae165130c7409a98dd52194f53218bb7af446`.
-- PR #2: zastaven automatický stale-task carryover; merge `c1beae33087c9f92784a7a29b3648087ff8b1f87`.
-- PR #3: smart input + missed-task actions; merge `861c04e5bb36fafc5a6d3745507cbe300f597aec`.
-- PR #4: kompatibilita čekajících úkolů; merge `d1b195881357d5700ad7ac3f265d28f3ce501a34`.
-- PR #5: exact start-time input + ruční `Začít v`; merge `80c35d771378c28ebdbe2b630c3a54569a8568c4`.
-- PR #6: regresní test přesně pro `matika 40 min od 17:00`; merge `9f004f9b2063815e268a456d48112c33c964049d`.
-- `web/vercel.json`: příprava automatického Vercel preview buildu; následně byl projekt `dayframe2` správně propojen s repem a rootem `web`.
-- PR #9: týdenní kalendář; squash merge `131d8c89e7884f8f150d18213c5601aef89e15fd`.
-- PR #10: chronologické řazení úkolů v týdenním kalendáři; squash merge `cd509b758577743f4c5a486825a5cf153d0e6d3f`.
-- PR #11: první pokus o opravu překrývání pevných bloků pomocí scoped CSS override; squash merge `1061900d8855bc1ba14ea004e7d7155460ec41a0`. Vizuálně problém nevyřešil spolehlivě.
-- PR #12: definitivní odstranění kolize — karty už vůbec nepoužívají třídu `fixed`, ale `week-task-fixed`; squash merge `a4146008441fb0f465c1636ca9ccad8f1f98580e`.
-- PR #13: klikací dny + přidání úkolu na přesné datum + otevření skutečných/čekajících úkolů z týdne; squash merge `a39312cac05352d8f10080edaf0e94d82d2e7754`.
+### Týden
 
-## Testování a rizika
+Týden je hlavní plánovací plocha:
 
-GitHub Actions `Check web preview` pro head PR #13 skončil `success`. Vercel preview deployment pro PR #13 měl stav `success`. Regresní testy byly rozšířeny o absolutní kalendářní datum a budoucí čekající úkol, ale tento workflow samotné `node --test` nespouští; neoznačovat je tedy jako samostatně provedené v této změně.
+- Po–Ne jako skutečný časový grid;
+- každý den používá skutečná date-native data;
+- `+` v dni otevře přidání rovnou na tento den;
+- kliknutí na blok otevře společný editor;
+- editace/smazání nepoužívá DOM bridge;
+- pevné bloky a flexibilní bloky jsou vizuálně i datově odlišné;
+- oběd 13:00–14:00 je chráněný;
+- drag & drop mezi dny/časy je podporovaný;
+- ruční drag na konkrétní čas z úkolu udělá pevný blok;
+- `Přepočítat týden` umí přeskládat pohyblivé flexibilní úkoly podle priority a termínů, aniž by hýbal pevnými/date-locked bloky.
 
-Kompletní browser/E2E sada stále není zapojená. Interakce týdne znovu používají existující editory přes DOM navigaci a stabilní CSS selektory (`timeline-row`, `tomorrow-row`, `waiting-row`). To minimalizuje zásah do hlavního stavu aplikace, ale je to technický dluh: pokud se změní markup těchto obrazovek, je nutné zkontrolovat i týdenní klikání.
+### Přidat úkol
 
-Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. PR #13 nepřidává nový storage schema; vzdálenější cílový den se ukládá přes už existující volitelné `InboxTask.targetDate`. Žádná destruktivní migrace není potřeba.
+Základ vyžaduje jen název. Rychlá ruční nastavení jsou vidět jako kompaktní pole/chips:
 
-## Co hotové není
+- den;
+- délka;
+- `Začít v`;
+- priorita.
 
-- Přímá editace šablonových bloků ve vzdálenějších dnech; jsou stále read-only.
-- Drag-and-drop úkolů v týdenním kalendáři.
-- Samostatně uložený plnohodnotný plán pro každý vzdálenější den; vlastní budoucí úkoly se do té doby drží jako `InboxTask` s `targetDate`.
-- Cloud účet a synchronizace zařízení.
-- Propojení nového webu s Tauri a automatické aktualizace Windows aplikace.
+Další podrobnosti jsou schované: dokončit do, nejpozdější čas, oblast a opakování.
+
+Smart input zůstává pouze volitelné zrychlení (`zeměpis 20 min`, `Matematika v 17:30 na 60 minut` atd.). Přesné ruční datum a start se ukládají jako datová pole, ne jako textové tokeny.
+
+Když uživatel neurčí den, planner hledá místo přes celý následující týden. Respektuje:
+
+- pracovní okno 10:00–22:30;
+- oběd 13:00–14:00;
+- existující bloky;
+- přesný start;
+- prioritu;
+- due date/deadline.
+
+### Rutiny
+
+Původní hardcoded týdenní šablona byla převedena na opakovací rutiny. Např. `Čtení knihy` je denní rutina v 22:40. Rutiny se materializují do reálných datovaných bloků, takže budoucí týden už není read-only maketa.
+
+Uživatel může v Nastavení rutiny aktivovat/deaktivovat nebo smazat a novou rutinu založit přes Přidat úkol → Opakování.
+
+### Focus
+
+Focus zůstává záměrně jednoduchý: jeden aktivní úkol a 50min timer. Tmavý režim je vyhrazen focusu.
+
+## Testování PR #14
+
+Poslední ověřený PR head před merge prošel:
+
+- `pnpm exec tsc --noEmit` — PASS;
+- 28/28 Node regresních testů — PASS;
+- `pnpm preview:build` — PASS;
+- Playwright Chromium browser smoke — PASS (1/1): otevře Týden, vybere budoucí den, přidá `Zeměpis 20 min`, ověří že se nikde neukáže `[[...]]`, vrátí se do týdne a otevře úkol v editoru;
+- Vercel PR preview — SUCCESS.
+
+CI workflow `.github/workflows/preview-build.yml` nyní typecheck, regresní testy, build a browser smoke spouští automaticky.
+
+## Produktové principy
+
+- Málo textu, vysoká čitelnost.
+- Smart input není povinný.
+- Ruční zadávání musí být vždy dostupné.
+- Pevný blok Dayframe svévolně nepřesouvá.
+- Flexibilní práce se může optimalizovat.
+- Nedokončené úkoly nesnowballují automaticky.
+- Týden = plánování, Dnes = vykonávání.
+- GitHub `main` je source of truth.
+
+## Co stále není cílem tohoto PR
+
+- Cloud účet/synchronizace mezi zařízeními.
+- Windows Tauri integrace a systémové blokování rušivých aplikací.
 - iOS klient.
-- Skutečné blokování/čtení rušivých Windows/iOS aplikací; webový hlídač je demo.
-- Dlouhodobé plánování a automatický rozpad cílů.
-- Obecné NLP/AI odhadování délky.
-- Některé starší prvky Nastavení, milníků a týdenních statistik jsou stále ilustrativní nebo nedokončené.
+- Obecný LLM/NLP planner; smart input je deterministický.
 
 ## Jak pokračovat
 
-1. Vždy načti aktuální `main` a zapiš výchozí SHA.
-2. Pracuj hlavně ve `web/`; bez zadání nepřepisuj starší Windows projekt.
-3. Dělej nejmenší smysluplné změny a zachovej data i design.
-4. Rozlišuj NAVRŽENO / UPRAVENO / OTESTOVÁNO / NASAZENO.
-5. Po každé práci aktualizuj tento handoff.
-6. Každý push do `main` má přes Git integraci automaticky vytvořit novou verzi na `https://dayframe2.vercel.app`; uživatel má používat tento jeden stálý odkaz a refreshovat.
+1. Vždy načti aktuální `main` před editací.
+2. Pracuj primárně v `web/app/dayframe-v2.tsx` a `web/lib/dayframe-calendar.ts`.
+3. Zachovej migraci `dayframe-v1` a data uživatele.
+4. Každou větší změnu pokryj unit testem nebo Playwright scénářem.
+5. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
+6. Sites je oddělený a automaticky se neaktualizuje.
 
-Pro testy z `web/`: `node --test lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs`. Kontrola typů: `node node_modules/typescript/bin/tsc --noEmit`. Statický preview build: `pnpm preview:build`.
-
-### Až uživatel řekne „handoff zpět do Work“
+### Handoff zpět do Work
 
 ```text
 DAYFRAME — ZPĚTNÉ PŘEDÁNÍ
