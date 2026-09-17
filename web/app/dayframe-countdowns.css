@@ -17,24 +17,27 @@
 
 .df2-day-ruler-copy {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 16px;
+  gap: 10px 16px;
 }
+
+.df2-day-ruler-copy > span:first-child { grid-column: 1 / -1; }
 
 .df2-day-ruler-copy > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
 }
 
 .df2-day-ruler-copy strong {
-  justify-self: center;
+  justify-self: start;
   color: var(--ink);
-  font: 650 clamp(30px, 4vw, 48px)/1 "Cascadia Mono", monospace;
-  letter-spacing: -.07em;
+  font: 650 clamp(32px, 4vw, 48px)/1.2 "Cascadia Mono", monospace;
+  letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -73,7 +76,7 @@
   justify-content: space-between;
   margin-top: 7px;
   color: #95938c;
-  font: 9px/1 "Cascadia Mono", monospace;
+  font: 12px/1.4 "Cascadia Mono", monospace;
 }
 
 .df2-event-countdown {
@@ -92,7 +95,7 @@
 
 .df2-event-countdown > span {
   color: var(--accent-dark);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -109,22 +112,23 @@
 
 .df2-event-countdown > strong em {
   color: var(--muted);
-  font: 700 10px/1 sans-serif;
+  font: 600 14px/1.4 sans-serif;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
 
 .df2-event-countdown b {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .df2-event-countdown small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .df2-milestones article {
@@ -147,7 +151,7 @@
 
 .df2-milestone-remaining span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 13px;
 }
 
 @media (max-width: 900px) {

@@ -13,6 +13,19 @@ Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site — **není auto
 
 GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `web` a push do `main` automaticky deployuje stálý URL výše.
 
+## Kontrola a opravy z Work — 17. 9. 2026
+
+Navazuje na `08c06a0a39cf127769a5b8928ba57eca975399a5`, bez návratu ke staré Sites verzi.
+
+- Odpočty měly chybějící CSS ve Vercel vstupu. Oba CSS soubory teď importuje přímo sdílený `dayframe-v2.tsx`.
+- Opraven backlog, ruční nastavení oproti smart inputu, otevření správného týdne, editor dokončení a rutiny (vypnutí, datum začátku, kolize a výjimky po přesunu).
+- Přepočet zachovává minulé i právě probíhající úkoly. Zrušení rutiny zachovává dokončenou historii. Prázdný uložený den se při migraci nedoplňuje šablonou.
+- `dayframe-storage.ts` zálohuje původní schema 4 před migrací; chyba načtení nesmí přepsat uložená data. Storage key i schema 5 zůstávají stejné.
+- Focus stále používá 50 minut, ale odpočet vychází ze skutečně uplynulého času. Vylepšena čitelnost, krátké bloky a ovládání editoru klávesnicí.
+- Lokálně: TypeScript, 45 regresních testů a statický build prošly. Interaktivně ověřeny odpočty, večerní rutina, ruční nastavení, výběr týdne a editor. CI nově ověřuje skutečný sestavený Vercel výstup včetně rozložení 320–1360 px a ochrany dat; před merge vyžadovat zelený výsledek.
+
+Kalendář, rutiny, smart input, přesouvání, milníky i původní data jsou zachovány. Windows/iOS ani Sites se touto opravou nenasazují.
+
 ## Aktuální architektura — Calendar Foundation
 
 PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty, které jsou produktově zásadní a nesmí se při dalším zjednodušování odstranit.

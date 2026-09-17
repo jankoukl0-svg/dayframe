@@ -73,7 +73,7 @@
   border-radius: 3px;
   background: transparent;
   color: var(--muted);
-  font: 10px/1.2 "Cascadia Mono", monospace;
+  font: 12px/1.2 "Cascadia Mono", monospace;
   text-align: center;
 }
 
@@ -84,7 +84,7 @@
   padding: 18px 7px 0;
   border-top: 1px solid var(--line);
 }
-.df2-sidebar-bottom span, .df2-sidebar-bottom small { color: var(--muted); font-size: 11px; }
+.df2-sidebar-bottom span, .df2-sidebar-bottom small { color: var(--muted); font-size: 12px; }
 .df2-sidebar-bottom strong { font: 700 14px/1.4 "Cascadia Mono", monospace; }
 
 .df2-main {
@@ -130,7 +130,7 @@
 }
 .df2-now-label { align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 6px; border-right: 1px solid var(--line); }
 .df2-now-label span { color: var(--accent-dark); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-.df2-now-label small { color: var(--muted); font: 11px/1.3 "Cascadia Mono", monospace; }
+.df2-now-label small { color: var(--muted); font: 12px/1.3 "Cascadia Mono", monospace; }
 .df2-now-card h2 { margin: 0 0 7px; font-size: clamp(24px, 3vw, 34px); font-weight: 620; letter-spacing: -.035em; }
 .df2-now-card p { margin: 0; color: var(--muted); font-size: 13px; }
 .df2-now-actions { display: flex; gap: 7px; }
@@ -151,15 +151,15 @@
   background: #f7ebe5;
 }
 .df2-missed > header { display: flex; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid #dfc1b3; }
-.df2-missed > header span { color: var(--accent-dark); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.df2-missed > header span { color: var(--accent-dark); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .df2-missed > header strong { font-size: 12px; }
 .df2-missed article { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 11px 16px; border-bottom: 1px solid #ead3c8; }
 .df2-missed article:last-child { border-bottom: 0; }
 .df2-missed article > div:first-child { display: grid; gap: 2px; }
 .df2-missed article strong { font-size: 13px; }
-.df2-missed article small { color: var(--muted); font-size: 11px; }
+.df2-missed article small { color: var(--muted); font-size: 12px; }
 .df2-missed article > div:last-child { display: flex; gap: 5px; }
-.df2-missed button { min-height: 30px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--paper); font-size: 11px; }
+.df2-missed button { min-height: 30px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--paper); font-size: 12px; }
 
 .df2-next { margin-top: 34px; }
 .df2-section-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
@@ -183,8 +183,8 @@
 .df2-next time { color: var(--ink); font: 700 13px/1 "Cascadia Mono", monospace; }
 .df2-next button > span { display: grid; gap: 4px; }
 .df2-next button > span strong { font-size: 14px; }
-.df2-next button > span small { color: var(--muted); font-size: 11px; }
-.df2-next em { color: var(--muted); font-size: 10px; font-style: normal; text-transform: uppercase; }
+.df2-next button > span small { color: var(--muted); font-size: 12px; }
+.df2-next em { color: var(--muted); font-size: 12px; font-style: normal; text-transform: uppercase; }
 .df2-empty { padding: 20px 0; color: var(--muted); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .df2-today-status { display: flex; align-items: center; gap: 9px; margin-top: 28px; color: var(--muted); font-size: 12px; }
 .df2-today-status > span { width: 7px; height: 7px; border-radius: 50%; }
@@ -225,12 +225,13 @@
   min-width: 980px;
   display: grid;
   grid-template-columns: repeat(7, minmax(135px, 1fr));
+  grid-template-rows: auto auto auto auto;
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
   background: var(--line);
   gap: 1px;
 }
-.df2-week-day { min-width: 0; background: var(--surface); }
+.df2-week-day { min-width: 0; background: var(--surface); display: grid; grid-template-rows: subgrid; grid-row: span 4; }
 .df2-week-day.today { background: var(--paper); box-shadow: inset 0 3px 0 var(--accent); }
 .df2-week-day-head {
   min-height: 82px;
@@ -242,33 +243,31 @@
   cursor: pointer;
 }
 .df2-week-day-head > div { display: grid; gap: 4px; }
-.df2-week-day-head span { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.df2-week-day-head span { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .df2-week-day-head strong { font: 600 30px/1 "Cascadia Mono", monospace; letter-spacing: -.05em; }
 .df2-week-day-head button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--muted); font-size: 18px; }
 .df2-week-day-head button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-wash); }
 .df2-week-day-head button:disabled { opacity: .25; cursor: default; }
-.df2-day-summary { min-height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 9px/1 "Cascadia Mono", monospace; }
+.df2-day-summary { min-height: 52px; display: grid; align-content: center; gap: 5px; padding: 8px 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 12px/1.2 "Cascadia Mono", monospace; }
 .df2-unscheduled { min-height: 0; display: grid; gap: 4px; padding: 5px; }
-.df2-unscheduled:empty { display: none; }
-.df2-unscheduled button { display: grid; gap: 2px; padding: 6px 7px; border: 1px dashed var(--accent); background: #fbf1ec; color: var(--ink); text-align: left; font-size: 11px; }
-.df2-unscheduled small { color: var(--accent-dark); font-size: 9px; }
+.df2-unscheduled:empty { padding-block: 0; }
+.df2-unscheduled button { display: grid; gap: 2px; padding: 6px 7px; border: 1px dashed var(--accent); background: #fbf1ec; color: var(--ink); text-align: left; font-size: 12px; }
+.df2-unscheduled small { color: var(--accent-dark); font-size: 12px; }
 
 .df2-time-body {
   position: relative;
-  height: 562px;
   overflow: hidden;
-  background: repeating-linear-gradient(to bottom, transparent 0, transparent 43px, rgba(211,208,199,.72) 43px, rgba(211,208,199,.72) 44px);
 }
 .df2-hour-line { position: absolute; left: 0; right: 0; height: 1px; border-top: 1px solid rgba(211,208,199,.55); pointer-events: none; }
-.df2-hour-line em { position: absolute; left: 4px; top: 2px; color: #a2a19c; font: 8px/1 "Cascadia Mono", monospace; font-style: normal; }
+.df2-hour-line em { position: absolute; left: 4px; top: 2px; color: #a2a19c; font: 12px/1 "Cascadia Mono", monospace; font-style: normal; }
 .df2-lunch { position: absolute; left: 0; right: 0; display: grid; place-items: center; background: rgba(222,220,213,.42); border-block: 1px dashed rgba(170,167,158,.45); pointer-events: none; }
-.df2-lunch span { color: #a2a19c; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.df2-lunch span { color: #a2a19c; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 .df2-week-task {
   position: absolute;
   left: 6px;
   right: 6px;
   z-index: 2;
-  min-height: 30px;
+  min-height: 0;
   display: grid;
   align-content: start;
   gap: 2px;
@@ -286,10 +285,13 @@
 .df2-week-task:hover { z-index: 4; border-color: var(--line-strong); background: var(--paper); }
 .df2-week-task.done { opacity: .42; }
 .df2-week-task.done strong { text-decoration: line-through; }
-.df2-week-task > span { color: var(--muted); font: 8px/1.2 "Cascadia Mono", monospace; }
-.df2-week-task > strong { overflow: hidden; font-size: 11px; line-height: 1.15; font-weight: 700; text-overflow: ellipsis; }
-.df2-week-task > small { overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
-.df2-week-help { margin-top: 14px; color: var(--muted); font-size: 11px; }
+.df2-week-task > span { color: var(--muted); font: 12px/1.2 "Cascadia Mono", monospace; }
+.df2-week-task > strong { overflow: hidden; font-size: 14px; line-height: 1.15; font-weight: 700; text-overflow: ellipsis; }
+.df2-week-task > small { overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.df2-week-task.compact { padding: 3px 5px; align-content: center; }
+.df2-week-task.compact > span, .df2-week-task.compact > small { display: none; }
+.df2-week-task.compact > strong { white-space: nowrap; font-size: 12px; }
+.df2-week-help { margin-top: 14px; color: var(--muted); font-size: 12px; }
 
 .df2-add-view { max-width: 930px; }
 .df2-add-form { display: grid; gap: 20px; }
@@ -298,29 +300,29 @@
 .df2-title-input > input { min-height: 58px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); color: var(--ink); font-size: 20px; }
 .df2-chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .df2-chips label { display: grid; gap: 2px; padding: 6px 9px 7px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
-.df2-chips label > span { color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.df2-chips label > span { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .df2-chips input, .df2-chips select { min-width: 112px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 650; }
 .df2-details { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 0; }
 .df2-details summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .df2-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 15px; }
-.df2-details-grid label, .df2-modal label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
+.df2-details-grid label, .df2-modal label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
 .df2-details-grid input, .df2-details-grid select, .df2-modal input, .df2-modal select, .df2-inline-form input { min-height: 38px; padding: 0 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--paper); color: var(--ink); }
 .df2-understood { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; padding: 12px 14px; border-left: 2px solid var(--accent); background: #f3eee9; }
-.df2-understood span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.df2-understood span { color: var(--muted); font-size: 12px; text-transform: uppercase; }
 .df2-understood strong { font-size: 13px; }
-.df2-understood small { grid-column: 2; color: var(--muted); font-size: 11px; }
+.df2-understood small { grid-column: 2; color: var(--muted); font-size: 12px; }
 .df2-add-form > .df2-primary { width: max-content; min-width: 132px; }
 .df2-error { margin: 0; color: #a6322c; font-size: 12px; }
 .df2-result { margin: 22px 0 0; display: grid; grid-template-columns: auto 1fr auto; }
-.df2-result span { font-size: 10px; text-transform: uppercase; }
+.df2-result span { font-size: 12px; text-transform: uppercase; }
 .df2-result strong { color: var(--ink); font-size: 13px; }
 .df2-result button { border: 0; background: transparent; color: var(--accent-dark); font-size: 12px; font-weight: 700; }
 .df2-backlog { margin-top: 34px; }
 .df2-backlog h2 { margin: 0 0 10px; font-size: 17px; }
 .df2-backlog article { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 58px; padding: 9px 0; border-top: 1px solid var(--line); }
 .df2-backlog article > div { display: grid; gap: 3px; }
-.df2-backlog small { color: var(--muted); font-size: 11px; }
-.df2-backlog button { border: 0; background: transparent; color: var(--accent-dark); font-size: 11px; font-weight: 700; }
+.df2-backlog small { color: var(--muted); font-size: 12px; }
+.df2-backlog button { border: 0; background: transparent; color: var(--accent-dark); font-size: 12px; font-weight: 700; }
 
 .df2-focus-mode { background: var(--focus-bg); color: var(--focus-text); }
 .df2-focus-mode .df2-shell { background: var(--focus-bg); border-color: var(--focus-line); }
@@ -332,10 +334,10 @@
 .df2-focus-view > p { margin: 0 0 8px; color: #979b95; font-size: 13px; }
 .df2-focus-view h1 { margin: 0; max-width: 760px; font-size: clamp(30px, 5vw, 54px); font-weight: 560; letter-spacing: -.04em; }
 .df2-focus-clock { margin: 58px 0 42px; font: 500 clamp(76px, 12vw, 150px)/.9 "Cascadia Mono", monospace; letter-spacing: -.08em; }
-.df2-focus-actions { display: flex; gap: 8px; }
+.df2-focus-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .df2-focus-actions button { min-height: 42px; padding: 0 16px; border: 1px solid #555a54; border-radius: 4px; background: #232623; color: var(--focus-text); font-size: 12px; }
 .df2-focus-actions button:first-child { border-color: #d66d44; background: #b94f27; }
-.df2-focus-view > small { margin-top: 28px; color: #777c75; font-size: 11px; }
+.df2-focus-view > small { margin-top: 28px; color: #777c75; font-size: 12px; }
 
 .df2-simple-view { max-width: 980px; }
 .df2-inline-form { display: grid; grid-template-columns: 1fr 170px auto; gap: 7px; margin-bottom: 26px; }
@@ -343,9 +345,9 @@
 .df2-milestones { border-top: 1px solid var(--line); }
 .df2-milestones article { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 78px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
 .df2-milestones article > div { display: grid; gap: 5px; }
-.df2-milestones span { color: var(--accent-dark); font-size: 10px; text-transform: uppercase; }
+.df2-milestones span { color: var(--accent-dark); font-size: 12px; text-transform: uppercase; }
 .df2-milestones strong { font-size: 15px; }
-.df2-milestones time { color: var(--muted); font: 11px/1.3 "Cascadia Mono", monospace; }
+.df2-milestones time { color: var(--muted); font: 12px/1.3 "Cascadia Mono", monospace; }
 .df2-settings-card { display: grid; border-top: 1px solid var(--line); }
 .df2-settings-card > div { display: grid; grid-template-columns: 190px 1fr; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .df2-settings-card strong { font-size: 13px; }
@@ -354,21 +356,34 @@
 .df2-routines .df2-section-head button { border: 0; background: transparent; color: var(--accent-dark); font-size: 12px; font-weight: 700; }
 .df2-routines article { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 18px; min-height: 58px; border-top: 1px solid var(--line); }
 .df2-routines article > div { display: grid; gap: 3px; }
-.df2-routines small { color: var(--muted); font-size: 10px; }
-.df2-routines label { color: var(--muted); font-size: 11px; }
-.df2-routines article > button { border: 0; background: transparent; color: #9a3d35; font-size: 11px; }
+.df2-routines small { color: var(--muted); font-size: 12px; }
+.df2-routines label { color: var(--muted); font-size: 12px; }
+.df2-routines article > button { border: 0; background: transparent; color: #9a3d35; font-size: 12px; }
 
 .df2-modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(30,31,29,.28); backdrop-filter: blur(2px); }
 .df2-modal { width: min(610px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; display: grid; gap: 16px; padding: 22px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); box-shadow: 0 22px 60px rgba(34,33,30,.18); }
 .df2-modal > header { display: flex; justify-content: space-between; align-items: flex-start; }
-.df2-modal > header span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.df2-modal > header span { color: var(--muted); font-size: 12px; text-transform: uppercase; }
 .df2-modal > header h2 { margin: 3px 0 0; font-size: 25px; letter-spacing: -.03em; }
 .df2-modal > header button { width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); font-size: 22px; }
 .df2-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .df2-modal-actions { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 5px; }
-.df2-modal-actions > button { min-height: 38px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; font-size: 11px; }
+.df2-modal-actions > button { min-height: 38px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; font-size: 12px; }
 .df2-modal-actions .df2-primary { border-color: var(--accent-dark); background: var(--accent); color: white; }
 .df2-modal-actions .danger { margin-left: auto; color: #9d3932; border-color: #d7aaa7; }
+
+.df2-editor { width: min(610px, calc(100% - 32px)); max-width: 610px; padding: 0; border: 0; background: transparent; }
+.df2-editor .df2-modal { width: 100%; }
+.df2-load-error { max-width: 540px; margin: 12vh auto; padding: 24px; }
+.df2-load-error h1 { font-size: 26px; }
+.df2-load-error p { margin: 16px 0; }
+.df2-load-error button { padding: 10px 16px; border: 1px solid var(--line-strong); }
+.df2-root button:focus-visible, .df2-root input:focus-visible, .df2-root select:focus-visible, .df2-root summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.df2-root button:disabled { opacity: .5; cursor: not-allowed; }
+.df2-backlog article > div:last-child { display: flex; gap: 14px; }
+.df2-root input, .df2-root select { max-width: 100%; }
+.df2-now-card h2, .df2-missed strong, .df2-result strong { overflow-wrap: anywhere; }
+.df2-now-actions, .df2-missed article > div:last-child { flex-wrap: wrap; }
 
 @media (max-width: 980px) {
   .df2-shell { grid-template-columns: 184px minmax(0, 1fr); }
@@ -386,7 +401,7 @@
   .df2-sidebar nav button { min-width: 0; min-height: 52px; justify-content: center; padding: 0 4px; border: 0; border-radius: 0; }
   .df2-sidebar nav button.active { box-shadow: inset 0 2px 0 var(--accent); }
   .df2-sidebar nav kbd { display: none; }
-  .df2-sidebar nav span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+  .df2-sidebar nav span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .df2-main { padding: 22px 15px 82px; }
   .df2-page-head { min-height: 60px; margin-bottom: 20px; }
   .df2-page-head h1 { font-size: 34px; }

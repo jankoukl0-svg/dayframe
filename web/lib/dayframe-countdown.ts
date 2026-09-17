@@ -1,5 +1,9 @@
 const DAY_WINDOW_MS = 15.5 * 60 * 60 * 1000;
 
+export function remainingFocusSeconds(endsAt: number, now = Date.now()) {
+  return Math.max(0, Math.ceil((endsAt - now) / 1000));
+}
+
 export type DayCountdown = {
   hours: number;
   minutes: number;
