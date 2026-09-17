@@ -38,6 +38,9 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
 
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
+  await expect(page.getByText(/zamknut/i)).toHaveCount(0);
+  await expect(page.locator(".df2-task-lock")).toHaveCount(0);
+  await expect(page.locator(".df2-lock-glyph")).toHaveCount(0);
 
   const weekVisual = await page.locator(".df2-week-grid").evaluate((grid) => {
     const bodies = [...grid.querySelectorAll(".df2-time-body")];
@@ -79,22 +82,19 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   expect(weekVisual.hourSlotHeight).toBeGreaterThan(43);
   expect(Math.abs(weekVisual.oneHourTaskHeight - weekVisual.hourSlotHeight)).toBeLessThan(0.6);
 
-  await expect(page.locator(".df2-week-task.fixed-block .df2-task-lock").first()).toBeVisible();
-
   const draggedTitle = "CFI / Excel";
   const sourceTask = page.locator(".df2-week-day").first().locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
   const saturdayBody = page.locator(".df2-week-day").nth(5).locator(".df2-time-body");
   await sourceTask.dragTo(saturdayBody, { targetPosition: { x: 70, y: 378 } });
-  await expect(page.locator(".df2-notice")).toContainText("zamknuto");
+  await expect(page.locator(".df2-notice")).not.toContainText(/zamknut/i);
   const movedTask = page.locator(".df2-week-day").nth(5).locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
   await expect(movedTask).toBeVisible();
   await expect(movedTask).toContainText("18:00");
-  await expect(movedTask.locator(".df2-task-lock")).toBeVisible();
 
   await movedTask.click();
-  const modeSelect = page.locator('select[name="mode"]');
-  await expect(modeSelect).toHaveValue("fixed");
-  await expect(modeSelect.locator('option[value="fixed"]')).toHaveText("Zamknutý čas");
+  await expect(page.locator('select[name="mode"]')).toHaveCount(0);
+  await expect(page.locator('input[name="start"]')).toHaveValue("18:00");
+  await expect(page.getByText("Prázdné = Dayframe najde volný čas automaticky.", { exact: true })).toBeVisible();
   await page.locator(".df2-modal header > button").click();
 
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);

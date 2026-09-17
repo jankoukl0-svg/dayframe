@@ -77,7 +77,7 @@
 }
 
 /* Lunch is a preference, not a forbidden zone. It stays visible as a gentle
-   cue while manually locked tasks are allowed to sit above it. */
+   cue while users are still free to place work there manually. */
 .df2-lunch {
   z-index: 0;
   background: repeating-linear-gradient(
@@ -108,7 +108,8 @@
   box-sizing: border-box;
   gap: 2px;
   padding: 3px 7px;
-  border-color: #cfccc3;
+  border: 1px solid #cfccc3;
+  border-left: 2px solid var(--accent);
   border-radius: 3px;
   background: #f7f5f0;
   box-shadow: none;
@@ -120,16 +121,6 @@
   z-index: 5;
   border-color: var(--line-strong);
   background: #fffdfa;
-}
-
-.df2-week-task.fixed-block {
-  border-left: 2px solid var(--accent);
-}
-
-.df2-week-task.flex-block {
-  border: 1px dashed #89978e;
-  border-left: 2px dashed #73877a;
-  background: #f4f5f1;
 }
 
 .df2-week-task > span {
@@ -154,7 +145,6 @@
   white-space: normal;
 }
 
-/* The mode is already communicated by the solid/dashed border. */
 .df2-week-task > small {
   display: none;
 }
@@ -177,10 +167,6 @@
     font-size: 8.5px;
     line-height: 1;
     white-space: nowrap;
-  }
-
-  .df2-task-lock {
-    display: none;
   }
 }
 
@@ -235,7 +221,7 @@
 }
 
 /* Dragging keeps the cursor's original grab point, snaps to a 15-minute
-   grid, then shows the exact time that will be locked before the drop. */
+   grid, then shows the exact time before the drop. */
 .df2-time-body.drop-active {
   background-color: rgba(189, 84, 43, .018);
 }
@@ -250,7 +236,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
   border: 1px solid var(--accent);
   border-left-width: 2px;
   border-radius: 3px;
@@ -269,58 +254,6 @@
 
 .df2-drop-preview strong {
   font: 700 10px/1 "Cascadia Mono", monospace;
-}
-
-.df2-lock-glyph,
-.df2-task-lock {
-  position: relative;
-  width: 9px;
-  height: 8px;
-  display: inline-block;
-  border: 1px solid currentColor;
-  border-radius: 1px;
-}
-
-.df2-lock-glyph::before,
-.df2-task-lock::before {
-  content: "";
-  position: absolute;
-  left: 1px;
-  right: 1px;
-  top: -6px;
-  height: 6px;
-  border: 1px solid currentColor;
-  border-bottom: 0;
-  border-radius: 5px 5px 0 0;
-}
-
-.df2-task-lock {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-  width: 7px;
-  height: 6px;
-  color: rgba(150, 60, 28, .68);
-  opacity: .75;
-  pointer-events: none;
-}
-
-.df2-task-lock::before {
-  top: -5px;
-  height: 5px;
-}
-
-.df2-week-task.fixed-block > strong {
-  padding-right: 11px;
-}
-
-@container (max-height: 35px) {
-  .df2-task-lock {
-    top: 50%;
-    right: 5px;
-    transform: translateY(-25%);
-  }
 }
 
 @media (max-width: 1180px) {
