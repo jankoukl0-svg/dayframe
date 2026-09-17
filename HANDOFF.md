@@ -8,7 +8,7 @@ Dayframe je osobní aplikace pro plánování a soustředění. Uživatel Jan ch
 
 Repo: https://github.com/jankoukl0-svg/dayframe  
 Výchozí větev: `main`  
-Aktuální hlavní funkční commit: `1061900d8855bc1ba14ea004e7d7155460ec41a0`  
+Aktuální hlavní funkční commit: `a4146008441fb0f465c1636ca9ccad8f1f98580e`  
 Vývojový Vercel preview: https://dayframe2.vercel.app  
 Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 
@@ -23,7 +23,7 @@ Soukromý Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site
 | `web/app/dayframe-app.tsx` | Hlavní obrazovky, stav, lokální ukládání |
 | `web/app/week-calendar.tsx` | Týdenní kalendář a navigační vstup `Týden` |
 | `web/app/week-calendar.css` | Layout/responzivita týdenního kalendáře |
-| `web/app/week-calendar-fix.css` | Scoped oprava kolize třídy `fixed` s Tailwindem |
+| `web/app/week-calendar-fix.css` | Starší ochranný override pro kolizi `.fixed`; po PR #12 už není hlavní řešení |
 | `web/lib/dayframe-planning.ts` | Automatické hledání času |
 | `web/lib/dayframe-smart-input.ts` | Volitelný parser údajů napsaných do názvu |
 | `web/app/capture-start-control.tsx` | Ruční volitelné pole `Začít v` před přidáním úkolu |
@@ -54,7 +54,7 @@ Smart input rozpoznává mimo jiné `Matematika v 17:30 na 60 minut`, `Matika 17
 
 Ruční podrobnosti mají přes `web/app/capture-start-control.tsx` volitelné pole `Začít v`. Smart input je deterministický parser, ne obecné AI/NLP.
 
-Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Úkoly v každém dni se před vykreslením řadí podle začátku, při shodě podle konce. Pevné bloky zůstávají v normálním toku kalendáře; CSS scoped override brání kolizi s Tailwind utilitou `.fixed`. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
+Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). Zobrazuje Po–Ne, zvýrazní dnešek, ukazuje skutečný uložený plán pro dnešek a zítřek a pro ostatní dny zatím zobrazuje existující týdenní šablonu. Lze přepnout předchozí/další týden a vrátit se na tento týden. Na mobilu je týden horizontálně posuvný. Úkoly v každém dni se před vykreslením řadí podle začátku, při shodě podle konce. Pevné bloky už nepoužívají generickou CSS třídu `fixed`; používají `week-task-fixed`, aby nemohly kolidovat s Tailwind utility `.fixed`. Tato první verze je přehledová; úpravy úkolů přímo v týdenním kalendáři ještě nejsou zapojené.
 
 ## Důležité předchozí změny
 
@@ -67,13 +67,14 @@ Týdenní kalendář je dostupný přes novou položku `Týden` (klávesa `W`). 
 - `web/vercel.json`: příprava automatického Vercel preview buildu; následně byl projekt `dayframe2` správně propojen s repem a rootem `web`.
 - PR #9: týdenní kalendář; squash merge `131d8c89e7884f8f150d18213c5601aef89e15fd`.
 - PR #10: chronologické řazení úkolů v týdenním kalendáři; squash merge `cd509b758577743f4c5a486825a5cf153d0e6d3f`.
-- PR #11: oprava překrývání pevných bloků způsobeného Tailwind `.fixed`; squash merge `1061900d8855bc1ba14ea004e7d7155460ec41a0`.
+- PR #11: první pokus o opravu překrývání pevných bloků pomocí scoped CSS override; squash merge `1061900d8855bc1ba14ea004e7d7155460ec41a0`. Vizuálně problém nevyřešil spolehlivě.
+- PR #12: definitivní odstranění kolize — karty už vůbec nepoužívají třídu `fixed`, ale `week-task-fixed`; squash merge `a4146008441fb0f465c1636ca9ccad8f1f98580e`.
 
 ## Testování a rizika
 
-GitHub Actions `Check web preview` pro PR #11 prošel úspěšně a Vercel preview deployment pro jeho head měl stav `success` před merge. Produkční Vercel deployment po merge spouští Git integrace automaticky.
+GitHub Actions `Check web preview` pro PR #12 prošel úspěšně a Vercel preview deployment pro jeho head měl stav `success` před merge. Produkční Vercel deployment merge commitu `a4146008441fb0f465c1636ca9ccad8f1f98580e` měl rovněž stav `success`.
 
-Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem; vizuální kontrola na `https://dayframe2.vercel.app` je důležitá zejména po změnách layoutu.
+Kompletní browser/E2E sada stále není zapojená. Týdenní kalendář byl ověřen buildem; vizuální kontrola na `https://dayframe2.vercel.app` je důležitá zejména po změnách layoutu. Před PR #12 uživatel doložil screenshotem, že PR #11 problém nepřekrývání nevyřešil; PR #12 proto odstranil samotný konfliktní název třídy místo dalšího CSS override.
 
 Data zůstávají v `localStorage` pod `dayframe-v1`, schema 4. Týdenní kalendář nepřidává migraci ani nový storage schema. Uložená data existují nativně jen pro dnešek a zítřek; vzdálenější dny v týdenním pohledu jsou zatím šablona, nikoli samostatně uložené denní plány.
 
