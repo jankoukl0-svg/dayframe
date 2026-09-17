@@ -15,7 +15,7 @@ GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `w
 
 ## Aktuální architektura — Calendar Foundation
 
-PR #14 zavedl date-native Calendar Foundation. PR #15/#17 vrátily motivační odpočty a jejich původní Dayframe vizuál. PR #18 zlepšil čitelnost Týdne, PR #19 opravil grab-point drag/drop, PR #20 sjednotil přesnou časovou geometrii a změnil oběd na měkkou preferenci. **PR #21 odstranil z produktu celý koncept zamykání bloků. PR #22 přidal živý cílový čas během dragování a PR #23 ho přesunul přímo na pohybující se drop preview.**
+PR #14 zavedl date-native Calendar Foundation. PR #15/#17 vrátily motivační odpočty a jejich původní Dayframe vizuál. PR #18 zlepšil čitelnost Týdne, PR #19 opravil grab-point drag/drop, PR #20 sjednotil přesnou časovou geometrii a změnil oběd na měkkou preferenci. **PR #21 odstranil z produktu celý koncept zamykání bloků. PR #22 přidal živý cílový čas během dragování, PR #23 ho přesunul k pohybujícímu se bloku a PR #24 ho posunul nad preview, aby ho nepřekrýval nativní drag obraz prohlížeče.**
 
 Hlavní soubory:
 
@@ -24,7 +24,7 @@ Hlavní soubory:
 | `web/app/dayframe-v2.tsx` | Aktivní UI, sdílený stav, week drag/snap, editor a hlavní views |
 | `web/app/dayframe-v2.css` | Základní aktivní design a responsivita |
 | `web/app/dayframe-countdowns.css` | Motivační odpočet dne a termínů |
-| `web/app/week-calendar-polish.css` | Čitelnost time-gridu, přesná geometrie slotů a drop preview včetně live target-time badge přímo na preview |
+| `web/app/week-calendar-polish.css` | Čitelnost time-gridu, přesná geometrie slotů a drop preview včetně live target-time badge u přesouvaného bloku |
 | `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, soft lunch preference a moveTask |
 | `web/lib/dayframe-calendar.test.mjs` | Regresní testy kalendářového modelu |
 | `web/lib/dayframe-countdown.ts` | Výpočet konce dne 00:30 a dní do milníků |
@@ -75,14 +75,14 @@ Týden je hlavní plánovací plocha:
 - `Čtení knihy` 22:40–23:00 musí být celé viditelné a zabírat skutečných 20 minut;
 - hour labels se na desktopu neopakují sedmkrát.
 
-#### Drag/drop po PR #21/#22/#23 — bez zamykání
+#### Drag/drop po PR #21–#24 — bez zamykání
 
 - **Neexistuje už žádný uživatelský koncept `zamknutý/flexibilní`.**
 - Nezobrazují se lock ikony, lock glyphy, `zamknuto` notice ani fixed/flex metadata.
 - Blok při tažení zachovává přesné místo úchopu a snapuje po 15 minutách.
 - Při kolizi se hledá pouze nejbližší validní slot do ±60 minut.
 - Drop preview ukazuje přesný výsledný čas bez zámku.
-- **Live snapped čas se během tažení zobrazuje přímo uvnitř/přes aktivní drop preview, ne nahoře ve viewportu.** Uživatel tak nemusí při dragování odvracet oči od bloku, který přesouvá. Nevalidní cíl používá chybový vzhled.
+- **Live snapped čas se během tažení zobrazuje těsně nad aktivním drop preview.** Je tedy pořád přímo u přesouvaného bloku, ale neleží pod nativním drag obrazem prohlížeče. Nevalidní cíl používá chybový vzhled.
 - Ručně přesunutý blok si uchová zvolený den a čas, ale interně zůstává `mode: flexible`; ruční čas je reprezentovaný přes `requestedStart`, `dateLocked` a `autoScheduled: false`.
 - Staré schema-5 bloky s `mode: fixed` se při migraci normalizují na lockless model bez ztráty zvoleného času.
 - Editor už nemá přepínač režimu. Obsahuje jen `Začátek`; prázdná hodnota znamená, že Dayframe najde volný čas automaticky.
@@ -139,11 +139,20 @@ Merge: `f6ddab31c33e3e5ecc6efb09a123caf14b3be089`.
 Merge: `4fc5506fd07c71a77f7b9877bc06c54b5f8cd0b9`.
 
 - live snapped čas už není nahoře ve viewportu;
-- časový badge je přímo na aktivním drop preview, tedy u bloku, který uživatel právě přesouvá;
-- badge je kompaktnější a nepřekáží mimo aktuální pracovní oblast;
+- časový badge byl přesunut přímo na aktivní drop preview;
 - scheduling logika se nezměnila;
 - TypeScript, regresní testy, static preview build a Playwright browser smoke PASS;
 - produkční Vercel deployment merge commitu `4fc5506f...` skončil `success`.
+
+### PR #24 — keep drag time visible above moving block
+Merge: `8afbd4bbc84625277646977cd355ed6b23d2cd4c`.
+
+- nativní drag image prohlížeče překrýval badge umístěný uvnitř preview;
+- badge je nyní těsně nad pravou horní hranou drop preview;
+- aktivní drop body během dragování dovolí badge vykreslit mimo vlastní box, takže se neořízne;
+- scheduling logika se nezměnila;
+- TypeScript, regresní testy, static preview build a Playwright browser smoke PASS;
+- produkční Vercel deployment merge commitu `8afbd4bb...` skončil `success`.
 
 CI workflow `.github/workflows/preview-build.yml` automaticky spouští typecheck, regresní testy, build a browser smoke.
 
@@ -154,7 +163,7 @@ CI workflow `.github/workflows/preview-build.yml` automaticky spouští typechec
 - Týden nesmí být datově ani vizuálně přehuštěný.
 - Časový grid musí být geometricky pravdivý.
 - Oběd je preference pro auto-planner, ne tvrdý zákaz.
-- Drag/drop musí být předvídatelný: držet grab point, snapovat po 15 min, neházet blok daleko při kolizi a **během tažení jasně ukazovat aktuální cílový čas přímo u přesouvaného bloku**.
+- Drag/drop musí být předvídatelný: držet grab point, snapovat po 15 min, neházet blok daleko při kolizi a **během tažení jasně ukazovat aktuální cílový čas přímo u přesouvaného bloku, ale mimo oblast překrytou native drag image**.
 - **Nepoužívat koncept zamykání bloků.** Ručně zadaný den/čas se prostě respektuje.
 - Smart input není povinný a ruční zadávání musí být vždy dostupné.
 - Nedokončené úkoly nesnowballují automaticky.
