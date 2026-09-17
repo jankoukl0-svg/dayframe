@@ -1,4 +1,4 @@
-import { parseSmartTaskInput } from "./dayframe-smart-input";
+import { parseSmartTaskInput } from "./dayframe-smart-input.ts";
 
 export type Priority = "high" | "normal" | "low";
 export type Task = {
