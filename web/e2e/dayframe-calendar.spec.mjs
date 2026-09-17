@@ -39,6 +39,31 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 
+  const weekVisual = await page.locator(".df2-week-grid").evaluate((grid) => {
+    const bodies = [...grid.querySelectorAll(".df2-time-body")];
+    const tasks = [...grid.querySelectorAll(".df2-week-task")];
+    const visibleHourLabels = [...grid.querySelectorAll(".df2-hour-line em")]
+      .filter((label) => getComputedStyle(label).display !== "none").length;
+    const contained = tasks.every((task) => {
+      const body = task.closest(".df2-time-body");
+      if (!body) return false;
+      const taskRect = task.getBoundingClientRect();
+      const bodyRect = body.getBoundingClientRect();
+      return taskRect.top >= bodyRect.top - 1 && taskRect.bottom <= bodyRect.bottom + 1;
+    });
+    const contentFits = tasks.every((task) => task.scrollHeight <= task.clientHeight + 1);
+    return {
+      bodyHeights: bodies.map((body) => body.getBoundingClientRect().height),
+      visibleHourLabels,
+      contained,
+      contentFits,
+    };
+  });
+  expect(weekVisual.bodyHeights.every((height) => height >= 585)).toBe(true);
+  expect(weekVisual.visibleHourLabels).toBe(14);
+  expect(weekVisual.contained).toBe(true);
+  expect(weekVisual.contentFits).toBe(true);
+
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   let targetIndex = todayIndex + 1;
   if (targetIndex > 6) {
