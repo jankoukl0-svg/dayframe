@@ -196,6 +196,93 @@
   line-height: 1.45;
 }
 
+/* Dragging keeps the cursor's original grab point, snaps to a 15-minute
+   grid, then shows the exact time that will be locked before the drop. */
+.df2-time-body.drop-active {
+  background-color: rgba(189, 84, 43, .018);
+}
+
+.df2-drop-preview {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  z-index: 8;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--accent);
+  border-left-width: 2px;
+  border-radius: 3px;
+  background: rgba(240, 223, 214, .78);
+  color: var(--accent-dark);
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(57, 45, 36, .08);
+}
+
+.df2-drop-preview.invalid {
+  border-color: #9a7770;
+  background: rgba(239, 228, 223, .82);
+  color: #7d514b;
+}
+
+.df2-drop-preview strong {
+  font: 700 10px/1 "Cascadia Mono", monospace;
+}
+
+.df2-lock-glyph,
+.df2-task-lock {
+  position: relative;
+  width: 9px;
+  height: 8px;
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+
+.df2-lock-glyph::before,
+.df2-task-lock::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: -6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+.df2-task-lock {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 7px;
+  height: 6px;
+  color: rgba(150, 60, 28, .68);
+  opacity: .75;
+  pointer-events: none;
+}
+
+.df2-task-lock::before {
+  top: -5px;
+  height: 5px;
+}
+
+.df2-week-task.fixed-block > strong {
+  padding-right: 11px;
+}
+
+@container (max-height: 35px) {
+  .df2-task-lock {
+    top: 50%;
+    right: 5px;
+    transform: translateY(-25%);
+  }
+}
+
 @media (max-width: 1180px) {
   .df2-week-grid {
     min-width: 1050px;
