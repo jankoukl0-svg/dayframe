@@ -221,8 +221,9 @@
 }
 
 /* Dragging keeps the cursor's original grab point, snaps to a 15-minute
-   grid, then shows the exact time directly on the moving target preview. */
+   grid, then shows the exact time directly above the moving target preview. */
 .df2-time-body.drop-active {
+  overflow: visible;
   background-color: rgba(189, 84, 43, .018);
 }
 
@@ -230,7 +231,7 @@
   position: absolute;
   left: 6px;
   right: 6px;
-  z-index: 8;
+  z-index: 12;
   min-height: 0;
   box-sizing: border-box;
   display: flex;
@@ -252,14 +253,16 @@
   color: #7d514b;
 }
 
-/* Keep the snapped time visually attached to the block being moved so the
-   user's eyes never have to leave the calendar. */
+/* The browser's native drag image can cover the preview itself. Put the
+   snapped time just above the preview so it stays next to the moving block
+   without sitting underneath the drag image. */
 .df2-drop-preview strong {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 9;
-  transform: translate(-50%, -50%);
+  top: -7px;
+  right: 5px;
+  left: auto;
+  z-index: 30;
+  transform: translateY(-100%);
   min-width: 58px;
   padding: 5px 8px;
   border: 1px solid #292724;
@@ -295,6 +298,7 @@
   }
 
   .df2-drop-preview strong {
+    right: 3px;
     min-width: 54px;
     padding: 4px 7px;
     font-size: 11px;
