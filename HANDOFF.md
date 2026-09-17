@@ -15,21 +15,21 @@ GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `w
 
 ## Aktuální architektura — Calendar Foundation
 
-PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty. PR #17 obnovil jejich původní vizuální hierarchii a opravil chybějící CSS import ve Vercel preview. PR #18 opravil přehuštěný a ořezaný týdenní kalendář.
+PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty. PR #17 obnovil jejich původní vizuální hierarchii a opravil chybějící CSS import ve Vercel preview. PR #18 opravil přehuštěný a ořezaný týdenní kalendář. PR #19 opravil logiku drag/drop: blok už při tažení neskáče pod kurzorem, snapuje se předvídatelně a ruční drop explicitně zamyká čas.
 
 Hlavní soubory:
 
 | Soubor | Úloha |
 | --- | --- |
-| `web/app/dayframe-v2.tsx` | Aktivní UI a sdílený aplikační stav |
+| `web/app/dayframe-v2.tsx` | Aktivní UI, sdílený aplikační stav, week drag/snap/lock interakce |
 | `web/app/dayframe-v2.css` | Základní aktivní design a responsivita |
 | `web/app/dayframe-countdowns.css` | Motivační odpočet dne a termínů; zachovává původní Dayframe vizuální hierarchii |
-| `web/app/week-calendar-polish.css` | Čitelnost skutečného týdenního time-gridu, clipping, adaptivní obsah karet |
-| `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, drag/drop logika |
+| `web/app/week-calendar-polish.css` | Čitelnost time-gridu, clipping, adaptivní obsah karet, lock/drop preview |
+| `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, validace a moveTask |
 | `web/lib/dayframe-calendar.test.mjs` | Regresní testy kalendářového modelu |
 | `web/lib/dayframe-countdown.ts` | Výpočet konce dne 00:30 a dní do milníků |
 | `web/lib/dayframe-countdown.test.mjs` | Regresní testy odpočtů včetně DST hran |
-| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke přes skutečné UI včetně vizuálních invariantů |
+| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke přes skutečné UI včetně vizuálních invariantů a reálného drag/drop lock scénáře |
 | `web/lib/dayframe-smart-input.ts` | Volitelný deterministický smart input |
 | `web/app/page.tsx` | Framework mount; musí načíst všechny aktivní CSS soubory |
 | `web/preview/main.tsx` | Statický Vercel preview mount; musí explicitně načíst stejné CSS jako framework build |
@@ -82,20 +82,31 @@ Týden je hlavní plánovací plocha:
 - každý den používá skutečná date-native data;
 - `+` v dni otevře přidání rovnou na tento den;
 - kliknutí na blok otevře společný editor;
-- pevné a flexibilní bloky jsou vizuálně i datově odlišné;
+- zamknuté a flexibilní bloky jsou vizuálně i datově odlišné;
 - oběd 13:00–14:00 je chráněný;
 - drag & drop mezi dny/časy je podporovaný;
-- ruční drag na konkrétní čas z úkolu udělá pevný blok;
-- `Přepočítat týden` přeskládá pohyblivé flexibilní úkoly podle priority a termínů, aniž by hýbal pevnými/date-locked bloky.
+- `Přepočítat týden` přeskládá pohyblivé flexibilní úkoly podle priority a termínů, aniž by hýbal zamknutými/date-locked bloky.
 
 #### Týden — vizuální invarianty po PR #18
 
 - Time-grid musí zůstat skutečný, ale čitelnost má přednost před zobrazováním každé metadata věty.
 - Hour labels se nemají opakovat sedmkrát; v desktop gridu je viditelná jedna časová škála.
-- Krátké bloky zobrazují jen tolik obsahu, kolik se do nich skutečně vejde; režim fixed/flex se pozná hlavně z borderu.
+- Krátké bloky zobrazují jen tolik obsahu, kolik se do nich skutečně vejde; režim locked/flex se pozná hlavně z borderu a jemného lock symbolu.
 - Žádná task karta nesmí být vertikálně oříznutá svým `.df2-time-body`.
 - Denní rutina `Čtení knihy` 22:40–23:00 musí být celá viditelná, přestože planner jinou práci automaticky neplánuje po 22:30.
 - `week-calendar-polish.css` musí být importovaný jak v `page.tsx`, tak v `web/preview/main.tsx`.
+
+#### Týden — drag/drop a lock po PR #19
+
+- Blok při tažení zachovává přesné místo úchopu; kurzor už neurčuje automaticky horní hranu bloku.
+- Návrh startu snapuje po 15 minutách.
+- Pokud je přesný slot obsazený nebo zasahuje do oběda, Dayframe hledá pouze nejbližší volný slot do ±60 minut; blok nesmí bezdůvodně odletět na vzdálenou část dne.
+- Během dragování je vidět ghost/drop preview s přesným časem, který se po puštění zamkne.
+- Ruční drop vždy nastaví `mode: fixed`, `requestedStart`, `dateLocked: true` a `autoScheduled: false`; tím se blok stává zamknutým.
+- Zamknutý blok má jemný lock glyph v kartě.
+- Editor používá pojmy `Zamknutý čas` a `Flexibilní čas`; odemknutí se dělá změnou režimu v editoru.
+- Pokud poblíž není validní slot, drop se neprovede a původní blok zůstane na místě.
+- Ruční drag stále respektuje planner hranice a kolize definované v `canPlaceAt` / `moveTask`.
 
 ### Přidat úkol
 
@@ -149,10 +160,27 @@ Změny:
 - adaptivní obsah task karet podle jejich výšky;
 - metadata fixed/flex nejsou opakována v každé malé kartě, režim je rozlišitelný borderem;
 - `.df2-time-body` má dost prostoru i pro celý blok 22:40–23:00;
-- date-native planner ani drag/drop časová matematika nebyly změněny;
+- date-native planner nebyl změněn;
 - Playwright kontroluje, že všechny task karty zůstávají uvnitř denního body a jejich obsah není ořezaný.
 
 Ověření PR #18: TypeScript PASS, regresní testy PASS, static preview build PASS, Playwright browser smoke PASS. Produkční Vercel deployment merge commitu `da6139db...` skončil `success`.
+
+### PR #19 — logical drag locking
+Merge: `08279d70f0a4cac110488ec00fbbf9476de300dd`.
+
+Příčina: starý drop převáděl přímo `event.clientY` na nový začátek, takže blok při chycení uprostřed skočil tak, aby kurzor představoval jeho horní hranu. Působilo to jako nelogické „nalepování“.
+
+Změny:
+- drag si ukládá offset místa úchopu uvnitř bloku;
+- drop start = kurzor mínus grab offset, následně 15min snap;
+- při kolizi se hledá pouze blízký validní slot do ±60 min;
+- live drop preview předem ukazuje čas, který bude zamknutý;
+- ruční drop explicitně zamyká blok;
+- fixed karty mají jemný lock glyph;
+- editor používá `Zamknutý čas / Flexibilní čas`;
+- Playwright reálně přetáhne `CFI / Excel`, kontroluje očekávaný snap na 18:00, lock glyph a fixed hodnotu editoru.
+
+Ověření PR #19: TypeScript PASS, regresní testy PASS, static preview build PASS, Playwright browser smoke PASS. Produkční Vercel deployment merge commitu `08279d70...` skončil `success`.
 
 CI workflow `.github/workflows/preview-build.yml` automaticky spouští typecheck, regresní testy, build a browser smoke.
 
@@ -161,9 +189,11 @@ CI workflow `.github/workflows/preview-build.yml` automaticky spouští typechec
 - Málo textu, vysoká čitelnost.
 - **Motivační odpočty jsou core feature, musí zůstat prominentní a v původním Dayframe vizuálním jazyku.**
 - Týden nesmí být datově nebo vizuálně přehuštěný; zobrazovat jen informace potřebné pro plánování.
+- Drag/drop musí být předvídatelný: držet grab point, snapovat po 15 min, neházet blok daleko při kolizi.
+- Ručně položený blok je explicitně zamknutý, dokud ho uživatel neodemkne.
 - Smart input není povinný.
 - Ruční zadávání musí být vždy dostupné.
-- Pevný blok Dayframe svévolně nepřesouvá.
+- Zamknutý blok Dayframe svévolně nepřesouvá.
 - Flexibilní práce se může optimalizovat.
 - Nedokončené úkoly nesnowballují automaticky.
 - Týden = plánování, Dnes = vykonávání.
@@ -184,8 +214,9 @@ CI workflow `.github/workflows/preview-build.yml` automaticky spouští typechec
 4. Zachovej prominentní odpočet do 00:30 i odpočty do důležitých termínů a jejich původní vizuální hierarchii.
 5. U nového CSS vždy zkontroluj import jak v `page.tsx`, tak v `web/preview/main.tsx`.
 6. Každou větší změnu pokryj unit testem nebo Playwright scénářem; u vizuálně zásadních prvků kontroluj computed style / bounding boxes, ne jen přítomnost textu.
-7. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
-8. Sites je oddělený a automaticky se neaktualizuje.
+7. U drag/drop změn browser test musí ověřit reálný drop, výsledný čas a locked/flexible stav.
+8. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
+9. Sites je oddělený a automaticky se neaktualizuje.
 
 ### Handoff zpět do Work
 
