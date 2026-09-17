@@ -31,6 +31,7 @@ import {
   type Priority,
   type RepeatRule,
 } from "@/lib/dayframe-calendar";
+import { daysUntilDate, getDayCountdown } from "@/lib/dayframe-countdown";
 import { parseSmartTaskInput } from "@/lib/dayframe-smart-input";
 
 const STORAGE_KEY = "dayframe-v1";
@@ -72,6 +73,10 @@ function shortDate(key: string) {
   return new Intl.DateTimeFormat("cs-CZ", { weekday: "short", day: "numeric", month: "numeric" }).format(dateFromKey(key));
 }
 
+function longDate(key: string) {
+  return new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(key));
+}
+
 function totalMinutes(items: CalendarTask[]) {
   return items.filter((task) => task.start && task.end).reduce((sum, task) => sum + task.duration, 0);
 }
@@ -106,7 +111,7 @@ export function DayframeV2() {
   const todayKey = localDateKey(now);
 
   useEffect(() => {
-    const clock = window.setInterval(() => setNow(new Date()), 30_000);
+    const clock = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(clock);
   }, []);
 
@@ -301,7 +306,7 @@ export function DayframeV2() {
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
-          <div className="df2-sidebar-bottom"><span>Data</span><strong>Lokálně</strong><small>schema 5 · kalendář podle data</small></div>
+          <div className="df2-sidebar-bottom"><span>Den končí</span><strong>00:30</strong><small>hlavní odpočet</small></div>
         </aside>
 
         <section className="df2-main">
@@ -312,12 +317,14 @@ export function DayframeV2() {
               activeTask={activeTask}
               nextTasks={afterActive}
               missed={missed}
+              milestones={data.milestones}
               onAdd={() => openAdd(todayKey)}
               onEdit={setEditing}
               onDone={(id) => setData((current) => toggleTask(current, id))}
               onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
               onDelete={(id) => setData((current) => deleteTask(current, id))}
               onFocus={startFocus}
+              onMilestones={() => setView("milestones")}
             />
           )}
 
@@ -430,14 +437,14 @@ export function DayframeV2() {
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><p>Důležité termíny</p><h1>Milníky</h1></div></header>
               <form className="df2-inline-form" onSubmit={addNewMilestone}><input placeholder="Nový milník" value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} /><input type="date" value={milestoneDate} onChange={(event) => setMilestoneDate(event.target.value)} /><button>Přidat</button></form>
-              <div className="df2-milestones">{data.milestones.map((milestone) => <article key={milestone.id}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><time>{new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(milestone.date))}</time></article>)}</div>
+              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>
             </section>
           )}
 
           {view === "settings" && (
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><p>Chování Dayframe</p><h1>Nastavení</h1></div></header>
-              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Auto-plánování</strong><span>Celý týden · 15min sloty · respektuje pevné bloky</span></div><div><strong>Ukládání</strong><span>Lokální kalendář podle data · schema 5</span></div></div>
+              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>Den končí v 00:30</span></div><div><strong>Auto-plánování</strong><span>Celý týden · 15min sloty · respektuje pevné bloky</span></div><div><strong>Ukládání</strong><span>Lokální kalendář podle data · schema 5</span></div></div>
               <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => setData((current) => ({ ...current, routines: current.routines.map((item) => item.id === routine.id ? { ...item, active: event.target.checked } : item) }))} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id))}>Smazat</button></article>)}</section>
             </section>
           )}
@@ -467,25 +474,52 @@ function NavButton({ active, onClick, label, shortcut }: { active: boolean; onCl
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, missed, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus,
+  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones,
 }: {
   now: Date;
   tasks: CalendarTask[];
   activeTask: CalendarTask | null;
   nextTasks: CalendarTask[];
   missed: CalendarTask[];
+  milestones: DayframeState["milestones"];
   onAdd: () => void;
   onEdit: (task: CalendarTask) => void;
   onDone: (id: string) => void;
   onTomorrow: (id: string) => void;
   onDelete: (id: string) => void;
   onFocus: (task: CalendarTask | null) => void;
+  onMilestones: () => void;
 }) {
   const completed = tasks.filter((task) => task.completed).length;
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
+  const countdown = getDayCountdown(now);
+  const today = localDateKey(now);
+  const nextMilestone = [...milestones]
+    .filter((milestone) => milestone.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  const countdownText = `${String(countdown.hours).padStart(2, "0")}:${String(countdown.minutes).padStart(2, "0")}`;
+
   return (
     <section className="df2-today-view">
       <header className="df2-page-head"><div><p>{formatDay(now)}</p><h1>Dnes</h1></div><button className="df2-accent-button" onClick={onAdd}>+ Nový úkol</button></header>
+
+      <div className="df2-motivation-grid">
+        <section className="df2-day-ruler" aria-label="Odpočet do konce dne">
+          <div className="df2-day-ruler-copy">
+            <span>Do konce dne</span>
+            <strong aria-label={`${countdown.hours} hodin ${countdown.minutes} minut ${countdown.seconds} sekund`}>{countdownText}<em>:{String(countdown.seconds).padStart(2, "0")}</em></strong>
+            <span>Konec 00:30</span>
+          </div>
+          <div className="df2-day-track" aria-hidden="true"><span style={{ width: `${countdown.progressPercent}%` }} /><i style={{ left: `${countdown.progressPercent}%` }} /></div>
+          <div className="df2-day-scale" aria-hidden="true"><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>00:30</span></div>
+        </section>
+
+        <button type="button" className="df2-event-countdown" onClick={onMilestones} aria-label={nextMilestone ? `Nejbližší termín ${nextMilestone.title}, zbývá ${daysUntilDate(nextMilestone.date, now)} dní` : "Přidat důležitý termín"}>
+          <span>Nejbližší termín</span>
+          {nextMilestone ? <><strong>{daysUntilDate(nextMilestone.date, now)}<em>dní</em></strong><b>{nextMilestone.title}</b><small>{longDate(nextMilestone.date)}</small></> : <><strong>—</strong><b>Žádný termín</b><small>Přidej milník</small></>}
+        </button>
+      </div>
+
       <section className="df2-now-card">
         <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
         {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.category} · {activeTask.duration} min · {activeTask.mode === "fixed" ? "pevný blok" : "flexibilní"}</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Teď nemáš žádný blok</h2><p>Přidej úkol nebo si nech volno.</p></div>}
