@@ -281,6 +281,103 @@
   background: #6f4038;
 }
 
+/* Past / today / future are intentionally different modes. A past day is
+   history, not another editable plan: unfinished blocks disappear and only
+   explicitly completed work remains as a read-only record. */
+.df2-week-day-head {
+  position: relative;
+}
+
+.df2-week-day-head::after {
+  position: absolute;
+  right: 11px;
+  bottom: 10px;
+  font: 700 8px/1 "Cascadia Mono", monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) {
+  background: #f1f0ec;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-day-head {
+  cursor: default;
+  color: #777872;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-day-head::after {
+  content: "historie";
+  color: #999993;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-day-head > button {
+  visibility: hidden;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-time-body {
+  pointer-events: none;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-unscheduled {
+  display: none;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-task:not(.done) {
+  display: none;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-task.done {
+  opacity: 1;
+  pointer-events: none;
+  border-color: #c9cec5;
+  border-left-color: #7b8f7b;
+  background: #f4f5f1;
+  color: #626a62;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-task.done::after {
+  content: "✓";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: #6f846f;
+  font: 700 10px/1 "Cascadia Mono", monospace;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-task.done strong {
+  color: #626a62;
+  text-decoration: none;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-hour-line,
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-lunch {
+  opacity: .58;
+}
+
+.df2-week-day:has(.df2-week-day-head > button:disabled) .df2-hour-line em {
+  background: #f1f0ec;
+}
+
+.df2-week-day.today {
+  background: #fffaf5;
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.df2-week-day.today .df2-week-day-head::after {
+  content: "dnes";
+  color: var(--accent-dark);
+}
+
+.df2-week-day.today .df2-hour-line em {
+  background: #fffaf5;
+}
+
+.df2-week-day:not(.today):not(:has(.df2-week-day-head > button:disabled)) .df2-week-day-head::after {
+  content: "plán";
+  color: #8a8b85;
+}
+
 @media (max-width: 1180px) {
   .df2-week-grid {
     min-width: 1050px;

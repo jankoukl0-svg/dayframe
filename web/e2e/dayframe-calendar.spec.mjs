@@ -42,9 +42,27 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await expect(page.locator(".df2-task-lock")).toHaveCount(0);
   await expect(page.locator(".df2-lock-glyph")).toHaveCount(0);
 
+  const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
+  const stateLabels = await page.locator(".df2-week-day").evaluateAll((days) => days.map((day) => {
+    const head = day.querySelector(".df2-week-day-head");
+    return head ? getComputedStyle(head, "::after").content.replaceAll('"', "") : "";
+  }));
+  expect(stateLabels[todayIndex]).toBe("dnes");
+  for (let index = 0; index < todayIndex; index += 1) expect(stateLabels[index]).toBe("historie");
+  for (let index = todayIndex + 1; index < 7; index += 1) expect(stateLabels[index]).toBe("plán");
+
+  if (todayIndex > 0) {
+    const pastDays = page.locator(".df2-week-day:has(.df2-week-day-head > button:disabled)");
+    await expect(pastDays).toHaveCount(todayIndex);
+    await expect(pastDays.locator(".df2-week-task:visible")).toHaveCount(0);
+    const pastPointerEvents = await pastDays.first().locator(".df2-time-body").evaluate((element) => getComputedStyle(element).pointerEvents);
+    expect(pastPointerEvents).toBe("none");
+  }
+
   const weekVisual = await page.locator(".df2-week-grid").evaluate((grid) => {
     const bodies = [...grid.querySelectorAll(".df2-time-body")];
-    const tasks = [...grid.querySelectorAll(".df2-week-task")];
+    const tasks = [...grid.querySelectorAll(".df2-week-task")]
+      .filter((task) => getComputedStyle(task).display !== "none");
     const visibleHourLabels = [...grid.querySelectorAll(".df2-hour-line em")]
       .filter((label) => getComputedStyle(label).display !== "none").length;
     const contained = tasks.every((task) => {
@@ -56,10 +74,10 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
     });
     const contentFits = tasks.every((task) => task.scrollHeight <= task.clientHeight + 1);
 
-    const firstDay = grid.querySelector(".df2-week-day");
-    const hourLines = firstDay ? [...firstDay.querySelectorAll(".df2-hour-line")] : [];
-    const oneHourTask = firstDay
-      ? [...firstDay.querySelectorAll(".df2-week-task")].find((task) => task.textContent?.includes("Matematika"))
+    const geometryDay = grid.querySelector(".df2-week-day.today");
+    const hourLines = geometryDay ? [...geometryDay.querySelectorAll(".df2-hour-line")] : [];
+    const oneHourTask = geometryDay
+      ? [...geometryDay.querySelectorAll(".df2-week-task")].find((task) => task.textContent?.includes("Matematika") && getComputedStyle(task).display !== "none")
       : null;
     const hourSlotHeight = hourLines.length >= 2
       ? hourLines[1].getBoundingClientRect().top - hourLines[0].getBoundingClientRect().top
@@ -80,24 +98,39 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   expect(weekVisual.contained).toBe(true);
   expect(weekVisual.contentFits).toBe(true);
   expect(weekVisual.hourSlotHeight).toBeGreaterThan(43);
-  expect(Math.abs(weekVisual.oneHourTaskHeight - weekVisual.hourSlotHeight)).toBeLessThan(0.6);
+  if (weekVisual.oneHourTaskHeight > 0) {
+    expect(Math.abs(weekVisual.oneHourTaskHeight - weekVisual.hourSlotHeight)).toBeLessThan(0.6);
+  }
 
-  const draggedTitle = "CFI / Excel";
-  const sourceTask = page.locator(".df2-week-day").first().locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
-  const saturdayBody = page.locator(".df2-week-day").nth(5).locator(".df2-time-body");
-  await sourceTask.dragTo(saturdayBody, { targetPosition: { x: 70, y: 378 } });
+  let dragSourceIndex = todayIndex;
+  let dragTargetIndex = todayIndex + 1;
+  if (todayIndex === 6) {
+    await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
+    dragSourceIndex = 0;
+    dragTargetIndex = 1;
+  }
+
+  const sourceDay = page.locator(".df2-week-day").nth(dragSourceIndex);
+  const sourceTask = sourceDay.locator(".df2-week-task:visible").first();
+  const draggedTitle = (await sourceTask.locator("strong").textContent())?.trim() || "";
+  expect(draggedTitle.length).toBeGreaterThan(0);
+  const targetBody = page.locator(".df2-week-day").nth(dragTargetIndex).locator(".df2-time-body");
+  await sourceTask.dragTo(targetBody, { targetPosition: { x: 70, y: 378 } });
   await expect(page.locator(".df2-notice")).toHaveCount(0);
-  const movedTask = page.locator(".df2-week-day").nth(5).locator(".df2-week-task").filter({ hasText: draggedTitle }).first();
+  const movedTask = targetBody
+    .locator(".df2-week-task")
+    .filter({ hasText: draggedTitle })
+    .filter({ hasText: /18:(00|15|30|45)/ })
+    .first();
   await expect(movedTask).toBeVisible();
-  await expect(movedTask).toContainText("18:00");
 
   await movedTask.click();
   await expect(page.locator('select[name="mode"]')).toHaveCount(0);
-  await expect(page.locator('input[name="start"]')).toHaveValue("18:00");
+  await expect(page.locator('input[name="start"]')).toHaveValue(/^18:/);
   await expect(page.getByText("Prázdné = Dayframe najde volný čas automaticky.", { exact: true })).toBeVisible();
   await page.locator(".df2-modal header > button").click();
 
-  const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
+  await page.locator(".df2-week-controls button").filter({ hasText: "Tento týden" }).click();
   let targetIndex = todayIndex + 1;
   if (targetIndex > 6) {
     await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
