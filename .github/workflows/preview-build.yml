@@ -45,9 +45,14 @@ jobs:
       - name: Build static preview
         run: pnpm preview:build
 
-      - name: Install Playwright for browser smoke
+      - name: Install isolated Playwright runtime
         run: |
-          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          rm -rf /tmp/dayframe-e2e
+          mkdir -p /tmp/dayframe-e2e
+          cp e2e/dayframe-calendar.spec.mjs /tmp/dayframe-e2e/dayframe-calendar.spec.mjs
+          cd /tmp/dayframe-e2e
+          npm init -y >/dev/null
+          npm install --no-package-lock @playwright/test@1.55.0
           npx playwright install chromium --with-deps
 
       - name: Run browser smoke test
@@ -64,4 +69,5 @@ jobs:
             cat /tmp/dayframe-preview.log
             exit 1
           fi
-          npx playwright test e2e/dayframe-calendar.spec.mjs --workers=1 --reporter=line
+          cd /tmp/dayframe-e2e
+          npx playwright test dayframe-calendar.spec.mjs --workers=1 --reporter=line
