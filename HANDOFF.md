@@ -15,7 +15,7 @@ GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `w
 
 ## Aktuální architektura — Calendar Foundation
 
-PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty, které jsou produktově zásadní a nesmí se při dalším zjednodušování odstranit.
+PR #14 (`feature/calendar-foundation-v2`) nahradil původní today/tomorrow/waiting model datovým modelem podle skutečného data. PR #15 vrátil motivační odpočty, které jsou produktově zásadní a nesmí se při dalším zjednodušování odstranit. PR #17 opravil jejich vizuál zpět směrem k původnímu Dayframe designu a hlavně zajistil, že se countdown stylesheet skutečně načítá i ve statickém Vercel preview.
 
 Hlavní soubory:
 
@@ -23,15 +23,15 @@ Hlavní soubory:
 | --- | --- |
 | `web/app/dayframe-v2.tsx` | Aktivní UI a sdílený aplikační stav |
 | `web/app/dayframe-v2.css` | Aktivní design a responsivita |
-| `web/app/dayframe-countdowns.css` | Motivační odpočet dne a termínů |
+| `web/app/dayframe-countdowns.css` | Motivační odpočet dne a termínů; má zachovat původní Dayframe vizuální hierarchii |
 | `web/lib/dayframe-calendar.ts` | Schema 5, migrace, date-native plány, rutiny, planner, drag/drop logika |
 | `web/lib/dayframe-calendar.test.mjs` | Regresní testy kalendářového modelu |
 | `web/lib/dayframe-countdown.ts` | Výpočet konce dne 00:30 a dní do milníků |
 | `web/lib/dayframe-countdown.test.mjs` | Regresní testy odpočtů včetně DST hran |
-| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke test přes skutečné UI |
+| `web/e2e/dayframe-calendar.spec.mjs` | Browser smoke test přes skutečné UI, včetně computed-style kontroly odpočtu |
 | `web/lib/dayframe-smart-input.ts` | Volitelný deterministický smart input |
-| `web/app/page.tsx` | Mountuje pouze `DayframeV2` |
-| `web/preview/main.tsx` | Statický Vercel/GitHub preview také mountuje pouze `DayframeV2` |
+| `web/app/page.tsx` | Mountuje pouze `DayframeV2` a načítá countdown CSS pro framework build |
+| `web/preview/main.tsx` | Statický Vercel/GitHub preview mountuje `DayframeV2` a MUSÍ importovat `dayframe-countdowns.css` |
 
 Staré DOM bridge komponenty (`dayframe-app`, starý week calendar, capture start/result bridge, missed-task bridge a jejich CSS workaroundy) byly z aktivní větve odstraněny. Nový Týden nepoužívá simulované DOM klikání ani technické `[[date:...]]` tokeny pro komunikaci mezi obrazovkami.
 
@@ -62,15 +62,17 @@ Nedokončený minulý blok se **nikdy automaticky nepřenáší**. Uživatel vol
 
 ### Motivační odpočty — core feature
 
-Odpočty nejsou dekorace. Jsou součástí hlavní motivace Dayframe a **nesmí se při zjednodušování UI odstranit**.
+Odpočty nejsou dekorace. Jsou součástí hlavní motivace Dayframe a **nesmí se při zjednodušování UI odstranit ani vizuálně degradovat na generické dashboard karty**.
 
 - Dnes nahoře zobrazuje živý `HH:MM:SS` odpočet `Do konce dne`.
 - Hranice osobního dne je **00:30**. Po 00:30 se odpočet přepne na následující 00:30.
-- Pod časem je vizuální progress ruler 09 → 12 → 15 → 18 → 21 → 00:30.
-- Vedle je vždy nejbližší budoucí milník a počet zbývajících dní; kliknutí otevře Milníky.
+- Pod časem je původní tenký progress ruler 09 → 12 → 15 → 18 → 21 → 00:30 s cihlovým akcentem.
+- Hlavní čas má být velký monospace údaj jako v původním Dayframe, ne malý card widget.
+- Nejbližší budoucí milník má výrazný velký počet zbývajících dní a vizuální hierarchii původního deadline railu; kliknutí otevře Milníky.
 - V obrazovce Milníky má každý termín vlastní počet zbývajících dní.
 - Planner může práci plánovat jen v okně 10:00–22:30; to je jiné pravidlo než motivační konec dne 00:30.
 - Hodiny v UI se aktualizují každou sekundu.
+- `web/preview/main.tsx` musí explicitně importovat `dayframe-countdowns.css`; jinak Vercel zobrazí slepený neostylovaný text, i když framework build může vypadat správně.
 
 ### Týden
 
@@ -127,14 +129,26 @@ Změny:
 - přidány čisté helpery a testy pro 00:30 a DST;
 - browser smoke nově ověřuje, že oba odpočty v Dnes skutečně renderují.
 
-Ověření PR i následného `main` push workflow: TypeScript PASS, regresní testy PASS, build PASS, Playwright browser smoke PASS. Produkční Vercel deployment commitu `9365d683...` skončil `success`.
+### PR #17 — restore original countdown visual
+
+Merge: `66827c5f586eee0dd5f8732aaabe74c794818e78`.
+
+Příčina vizuální chyby: statický Vercel entry `web/preview/main.tsx` nenačítal `dayframe-countdowns.css`, takže produkční preview zobrazovalo slepený neostylovaný text. Současně byl první návrat odpočtu vizuálně přepracovaný do nových karet, což nebylo žádoucí.
+
+Změny:
+- preview entry explicitně importuje countdown stylesheet;
+- odpočet dne používá původní Dayframe hierarchii: transparentní plocha, velký monospace čas, menší cihlové sekundy, 2px ruler a původní škála;
+- nejbližší termín používá výraznou hierarchii původního deadline railu;
+- Playwright nově nekontroluje jen existenci textu, ale i computed CSS: grid layout, velikost hodin, 1px border a 2px track, plus výraznou velikost odpočtu dní.
+
+Ověření PR #17: TypeScript PASS, regresní testy PASS, static preview build PASS, Playwright browser smoke PASS, Vercel PR preview SUCCESS. Produkční Vercel deployment merge commitu `66827c5f...` skončil `success`.
 
 CI workflow `.github/workflows/preview-build.yml` spouští automaticky typecheck, regresní testy, build a browser smoke.
 
 ## Produktové principy
 
 - Málo textu, vysoká čitelnost.
-- **Motivační odpočty jsou core feature a musí zůstat prominentní.**
+- **Motivační odpočty jsou core feature, musí zůstat prominentní a mají zachovat původní Dayframe vizuální jazyk.**
 - Smart input není povinný.
 - Ruční zadávání musí být vždy dostupné.
 - Pevný blok Dayframe svévolně nepřesouvá.
@@ -155,10 +169,11 @@ CI workflow `.github/workflows/preview-build.yml` spouští automaticky typechec
 1. Vždy načti aktuální `main` před editací.
 2. Pracuj primárně v `web/app/dayframe-v2.tsx` a `web/lib/dayframe-calendar.ts`.
 3. Zachovej migraci `dayframe-v1` a data uživatele.
-4. Zachovej prominentní odpočet do 00:30 i odpočty do důležitých termínů.
-5. Každou větší změnu pokryj unit testem nebo Playwright scénářem.
-6. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
-7. Sites je oddělený a automaticky se neaktualizuje.
+4. Zachovej prominentní odpočet do 00:30 i odpočty do důležitých termínů a jejich původní vizuální hierarchii.
+5. Při přidání nového CSS používaného ve Vercel preview zkontroluj import nejen v `page.tsx`, ale i v `web/preview/main.tsx`.
+6. Každou větší změnu pokryj unit testem nebo Playwright scénářem; u vizuálně zásadních prvků kontroluj i computed style, ne jen přítomnost textu.
+7. Po merge ověř Vercel produkční status a až pak tvrdíš, že `https://dayframe2.vercel.app` obsahuje změnu.
+8. Sites je oddělený a automaticky se neaktualizuje.
 
 ### Handoff zpět do Work
 
