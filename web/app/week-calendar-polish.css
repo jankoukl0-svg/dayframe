@@ -1,5 +1,5 @@
-/* Week calendar readability pass.
-   Keep the real time grid and drag/drop behavior, but make the default view legible. */
+/* Week calendar readability + geometry pass.
+   The visual time grid must use the exact same geometry as task positioning. */
 
 .df2-week-scroll {
   padding: 0 4px 18px;
@@ -41,26 +41,19 @@
 }
 
 /*
-  The original body was 562px high. A daily 22:40–23:00 routine starts at
-  547.2px with the current 0.72 px/min scale, so its minimum 30px card was
-  always clipped. 586px keeps the whole final block visible without changing
-  the time-to-pixel math used by drag/drop.
+  MINUTE_HEIGHT in the calendar is 0.72 px/min, therefore one hour is 43.2px.
+  Hour lines are real positioned elements using that same calculation; do not
+  fake them with a 43/44px repeating gradient, otherwise cards drift off-grid.
+  562px reaches the 23:00 line and fully contains the 22:40–23:00 routine.
 */
 .df2-time-body {
-  height: 586px;
+  height: 562px;
   overflow: hidden;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 43px,
-      rgba(211, 208, 199, .46) 43px,
-      rgba(211, 208, 199, .46) 44px
-    );
+  background: transparent;
 }
 
 .df2-hour-line {
-  border-top: 0;
+  border-top: 1px solid rgba(211, 208, 199, .58);
 }
 
 /* One time scale is enough. Repeating 10:00, 11:00… seven times made the
@@ -83,19 +76,36 @@
   background: #faf8f3;
 }
 
+/* Lunch is a preference, not a forbidden zone. It stays visible as a gentle
+   cue while manually locked tasks are allowed to sit above it. */
 .df2-lunch {
-  background: rgba(222, 220, 213, .28);
-  border-block-color: rgba(170, 167, 158, .36);
+  z-index: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(222, 220, 213, .20) 0,
+    rgba(222, 220, 213, .20) 5px,
+    rgba(222, 220, 213, .08) 5px,
+    rgba(222, 220, 213, .08) 10px
+  );
+  border-block: 1px dashed rgba(170, 167, 158, .28);
+}
+
+.df2-lunch span {
+  opacity: .72;
 }
 
 .df2-week-day:not(:first-child) .df2-lunch span {
   visibility: hidden;
 }
 
+/* Exact time geometry wins over a visual minimum height. A 60-minute task is
+   exactly the distance between two hour lines; shorter tasks stay inside their
+   real slot instead of visually spilling into the next one. */
 .df2-week-task {
   left: 7px;
   right: 7px;
-  min-height: 30px;
+  min-height: 0;
+  box-sizing: border-box;
   gap: 2px;
   padding: 3px 7px;
   border-color: #cfccc3;
@@ -144,19 +154,47 @@
   white-space: normal;
 }
 
-/* The mode is already communicated by the solid/dashed border. Repeating
-   “Finance · pevný” in every tiny card was noise and caused clipping. */
+/* The mode is already communicated by the solid/dashed border. */
 .df2-week-task > small {
   display: none;
 }
 
-/* Very short blocks cannot carry three text rows. Preserve the title first. */
-@container (max-height: 35px) {
+/* Tiny real-time slots must not grow beyond their duration. Compress copy
+   instead of changing the card geometry. */
+@container (max-height: 23px) {
+  .df2-week-task {
+    gap: 0;
+    padding: 1px 5px;
+  }
+
+  .df2-week-task > span,
+  .df2-week-task > small {
+    display: none;
+  }
+
+  .df2-week-task > strong {
+    -webkit-line-clamp: 1;
+    font-size: 8.5px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .df2-task-lock {
+    display: none;
+  }
+}
+
+@container (min-height: 24px) and (max-height: 35px) {
+  .df2-week-task {
+    padding: 2px 6px;
+  }
+
   .df2-week-task > span {
     display: none;
   }
 
   .df2-week-task > strong {
+    -webkit-line-clamp: 1;
     font-size: 10px;
     line-height: 1.08;
   }
@@ -207,7 +245,8 @@
   left: 6px;
   right: 6px;
   z-index: 8;
-  min-height: 30px;
+  min-height: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -219,6 +258,7 @@
   color: var(--accent-dark);
   pointer-events: none;
   box-shadow: 0 6px 18px rgba(57, 45, 36, .08);
+  overflow: hidden;
 }
 
 .df2-drop-preview.invalid {

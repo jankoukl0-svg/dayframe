@@ -52,17 +52,32 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
       return taskRect.top >= bodyRect.top - 1 && taskRect.bottom <= bodyRect.bottom + 1;
     });
     const contentFits = tasks.every((task) => task.scrollHeight <= task.clientHeight + 1);
+
+    const firstDay = grid.querySelector(".df2-week-day");
+    const hourLines = firstDay ? [...firstDay.querySelectorAll(".df2-hour-line")] : [];
+    const oneHourTask = firstDay
+      ? [...firstDay.querySelectorAll(".df2-week-task")].find((task) => task.textContent?.includes("Matematika"))
+      : null;
+    const hourSlotHeight = hourLines.length >= 2
+      ? hourLines[1].getBoundingClientRect().top - hourLines[0].getBoundingClientRect().top
+      : 0;
+    const oneHourTaskHeight = oneHourTask?.getBoundingClientRect().height ?? 0;
+
     return {
       bodyHeights: bodies.map((body) => body.getBoundingClientRect().height),
       visibleHourLabels,
       contained,
       contentFits,
+      hourSlotHeight,
+      oneHourTaskHeight,
     };
   });
-  expect(weekVisual.bodyHeights.every((height) => height >= 585)).toBe(true);
+  expect(weekVisual.bodyHeights.every((height) => height >= 561 && height <= 563)).toBe(true);
   expect(weekVisual.visibleHourLabels).toBe(14);
   expect(weekVisual.contained).toBe(true);
   expect(weekVisual.contentFits).toBe(true);
+  expect(weekVisual.hourSlotHeight).toBeGreaterThan(43);
+  expect(Math.abs(weekVisual.oneHourTaskHeight - weekVisual.hourSlotHeight)).toBeLessThan(0.6);
 
   await expect(page.locator(".df2-week-task.fixed-block .df2-task-lock").first()).toBeVisible();
 

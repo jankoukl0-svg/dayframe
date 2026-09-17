@@ -437,7 +437,7 @@ export function DayframeV2() {
                               className={`df2-drop-preview ${dropPreview.valid ? "valid" : "invalid"}`}
                               style={{
                                 top: `${(timeToMinutes(dropPreview.start) - calendarBounds.dayStart) * MINUTE_HEIGHT}px`,
-                                height: `${Math.max(30, dropPreview.duration * MINUTE_HEIGHT)}px`,
+                                height: `${dropPreview.duration * MINUTE_HEIGHT}px`,
                               }}
                               aria-hidden="true"
                             >
@@ -447,7 +447,7 @@ export function DayframeV2() {
                           )}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
-                            const height = Math.max(30, task.duration * MINUTE_HEIGHT);
+                            const height = task.duration * MINUTE_HEIGHT;
                             return (
                               <button
                                 key={task.id}
