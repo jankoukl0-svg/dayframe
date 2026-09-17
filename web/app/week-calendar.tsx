@@ -263,7 +263,7 @@ export function WeekCalendar() {
 
                   <div className="week-day-tasks">
                     {dayTasks.length ? dayTasks.map((task) => (
-                      <div className={`week-task ${task.fixed ? "fixed" : ""} ${task.completed ? "done" : ""}`} key={`${key}-${task.id}-${task.start}`}>
+                      <div className={`week-task ${task.fixed ? "week-task-fixed" : ""} ${task.completed ? "done" : ""}`} key={`${key}-${task.id}-${task.start}`}>
                         <span className="week-task-time">{task.start}–{task.end}</span>
                         <strong>{task.title}</strong>
                         <small>{task.category}</small>

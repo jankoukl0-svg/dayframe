@@ -93,7 +93,7 @@
   background: #f2f0ea;
 }
 .week-day.today .week-task { background: #f8f3ee; }
-.week-task.fixed { border-left-color: var(--accent); }
+.week-task.week-task-fixed { border-left-color: var(--accent); }
 .week-task.done { opacity: .48; }
 .week-task.done > strong { text-decoration: line-through; }
 .week-task-time { color: var(--muted); font: 10px/1.2 "Cascadia Mono", monospace; font-variant-numeric: tabular-nums; }
