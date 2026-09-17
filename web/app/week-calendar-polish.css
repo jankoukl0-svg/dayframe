@@ -1,0 +1,214 @@
+/* Week calendar readability pass.
+   Keep the real time grid and drag/drop behavior, but make the default view legible. */
+
+.df2-week-scroll {
+  padding: 0 4px 18px;
+  scrollbar-gutter: stable;
+}
+
+.df2-week-grid {
+  min-width: 1120px;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-right: 0;
+  background: transparent;
+}
+
+.df2-week-day {
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.df2-week-day.today {
+  background: #faf8f3;
+}
+
+.df2-week-day-head {
+  min-height: 78px;
+  padding: 14px 12px 12px;
+}
+
+.df2-day-summary {
+  min-height: 32px;
+  padding: 0 11px;
+  background: rgba(247, 246, 242, .72);
+  font-size: 9px;
+}
+
+.df2-unscheduled {
+  padding: 7px;
+  border-bottom: 1px solid var(--line);
+}
+
+/*
+  The original body was 562px high. A daily 22:40–23:00 routine starts at
+  547.2px with the current 0.72 px/min scale, so its minimum 30px card was
+  always clipped. 586px keeps the whole final block visible without changing
+  the time-to-pixel math used by drag/drop.
+*/
+.df2-time-body {
+  height: 586px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 43px,
+      rgba(211, 208, 199, .46) 43px,
+      rgba(211, 208, 199, .46) 44px
+    );
+}
+
+.df2-hour-line {
+  border-top: 0;
+}
+
+/* One time scale is enough. Repeating 10:00, 11:00… seven times made the
+   calendar visually noisy. */
+.df2-week-day:not(:first-child) .df2-hour-line em {
+  display: none;
+}
+
+.df2-hour-line em {
+  left: 6px;
+  top: 3px;
+  z-index: 1;
+  padding-right: 3px;
+  background: var(--surface);
+  color: #9b9992;
+  font-size: 8px;
+}
+
+.df2-week-day.today .df2-hour-line em {
+  background: #faf8f3;
+}
+
+.df2-lunch {
+  background: rgba(222, 220, 213, .28);
+  border-block-color: rgba(170, 167, 158, .36);
+}
+
+.df2-week-day:not(:first-child) .df2-lunch span {
+  visibility: hidden;
+}
+
+.df2-week-task {
+  left: 7px;
+  right: 7px;
+  min-height: 30px;
+  gap: 2px;
+  padding: 3px 7px;
+  border-color: #cfccc3;
+  border-radius: 3px;
+  background: #f7f5f0;
+  box-shadow: none;
+  container-type: size;
+}
+
+.df2-week-task:hover,
+.df2-week-task:focus-visible {
+  z-index: 5;
+  border-color: var(--line-strong);
+  background: #fffdfa;
+}
+
+.df2-week-task.fixed-block {
+  border-left: 2px solid var(--accent);
+}
+
+.df2-week-task.flex-block {
+  border: 1px dashed #89978e;
+  border-left: 2px dashed #73877a;
+  background: #f4f5f1;
+}
+
+.df2-week-task > span {
+  flex: 0 0 auto;
+  color: #777872;
+  font: 7.5px/1.1 "Cascadia Mono", monospace;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+
+.df2-week-task > strong {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+/* The mode is already communicated by the solid/dashed border. Repeating
+   “Finance · pevný” in every tiny card was noise and caused clipping. */
+.df2-week-task > small {
+  display: none;
+}
+
+/* Very short blocks cannot carry three text rows. Preserve the title first. */
+@container (max-height: 35px) {
+  .df2-week-task > span {
+    display: none;
+  }
+
+  .df2-week-task > strong {
+    font-size: 10px;
+    line-height: 1.08;
+  }
+}
+
+@container (min-height: 44px) {
+  .df2-week-task > span {
+    font-size: 8px;
+  }
+
+  .df2-week-task > strong {
+    font-size: 11.5px;
+    line-height: 1.16;
+  }
+}
+
+@container (min-height: 58px) {
+  .df2-week-task {
+    padding-top: 5px;
+  }
+
+  .df2-week-task > small {
+    display: block;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 8px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.df2-week-help {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .df2-week-grid {
+    min-width: 1050px;
+  }
+}
+
+@media (max-width: 760px) {
+  .df2-week-scroll {
+    margin-inline: -18px;
+    padding-inline: 18px;
+  }
+
+  .df2-week-grid {
+    min-width: 980px;
+  }
+}
