@@ -1,5 +1,6 @@
 /* Week calendar readability + geometry pass.
-   The visual time grid must use the exact same geometry as task positioning. */
+   The visual time grid must use the exact same geometry as task positioning.
+   Past days are read-only history; today and future remain planning surfaces. */
 
 .df2-week-scroll {
   padding: 0 4px 18px;
