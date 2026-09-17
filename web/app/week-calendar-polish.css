@@ -221,7 +221,7 @@
 }
 
 /* Dragging keeps the cursor's original grab point, snaps to a 15-minute
-   grid, then shows the exact time before the drop. */
+   grid, then shows the exact time directly on the moving target preview. */
 .df2-time-body.drop-active {
   background-color: rgba(189, 84, 43, .018);
 }
@@ -252,44 +252,30 @@
   color: #7d514b;
 }
 
-/* The exact target time must stay unmistakable while the mouse moves. The
-   value itself still comes from the live 15-minute snapped drop preview. */
+/* Keep the snapped time visually attached to the block being moved so the
+   user's eyes never have to leave the calendar. */
 .df2-drop-preview strong {
-  position: fixed;
-  top: 18px;
+  position: absolute;
+  top: 50%;
   left: 50%;
-  z-index: 9999;
-  transform: translateX(-50%);
-  min-width: 124px;
-  padding: 9px 14px;
+  z-index: 9;
+  transform: translate(-50%, -50%);
+  min-width: 58px;
+  padding: 5px 8px;
   border: 1px solid #292724;
   border-radius: 999px;
   background: #1f1e1b;
   color: #fffdf8;
-  box-shadow: 0 8px 24px rgba(31, 27, 23, .24);
-  font: 700 15px/1 "Cascadia Mono", monospace;
+  box-shadow: 0 5px 14px rgba(31, 27, 23, .22);
+  font: 700 12px/1 "Cascadia Mono", monospace;
   letter-spacing: -.02em;
   text-align: center;
   white-space: nowrap;
 }
 
-.df2-drop-preview strong::before {
-  content: "Přesun na ";
-  margin-right: 5px;
-  color: #d9d5ce;
-  font: 500 10px/1.1 Arial, sans-serif;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
 .df2-drop-preview.invalid strong {
   border-color: #8b5147;
   background: #6f4038;
-}
-
-.df2-drop-preview.invalid strong::before {
-  content: "Nelze přesunout · ";
-  color: #f5d9d2;
 }
 
 @media (max-width: 1180px) {
@@ -309,9 +295,8 @@
   }
 
   .df2-drop-preview strong {
-    top: 10px;
-    min-width: 108px;
-    padding: 8px 11px;
-    font-size: 13px;
+    min-width: 54px;
+    padding: 4px 7px;
+    font-size: 11px;
   }
 }
