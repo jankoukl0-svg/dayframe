@@ -150,6 +150,18 @@
   display: none;
 }
 
+/* Very short blocks cannot carry three text rows. Preserve the title first. */
+@container (max-height: 35px) {
+  .df2-week-task > span {
+    display: none;
+  }
+
+  .df2-week-task > strong {
+    font-size: 10px;
+    line-height: 1.08;
+  }
+}
+
 @container (min-height: 44px) {
   .df2-week-task > span {
     font-size: 8px;
