@@ -7,6 +7,7 @@ test("parses exact start and duration written naturally", () => {
     title: "Matematika",
     duration: 60,
     day: undefined,
+    targetDate: undefined,
     start: "17:30",
     deadline: undefined,
     priority: undefined,
@@ -46,4 +47,11 @@ test("manual start token wins over a typed start", () => {
   const parsed = parseSmartTaskInput("Ekonomie v 17:00 [[start:15:15]]");
   assert.equal(parsed.title, "Ekonomie");
   assert.equal(parsed.start, "15:15");
+});
+
+test("calendar date token targets an exact day without leaking into the title", () => {
+  const parsed = parseSmartTaskInput("Pohovor [[date:2026-09-20]] [[start:16:00]]");
+  assert.equal(parsed.title, "Pohovor");
+  assert.equal(parsed.targetDate, "2026-09-20");
+  assert.equal(parsed.start, "16:00");
 });

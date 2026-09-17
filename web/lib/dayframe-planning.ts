@@ -57,11 +57,11 @@ function normalizeSmartCapture(item: InboxTask) {
   const parsed = parseSmartTaskInput(item.title);
   const created = new Date(item.createdAt);
   const reference = Number.isNaN(created.getTime()) ? new Date() : created;
-  const parsedTargetDate = parsed.day === "today"
+  const parsedTargetDate = parsed.targetDate ?? (parsed.day === "today"
     ? localDateKey(reference)
     : parsed.day === "tomorrow"
       ? localDateKey(nextLocalDate(reference))
-      : undefined;
+      : undefined);
 
   const normalized: InboxTask = {
     ...item,

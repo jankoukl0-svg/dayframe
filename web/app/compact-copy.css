@@ -75,6 +75,36 @@
   font-size: 12px;
 }
 
+.capture-selected-date {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.capture-selected-date button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.capture-selected-date button:hover {
+  color: var(--ink);
+}
+
 /* Missed work should require an explicit choice instead of silently snowballing. */
 .planner-strip:has(.missed-task-actions) {
   flex-wrap: wrap;
@@ -138,6 +168,10 @@
 @media (max-width: 760px) {
   .capture-manual-start {
     grid-template-columns: 1fr;
+  }
+
+  .capture-selected-date {
+    margin-left: 0;
   }
 
   .missed-task-row {
