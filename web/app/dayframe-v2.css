@@ -341,7 +341,9 @@
 .df2-inline-form { display: grid; grid-template-columns: 1fr 170px auto; gap: 7px; margin-bottom: 26px; }
 .df2-inline-form button { min-height: 38px; padding: 0 13px; border: 1px solid var(--line-strong); background: var(--paper); font-size: 12px; }
 .df2-milestones { border-top: 1px solid var(--line); }
-.df2-milestones article { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 78px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.df2-milestones article { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 78px; padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .12s ease, padding .12s ease; }
+.df2-milestones article:hover { padding-inline: 10px; background: var(--paper); }
+.df2-milestones article:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .df2-milestones article > div { display: grid; gap: 5px; }
 .df2-milestones span { color: var(--accent-dark); font-size: 10px; text-transform: uppercase; }
 .df2-milestones strong { font-size: 15px; }

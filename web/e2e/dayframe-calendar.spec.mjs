@@ -155,4 +155,16 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
 
   await targetAfterSave.locator(".df2-week-task").filter({ hasText: "Zeměpis" }).click();
   await expect(page.getByRole("heading", { name: "Upravit" })).toBeVisible();
+  await page.locator(".df2-modal header > button").click();
+
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Milníky" }).click();
+  const milestone = page.locator(".df2-milestones article").filter({ hasText: "Dokončit CFI Excel" });
+  await milestone.click();
+  await expect(page.getByRole("heading", { name: "Upravit milník" })).toBeVisible();
+  await page.locator('.df2-modal input[name="title"]').fill("Dokončit CFI Excel test");
+  await page.locator('.df2-modal input[name="date"]').fill("2026-11-02");
+  await page.locator('.df2-modal input[name="note"]').fill("Aktualizovaný termín");
+  await page.getByRole("button", { name: "Uložit změny" }).click();
+  await expect(page.locator(".df2-milestones")).toContainText("Dokončit CFI Excel test");
+  await expect(page.locator(".df2-milestones")).toContainText("Aktualizovaný termín");
 });

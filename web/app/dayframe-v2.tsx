@@ -124,6 +124,7 @@ export function DayframeV2() {
   const [focusRunning, setFocusRunning] = useState(false);
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const focusTimer = useRef<number | null>(null);
   const todayKey = localDateKey(now);
 
@@ -183,7 +184,10 @@ export function DayframeV2() {
       if (event.key === "3") setView("focus");
       if (event.key === "4") setView("milestones");
       if (event.key === "5") setView("settings");
-      if (event.key === "Escape") setEditing(null);
+      if (event.key === "Escape") {
+        setEditing(null);
+        setEditingMilestoneId(null);
+      }
     };
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
@@ -354,6 +358,34 @@ export function DayframeV2() {
     setMilestoneDate("");
   }
 
+  function saveMilestoneEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingMilestoneId) return;
+    const form = new FormData(event.currentTarget);
+    const title = String(form.get("title") || "").trim();
+    const date = String(form.get("date") || "");
+    const note = String(form.get("note") || "").trim();
+    if (!title || !date) return;
+    setData((current) => ({
+      ...current,
+      milestones: current.milestones
+        .map((milestone) => milestone.id === editingMilestoneId
+          ? { ...milestone, title, date, note: note || "Vlastní termín" }
+          : milestone)
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    }));
+    setEditingMilestoneId(null);
+  }
+
+  function removeMilestone(id: string) {
+    setData((current) => ({ ...current, milestones: current.milestones.filter((milestone) => milestone.id !== id) }));
+    setEditingMilestoneId(null);
+  }
+
+  const editingMilestone = editingMilestoneId
+    ? data.milestones.find((milestone) => milestone.id === editingMilestoneId) ?? null
+    : null;
+
   return (
     <main className={`df2-root ${view === "focus" ? "df2-focus-mode" : ""}`}>
       <div className="df2-shell">
@@ -517,7 +549,7 @@ export function DayframeV2() {
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><p>Důležité termíny</p><h1>Milníky</h1></div></header>
               <form className="df2-inline-form" onSubmit={addNewMilestone}><input placeholder="Nový milník" value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} /><input type="date" value={milestoneDate} onChange={(event) => setMilestoneDate(event.target.value)} /><button>Přidat</button></form>
-              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>
+              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id} role="button" tabIndex={0} title="Upravit milník" onClick={() => setEditingMilestoneId(milestone.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEditingMilestoneId(milestone.id); } }}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>
             </section>
           )}
 
@@ -530,6 +562,17 @@ export function DayframeV2() {
           )}
         </section>
       </div>
+
+      {editingMilestone && (
+        <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingMilestoneId(null); }}>
+          <form className="df2-modal" onSubmit={saveMilestoneEdit}>
+            <header><div><span>Milník</span><h2>Upravit milník</h2></div><button type="button" onClick={() => setEditingMilestoneId(null)}>×</button></header>
+            <label>Název<input name="title" autoFocus defaultValue={editingMilestone.title} /></label>
+            <div className="df2-form-grid"><label>Datum<input name="date" type="date" defaultValue={editingMilestone.date} /></label><label>Popisek<input name="note" defaultValue={editingMilestone.note} placeholder="Např. hlavní termín" /></label></div>
+            <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button type="button" className="danger" onClick={() => removeMilestone(editingMilestone.id)}>Smazat milník</button></div>
+          </form>
+        </div>
+      )}
 
       {editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
