@@ -290,9 +290,11 @@ function occupiedBlocks(tasks: CalendarTask[], ignoreId?: string) {
     .filter((block) => Number.isFinite(block.start) && Number.isFinite(block.end));
 }
 
+/* Manual placement may use the lunch hour. Lunch is a soft planning preference,
+   not a collision. Auto-planning still skips it in findSlot below. */
 export function canPlaceAt(tasks: CalendarTask[], start: number, duration: number, ignoreId?: string) {
   const end = start + duration;
-  if (start < DAY_START || end > DAY_END || overlapsLunch(start, end)) return false;
+  if (start < DAY_START || end > DAY_END) return false;
   return !occupiedBlocks(tasks, ignoreId).some((block) => start < block.end && end > block.start);
 }
 
@@ -303,13 +305,17 @@ export function findSlot(tasks: CalendarTask[], date: string, duration: number, 
     ? Math.max(DAY_START, Math.ceil((now.getHours() * 60 + now.getMinutes()) / SLOT) * SLOT)
     : DAY_START;
 
+  /* An explicit/manual start is authoritative, including during lunch. */
   if (exactStart) {
     const start = timeToMinutes(exactStart);
     if (!Number.isFinite(start) || start < floor || start + duration > deadline || !canPlaceAt(tasks, start, duration)) return null;
     return { start: minutesToTime(start), end: minutesToTime(start + duration) };
   }
 
+  /* Automatic scheduling treats 13:00–14:00 as a protected preference and
+     looks elsewhere first; users can still override this manually. */
   for (let start = floor; start + duration <= deadline; start += SLOT) {
+    if (overlapsLunch(start, start + duration)) continue;
     if (canPlaceAt(tasks, start, duration)) return { start: minutesToTime(start), end: minutesToTime(start + duration) };
   }
   return null;
@@ -475,7 +481,7 @@ export function updateTask(state: DayframeState, taskIdValue: string, patch: Par
     updated.end = minutesToTime(timeToMinutes(updated.start) + updated.duration);
     const destination = (state.plans[toDate] ?? []).filter((task) => task.id !== updated.id);
     const start = timeToMinutes(updated.start);
-    if (!canPlaceAt(destination, start, updated.duration)) return { state, error: "V tomto čase už je jiný blok nebo oběd." };
+    if (!canPlaceAt(destination, start, updated.duration)) return { state, error: "V tomto čase už je jiný blok." };
   } else {
     updated.end = undefined;
   }
