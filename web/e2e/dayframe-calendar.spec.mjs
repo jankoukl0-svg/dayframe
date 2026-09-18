@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("adds a task from the week without leaking internal scheduling syntax", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.clear());
-  await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
 
   await expect(page.getByText("Do konce dne", { exact: true })).toBeVisible();
   await expect(page.getByText("Konec 00:30", { exact: true })).toBeVisible();

@@ -1,6 +1,6 @@
 # Dayframe — začni tady
 
-Aktualizováno: 17. 9. 2026.
+Aktualizováno: 18. 9. 2026.
 
 ## Kontext
 
@@ -12,6 +12,21 @@ Vývojový Vercel: https://dayframe2.vercel.app
 Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site — **není automaticky napojený na GitHub**.
 
 GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `web` a push do `main` automaticky deployuje stálý URL výše.
+
+## Aktuální návaznost a druhý preview
+
+- Výchozí main pro tuto práci: `9447ce447f66426271cece922879318d7673e4ac` (PR #30).
+- Milníky lze kliknutím upravit (název, datum, poznámka) i smazat; pokrývá je browser test.
+- Minulé dny jsou read-only historie pouze skutečně splněných bloků. Dnes a budoucnost zůstávají aktivní.
+- Týden nemá success bannery po přesunu/přepočtu ani spodní instrukce a souhrn bloků.
+- Vercel narazil na denní deployment limit; nevyvolávat zbytečné deploymenty.
+- Připraven GitHub Pages workflow: po typechecku, regresích, buildu a Playwright testu **statického výstupu pod `/dayframe/`** publikuje pouze `main`. Ruční opakování přes `workflow_dispatch`.
+- Pages vyžaduje jednorázově Settings → Pages → Source: GitHub Actions. Stav aktivace je nutné ověřit; samotný commit workflow není důkaz nasazení.
+- Cílový náhled: https://jankoukl0-svg.github.io/dayframe/ — zatím neověřen jako nasazený.
+- Postup: `web/preview/README.md`. Relativní Vite base zachovává Vercel i Pages.
+- Každý host má oddělená lokální data; `dayframe-v1`, schema 5, beze změny.
+- Pracovat pouze na `web/` (plus CI/handoff), vždy z čerstvého main. Staré `ui/` a Tauri ignorovat.
+- Po každé UI změně ověřit skutečný náhled a poslat link nebo screenshot.
 
 ## Aktuální architektura — Calendar Foundation
 
