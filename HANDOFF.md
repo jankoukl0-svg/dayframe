@@ -22,7 +22,13 @@ GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `w
 - Vercel narazil na denní deployment limit; nevyvolávat zbytečné deploymenty.
 - Připraven GitHub Pages workflow: po typechecku, regresích, buildu a Playwright testu **statického výstupu pod `/dayframe/`** publikuje pouze `main`. Ruční opakování přes `workflow_dispatch`.
 - Pages vyžaduje jednorázově Settings → Pages → Source: GitHub Actions. Stav aktivace je nutné ověřit; samotný commit workflow není důkaz nasazení.
-- Cílový náhled: https://jankoukl0-svg.github.io/dayframe/ — zatím neověřen jako nasazený.
+- PR #31 sloučen do main: `8de3fdb9bbecabca21222c019bf2e3aba6143a34`. Žádná změna produktového UI ani dat.
+- TypeScript, 34 regresí, static build a Playwright nad `/dayframe/`: PASS v PR i po merge (run `35333501272`).
+- Publikování v tomto runu BLOCKED: `configure-pages` vrací `Get Pages site failed / Not Found`. Pages ještě není aktivní; připojení GitHub neumí administrativní nastavení a cloud browser není do GitHubu přihlášen.
+- Vlastník musí v Settings → Pages vybrat Source: GitHub Actions, potom v Actions spustit **Check and publish web preview → Run workflow (main)**. Po nasazení povinně otevřít výsledný URL.
+- Cílový náhled: https://jankoukl0-svg.github.io/dayframe/ — NENÍ dosud nasazený (ověřené 404).
+- Povolený fallback ověřen: statický build v Work cloud browseru; uživateli přiložen screenshot. Work náhled je dočasný, není druhý stabilní veřejný hosting.
+- Poznámka pro další Work: framework dev server má existující SSR/client timezone hydration mismatch; statický preview mount používaný Vercel/Pages SSR nemá. Pro fallback byl otevřen skutečný `preview-dist` pod `public/dayframe/index.html` (jen lokální kopie, necommitovat build).
 - Postup: `web/preview/README.md`. Relativní Vite base zachovává Vercel i Pages.
 - Každý host má oddělená lokální data; `dayframe-v1`, schema 5, beze změny.
 - Pracovat pouze na `web/` (plus CI/handoff), vždy z čerstvého main. Staré `ui/` a Tauri ignorovat.
@@ -221,4 +227,4 @@ Nasazení: ANO / NE + důkaz, pokud ano:
 Známé chyby a rizika:
 Co má Work zhodnotit nebo dodělat:
 Jeden doporučený další krok:
-```
+```\n
