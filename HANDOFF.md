@@ -26,7 +26,7 @@ GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `w
 - TypeScript, 34 regresí, static build a Playwright nad `/dayframe/`: PASS v PR i po merge (run `35333501272`).
 - Publikování v tomto runu BLOCKED: `configure-pages` vrací `Get Pages site failed / Not Found`. Pages ještě není aktivní; připojení GitHub neumí administrativní nastavení a cloud browser není do GitHubu přihlášen.
 - Vlastník musí v Settings → Pages vybrat Source: GitHub Actions, potom v Actions spustit **Check and publish web preview → Run workflow (main)**. Po nasazení povinně otevřít výsledný URL.
-- Cílový náhled: https://jankoukl0-svg.github.io/dayframe/ — NENÍ dosud nasazený (ověřené 404).
+- AKTUÁLNĚ Pages běží: https://jankoukl0-svg.github.io/dayframe/ — ověřeno v browseru 18. 9. 2026; ruční run `35334102051` nad `89126f1...` skončil success. Předchozí blokaci aktivace uvedenou výše už vlastník vyřešil.
 - Povolený fallback ověřen: statický build v Work cloud browseru; uživateli přiložen screenshot. Work náhled je dočasný, není druhý stabilní veřejný hosting.
 - Poznámka pro další Work: framework dev server má existující SSR/client timezone hydration mismatch; statický preview mount používaný Vercel/Pages SSR nemá. Pro fallback byl otevřen skutečný `preview-dist` pod `public/dayframe/index.html` (jen lokální kopie, necommitovat build).
 - Postup: `web/preview/README.md`. Relativní Vite base zachovává Vercel i Pages.
@@ -197,6 +197,24 @@ CI workflow `.github/workflows/preview-build.yml` automaticky spouští typechec
 - Windows Tauri integrace a systémové blokování rušivých aplikací.
 - iOS klient.
 - Obecný LLM/NLP planner; smart input je deterministický.
+
+
+## Produktový audit 18. 9. 2026 — návrhy, nikoli implementace
+
+Ověřen aktuální main `89126f17dbb3be508fbd96a9d0804b8f3a2efc1a`, aktivní TSX/model/CSS a Pages UI (Dnes, Nastavení, Focus, Přidat úkol). Bez změny aplikace nebo uživatelských dat. CI úspěšného Pages runu prošlo; tento audit testy znovu nespouštěl.
+
+Konkrétní nálezy:
+- Browser: text `Matika 17:30 60 min` stále ukazuje v náhledu 45 min a automatický čas; submit přitom používá parser. Sjednotit náhled a ukládaná data. V kódu ruční hodnota 45 min / běžná priorita není odlišena od výchozí, takže ji parser může přepsat.
+- Model: `deleteRoutine` odstraňuje i historické splněné výskyty. Vypnutí rutiny mění jen `active`, již vytvořené budoucí bloky zůstávají. Zachovat historii, upravit pouze budoucí výskyty.
+- Model: tlačítko u backlogu volá `replanWeek`, který stávající backlog vůbec neprochází. Opravit skutečné opětovné plánování.
+- UI/kód: Focus vždy 50 min, bez přímého dokončení úkolu a persistence; interval může driftovat na pozadí. Délka podle bloku, Hotovo / Pokračovat / Přestávka, výpočet z časové značky.
+- UI/kód: karta Teď vybírá také budoucí nebo zmeškaný blok. Rozlišit probíhající práci, příští blok a volno.
+- Browser: rutiny bez uvedení dnů vypadají jako duplicity; chybí jejich editor a skutečné obden.
+- Kód/CSS: read-only historie je převážně pointer-events/CSS, ne modelová ochrana. Prověřit klávesnici, editaci a přepočet minulého týdne.
+- Bez exportu/importu a undo; parse error localStorage může vést k přepsání původních dat novým stavem. Nejdřív uchovat původní obsah a nabídnout obnovu.
+- Milníky jsou nyní datum/note/countdown, nemají vazbu na úkoly ani množství zbývající přípravy.
+
+Doporučené pořadí: ochrana dat + chyby plánování/inputu → dokončení práce z Dnes/Focus → přehledné editovatelné rutiny → milníky propojené s přípravou → záloha/undo (ochrannou zálohu dat řešit už v prvním kroku). Zachovat odpočty i současný vizuální směr. Návrhy nebyly schváleny k implementaci.
 
 ## Jak pokračovat
 
