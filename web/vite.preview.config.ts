@@ -8,6 +8,7 @@ const previewOut = fileURLToPath(new URL("./preview-dist/", import.meta.url));
 
 export default defineConfig({
   root: previewRoot,
+  // Relative assets work at both Vercel / and GitHub Pages /dayframe/.
   base: "./",
   plugins: [react()],
   resolve: {
