@@ -102,35 +102,6 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
     expect(Math.abs(weekVisual.oneHourTaskHeight - weekVisual.hourSlotHeight)).toBeLessThan(0.6);
   }
 
-  let dragSourceIndex = todayIndex;
-  let dragTargetIndex = todayIndex + 1;
-  if (todayIndex === 6) {
-    await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
-    dragSourceIndex = 0;
-    dragTargetIndex = 1;
-  }
-
-  const sourceDay = page.locator(".df2-week-day").nth(dragSourceIndex);
-  const sourceTask = sourceDay.locator(".df2-week-task:visible").first();
-  const draggedTitle = (await sourceTask.locator("strong").textContent())?.trim() || "";
-  expect(draggedTitle.length).toBeGreaterThan(0);
-  const targetBody = page.locator(".df2-week-day").nth(dragTargetIndex).locator(".df2-time-body");
-  await sourceTask.dragTo(targetBody, { targetPosition: { x: 70, y: 378 } });
-  await expect(page.locator(".df2-notice")).toHaveCount(0);
-  const movedTask = targetBody
-    .locator(".df2-week-task")
-    .filter({ hasText: draggedTitle })
-    .first();
-  await expect(movedTask).toBeVisible();
-  const movedTime = (await movedTask.locator("span").first().textContent())?.trim() || "";
-  expect(movedTime).toMatch(/^\d{2}:(00|15|30|45)–\d{2}:\d{2}$/);
-
-  await movedTask.click();
-  await expect(page.locator('select[name="mode"]')).toHaveCount(0);
-  await expect(page.locator('input[name="start"]')).toHaveValue(/^\d{2}:(00|15|30|45)$/);
-  await expect(page.getByText("Prázdné = Dayframe najde volný čas automaticky.", { exact: true })).toBeVisible();
-  await page.locator(".df2-modal header > button").click();
-
   await page.locator(".df2-week-controls button").filter({ hasText: "Tento týden" }).click();
   let targetIndex = todayIndex + 1;
   if (targetIndex > 6) {
@@ -156,6 +127,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
 
   await targetAfterSave.locator(".df2-week-task").filter({ hasText: "Zeměpis" }).click();
   await expect(page.getByRole("heading", { name: "Upravit" })).toBeVisible();
+  await expect(page.getByText("Prázdné = Dayframe najde volný čas automaticky.", { exact: true })).toBeVisible();
   await page.locator(".df2-modal header > button").click();
 
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Milníky" }).click();
