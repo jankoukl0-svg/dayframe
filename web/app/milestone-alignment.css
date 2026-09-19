@@ -1,13 +1,16 @@
 .df2-milestones article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px 122px;
-  align-items: center;
-  column-gap: 18px;
+  position: relative;
+  min-height: 78px;
+  padding-right: 224px;
 }
 
 .df2-milestones .df2-milestone-remaining {
+  position: absolute;
+  top: 50%;
+  right: 140px;
   width: 76px;
-  justify-self: start;
+  transform: translateY(-50%);
+  display: grid;
   justify-items: start;
   text-align: left;
   font-variant-numeric: tabular-nums;
@@ -20,26 +23,35 @@
 }
 
 .df2-milestones time {
+  position: absolute;
+  top: 50%;
+  right: 4px;
   width: 122px;
-  justify-self: end;
+  transform: translateY(-50%);
   text-align: right;
   white-space: nowrap;
 }
 
 @media (max-width: 720px) {
   .df2-milestones article {
-    grid-template-columns: minmax(0, 1fr) 64px;
-    column-gap: 10px;
+    padding-right: 78px;
+    padding-bottom: 30px;
   }
 
   .df2-milestones .df2-milestone-remaining {
+    top: 16px;
+    right: 4px;
     width: 64px;
+    transform: none;
   }
 
   .df2-milestones time {
-    grid-column: 1 / -1;
+    top: auto;
+    right: auto;
+    bottom: 10px;
+    left: 4px;
     width: auto;
-    justify-self: start;
+    transform: none;
     text-align: left;
   }
 }
