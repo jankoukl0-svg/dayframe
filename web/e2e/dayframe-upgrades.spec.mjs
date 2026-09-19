@@ -5,6 +5,7 @@ const empty=()=>({schema:5,plans:{},backlog:[],routines:[],routineSkips:[],miles
 const task=(patch={})=>({id:'task',title:'Čtení',date:'2026-09-17',duration:20,start:'10:00',end:'10:20',priority:'normal',category:'Studium',mode:'flexible',completed:false,source:'user',createdAt:'2026-09-17T08:00:00Z',...patch});
 async function boot(page,state=empty()) {
  await page.clock.install({time:new Date('2026-09-17T10:00:00')});
+ await page.clock.pauseAt(new Date('2026-09-17T10:00:01'));
  await page.addInitScript(s=>{if(!localStorage.getItem('dayframe-v1'))localStorage.setItem('dayframe-v1',JSON.stringify(s));},state);
  await page.goto(url);
  await expect(page.getByRole('heading',{name:'Dnes',exact:true})).toBeVisible();
