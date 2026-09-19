@@ -1,0 +1,39 @@
+.df2-milestones article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 122px;
+  align-items: center;
+  column-gap: 18px;
+}
+
+.df2-milestones .df2-milestone-remaining {
+  width: 76px;
+  justify-self: center;
+  justify-items: center;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.df2-milestones time {
+  width: 122px;
+  justify-self: end;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .df2-milestones article {
+    grid-template-columns: minmax(0, 1fr) 64px;
+    column-gap: 10px;
+  }
+
+  .df2-milestones .df2-milestone-remaining {
+    width: 64px;
+  }
+
+  .df2-milestones time {
+    grid-column: 1 / -1;
+    width: auto;
+    justify-self: start;
+    text-align: left;
+  }
+}
