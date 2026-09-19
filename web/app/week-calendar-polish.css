@@ -218,7 +218,7 @@
 /* Week planning is direct-manipulation UI: successful actions are visible in
    the grid itself, so a full-width notice banner only adds visual noise. */
 .df2-week-view > .df2-notice {
-  display: none;
+  color: #8b4030;
 }
 
 /* Dragging keeps the cursor's original grab point, snaps to a 15-minute
