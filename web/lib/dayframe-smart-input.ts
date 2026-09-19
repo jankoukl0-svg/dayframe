@@ -152,3 +152,17 @@ export function parseSmartTaskInput(input: string): SmartTaskDetails {
     priority,
   };
 }
+
+/** One resolved value feeds both visible controls and the saved task. */
+export function resolveSmartDraft<T extends { title: string; date: string; start: string; duration: number; priority: Priority; deadlineTime: string }>(draft: T, manual: Partial<Record<"date" | "start" | "duration" | "priority" | "deadlineTime", boolean>>, today: string, tomorrow: string): T {
+  const parsed = parseSmartTaskInput(draft.title);
+  return {
+    ...draft,
+    title: parsed.title,
+    date: manual.date ? draft.date : draft.date || parsed.targetDate || (parsed.day === "today" ? today : parsed.day === "tomorrow" ? tomorrow : ""),
+    start: manual.start ? draft.start : parsed.start ?? draft.start,
+    duration: manual.duration ? draft.duration : parsed.duration ?? draft.duration,
+    priority: manual.priority ? draft.priority : parsed.priority ?? draft.priority,
+    deadlineTime: manual.deadlineTime ? draft.deadlineTime : parsed.deadline ?? draft.deadlineTime,
+  };
+}
