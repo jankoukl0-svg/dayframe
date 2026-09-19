@@ -76,3 +76,11 @@ test('corrupt saved data is never silently replaced and can be recovered',async(
 test('mobile screens and modal remain within viewport',async({page})=>{
  await page.setViewportSize({width:390,height:844});await boot(page);await nav(page,'Nastavení');await page.getByRole('button',{name:'+ Nová rutina',exact:true}).click();const box=await page.getByRole('dialog').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(391);
 });
+
+test('waiting task can be edited and scheduled instead of remaining stuck',async({page})=>{
+ await boot(page,{...empty(),backlog:[task({id:'waiting',date:'',start:undefined,end:undefined,requestedStart:'16:00'})]});await nav(page,'Přidat úkol');
+ await page.locator('.df2-backlog').getByRole('button',{name:'Upravit',exact:true}).click();
+ const modal=page.getByRole('dialog',{name:'Upravit úkol'});await modal.getByLabel('Den',{exact:true}).fill('2026-09-18');await modal.getByRole('button',{name:'Uložit změny'}).click();
+ await expect(modal).not.toBeVisible();const s=await data(page);expect(s.backlog).toHaveLength(0);expect(s.plans['2026-09-18'][0]).toMatchObject({id:'waiting',start:'16:00'});
+ await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Vrátit zpět',exact:true}).click();expect((await data(page)).backlog).toHaveLength(1);
+});

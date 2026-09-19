@@ -105,3 +105,12 @@ test('focus survives background time, reload, pause, break and extension',()=>{
  assert.equal(focusRemaining(extendFocus(paused,t),t),1680);
  assert.equal(focusRemaining(read,t+2000000),0);assert.equal(readFocus('broken'),null);
 });
+
+test('backup rejects invalid calendar dates and malformed task or recurrence fields',()=>{
+ for (const patch of [{date:'2026-02-30'}, {createdAt:null}, {start:19}, {deadlineTime:'99:30'}]) {
+  const t=task(patch);const s={...state(),plans:{[t.date]:[t]}};
+  assert.throws(()=>decodeBackup(JSON.stringify(s)));
+ }
+ assert.throws(()=>decodeBackup(JSON.stringify({...state(),routines:[routine({weekdays:'Monday'})]})));
+ assert.throws(()=>decodeBackup(JSON.stringify({...state(),milestones:[{id:'g',title:'Exam',date:'2026-99-01'}]})));
+});

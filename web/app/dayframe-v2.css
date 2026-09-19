@@ -451,3 +451,5 @@
 @media (max-width: 720px) {
   .df2-mobile-undo { display: block; position: fixed; right: 15px; bottom: 64px; z-index: 21; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper, #f8f7f3); font-size: 12px; }
 }
+
+.df2-backlog article > .df2-backlog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }

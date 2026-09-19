@@ -583,7 +583,7 @@ export function DayframeV2() {
                 <button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button>
               </form>
               {notice && <div className="df2-result"><span>Uloženo</span><strong>{notice}</strong><button onClick={() => { setNotice(""); setView("week"); }}>Ukázat v týdnu</button></div>}
-              {data.backlog.length > 0 && <section className="df2-backlog"><h2>Bez místa</h2>{data.backlog.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.duration} min · {task.priority === "high" ? "vysoká priorita" : "čeká na čas"}</small></div><button onClick={() => setData((current) => retryBacklog(current, now, now, task.id))}>Zkusit naplánovat</button></article>)}</section>}
+              {data.backlog.length > 0 && <section className="df2-backlog"><h2>Bez místa</h2>{data.backlog.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.duration} min · {task.priority === "high" ? "vysoká priorita" : "čeká na čas"}</small></div><div className="df2-backlog-actions"><button onClick={() => { setError(""); setEditing({ ...task, date: task.date >= todayKey ? task.date : todayKey, start: task.requestedStart }); }}>Upravit</button><button onClick={() => setData((current) => retryBacklog(current, now, now, task.id))}>Zkusit naplánovat</button></div></article>)}</section>}
             </section>
           )}
 
