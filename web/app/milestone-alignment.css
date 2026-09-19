@@ -9,16 +9,23 @@
   top: 50%;
   right: 140px;
   width: 76px;
+  min-width: 0;
+  margin-left: 0;
   transform: translateY(-50%);
-  display: grid;
-  justify-items: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
   text-align: left;
   font-variant-numeric: tabular-nums;
 }
 
 .df2-milestones .df2-milestone-remaining > strong,
 .df2-milestones .df2-milestone-remaining > span {
+  display: block;
   width: 100%;
+  margin: 0;
   text-align: left;
 }
 
@@ -42,6 +49,8 @@
     top: 16px;
     right: 4px;
     width: 64px;
+    min-width: 0;
+    margin-left: 0;
     transform: none;
   }
 
