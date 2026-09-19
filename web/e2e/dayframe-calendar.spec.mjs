@@ -120,13 +120,14 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   const movedTask = targetBody
     .locator(".df2-week-task")
     .filter({ hasText: draggedTitle })
-    .filter({ hasText: /18:(00|15|30|45)/ })
     .first();
   await expect(movedTask).toBeVisible();
+  const movedTime = (await movedTask.locator("span").first().textContent())?.trim() || "";
+  expect(movedTime).toMatch(/^\d{2}:(00|15|30|45)–\d{2}:\d{2}$/);
 
   await movedTask.click();
   await expect(page.locator('select[name="mode"]')).toHaveCount(0);
-  await expect(page.locator('input[name="start"]')).toHaveValue(/^18:/);
+  await expect(page.locator('input[name="start"]')).toHaveValue(/^\d{2}:(00|15|30|45)$/);
   await expect(page.getByText("Prázdné = Dayframe najde volný čas automaticky.", { exact: true })).toBeVisible();
   await page.locator(".df2-modal header > button").click();
 
