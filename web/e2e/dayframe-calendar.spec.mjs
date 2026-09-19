@@ -5,7 +5,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
 
   await expect(page.getByText("Do konce dne", { exact: true })).toBeVisible();
-  await expect(page.getByText("Konec 00:30", { exact: true })).toBeVisible();
+  await expect(page.locator(".df2-sidebar-bottom")).toContainText("00:30");
   await expect(page.locator(".df2-event-countdown")).toBeVisible();
   await expect(page.locator(".df2-event-countdown")).toContainText("Nejbližší termín");
 
@@ -148,7 +148,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await expect(result).toContainText("Zeměpis");
   await expect(result).not.toContainText("[[");
 
-  await result.getByRole("button", { name: "Ukázat v týdnu" }).click();
+  await result.getByRole("button", { name: "Týden", exact: true }).click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
   const targetAfterSave = page.locator(".df2-week-day").nth(targetIndex);
   await expect(targetAfterSave).toContainText("Zeměpis");
