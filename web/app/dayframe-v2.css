@@ -305,14 +305,12 @@
 .df2-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 15px; }
 .df2-details-grid label, .df2-modal label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
 .df2-details-grid input, .df2-details-grid select, .df2-modal input, .df2-modal select, .df2-inline-form input { min-height: 38px; padding: 0 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--paper); color: var(--ink); }
-.df2-understood { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; padding: 12px 14px; border-left: 2px solid var(--accent); background: #f3eee9; }
-.df2-understood span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.df2-understood { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 12px 14px; border-left: 2px solid var(--accent); background: #f3eee9; }
 .df2-understood strong { font-size: 13px; }
-.df2-understood small { grid-column: 2; color: var(--muted); font-size: 11px; }
+.df2-understood small { color: var(--muted); font-size: 11px; }
 .df2-add-form > .df2-primary { width: max-content; min-width: 132px; }
 .df2-error { margin: 0; color: #a6322c; font-size: 12px; }
-.df2-result { margin: 22px 0 0; display: grid; grid-template-columns: auto 1fr auto; }
-.df2-result span { font-size: 10px; text-transform: uppercase; }
+.df2-result { margin: 22px 0 0; display: grid; grid-template-columns: 1fr auto; }
 .df2-result strong { color: var(--ink); font-size: 13px; }
 .df2-result button { border: 0; background: transparent; color: var(--accent-dark); font-size: 12px; font-weight: 700; }
 .df2-backlog { margin-top: 34px; }
@@ -410,8 +408,7 @@
   .df2-routines article { grid-template-columns: 1fr auto; padding: 10px 0; }
   .df2-routines article > label { grid-column: 1; }
   .df2-result { grid-template-columns: 1fr; gap: 7px; }
-  .df2-understood { grid-template-columns: 1fr; }
-  .df2-understood small { grid-column: 1; }
+  .df2-understood { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
 
 @media (max-width: 430px) {

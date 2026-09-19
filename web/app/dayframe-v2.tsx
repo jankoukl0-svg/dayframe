@@ -399,7 +399,7 @@ export function DayframeV2() {
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
-          <div className="df2-sidebar-bottom"><span>Den končí</span><strong>00:30</strong><small>hlavní odpočet</small></div>
+          <div className="df2-sidebar-bottom"><span>Den končí</span><strong>00:30</strong></div>
         </aside>
 
         <section className="df2-main">
@@ -429,7 +429,7 @@ export function DayframeV2() {
                   <button onClick={() => setWeekOffset((value) => value - 1)}>←</button>
                   <button onClick={() => setWeekOffset(0)}>Tento týden</button>
                   <button onClick={() => setWeekOffset((value) => value + 1)}>→</button>
-                  <button className="df2-accent-button" onClick={() => { setData((current) => replanWeek(current, monday, now)); setNotice("Týden byl přepočítán podle priorit a termínů."); }}>Přepočítat týden</button>
+                  <button className="df2-accent-button" onClick={() => setData((current) => replanWeek(current, monday, now))}>Přepočítat týden</button>
                 </div>
               </header>
               {notice && <div className="df2-notice">{notice}<button onClick={() => setNotice("")}>×</button></div>}
@@ -446,7 +446,6 @@ export function DayframeV2() {
                           <div><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(day).replace(".", "")}</span><strong>{day.getDate()}</strong></div>
                           <button disabled={key < todayKey} onClick={(event) => { event.stopPropagation(); openAdd(key); }}>+</button>
                         </header>
-                        <div className="df2-day-summary"><span>{tasks.length} bloků</span><span>{Math.floor(totalMinutes(tasks) / 60)} h {totalMinutes(tasks) % 60 || ""}</span></div>
                         <div className="df2-unscheduled">
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
                         </div>
@@ -492,7 +491,6 @@ export function DayframeV2() {
                               >
                                 <span>{task.start}–{task.end}</span>
                                 <strong>{task.title}</strong>
-                                <small>{task.category}</small>
                               </button>
                             );
                           })}
@@ -502,15 +500,14 @@ export function DayframeV2() {
                   })}
                 </div>
               </div>
-              <footer className="df2-week-help">Přetažení drží místo, kde blok chytíš, a zarovná nový čas po 15 minutách. Po puštění zůstane blok na zvoleném místě.</footer>
             </section>
           )}
 
           {view === "add" && (
             <section className="df2-add-view">
-              <header className="df2-page-head"><div><p>Rychlé plánování</p><h1>Přidat úkol</h1></div></header>
+              <header className="df2-page-head"><div><h1>Přidat úkol</h1></div></header>
               <form className="df2-add-form" onSubmit={submitDraft}>
-                <label className="df2-title-input"><span>Co potřebuješ udělat?</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>
+                <label className="df2-title-input"><span>Úkol</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>
                 <div className="df2-chips" aria-label="Rychlá nastavení">
                   <label><span>Den</span><input type="date" value={draft.date} min={todayKey} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
                   <label><span>Délka</span><select value={draft.duration} onChange={(event) => setDraft({ ...draft, duration: Number(event.target.value) })}><option value={20}>20 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option></select></label>
@@ -518,7 +515,7 @@ export function DayframeV2() {
                   <label><span>Priorita</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="normal">Běžná</option><option value="high">Vysoká</option><option value="low">Nízká</option></select></label>
                 </div>
                 <details className="df2-details">
-                  <summary>Další podrobnosti</summary>
+                  <summary>Podrobnosti</summary>
                   <div className="df2-details-grid">
                     <label>Dokončit do<input type="date" value={draft.dueDate} min={todayKey} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} /></label>
                     <label>Nejpozději v<input type="time" value={draft.deadlineTime} onChange={(event) => setDraft({ ...draft, deadlineTime: event.target.value })} /></label>
@@ -526,12 +523,12 @@ export function DayframeV2() {
                     <label>Opakování<select value={draft.repeat} onChange={(event) => setDraft({ ...draft, repeat: event.target.value as RepeatRule })}><option value="none">Neopakovat</option><option value="daily">Každý den</option><option value="weekly">Každý týden</option></select></label>
                   </div>
                 </details>
-                {draft.title.trim() && <div className="df2-understood"><span>Dayframe rozumí:</span><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "nejlepší čas během týdne"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · čas automaticky"}</small></div>}
+                {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
                 {error && <p className="df2-error">{error}</p>}
                 <button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button>
               </form>
-              {notice && <div className="df2-result"><span>Uloženo</span><strong>{notice}</strong><button onClick={() => { setNotice(""); setView("week"); }}>Ukázat v týdnu</button></div>}
-              {data.backlog.length > 0 && <section className="df2-backlog"><h2>Bez místa</h2>{data.backlog.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.duration} min · {task.priority === "high" ? "vysoká priorita" : "čeká na čas"}</small></div><button onClick={() => setData((current) => replanWeek(current, now, now))}>Zkusit naplánovat</button></article>)}</section>}
+              {notice && <div className="df2-result"><strong>{notice}</strong><button onClick={() => { setNotice(""); setView("week"); }}>Týden</button></div>}
+              {data.backlog.length > 0 && <section className="df2-backlog"><h2>Bez místa</h2>{data.backlog.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.duration} min{task.priority === "high" ? " · vysoká priorita" : ""}</small></div><button onClick={() => setData((current) => replanWeek(current, now, now))}>Zkusit naplánovat</button></article>)}</section>}
             </section>
           )}
 
@@ -541,22 +538,21 @@ export function DayframeV2() {
               <h1>{focusTask?.title ?? activeTask?.title ?? "Soustředění"}</h1>
               <div className="df2-focus-clock">{String(Math.floor(focusSeconds / 60)).padStart(2, "0")}:{String(focusSeconds % 60).padStart(2, "0")}</div>
               <div className="df2-focus-actions"><button onClick={() => setFocusRunning((value) => !value)}>{focusRunning ? "Pozastavit" : "Spustit"}</button><button onClick={() => { setFocusSeconds(50 * 60); setFocusRunning(false); }}>Začít znovu</button></div>
-              <small>Focus je záměrně jednoduchý: jeden blok, jeden úkol, žádný kalendář.</small>
             </section>
           )}
 
           {view === "milestones" && (
             <section className="df2-simple-view">
-              <header className="df2-page-head"><div><p>Důležité termíny</p><h1>Milníky</h1></div></header>
+              <header className="df2-page-head"><div><h1>Milníky</h1></div></header>
               <form className="df2-inline-form" onSubmit={addNewMilestone}><input placeholder="Nový milník" value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} /><input type="date" value={milestoneDate} onChange={(event) => setMilestoneDate(event.target.value)} /><button>Přidat</button></form>
-              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id} role="button" tabIndex={0} title="Upravit milník" onClick={() => setEditingMilestoneId(milestone.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEditingMilestoneId(milestone.id); } }}><div><span>{milestone.note}</span><strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>
+              <div className="df2-milestones">{[...data.milestones].sort((a, b) => a.date.localeCompare(b.date)).map((milestone) => <article key={milestone.id} role="button" tabIndex={0} title="Upravit milník" onClick={() => setEditingMilestoneId(milestone.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEditingMilestoneId(milestone.id); } }}><div>{milestone.note !== "Vlastní termín" && <span>{milestone.note}</span>}<strong>{milestone.title}</strong></div><div className="df2-milestone-remaining"><strong>{daysUntilDate(milestone.date, now)}</strong><span>dní</span></div><time>{longDate(milestone.date)}</time></article>)}</div>
             </section>
           )}
 
           {view === "settings" && (
             <section className="df2-simple-view">
-              <header className="df2-page-head"><div><p>Chování Dayframe</p><h1>Nastavení</h1></div></header>
-              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>Den končí v 00:30</span></div><div><strong>Auto-plánování</strong><span>Celý týden · 15min sloty · respektuje ručně zadaný den a čas</span></div><div><strong>Ukládání</strong><span>Lokální kalendář podle data · schema 5</span></div></div>
+              <header className="df2-page-head"><div><h1>Nastavení</h1></div></header>
+              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>00:30</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min</span></div></div>
               <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => setData((current) => ({ ...current, routines: current.routines.map((item) => item.id === routine.id ? { ...item, active: event.target.checked } : item) }))} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id))}>Smazat</button></article>)}</section>
             </section>
           )}
@@ -566,7 +562,7 @@ export function DayframeV2() {
       {editingMilestone && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingMilestoneId(null); }}>
           <form className="df2-modal" onSubmit={saveMilestoneEdit}>
-            <header><div><span>Milník</span><h2>Upravit milník</h2></div><button type="button" onClick={() => setEditingMilestoneId(null)}>×</button></header>
+            <header><div><h2>Upravit milník</h2></div><button type="button" onClick={() => setEditingMilestoneId(null)}>×</button></header>
             <label>Název<input name="title" autoFocus defaultValue={editingMilestone.title} /></label>
             <div className="df2-form-grid"><label>Datum<input name="date" type="date" defaultValue={editingMilestone.date} /></label><label>Popisek<input name="note" defaultValue={editingMilestone.note} placeholder="Např. hlavní termín" /></label></div>
             <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button type="button" className="danger" onClick={() => removeMilestone(editingMilestone.id)}>Smazat milník</button></div>
@@ -577,7 +573,7 @@ export function DayframeV2() {
       {editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
           <form className="df2-modal" onSubmit={saveEdit}>
-            <header><div><span>Úkol</span><h2>Upravit</h2></div><button type="button" onClick={() => setEditing(null)}>×</button></header>
+            <header><div><h2>Upravit</h2></div><button type="button" onClick={() => setEditing(null)}>×</button></header>
             <label>Název<input name="title" defaultValue={editing.title} /></label>
             <div className="df2-form-grid"><label>Den<input name="date" type="date" defaultValue={editing.date} /></label><label>Délka<input name="duration" type="number" min="15" step="5" defaultValue={editing.duration} /></label></div>
             <label>Začátek<input name="start" type="time" defaultValue={editing.start ?? ""} /><small>Prázdné = Dayframe najde volný čas automaticky.</small></label>
@@ -631,7 +627,6 @@ function TodayView({
           <div className="df2-day-ruler-copy">
             <span>Do konce dne</span>
             <strong aria-label={`${countdown.hours} hodin ${countdown.minutes} minut ${countdown.seconds} sekund`}>{countdownText}<em>:{String(countdown.seconds).padStart(2, "0")}</em></strong>
-            <span>Konec 00:30</span>
           </div>
           <div className="df2-day-track" aria-hidden="true"><span style={{ width: `${countdown.progressPercent}%` }} /><i style={{ left: `${countdown.progressPercent}%` }} /></div>
           <div className="df2-day-scale" aria-hidden="true"><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>00:30</span></div>
@@ -639,17 +634,16 @@ function TodayView({
 
         <button type="button" className="df2-event-countdown" onClick={onMilestones} aria-label={nextMilestone ? `Nejbližší termín ${nextMilestone.title}, zbývá ${daysUntilDate(nextMilestone.date, now)} dní` : "Přidat důležitý termín"}>
           <span>Nejbližší termín</span>
-          {nextMilestone ? <><strong>{daysUntilDate(nextMilestone.date, now)}<em>dní</em></strong><b>{nextMilestone.title}</b><small>{longDate(nextMilestone.date)}</small></> : <><strong>—</strong><b>Žádný termín</b><small>Přidej milník</small></>}
+          {nextMilestone ? <><strong>{daysUntilDate(nextMilestone.date, now)}<em>dní</em></strong><b>{nextMilestone.title}</b><small>{longDate(nextMilestone.date)}</small></> : <><strong>—</strong><b>Přidat milník</b></>}
         </button>
       </div>
 
       <section className="df2-now-card">
         <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
-        {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.category} · {activeTask.duration} min</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Teď nemáš žádný blok</h2><p>Přidej úkol nebo si nech volno.</p></div>}
+        {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.duration} min</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Volno</h2></div>}
       </section>
-      {missed.length > 0 && <section className="df2-missed"><header><span>Vyžaduje rozhodnutí</span><strong>{missed.length} {missed.length === 1 ? "nedokončený blok" : "nedokončené bloky"}</strong></header>{missed.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>měl skončit v {task.end}</small></div><div><button onClick={() => onDone(task.id)}>Hotovo</button><button onClick={() => onTomorrow(task.id)}>Na zítra</button><button onClick={() => onDelete(task.id)}>Zrušit</button></div></article>)}</section>}
-      <section className="df2-next"><div className="df2-section-head"><h2>Co následuje</h2><span>{completed}/{tasks.length} hotovo{unscheduled ? ` · ${unscheduled} bez času` : ""}</span></div>{nextTasks.length ? nextTasks.map((task) => <button key={task.id} onClick={() => onEdit(task)}><time>{task.start}</time><span><strong>{task.title}</strong><small>{task.category} · {task.duration} min</small></span></button>) : <div className="df2-empty">Žádný další blok.</div>}</section>
-      <footer className="df2-today-status"><span className={missed.length ? "warning" : "ok"} />{missed.length ? "Plán potřebuje rozhodnutí u minulých bloků." : "Plán je realistický. Dayframe nic automaticky nepřenáší do dalšího dne."}</footer>
+      {missed.length > 0 && <section className="df2-missed"><header><strong>Nedokončeno · {missed.length}</strong></header>{missed.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>do {task.end}</small></div><div><button onClick={() => onDone(task.id)}>Hotovo</button><button onClick={() => onTomorrow(task.id)}>Na zítra</button><button onClick={() => onDelete(task.id)}>Zrušit</button></div></article>)}</section>}
+      <section className="df2-next"><div className="df2-section-head"><h2>Co následuje</h2><span>{completed}/{tasks.length} hotovo{unscheduled ? ` · ${unscheduled} bez času` : ""}</span></div>{nextTasks.length ? nextTasks.map((task) => <button key={task.id} onClick={() => onEdit(task)}><time>{task.start}</time><span><strong>{task.title}</strong><small>{task.duration} min</small></span></button>) : <div className="df2-empty">Volno</div>}</section>
     </section>
   );
 }
