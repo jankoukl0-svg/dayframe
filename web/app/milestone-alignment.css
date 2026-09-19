@@ -7,10 +7,16 @@
 
 .df2-milestones .df2-milestone-remaining {
   width: 76px;
-  justify-self: center;
-  justify-items: center;
-  text-align: center;
+  justify-self: start;
+  justify-items: start;
+  text-align: left;
   font-variant-numeric: tabular-nums;
+}
+
+.df2-milestones .df2-milestone-remaining > strong,
+.df2-milestones .df2-milestone-remaining > span {
+  width: 100%;
+  text-align: left;
 }
 
 .df2-milestones time {
