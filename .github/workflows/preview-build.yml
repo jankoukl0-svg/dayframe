@@ -44,7 +44,7 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: Run planning regression tests
-        run: node --experimental-strip-types --test lib/dayframe-calendar.test.mjs lib/dayframe-countdown.test.mjs lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs
+        run: node --experimental-strip-types --test lib/dayframe-calendar.test.mjs lib/dayframe-countdown.test.mjs lib/dayframe-planning.test.mjs lib/dayframe-smart-input.test.mjs lib/dayframe-upgrades.test.mjs
 
       - name: Build static preview
         run: pnpm preview:build
@@ -53,7 +53,7 @@ jobs:
         run: |
           rm -rf /tmp/dayframe-e2e
           mkdir -p /tmp/dayframe-e2e
-          cp e2e/dayframe-calendar.spec.mjs /tmp/dayframe-e2e/dayframe-calendar.spec.mjs
+          cp e2e/*.spec.mjs /tmp/dayframe-e2e/
           cd /tmp/dayframe-e2e
           npm init -y >/dev/null
           npm install --no-package-lock @playwright/test@1.55.0
@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
           cd /tmp/dayframe-e2e
-          npx playwright test dayframe-calendar.spec.mjs --workers=1 --reporter=line
+          npx playwright test --workers=1 --reporter=line
 
       - name: Upload verified Pages build
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

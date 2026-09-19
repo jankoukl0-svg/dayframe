@@ -1,6 +1,6 @@
 # Dayframe — začni tady
 
-Aktualizováno: 18. 9. 2026.
+Aktualizováno: 19. 9. 2026.
 
 ## Kontext
 
@@ -12,6 +12,21 @@ Vývojový Vercel: https://dayframe2.vercel.app
 Sites náhled: https://dayframe-focus.honza-koukl1.chatgpt.site — **není automaticky napojený na GitHub**.
 
 GitHub → Vercel je zapojené. Projekt `dayframe2` používá Root Directory `web` a push do `main` automaticky deployuje stálý URL výše.
+
+## Implementace šesti schválených kroků (19. 9. 2026)
+
+Uživatel schválil celý audit: „udělej po krocích úplně vše“. Navázáno na main `a33f13ad3cee4bfb85c031e657bce741874ab56d` bez změn starého ui/Tauri.
+
+1. Model chrání historické záznamy při mazání/vypínání rutin, změnách úkolů a přepočtu; retry zpracovává backlog. Poškozené lokální úložiště se nesmí přepsat výchozím stavem.
+2. Smart input má jediný resolver pro náhled, formulář a submit. Ruční override se pamatuje i pro 45 min / běžnou prioritu / prázdný čas.
+3. Dnes rozlišuje současný blok od budoucího a má Hotovo. Focus používá délku úkolu, timestamp, obnovu po reloadu, pauzu, přestávku, prodloužení a dokončení.
+4. Nastavení obsahuje editor rutin, konkrétní dny a obden s datovou kotvou. Změny platí do budoucnosti; historie zůstává.
+5. Úkol má volitelné milestoneId. Milník má rozsah přípravy, délku bloku a oblast; návrh vyplňuje volné časy po dnech a zohledňuje již přiřazené úkoly. Uživatel vidí návrh před potvrzením; opakovaný návrh neduplikuje přípravu.
+6. Export/import JSON, kontrola formátu, náhled před nahrazením, automatická záloha a až 20 kroků Vrátit zpět. Undo je v aktuální relaci; po reloadu slouží záloha. Hosty zůstávají oddělené, přenos je přes export/import.
+
+Storage zůstává `dayframe-v1`, schema 5; přidány pouze volitelné atributy. Timer má vlastní `dayframe-focus-v1`; záloha `dayframe-v1-backup`, původní nečitelná data při obnově `dayframe-v1-recovery`.
+
+Ověření před PR: TypeScript PASS, 50 modelových regresí PASS, static build PASS. Nové browser scénáře zahrnují smart input, Focus/reload, rutiny, přípravu, zálohu/undo, poškozená data a mobil. Jejich CI výsledek a skutečné nasazení doplnit po dokončení, zatím nejsou tvrzeny jako úspěšné.
 
 ## Aktuální návaznost a druhý preview
 

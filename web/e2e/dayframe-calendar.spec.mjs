@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("adds a task from the week without leaking internal scheduling syntax", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-17T10:00:00") });
   await page.addInitScript(() => window.localStorage.clear());
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
 
