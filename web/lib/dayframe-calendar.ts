@@ -1,6 +1,6 @@
 export type Priority = "high" | "normal" | "low";
 export type TaskMode = "fixed" | "flexible";
-export type RepeatRule = "none" | "daily" | "weekly";
+export type RepeatRule = "none" | "daily" | "weekly" | "alternate";
 
 export type CalendarTask = {
   id: string;
@@ -18,6 +18,7 @@ export type CalendarTask = {
   completed: boolean;
   source: "user" | "routine" | "legacy";
   routineId?: string;
+  milestoneId?: string;
   dateLocked?: boolean;
   autoScheduled?: boolean;
   createdAt: string;
@@ -30,13 +31,14 @@ export type Routine = {
   start?: string;
   category: string;
   priority: Priority;
-  frequency: "daily" | "weekly";
+  frequency: "daily" | "weekly" | "alternate";
+  startsOn?: string;
   weekdays?: number[];
   active: boolean;
   createdAt: string;
 };
 
-export type Milestone = { id: string; title: string; date: string; note: string };
+export type Milestone = { id: string; title: string; date: string; note: string; targetMinutes?: number; blockMinutes?: number; category?: string };
 
 export type DayframeState = {
   schema: 5;
@@ -58,6 +60,7 @@ export type TaskDraft = {
   priority: Priority;
   category: string;
   repeat?: RepeatRule;
+  milestoneId?: string;
 };
 
 const DAY_START = 10 * 60;
@@ -296,7 +299,12 @@ export function migrateStoredState(raw: any, now = new Date()): DayframeState {
 }
 
 function routineMatchesDate(routine: Routine, date: Date) {
-  if (!routine.active) return false;
+  if (!routine.active || (routine.startsOn && localDateKey(date) < routine.startsOn)) return false;
+  if (routine.frequency === "alternate") {
+    const anchor = routine.startsOn ?? routine.createdAt.slice(0, 10);
+    const serial = (key: string) => Date.UTC(...(key.split("-").map(Number).map((v,i) => i === 1 ? v - 1 : v) as [number, number, number]));
+    return Math.round((serial(localDateKey(date)) - serial(anchor)) / 86400000) % 2 === 0;
+  }
   if (routine.frequency === "daily") return true;
   return (routine.weekdays ?? []).includes(date.getDay());
 }
@@ -316,12 +324,13 @@ function occupiedBlocks(tasks: CalendarTask[], ignoreId?: string) {
    not a collision. Auto-planning still skips it in findSlot below. */
 export function canPlaceAt(tasks: CalendarTask[], start: number, duration: number, ignoreId?: string) {
   const end = start + duration;
-  if (start < DAY_START || end > DAY_END) return false;
+  if (!Number.isFinite(start) || !Number.isFinite(duration) || duration < 15 || start < DAY_START || end > 23 * 60) return false;
   return !occupiedBlocks(tasks, ignoreId).some((block) => start < block.end && end > block.start);
 }
 
 export function findSlot(tasks: CalendarTask[], date: string, duration: number, now: Date, deadlineTime = "22:30", exactStart?: string) {
   const todayKey = localDateKey(now);
+  if (date < todayKey || !Number.isFinite(duration) || duration < 15) return null;
   const deadline = Math.min(DAY_END, timeToMinutes(deadlineTime));
   const floor = date === todayKey
     ? Math.max(DAY_START, Math.ceil((now.getHours() * 60 + now.getMinutes()) / SLOT) * SLOT)
@@ -362,6 +371,7 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
 export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date()) {
   let next: DayframeState = { ...state, plans: { ...state.plans } };
   for (let cursor = fromKey; cursor <= toKey; cursor = addDaysKey(cursor, 1)) {
+    if (cursor < localDateKey(now)) continue;
     const date = dateFromKey(cursor);
     const existing = [...(next.plans[cursor] ?? [])];
     for (const routine of next.routines) {
@@ -371,13 +381,15 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
       const id = `routine-${routine.id}-${cursor}`;
       const duplicate = existing.some((task) => task.id === id || (task.title === routine.title && task.start === routine.start));
       if (duplicate) continue;
+      if (routine.startsOn && cursor === localDateKey(now) && routine.start && timeToMinutes(routine.start) <= now.getHours() * 60 + now.getMinutes()) continue;
+      const fits = !routine.start || canPlaceAt(existing, timeToMinutes(routine.start), routine.duration);
       existing.push({
         id,
         title: routine.title,
         date: cursor,
         duration: routine.duration,
-        start: routine.start,
-        end: routine.start ? minutesToTime(timeToMinutes(routine.start) + routine.duration) : undefined,
+        start: fits ? routine.start : undefined,
+        end: fits && routine.start ? minutesToTime(timeToMinutes(routine.start) + routine.duration) : undefined,
         requestedStart: routine.start,
         dueDate: cursor,
         deadlineTime: routine.start ? minutesToTime(timeToMinutes(routine.start) + routine.duration) : "22:30",
@@ -422,6 +434,7 @@ function createTaskFromDraft(draft: TaskDraft, date: string, now: Date, dateLock
     date,
     duration: Math.max(15, draft.duration || 45),
     requestedStart: draft.start,
+    milestoneId: draft.milestoneId,
     dueDate: draft.dueDate,
     deadlineTime: draft.deadlineTime ?? "22:30",
     priority: draft.priority,
@@ -448,7 +461,7 @@ function dateRangeForDraft(draft: TaskDraft, now: Date) {
 export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()) {
   const dates = dateRangeForDraft(draft, now);
   let next = materializeRange(state, dates[0], dates[dates.length - 1], now);
-  const base = createTaskFromDraft(draft, dates[0], now, Boolean(draft.date));
+  const base = createTaskFromDraft(draft, dates[0] ?? localDateKey(now), now, Boolean(draft.date));
 
   for (const date of dates) {
     const slot = findSlot(next.plans[date] ?? [], date, base.duration, now, draft.deadlineTime, draft.start);
@@ -458,7 +471,7 @@ export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()
     return { state: maybeAddRoutine(next, draft, task, now), task, status: "scheduled" as const };
   }
 
-  const targetDate = draft.date ?? dates[0];
+  const targetDate = draft.date ?? dates[0] ?? localDateKey(now);
   const waiting = { ...base, date: targetDate };
   if (draft.date) {
     next = { ...next, plans: { ...next.plans, [targetDate]: sortTasks([...(next.plans[targetDate] ?? []), waiting]) } };
@@ -470,7 +483,7 @@ export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()
 
 function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarTask, now: Date) {
   if (!draft.repeat || draft.repeat === "none") return state;
-  const frequency = draft.repeat === "daily" ? "daily" : "weekly";
+  const frequency = draft.repeat;
   const routineItem: Routine = {
     id: taskId("routine"),
     title: task.title,
@@ -479,11 +492,14 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     category: task.category,
     priority: task.priority,
     frequency,
+    startsOn: task.date,
     weekdays: frequency === "weekly" ? [dateFromKey(task.date).getDay()] : undefined,
     active: true,
     createdAt: now.toISOString(),
   };
-  return { ...state, routines: [...state.routines, routineItem] };
+  // Link the first occurrence so deleting it cannot rematerialize a duplicate.
+  const plans = { ...state.plans, [task.date]: (state.plans[task.date] ?? []).map(t => t.id === task.id ? { ...t, routineId: routineItem.id, source: "routine" as const } : t) };
+  return { ...state, plans, routines: [...state.routines, routineItem] };
 }
 
 export function updateTask(state: DayframeState, taskIdValue: string, patch: Partial<CalendarTask>, now = new Date()) {
@@ -494,10 +510,13 @@ export function updateTask(state: DayframeState, taskIdValue: string, patch: Par
     if (found) fromDate = date;
     return Boolean(found);
   });
+  found ??= state.backlog.find(task => task.id === taskIdValue);
   if (!found) return { state, error: "Úkol nebyl nalezen." };
+  if ((fromDate && fromDate < localDateKey(now)) || (patch.date && patch.date < localDateKey(now))) return { state, error: "Minulé dny jsou historie." };
+  if (patch.duration !== undefined && (!Number.isFinite(patch.duration) || patch.duration < 15)) return { state, error: "Délka musí být alespoň 15 minut." };
 
   const updated: CalendarTask = { ...found, ...patch, id: found.id, mode: "flexible" };
-  const toDate = patch.date ?? fromDate;
+  const toDate = patch.date ?? (fromDate || localDateKey(now));
   updated.date = toDate;
   if (updated.start) {
     updated.end = minutesToTime(timeToMinutes(updated.start) + updated.duration);
@@ -511,19 +530,20 @@ export function updateTask(state: DayframeState, taskIdValue: string, patch: Par
   }
 
   const plans = { ...state.plans };
-  plans[fromDate] = (plans[fromDate] ?? []).filter((task) => task.id !== updated.id);
+  if (fromDate) plans[fromDate] = (plans[fromDate] ?? []).filter((task) => task.id !== updated.id);
   plans[toDate] = sortTasks([...(plans[toDate] ?? []).filter((task) => task.id !== updated.id), updated]);
-  let next = { ...state, plans };
+  let next = { ...state, plans, backlog: state.backlog.filter(task => task.id !== updated.id) };
   if (!updated.start) next = scheduleUnscheduledOnDate(next, toDate, now);
   return { state: next, task: updated };
 }
 
-export function deleteTask(state: DayframeState, taskIdValue: string) {
+export function deleteTask(state: DayframeState, taskIdValue: string, now = new Date()) {
   const plans: Record<string, CalendarTask[]> = {};
   let removed: CalendarTask | undefined;
   for (const [date, tasks] of Object.entries(state.plans)) {
     const task = tasks.find((item) => item.id === taskIdValue);
     if (task) removed = task;
+    if (task && date < localDateKey(now)) return state;
     plans[date] = tasks.filter((item) => item.id !== taskIdValue);
   }
   let routineSkips = state.routineSkips;
@@ -531,15 +551,15 @@ export function deleteTask(state: DayframeState, taskIdValue: string) {
   return { ...state, plans, backlog: state.backlog.filter((task) => task.id !== taskIdValue), routineSkips };
 }
 
-export function toggleTask(state: DayframeState, id: string) {
+export function toggleTask(state: DayframeState, id: string, now = new Date()) {
   const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [
     date,
-    tasks.map((task) => task.id === id ? { ...task, completed: !task.completed } : task),
+    tasks.map((task) => date >= localDateKey(now) && task.id === id ? { ...task, completed: !task.completed } : task),
   ]));
   return { ...state, plans };
 }
 
-export function moveTask(state: DayframeState, id: string, toDate: string, toStart: string) {
+export function moveTask(state: DayframeState, id: string, toDate: string, toStart: string, now = new Date()) {
   let task: CalendarTask | undefined;
   let fromDate = "";
   for (const [date, tasks] of Object.entries(state.plans)) {
@@ -547,6 +567,7 @@ export function moveTask(state: DayframeState, id: string, toDate: string, toSta
     if (match) { task = match; fromDate = date; break; }
   }
   if (!task) return { state, error: "Úkol nebyl nalezen." };
+  if (fromDate < localDateKey(now) || toDate < localDateKey(now)) return { state, error: "Minulé dny jsou historie." };
 
   const start = roundToQuarter(timeToMinutes(toStart));
   const destination = (state.plans[toDate] ?? []).filter((item) => item.id !== id);
@@ -580,9 +601,9 @@ export function moveTaskToTomorrow(state: DayframeState, id: string, now = new D
     task = tasks.find((item) => item.id === id);
     if (task) break;
   }
-  if (!task) return state;
+  if (!task || task.date < localDateKey(now)) return state;
   const tomorrow = addDaysKey(localDateKey(now), 1);
-  const without = deleteTask(state, id);
+  const without = deleteTask(state, id, now);
   const stripped: CalendarTask = { ...task, id: taskId(), date: tomorrow, start: undefined, end: undefined, requestedStart: undefined, mode: "flexible", source: "user", routineId: undefined, dateLocked: true, autoScheduled: true, completed: false };
   const next = { ...without, plans: { ...without.plans, [tomorrow]: sortTasks([...(without.plans[tomorrow] ?? []), stripped]) } };
   return scheduleUnscheduledOnDate(next, tomorrow, now);
@@ -595,10 +616,11 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
   const plans = { ...next.plans };
 
   for (const date of keys) {
+    if (date < localDateKey(now)) continue;
     const keep: CalendarTask[] = [];
     for (const task of plans[date] ?? []) {
       const manuallyPlaced = Boolean(task.requestedStart) || task.autoScheduled === false;
-      if (task.completed || task.source === "routine" || task.dateLocked || manuallyPlaced) keep.push(task);
+      if ((date === localDateKey(now) && task.start && timeToMinutes(task.start) < now.getHours() * 60 + now.getMinutes()) || task.completed || task.source === "routine" || task.dateLocked || manuallyPlaced) keep.push(task);
       else movable.push({ ...task, start: undefined, end: undefined });
     }
     plans[date] = keep;
@@ -622,7 +644,7 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
     }
     if (!placed) next.backlog = [...next.backlog, task];
   }
-  return next;
+  return retryBacklog(next, reference, now);
 }
 
 export function addMilestone(state: DayframeState, title: string, date: string) {
@@ -630,10 +652,42 @@ export function addMilestone(state: DayframeState, title: string, date: string) 
   return { ...state, milestones: [...state.milestones, milestone].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
-export function deleteRoutine(state: DayframeState, id: string) {
+function futureRoutineTask(task: CalendarTask, now: Date) {
+  const today = localDateKey(now);
+  return !task.completed && (task.date > today || (task.date === today && (!task.start || timeToMinutes(task.start) > now.getHours() * 60 + now.getMinutes())));
+}
+
+export function deleteRoutine(state: DayframeState, id: string, now = new Date()) {
   const routines = state.routines.filter((item) => item.id !== id);
-  const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [date, tasks.filter((task) => task.routineId !== id)]));
+  const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [date, tasks.filter((task) => task.routineId !== id || !futureRoutineTask(task, now))]));
   return { ...state, routines, plans };
+}
+
+export function setRoutineActive(state: DayframeState, id: string, active: boolean, now = new Date()) {
+  const original = state.routines.find(r => r.id === id);
+  if (!original) return state;
+  const clean = deleteRoutine(state, id, now);
+  const next = { ...clean, routines: state.routines.map(r => r.id === id ? { ...r, active } : r) };
+  return materializeRange(next, localDateKey(now), addDaysKey(localDateKey(now), 28), now);
+}
+
+export function retryBacklog(state: DayframeState, reference: Date, now = new Date(), onlyId?: string) {
+  let next = { ...state, plans: { ...state.plans }, backlog: [] as CalendarTask[] };
+  const keys = weekKeys(reference).filter(date => date >= localDateKey(now));
+  for (const task of [...state.backlog].sort((a,b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"))) {
+    if (onlyId && task.id !== onlyId) { next.backlog.push(task); continue; }
+    let placed = false;
+    for (const date of keys.filter(date => (!task.dateLocked || task.date === date) && (!task.dueDate || date <= task.dueDate))) {
+      next = materializeRange(next, date, date, now);
+      const slot = findSlot(next.plans[date] ?? [], date, task.duration, now, task.deadlineTime, task.requestedStart);
+      if (!slot) continue;
+      next.plans[date] = sortTasks([...(next.plans[date] ?? []), { ...task, date, ...slot }]);
+      placed = true;
+      break;
+    }
+    if (!placed) next.backlog.push(task);
+  }
+  return next;
 }
 
 export function overdueTasks(state: DayframeState, now = new Date()) {
@@ -643,3 +697,63 @@ export function overdueTasks(state: DayframeState, now = new Date()) {
 }
 
 export const calendarBounds = { dayStart: DAY_START, lunchStart: LUNCH_START, lunchEnd: LUNCH_END, dayEnd: DAY_END, slot: SLOT };
+export function routineLabel(routine: Routine) {
+  if (routine.frequency === "daily") return "Každý den";
+  if (routine.frequency === "alternate") return `Obden od ${routine.startsOn ?? routine.createdAt.slice(0, 10)}`;
+  const names = ["Ne", "Po", "Út", "St", "Čt", "Pá", "So"];
+  return [...(routine.weekdays ?? [])].sort((a,b) => ((a+6)%7)-((b+6)%7)).map(d => names[d]).join(", ");
+}
+
+export function saveRoutine(state: DayframeState, input: Routine, now = new Date()): { state: DayframeState; error?: string } {
+  if (!input.title.trim() || !input.start || !Number.isFinite(input.duration) || input.duration < 15 || input.duration > 360 || timeToMinutes(input.start) < DAY_START || timeToMinutes(input.start) + input.duration > 23 * 60 || (input.frequency === "weekly" && !input.weekdays?.length)) return { state, error: "Vyplň název, čas, délku a dny opakování (10:00–23:00)." };
+  const today = localDateKey(now);
+  if (!input.startsOn || input.startsOn < today) return { state, error: "Začátek opakování musí být dnes nebo později." };
+  const existing = state.routines.find(r => r.id === input.id);
+  const saved = { ...input, id: input.id || taskId("routine"), title: input.title.trim(), createdAt: existing?.createdAt ?? now.toISOString() };
+  const clean = existing ? deleteRoutine(state, input.id, now) : state;
+  const end = addDaysKey(input.startsOn, 28);
+  for (let date = input.startsOn; date <= end; date = addDaysKey(date, 1)) {
+    if (!saved.active || !routineMatchesDate(saved, dateFromKey(date))) continue;
+    if (date === today && timeToMinutes(saved.start) <= now.getHours() * 60 + now.getMinutes()) continue;
+    if (!canPlaceAt(clean.plans[date] ?? [], timeToMinutes(saved.start), saved.duration)) return { state, error: `V ${date} v ${saved.start} už je jiný blok. Zvol jiný čas.` };
+  }
+  const next = { ...clean, routines: [...clean.routines, saved] };
+  return { state: materializeRange(next, today, end, now) };
+}
+
+export function milestoneProgress(state: DayframeState, id: string, now = new Date()) {
+  const tasks = [...Object.values(state.plans).flat(), ...state.backlog].filter(t => t.milestoneId === id);
+  const completed = tasks.filter(t => t.completed).reduce((n,t) => n + t.duration, 0);
+  const planned = tasks.filter(t => !t.completed && t.start && (t.date > localDateKey(now) || (t.date === localDateKey(now) && timeToMinutes(t.end) > now.getHours()*60 + now.getMinutes()))).reduce((n,t) => n + t.duration, 0);
+  const allocated = tasks.reduce((n,t) => n + t.duration, 0);
+  const target = state.milestones.find(m => m.id === id)?.targetMinutes ?? 0;
+  return { completed, planned, waiting: allocated - completed - planned, missing: Math.max(0, target - allocated), target };
+}
+
+export function planMilestone(state: DayframeState, id: string, now = new Date()) {
+  const milestone = state.milestones.find(m => m.id === id);
+  const today = localDateKey(now);
+  if (!milestone || milestone.date < today || !milestone.targetMinutes || milestone.targetMinutes < 15) return { state, tasks: [] as CalendarTask[], error: "Nastav budoucí termín a alespoň 15 minut přípravy." };
+  const horizon = addDaysKey(today, 365);
+  const end = milestone.date < horizon ? milestone.date : horizon;
+  let next = materializeRange(state, today, end, now);
+  let remaining = milestoneProgress(next, id, now).missing;
+  const tasks: CalendarTask[] = [];
+  const block = Math.max(15, Math.min(180, milestone.blockMinutes ?? 60));
+  // One block per day on each pass spreads preparation rather than filling one day.
+  for (let pass = 0; pass < 32 && remaining >= 15; pass++) {
+    let progress = false;
+    for (let date = today; date <= end && remaining >= 15; date = addDaysKey(date, 1)) {
+      const duration = Math.min(block, remaining);
+      const slot = findSlot(next.plans[date] ?? [], date, duration, now);
+      if (!slot) continue;
+      const task = { ...createTaskFromDraft({ title: milestone.title, duration, dueDate: milestone.date, priority: "normal", category: milestone.category ?? "Studium" }, date, now, false), ...slot, milestoneId: id };
+      next = { ...next, plans: { ...next.plans, [date]: sortTasks([...(next.plans[date] ?? []), task]) } };
+      tasks.push(task);
+      remaining -= duration;
+      progress = true;
+    }
+    if (!progress) break;
+  }
+  return { state: next, tasks, remaining, error: undefined };
+}

@@ -107,7 +107,7 @@ test("manual drag may place a task inside the lunch hour", () => {
   let state = migrateStoredState(null, now);
   state.routines = [];
   const added = addTask(state, { title: "Obědový call", date: "2026-09-18", duration: 30, priority: "normal", category: "Osobní", repeat: "none" }, now);
-  const moved = moveTask(added.state, added.task.id, "2026-09-18", "13:15");
+  const moved = moveTask(added.state, added.task.id, "2026-09-18", "13:15", now);
   assert.equal(moved.error, undefined);
   assert.equal(moved.task.start, "13:15");
   assert.equal(moved.task.end, "13:45");
@@ -127,7 +127,7 @@ test("dragging a task keeps the chosen time without creating a lock mode", () =>
   let state = migrateStoredState(null, now);
   state.routines = [];
   const added = addTask(state, { title: "Matika", date: "2026-09-18", duration: 60, priority: "normal", category: "Matika", repeat: "none" }, now);
-  const moved = moveTask(added.state, added.task.id, "2026-09-19", "16:00");
+  const moved = moveTask(added.state, added.task.id, "2026-09-19", "16:00", now);
   assert.equal(moved.error, undefined);
   assert.equal(moved.task.date, "2026-09-19");
   assert.equal(moved.task.start, "16:00");
