@@ -23,6 +23,7 @@ type StoredState = {
 };
 
 type ActiveTarget = { host: HTMLElement; taskId: string };
+type FocusTarget = { host: HTMLElement; taskId: string };
 type MissedTarget = { host: HTMLElement; taskId: string };
 type CompletionChoice = {
   taskId: string;
@@ -95,6 +96,10 @@ function nextTask(tasks: Task[], currentId: string, minute: number) {
 }
 
 function sameActiveTarget(a: ActiveTarget | null, b: ActiveTarget | null) {
+  return a?.host === b?.host && a?.taskId === b?.taskId;
+}
+
+function sameFocusTarget(a: FocusTarget | null, b: FocusTarget | null) {
   return a?.host === b?.host && a?.taskId === b?.taskId;
 }
 
@@ -195,11 +200,27 @@ function extendTask(taskId: string, now = new Date()) {
   return { ok: true, error: "" };
 }
 
+function focusTaskForView(tasks: Task[], focusView: HTMLElement | null) {
+  const title = focusView?.querySelector("h1")?.textContent?.trim();
+  if (!title || title === "Soustředění") return null;
+  const matching = tasks.filter((task) => !task.completed && task.title === title);
+  if (matching.length === 1) return matching[0];
+  if (matching.length > 1) {
+    return matching
+      .sort((a, b) => Math.abs(timeToMinutes(a.start) - currentMinute()) - Math.abs(timeToMinutes(b.start) - currentMinute()))[0] ?? null;
+  }
+  return null;
+}
+
 export function ActivityTimeController() {
   const [activeTarget, setActiveTarget] = useState<ActiveTarget | null>(null);
+  const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
   const [missedTargets, setMissedTargets] = useState<MissedTarget[]>([]);
   const [completion, setCompletion] = useState<CompletionChoice | null>(null);
   const [error, setError] = useState("");
+  const [focusError, setFocusError] = useState("");
+  const [focusExtendedBy, setFocusExtendedBy] = useState(0);
+  const focusTaskIdRef = useRef<string | null>(null);
   const completionRef = useRef<CompletionChoice | null>(null);
   completionRef.current = completion;
 
@@ -224,6 +245,30 @@ export function ActivityTimeController() {
       }
 
       setActiveTarget((current) => sameActiveTarget(current, nextActive) ? current : nextActive);
+
+      const focusView = document.querySelector<HTMLElement>(".df2-focus-view");
+      const focusActions = focusView?.querySelector<HTMLElement>(".df2-focus-actions") ?? null;
+      const focusTask = focusTaskForView(tasks, focusView);
+      let nextFocus: FocusTarget | null = null;
+
+      if (focusTask && focusActions) {
+        let host = focusActions.querySelector<HTMLElement>("[data-activity-time-focus]");
+        if (!host) {
+          host = document.createElement("div");
+          host.dataset.activityTimeFocus = "true";
+          host.className = "df2-time-adjust-focus-host";
+          focusActions.appendChild(host);
+        }
+        nextFocus = { host, taskId: focusTask.id };
+      }
+
+      if (focusTaskIdRef.current !== nextFocus?.taskId) {
+        focusTaskIdRef.current = nextFocus?.taskId ?? null;
+        setFocusExtendedBy(0);
+        setFocusError("");
+        setCompletion((current) => current?.taskId === nextFocus?.taskId ? current : null);
+      }
+      setFocusTarget((current) => sameFocusTarget(current, nextFocus) ? current : nextFocus);
 
       const missed = missedTasks(tasks, minute);
       const articles = [...document.querySelectorAll<HTMLElement>(".df2-missed article")];
@@ -256,6 +301,7 @@ export function ActivityTimeController() {
 
   function completeEarly(taskId: string) {
     setError("");
+    setFocusError("");
     const now = new Date();
     const minute = currentMinute(now);
     const tasks = todayTasks(readState(), now);
@@ -292,6 +338,16 @@ export function ActivityTimeController() {
     window.location.reload();
   }
 
+  function extendInFocus(taskId: string) {
+    setFocusError("");
+    const result = extendTask(taskId);
+    if (!result.ok) {
+      setFocusError(result.error);
+      return;
+    }
+    setFocusExtendedBy((minutes) => minutes + EXTEND_MINUTES);
+  }
+
   const activePortal = activeTarget
     ? createPortal(
       completion?.taskId === activeTarget.taskId ? (
@@ -311,9 +367,30 @@ export function ActivityTimeController() {
     )
     : null;
 
+  const focusPortal = focusTarget
+    ? createPortal(
+      completion?.taskId === focusTarget.taskId ? (
+        <div className="df2-time-adjust-focus-completion" aria-live="polite">
+          <strong>Hotovo · +{completion.savedMinutes} min volných</strong>
+          {completion.nextTaskId && <button type="button" onClick={() => chooseCompletion(true)}>Začít další</button>}
+          <button type="button" onClick={() => chooseCompletion(false)}>Ukončit blok</button>
+        </div>
+      ) : (
+        <div className="df2-time-adjust-focus-controls">
+          <button type="button" className="df2-time-done" onClick={() => completeEarly(focusTarget.taskId)}>Hotovo</button>
+          <button type="button" onClick={() => extendInFocus(focusTarget.taskId)}>Pokračovat +15 min</button>
+          {focusExtendedBy > 0 && <small className="df2-time-adjust-focus-added">+{focusExtendedBy} min k aktivitě</small>}
+          {focusError && <small className="df2-time-adjust-error">{focusError}</small>}
+        </div>
+      ),
+      focusTarget.host,
+    )
+    : null;
+
   return (
     <>
       {activePortal}
+      {focusPortal}
       {missedTargets.map(({ host, taskId }) => createPortal(
         <button key={taskId} type="button" onClick={() => extend(taskId)}>Pokračovat +15 min</button>,
         host,

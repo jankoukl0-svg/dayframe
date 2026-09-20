@@ -82,3 +82,26 @@ test("continuing an activity adds fifteen minutes", async ({ page }) => {
   expect(stored.completed).toBe(false);
   expect(stored.duration).toBe(seeded.originalDuration + 15);
 });
+
+test("focus mode lets the user keep working on the same activity", async ({ page }) => {
+  const seeded = await seedActiveTask(page);
+  await page.reload({ waitUntil: "networkidle" });
+
+  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await expect(page.locator(".df2-focus-view")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Testovací aktivita" })).toBeVisible();
+
+  const focusControls = page.locator(".df2-time-adjust-focus-controls");
+  const continueButton = focusControls.getByRole("button", { name: "Pokračovat +15 min" });
+  await expect(focusControls.getByRole("button", { name: "Hotovo" })).toBeVisible();
+  await expect(continueButton).toBeVisible();
+
+  await continueButton.click();
+  await expect(focusControls).toContainText("+15 min k aktivitě");
+  await continueButton.click();
+  await expect(focusControls).toContainText("+30 min k aktivitě");
+
+  const stored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date][0], seeded);
+  expect(stored.completed).toBe(false);
+  expect(stored.duration).toBe(seeded.originalDuration + 30);
+});
