@@ -86,9 +86,9 @@
 .df2-routine-occurrence {
   min-height: 42px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 7px 10px;
   border-top: 1px solid var(--line);
 }
@@ -117,8 +117,81 @@
 .df2-routine-occurrence > button {
   border: 0;
   background: transparent;
-  color: #9a3d35;
   font-size: 11px;
+}
+
+.df2-routine-occurrence > button.edit {
+  color: var(--accent-dark);
+  font-weight: 650;
+}
+
+.df2-routine-occurrence > button.delete {
+  color: #9a3d35;
+}
+
+.df2-routine-editor {
+  width: min(640px, 100%);
+}
+
+.df2-routine-editor-days {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.df2-routine-editor-days legend {
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.df2-routine-editor-days > div {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.df2-routine-editor-days label {
+  position: relative;
+}
+
+.df2-routine-editor-days input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.df2-routine-editor-days span {
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.df2-routine-editor-days input:checked + span {
+  border-color: var(--accent-dark);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.df2-routine-editor-active {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: var(--ink) !important;
+}
+
+.df2-routine-editor-active input {
+  width: auto !important;
+  margin: 0;
 }
 
 @media (max-width: 760px) {
@@ -147,10 +220,22 @@
   }
 
   .df2-routine-occurrence {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
   }
 
-  .df2-routine-occurrence > button {
+  .df2-routine-occurrence > label {
+    grid-column: 1;
+  }
+
+  .df2-routine-occurrence > button.edit {
     grid-column: 2;
+  }
+
+  .df2-routine-occurrence > button.delete {
+    grid-column: 3;
+  }
+
+  .df2-routine-editor-days > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

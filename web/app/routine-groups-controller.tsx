@@ -12,6 +12,7 @@ type Routine = {
   frequency: "daily" | "weekly";
   weekdays?: number[];
   active: boolean;
+  createdAt?: string;
 };
 
 type RoutineGroup = {
@@ -21,7 +22,17 @@ type RoutineGroup = {
 };
 
 const STATE_KEY = "dayframe-v1";
+const RETURN_TO_SETTINGS_KEY = "dayframe-return-to-settings";
 const weekdayLabels: Record<number, string> = { 1: "Po", 2: "Út", 3: "St", 4: "Čt", 5: "Pá", 6: "So", 0: "Ne" };
+const weekdayOptions = [
+  { value: 1, label: "Po" },
+  { value: 2, label: "Út" },
+  { value: 3, label: "St" },
+  { value: 4, label: "Čt" },
+  { value: 5, label: "Pá" },
+  { value: 6, label: "So" },
+  { value: 0, label: "Ne" },
+];
 
 function readRoutines(): Routine[] {
   try {
@@ -53,10 +64,14 @@ function routineSortValue(routine: Routine) {
   return weekdayOrder(routine) * 24 * 60 + hours * 60 + minutes;
 }
 
+function sortedWeekdays(days: number[]) {
+  return [...days].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
+}
+
 function slotLabel(routine: Routine) {
   if (routine.frequency === "daily") return `Denně ${routine.start ?? ""} · ${routine.duration} min`.trim();
-  const day = weekdayLabels[routine.weekdays?.[0] ?? 1] ?? "";
-  return `${day} ${routine.start ?? ""} · ${routine.duration} min`.trim();
+  const days = sortedWeekdays(routine.weekdays ?? []).map((day) => weekdayLabels[day]).filter(Boolean).join(", ");
+  return `${days || "Týdně"} ${routine.start ?? ""} · ${routine.duration} min`.trim();
 }
 
 function groupRoutines(routines: Routine[]) {
@@ -78,13 +93,64 @@ function originalArticleFor(id: string) {
     .find((article) => article.dataset.routineId === id) ?? null;
 }
 
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
+  const raw = window.localStorage.getItem(STATE_KEY);
+  if (!raw) return false;
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      routines?: Routine[];
+      plans?: Record<string, Array<Record<string, unknown>>>;
+    };
+    if (!Array.isArray(parsed.routines)) return false;
+
+    parsed.routines = parsed.routines.map((routine) => routine.id === routineId ? { ...routine, ...patch } : routine);
+
+    // Regenerate only future, unfinished instances of the edited routine on reload.
+    // Completed/past blocks remain untouched as historical truth.
+    const today = localDateKey(new Date());
+    if (parsed.plans && typeof parsed.plans === "object") {
+      Object.entries(parsed.plans).forEach(([date, tasks]) => {
+        if (date < today || !Array.isArray(tasks)) return;
+        parsed.plans![date] = tasks.filter((task) => !(
+          task.source === "routine"
+          && task.routineId === routineId
+          && task.completed !== true
+        ));
+      });
+    }
+
+    window.localStorage.setItem(STATE_KEY, JSON.stringify(parsed));
+    window.sessionStorage.setItem(RETURN_TO_SETTINGS_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function RoutineGroupsController() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
+  const [editingFrequency, setEditingFrequency] = useState<"daily" | "weekly">("weekly");
+  const [formError, setFormError] = useState("");
   const signatureRef = useRef("");
 
   useEffect(() => {
+    if (window.sessionStorage.getItem(RETURN_TO_SETTINGS_KEY) === "1") {
+      const settingsButton = [...document.querySelectorAll<HTMLButtonElement>(".df2-sidebar nav button")]
+        .find((button) => button.textContent?.includes("Nastavení"));
+      if (settingsButton) {
+        window.sessionStorage.removeItem(RETURN_TO_SETTINGS_KEY);
+        settingsButton.click();
+      }
+    }
+
     const sync = () => {
       const section = document.querySelector<HTMLElement>(".df2-routines");
       if (!section) {
@@ -110,8 +176,8 @@ export function RoutineGroupsController() {
         if (routine) article.dataset.routineId = routine.id;
       });
 
-      const signature = JSON.stringify(currentRoutines.map(({ id, title, duration, start, frequency, weekdays, active }) => (
-        [id, title, duration, start, frequency, weekdays, active]
+      const signature = JSON.stringify(currentRoutines.map(({ id, title, duration, start, category, frequency, weekdays, active }) => (
+        [id, title, duration, start, category, frequency, weekdays, active]
       )));
       if (signature !== signatureRef.current) {
         signatureRef.current = signature;
@@ -140,9 +206,56 @@ export function RoutineGroupsController() {
   function deleteRoutine(routine: Routine) {
     const button = originalArticleFor(routine.id)?.querySelector<HTMLButtonElement>("button");
     button?.click();
+    if (editingRoutine?.id === routine.id) setEditingRoutine(null);
   }
 
-  return createPortal(
+  function openEditor(routine: Routine) {
+    setFormError("");
+    setEditingFrequency(routine.frequency);
+    setEditingRoutine(routine);
+  }
+
+  function saveRoutine(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingRoutine) return;
+
+    const form = new FormData(event.currentTarget);
+    const title = String(form.get("title") ?? "").trim();
+    const start = String(form.get("start") ?? "");
+    const duration = Math.max(15, Number(form.get("duration")) || editingRoutine.duration);
+    const category = String(form.get("category") ?? "").trim() || editingRoutine.category;
+    const frequency = String(form.get("frequency")) === "daily" ? "daily" : "weekly";
+    const weekdays = form.getAll("weekday").map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+    const active = form.get("active") === "on";
+
+    if (!title || !start) {
+      setFormError("Vyplň název a čas.");
+      return;
+    }
+    if (frequency === "weekly" && weekdays.length === 0) {
+      setFormError("Vyber alespoň jeden den.");
+      return;
+    }
+
+    const saved = persistRoutineEdit(editingRoutine.id, {
+      title,
+      start,
+      duration,
+      category,
+      frequency,
+      weekdays: frequency === "weekly" ? sortedWeekdays(weekdays) : undefined,
+      active,
+    });
+
+    if (!saved) {
+      setFormError("Rutinu se nepodařilo uložit.");
+      return;
+    }
+
+    window.location.reload();
+  }
+
+  const groupPortal = createPortal(
     <div className="df2-routine-groups" aria-label="Opakující se rutiny">
       {groups.map((group) => {
         const open = openGroup === group.key;
@@ -177,7 +290,8 @@ export function RoutineGroupsController() {
                       />
                       aktivní
                     </label>
-                    <button type="button" onClick={() => deleteRoutine(routine)}>Smazat</button>
+                    <button className="edit" type="button" onClick={() => openEditor(routine)}>Upravit</button>
+                    <button className="delete" type="button" onClick={() => deleteRoutine(routine)}>Smazat</button>
                   </div>
                 ))}
               </div>
@@ -188,4 +302,67 @@ export function RoutineGroupsController() {
     </div>,
     host,
   );
+
+  const editorPortal = editingRoutine ? createPortal(
+    <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingRoutine(null); }}>
+      <form className="df2-modal df2-routine-editor" onSubmit={saveRoutine}>
+        <header>
+          <div><h2>Upravit rutinu</h2></div>
+          <button type="button" onClick={() => setEditingRoutine(null)}>×</button>
+        </header>
+
+        <label>Název<input name="title" autoFocus defaultValue={editingRoutine.title} /></label>
+
+        <div className="df2-form-grid">
+          <label>Opakování
+            <select name="frequency" value={editingFrequency} onChange={(event) => setEditingFrequency(event.target.value as "daily" | "weekly")}>
+              <option value="weekly">Každý týden</option>
+              <option value="daily">Každý den</option>
+            </select>
+          </label>
+          <label>Čas<input name="start" type="time" defaultValue={editingRoutine.start ?? ""} /></label>
+        </div>
+
+        {editingFrequency === "weekly" && (
+          <fieldset className="df2-routine-editor-days">
+            <legend>Dny</legend>
+            <div>
+              {weekdayOptions.map((day) => (
+                <label key={day.value}>
+                  <input
+                    type="checkbox"
+                    name="weekday"
+                    value={day.value}
+                    defaultChecked={(editingRoutine.weekdays ?? []).includes(day.value)}
+                  />
+                  <span>{day.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        <div className="df2-form-grid">
+          <label>Délka<input name="duration" type="number" min="15" max="480" step="5" defaultValue={editingRoutine.duration} /></label>
+          <label>Oblast<input name="category" defaultValue={editingRoutine.category} /></label>
+        </div>
+
+        <label className="df2-routine-editor-active">
+          <input name="active" type="checkbox" defaultChecked={editingRoutine.active} />
+          Aktivní
+        </label>
+
+        {formError && <p className="df2-error">{formError}</p>}
+
+        <div className="df2-modal-actions">
+          <button className="df2-primary" type="submit">Uložit změny</button>
+          <button type="button" onClick={() => setEditingRoutine(null)}>Zrušit</button>
+          <button type="button" className="danger" onClick={() => deleteRoutine(editingRoutine)}>Smazat rutinu</button>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  ) : null;
+
+  return <>{groupPortal}{editorPortal}</>;
 }
