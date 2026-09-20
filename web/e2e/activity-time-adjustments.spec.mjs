@@ -46,14 +46,26 @@ function clockToSeconds(text) {
 
 async function clickLiveCompletionChoice(page, matcher) {
   const navigation = page.waitForNavigation({ waitUntil: "networkidle" });
-  await page.evaluate((wanted) => {
-    const button = [...document.querySelectorAll(".df2-time-adjust-finish button")]
-      .find((item) => wanted === "Volno"
-        ? item.textContent?.trim() === wanted
-        : item.textContent?.includes(wanted));
-    if (!button) throw new Error(`Completion choice ${wanted} was not found.`);
-    window.setTimeout(() => button.click(), 0);
-  }, matcher);
+  await page.evaluate((wanted) => new Promise((resolve, reject) => {
+    const deadline = Date.now() + 3000;
+    const tryScheduleClick = () => {
+      const button = [...document.querySelectorAll(".df2-time-adjust-finish button")]
+        .find((item) => wanted === "Volno"
+          ? item.textContent?.trim() === wanted
+          : item.textContent?.includes(wanted));
+      if (button) {
+        resolve(true);
+        window.setTimeout(() => button.click(), 0);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        reject(new Error(`Completion choice ${wanted} was not found.`));
+        return;
+      }
+      window.setTimeout(tryScheduleClick, 25);
+    };
+    tryScheduleClick();
+  }), matcher);
   await navigation;
 }
 
