@@ -12,6 +12,12 @@ type Task = {
   completed: boolean;
   start?: string;
   end?: string;
+  plannedStart?: string;
+  plannedEnd?: string;
+  plannedDuration?: number;
+  actualStartedAt?: string;
+  actualEndedAt?: string;
+  actualMinutes?: number;
 };
 
 type StoredState = { plans?: Record<string, Task[]> };
@@ -51,11 +57,22 @@ function readState(): StoredState {
 }
 
 function formatMinutes(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
+  const safe = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(safe / 60);
+  const rest = safe % 60;
   if (!hours) return `${rest} min`;
   if (!rest) return `${hours} h`;
   return `${hours} h ${rest} min`;
+}
+
+function actualDuration(task: Task) {
+  return Number.isFinite(task.actualMinutes) && (task.actualMinutes ?? 0) > 0
+    ? Math.max(1, task.actualMinutes ?? 0)
+    : Math.max(0, task.duration || 0);
+}
+
+function plannedDuration(task: Task) {
+  return Math.max(0, task.plannedDuration ?? task.duration ?? 0);
 }
 
 function computeDays(state: StoredState, now: Date): DaySummary[] {
@@ -72,7 +89,7 @@ function computeDays(state: StoredState, now: Date): DaySummary[] {
       label: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", ""),
       planned: dueTasks.length,
       completed: completedTasks.length,
-      completedMinutes: completedTasks.reduce((sum, task) => sum + Math.max(0, task.duration || 0), 0),
+      completedMinutes: completedTasks.reduce((sum, task) => sum + actualDuration(task), 0),
     };
   });
 }
@@ -166,21 +183,28 @@ export function HistoryController() {
   const completedMinutes = days.reduce((sum, day) => sum + day.completedMinutes, 0);
   const completionRate = due ? Math.round((completed / due) * 100) : 0;
   const streak = computeStreak(state, now);
+  const mondayKey = localDateKey(startOfWeek(now));
+  const todayKey = localDateKey(now);
+
+  const completedTasks = useMemo(() => Object.entries(state.plans ?? {})
+    .filter(([key]) => key >= mondayKey && key <= todayKey)
+    .flatMap(([, tasks]) => tasks)
+    .filter((task) => task.completed), [state, mondayKey, todayKey]);
+
+  const measuredTasks = completedTasks
+    .filter((task) => Number.isFinite(task.actualMinutes) && (task.actualMinutes ?? 0) > 0)
+    .slice()
+    .sort((a, b) => (b.actualEndedAt ?? "").localeCompare(a.actualEndedAt ?? ""))
+    .slice(0, 8);
 
   const categories = useMemo(() => {
-    const monday = localDateKey(startOfWeek(now));
-    const today = localDateKey(now);
     const minutes = new Map<string, number>();
-    for (const [key, tasks] of Object.entries(state.plans ?? {})) {
-      if (key < monday || key > today) continue;
-      for (const task of tasks) {
-        if (!task.completed) continue;
-        const category = task.category || "Ostatní";
-        minutes.set(category, (minutes.get(category) ?? 0) + Math.max(0, task.duration || 0));
-      }
+    for (const task of completedTasks) {
+      const category = task.category || "Ostatní";
+      minutes.set(category, (minutes.get(category) ?? 0) + actualDuration(task));
     }
     return [...minutes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [state, now]);
+  }, [completedTasks]);
 
   const navPortal = navHost ? createPortal(
     <button className={active ? "active" : ""} type="button" onClick={() => setActive(true)}>
@@ -199,7 +223,7 @@ export function HistoryController() {
         <div className="df2-history-metrics">
           <article><span>Hotovo</span><strong>{completed}<small> / {due}</small></strong></article>
           <article><span>Dokončení</span><strong>{completionRate}<small>%</small></strong></article>
-          <article><span>Hotový čas</span><strong>{formatMinutes(completedMinutes)}</strong></article>
+          <article><span>Odpracováno</span><strong>{formatMinutes(completedMinutes)}</strong></article>
           <article><span>Streak</span><strong>{streak}<small> dní</small></strong></article>
         </div>
 
@@ -215,6 +239,21 @@ export function HistoryController() {
               </article>;
             })}
           </div>
+        </section>
+
+        <section className="df2-history-actual">
+          <div className="df2-section-head"><h2>Plán vs skutečnost</h2><span>{measuredTasks.length ? "Focus bloky" : "Data se začnou ukládat při Focusu"}</span></div>
+          {measuredTasks.length ? measuredTasks.map((task) => {
+            const plan = plannedDuration(task);
+            const actual = actualDuration(task);
+            const delta = actual - plan;
+            return <article key={task.id}>
+              <strong>{task.title}</strong>
+              <span>plán {formatMinutes(plan)}</span>
+              <span>skutečnost {formatMinutes(actual)}</span>
+              <em>{delta === 0 ? "±0 min" : `${delta > 0 ? "+" : "−"}${Math.abs(delta)} min`}</em>
+            </article>;
+          }) : <p>Spusť blok přes „Zahájit blok“ a Dayframe začne měřit skutečně odpracovaný čas.</p>}
         </section>
 
         <section className="df2-history-categories">
