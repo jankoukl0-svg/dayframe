@@ -40,12 +40,38 @@ test("a short block can be dragged back to 22:40 and end at 23:00", async ({ pag
   await expect(task).toBeVisible();
   await expect(body).toBeVisible();
 
-  const bodyBox = await body.boundingBox();
-  if (!bodyBox) throw new Error("Week body has no bounding box");
+  await page.evaluate(() => {
+    const source = [...document.querySelectorAll(".df2-week-day.today .df2-week-task")]
+      .find((element) => element.textContent?.includes("Pozdní čtení"));
+    if (!(source instanceof HTMLElement)) throw new Error("Late task not found");
+    const sourceRect = source.getBoundingClientRect();
+    const transfer = new DataTransfer();
+    window.__dayframeLateDragTransfer = transfer;
+    source.dispatchEvent(new DragEvent("dragstart", {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: transfer,
+      clientX: sourceRect.left + 24,
+      clientY: sourceRect.top + 8,
+    }));
+  });
 
-  await task.dragTo(body, {
-    sourcePosition: { x: 24, y: 8 },
-    targetPosition: { x: Math.min(80, Math.max(20, bodyBox.width / 2)), y: bodyBox.height - 30 },
+  await page.waitForTimeout(50);
+
+  await page.evaluate(() => {
+    const body = document.querySelector(".df2-week-day.today .df2-time-body");
+    const transfer = window.__dayframeLateDragTransfer;
+    if (!(body instanceof HTMLElement) || !(transfer instanceof DataTransfer)) throw new Error("Drag target not ready");
+    const rect = body.getBoundingClientRect();
+    const options = {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: transfer,
+      clientX: rect.left + Math.min(80, Math.max(20, rect.width / 2)),
+      clientY: rect.bottom - 30,
+    };
+    body.dispatchEvent(new DragEvent("dragover", options));
+    body.dispatchEvent(new DragEvent("drop", options));
   });
 
   await expect.poll(() => page.evaluate(() => {
