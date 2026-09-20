@@ -61,50 +61,85 @@ test("finishing early shows saved time and records the real end", async ({ page 
 
   const finishChoice = page.locator(".df2-time-adjust-finish");
   await expect(finishChoice).toContainText(/\+\d+ min volných/);
+  await finishChoice.getByRole("button", { name: "Volno" }).click();
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle" }),
-    finishChoice.getByRole("button", { name: "Volno" }).click(),
-  ]);
+  await expect.poll(() => page.evaluate(({ date }) => {
+    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans?.[date] ?? [];
+    return Boolean(tasks.find((task) => task.id === "activity-test")?.completed);
+  }, seeded)).toBe(true);
 
-  const stored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date][0], seeded);
+  const stored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date].find((task) => task.id === "activity-test"), seeded);
   expect(stored.completed).toBe(true);
   expect(stored.duration).toBeLessThan(seeded.originalDuration);
 });
 
 test("saved time can be used for a short flexible task", async ({ page }) => {
   const seeded = await seedActiveTask(page);
-  await page.evaluate(({ date, remainingMinutes }) => {
-    if (remainingMinutes < 10) return;
+  const prepared = await page.evaluate(({ date, remainingMinutes }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    state.plans[date].push({
-      id: "short-task",
-      title: "Krátké opakování",
-      date,
-      duration: 10,
-      deadlineTime: "23:59",
-      priority: "high",
-      category: "Opakování",
-      mode: "flexible",
-      completed: false,
-      source: "user",
-      dateLocked: true,
-      autoScheduled: true,
-      createdAt: new Date().toISOString(),
-    });
+    const active = state.plans[date].find((task) => task.id === "activity-test");
+    const toMinutes = (time) => {
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+    const toTime = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+    const activeEnd = toMinutes(active.end);
+    if (remainingMinutes < 10 || activeEnd + 40 > 22 * 60 + 30) return false;
+
+    state.plans[date].push(
+      {
+        id: "next-task",
+        title: "Delší další blok",
+        date,
+        duration: 30,
+        start: toTime(activeEnd),
+        end: toTime(activeEnd + 30),
+        requestedStart: toTime(activeEnd),
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Studium",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "short-task",
+        title: "Krátké opakování",
+        date,
+        duration: 10,
+        deadlineTime: "22:30",
+        priority: "high",
+        category: "Opakování",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: true,
+        createdAt: new Date().toISOString(),
+      },
+    );
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    return true;
   }, seeded);
+
+  if (!prepared) return;
   await page.reload({ waitUntil: "networkidle" });
 
-  if (seeded.remainingMinutes < 10) return;
   await page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" }).click();
-  const shortButton = page.locator(".df2-time-adjust-finish").getByRole("button", { name: /Krátký úkol/ });
+  const finishChoice = page.locator(".df2-time-adjust-finish");
+  await expect(finishChoice.getByRole("button", { name: "Začít další" })).toBeVisible();
+  const shortButton = finishChoice.getByRole("button", { name: /Krátký úkol/ });
   await expect(shortButton).toContainText("Krátké opakování");
+  await shortButton.click();
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle" }),
-    shortButton.click(),
-  ]);
+  await expect.poll(() => page.evaluate(({ date }) => {
+    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans?.[date] ?? [];
+    const task = tasks.find((item) => item.id === "short-task");
+    return Boolean(task?.start && task?.end);
+  }, seeded)).toBe(true);
 
   const shortStored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date].find((task) => task.id === "short-task"), seeded);
   expect(shortStored.start).toMatch(/^\d{2}:\d{2}$/);
