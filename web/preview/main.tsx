@@ -5,6 +5,7 @@ import { RoutineGroupsController } from "../app/routine-groups-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
+import "../app/milestone-alignment.css";
 import "../app/week-calendar-polish.css";
 import "../app/milestone-featured-controller.css";
 import "../app/routine-groups-controller.css";
