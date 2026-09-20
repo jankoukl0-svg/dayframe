@@ -3,6 +3,10 @@
   max-width: 820px;
 }
 
+.df2-history-actual:has(> p) {
+  display: none;
+}
+
 .df2-history-actual > article {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 130px 150px 74px;
