@@ -7,7 +7,8 @@
 .df2-time-adjust-host > button,
 .df2-time-adjust-finish > button,
 .df2-time-adjust-focus-controls > button,
-.df2-time-adjust-focus-completion > button {
+.df2-time-adjust-focus-completion > button,
+.df2-replan-button {
   min-height: 38px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
@@ -29,6 +30,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
+  flex-wrap: wrap;
 }
 
 .df2-time-adjust-finish > strong {
@@ -49,8 +51,83 @@
   display: contents;
 }
 
-.df2-time-adjust-focus-host {
+.df2-replan-host {
+  display: flex;
+  align-items: flex-start;
+}
+
+.df2-today-view .df2-page-head {
+  gap: 8px;
+}
+
+.df2-today-view .df2-page-head > div:first-child {
+  margin-right: auto;
+}
+
+.df2-replan-button {
+  min-height: 40px;
+  border-color: var(--line-strong);
+  background: var(--paper);
+  white-space: nowrap;
+}
+
+.df2-replan-button:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: var(--accent-wash);
+}
+
+.df2-current-time-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  height: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.df2-current-time-line::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(-50%);
+}
+
+.df2-current-time-line > span {
+  position: absolute;
+  left: 11px;
+  top: -12px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  color: #fff;
+  font: 700 8px/1.2 "Cascadia Mono", monospace;
+}
+
+.df2-time-adjust-focus-host,
+.df2-focus-clock-host {
   display: contents;
+}
+
+.df2-focus-view > .df2-focus-clock {
+  display: none;
+}
+
+.df2-focus-actions > button {
+  display: none;
+}
+
+.df2-controller-focus-clock {
+  margin: 58px 0 42px;
+  color: var(--focus-text);
+  font: 500 clamp(76px, 12vw, 150px)/.9 "Cascadia Mono", monospace;
+  letter-spacing: -.08em;
 }
 
 .df2-time-adjust-focus-controls,
@@ -100,5 +177,29 @@
   .df2-time-adjust-focus-controls,
   .df2-time-adjust-focus-completion {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 720px) {
+  .df2-today-view .df2-page-head {
+    flex-wrap: wrap;
+  }
+
+  .df2-replan-host {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .df2-today-view .df2-page-head > div:first-child {
+    margin-right: 0;
+  }
+
+  .df2-replan-host {
+    margin-left: 0;
+  }
+
+  .df2-controller-focus-clock {
+    font-size: 70px;
   }
 }
