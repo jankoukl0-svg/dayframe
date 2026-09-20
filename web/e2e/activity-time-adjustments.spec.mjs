@@ -95,6 +95,8 @@ test("focus mode lets the user keep working on the same activity", async ({ page
   const continueButton = focusControls.getByRole("button", { name: "Pokračovat +15 min" });
   await expect(focusControls.getByRole("button", { name: "Hotovo" })).toBeVisible();
   await expect(continueButton).toBeVisible();
+  await expect(continueButton).toHaveCSS("color", "rgb(247, 245, 241)");
+  await expect(continueButton).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   await continueButton.click();
   await expect(focusControls).toContainText("+15 min k aktivitě");
