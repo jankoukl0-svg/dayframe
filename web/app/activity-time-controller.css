@@ -5,7 +5,9 @@
 }
 
 .df2-time-adjust-host > button,
-.df2-time-adjust-finish > button {
+.df2-time-adjust-finish > button,
+.df2-time-adjust-focus-controls > button,
+.df2-time-adjust-focus-completion > button {
   min-height: 38px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
@@ -16,7 +18,8 @@
   font-weight: 650;
 }
 
-.df2-time-adjust-host > .df2-time-done {
+.df2-time-adjust-host > .df2-time-done,
+.df2-time-adjust-focus-controls > .df2-time-done {
   border-color: var(--accent-dark);
   background: var(--accent);
   color: #fff;
@@ -36,7 +39,7 @@
 }
 
 .df2-time-adjust-error {
-  max-width: 150px;
+  max-width: 180px;
   color: #9a3d35;
   font-size: 10px;
   line-height: 1.25;
@@ -46,9 +49,41 @@
   display: contents;
 }
 
+.df2-time-adjust-focus-host {
+  display: contents;
+}
+
+.df2-time-adjust-focus-controls,
+.df2-time-adjust-focus-completion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.df2-time-adjust-focus-controls > button,
+.df2-time-adjust-focus-completion > button {
+  min-height: 42px;
+  padding-inline: 15px;
+}
+
+.df2-time-adjust-focus-added,
+.df2-time-adjust-focus-completion > strong {
+  color: var(--accent-dark);
+  font: 700 11px/1.25 "Cascadia Mono", monospace;
+  white-space: nowrap;
+}
+
+.df2-time-adjust-focus-completion > strong {
+  margin-right: 2px;
+}
+
 @media (max-width: 900px) {
   .df2-time-adjust-host,
-  .df2-time-adjust-finish {
+  .df2-time-adjust-finish,
+  .df2-time-adjust-focus-controls,
+  .df2-time-adjust-focus-completion {
     flex-wrap: wrap;
   }
 }
