@@ -139,7 +139,7 @@ function syncSettingsHost() {
 }
 
 function syncModalHost() {
-  const categorySelect = document.querySelector<HTMLSelectElement>('.df2-modal select[name="category"]');
+  const categorySelect = document.querySelector('.df2-modal select[name="category"]') as HTMLSelectElement | null;
   if (!categorySelect) return { host: null as HTMLElement | null, category: "" };
   const label = categorySelect.closest("label");
   if (!label) return { host: null as HTMLElement | null, category: "" };
