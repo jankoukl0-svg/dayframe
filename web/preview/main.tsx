@@ -22,6 +22,7 @@ import "../app/plan-actual.css";
 import "../app/week-capacity.css";
 import "../app/weekly-review.css";
 import "../app/label-colors-controller.css";
+import "../app/week-bottom-buffer.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");

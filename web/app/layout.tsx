@@ -9,6 +9,7 @@ import "./plan-actual.css";
 import "./week-capacity.css";
 import "./weekly-review.css";
 import "./label-colors-controller.css";
+import "./week-bottom-buffer.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
