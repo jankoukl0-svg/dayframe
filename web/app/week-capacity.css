@@ -1,0 +1,11 @@
+.df2-week-capacity {
+  margin-top: 3px;
+  color: var(--muted);
+  font: 600 9px/1.2 "Cascadia Mono", monospace;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.df2-week-day.today .df2-week-capacity {
+  color: var(--accent-dark);
+}

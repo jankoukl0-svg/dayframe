@@ -6,11 +6,13 @@ import "./activity-time-controller.css";
 import "./history-controller.css";
 import "./today-polish.css";
 import "./plan-actual.css";
+import "./week-capacity.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
 import { HistoryController } from "./history-controller";
 import { ExecutionTracker } from "./execution-tracker";
+import { WeekCapacityController } from "./week-capacity-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -19,5 +21,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /></body></html>;
 }
