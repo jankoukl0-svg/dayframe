@@ -1,0 +1,98 @@
+.df2-today-view .df2-now-card {
+  position: relative;
+  border-color: var(--line-strong);
+  border-left-width: 4px;
+  box-shadow: 0 8px 24px rgba(35, 34, 30, .035);
+}
+
+.df2-today-view .df2-now-label span {
+  letter-spacing: .08em;
+}
+
+.df2-today-view .df2-now-card h2 {
+  max-width: 720px;
+}
+
+.df2-today-view .df2-next {
+  margin-top: 38px;
+  padding-top: 2px;
+}
+
+.df2-today-view .df2-next .df2-section-head {
+  margin-bottom: 8px;
+}
+
+.df2-today-view .df2-next .df2-section-head h2 {
+  color: #53534f;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.df2-today-view .df2-next > button {
+  min-height: 64px;
+  color: #555651;
+}
+
+.df2-today-view .df2-next > button strong {
+  color: var(--ink);
+}
+
+.df2-replan-button {
+  min-height: 36px;
+  padding-inline: 9px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.df2-replan-button:hover {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.df2-time-adjust-finish,
+.df2-time-adjust-focus-completion {
+  align-items: center;
+}
+
+.df2-time-adjust-finish > strong,
+.df2-time-adjust-focus-completion > strong {
+  color: var(--accent-dark);
+  font: 700 12px/1.25 "Cascadia Mono", monospace;
+}
+
+.df2-time-adjust-finish > button {
+  min-height: 34px;
+  padding-inline: 10px;
+  background: var(--paper);
+}
+
+.df2-time-adjust-finish > button:first-of-type {
+  border-color: var(--accent);
+}
+
+.df2-today-view .df2-empty {
+  padding: 18px 14px;
+  border: 1px dashed var(--line-strong);
+  background: rgba(255, 255, 255, .24);
+}
+
+.df2-today-view .df2-now-card:has(h2:first-child:last-child) {
+  min-height: 118px;
+}
+
+@media (max-width: 720px) {
+  .df2-today-view .df2-now-card {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+
+  .df2-today-view .df2-now-actions {
+    grid-column: 2;
+    justify-self: start;
+    flex-wrap: wrap;
+  }
+}

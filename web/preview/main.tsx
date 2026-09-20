@@ -13,6 +13,7 @@ import "../app/milestone-featured-controller.css";
 import "../app/routine-groups-controller.css";
 import "../app/activity-time-controller.css";
 import "../app/history-controller.css";
+import "../app/today-polish.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");

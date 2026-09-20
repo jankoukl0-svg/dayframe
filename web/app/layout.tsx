@@ -4,6 +4,7 @@ import "./milestone-featured-controller.css";
 import "./routine-groups-controller.css";
 import "./activity-time-controller.css";
 import "./history-controller.css";
+import "./today-polish.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
