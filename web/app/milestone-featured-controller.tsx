@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Milestone = { id: string; title: string; date: string; note?: string };
 type Anchor = { top: number; right: number };
@@ -53,9 +54,12 @@ export function MilestoneFeaturedController() {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [open, setOpen] = useState(false);
+  const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const signatureRef = useRef("");
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const editorModalRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(FEATURED_KEY);
@@ -63,21 +67,7 @@ export function MilestoneFeaturedController() {
   }, []);
 
   useEffect(() => {
-    let lastCard: HTMLButtonElement | null = null;
-
     const sync = () => {
-      const card = document.querySelector<HTMLButtonElement>(".df2-event-countdown");
-      if (!card || card.getClientRects().length === 0) {
-        setAnchor(null);
-        setOpen(false);
-        return;
-      }
-
-      lastCard = card;
-      const rect = card.getBoundingClientRect();
-      const nextAnchor = { top: rect.top, right: rect.right };
-      setAnchor((current) => sameAnchor(current, nextAnchor) ? current : nextAnchor);
-
       const currentMilestones = readMilestones();
       const signature = JSON.stringify(currentMilestones.map(({ id, title, date }) => [id, title, date]));
       if (signature !== signatureRef.current) {
@@ -85,40 +75,80 @@ export function MilestoneFeaturedController() {
         setMilestones(currentMilestones);
       }
 
-      const today = localDateKey(new Date());
-      const upcoming = currentMilestones.filter((milestone) => milestone.date >= today);
-      const pinned = selectedId === "auto" ? null : upcoming.find((milestone) => milestone.id === selectedId) ?? null;
-      const shown = pinned ?? upcoming[0] ?? null;
+      const card = document.querySelector<HTMLButtonElement>(".df2-event-countdown");
+      if (!card || card.getClientRects().length === 0) {
+        setAnchor(null);
+        setOpen(false);
+      } else {
+        const rect = card.getBoundingClientRect();
+        const nextAnchor = { top: rect.top, right: rect.right };
+        setAnchor((current) => sameAnchor(current, nextAnchor) ? current : nextAnchor);
 
-      const label = card.querySelector<HTMLElement>(":scope > span");
-      const count = card.querySelector<HTMLElement>(":scope > strong");
-      const title = card.querySelector<HTMLElement>(":scope > b");
-      const date = card.querySelector<HTMLElement>(":scope > small");
+        const today = localDateKey(new Date());
+        const upcoming = currentMilestones.filter((milestone) => milestone.date >= today);
+        const pinned = selectedId === "auto" ? null : upcoming.find((milestone) => milestone.id === selectedId) ?? null;
+        const shown = pinned ?? upcoming[0] ?? null;
 
-      if (!label || !count || !title) return;
+        const label = card.querySelector<HTMLElement>(":scope > span");
+        const count = card.querySelector<HTMLElement>(":scope > strong");
+        const title = card.querySelector<HTMLElement>(":scope > b");
+        const date = card.querySelector<HTMLElement>(":scope > small");
 
-      const wantedLabel = pinned ? "Vybraný termín" : "Nejbližší termín";
-      if (label.textContent !== wantedLabel) label.textContent = wantedLabel;
+        if (label && count && title) {
+          const wantedLabel = pinned ? "Vybraný termín" : "Nejbližší termín";
+          if (label.textContent !== wantedLabel) label.textContent = wantedLabel;
 
-      if (!shown) {
-        if (count.textContent !== "—") count.textContent = "—";
-        if (title.textContent !== "Přidat milník") title.textContent = "Přidat milník";
-        if (date) date.textContent = "";
-        card.setAttribute("aria-label", "Přidat důležitý termín");
+          if (!shown) {
+            if (count.textContent !== "—") count.textContent = "—";
+            if (title.textContent !== "Přidat milník") title.textContent = "Přidat milník";
+            if (date) date.textContent = "";
+            card.setAttribute("aria-label", "Přidat důležitý termín");
+          } else {
+            const remaining = daysUntil(shown.date);
+            const existingNumber = count.firstChild?.textContent ?? "";
+            const existingUnit = count.querySelector("em")?.textContent ?? "";
+            if (existingNumber !== String(remaining) || existingUnit !== "dní") {
+              const unit = document.createElement("em");
+              unit.textContent = "dní";
+              count.replaceChildren(document.createTextNode(String(remaining)), unit);
+            }
+            if (title.textContent !== shown.title) title.textContent = shown.title;
+            if (date && date.textContent !== longDate(shown.date)) date.textContent = longDate(shown.date);
+            card.setAttribute("aria-label", `${pinned ? "Vybraný" : "Nejbližší"} termín ${shown.title}, zbývá ${remaining} dní`);
+          }
+        }
+      }
+
+      const milestoneModal = [...document.querySelectorAll<HTMLFormElement>(".df2-modal")]
+        .find((modal) => modal.querySelector("h2")?.textContent?.trim() === "Upravit milník") ?? null;
+
+      if (!milestoneModal) {
+        editorModalRef.current = null;
+        setEditorHost(null);
+        setEditingMilestoneId(null);
         return;
       }
 
-      const remaining = daysUntil(shown.date);
-      const existingNumber = count.firstChild?.textContent ?? "";
-      const existingUnit = count.querySelector("em")?.textContent ?? "";
-      if (existingNumber !== String(remaining) || existingUnit !== "dní") {
-        const unit = document.createElement("em");
-        unit.textContent = "dní";
-        count.replaceChildren(document.createTextNode(String(remaining)), unit);
+      if (milestoneModal !== editorModalRef.current) {
+        editorModalRef.current = milestoneModal;
+        const titleInput = milestoneModal.querySelector<HTMLInputElement>('input[name="title"]');
+        const dateInput = milestoneModal.querySelector<HTMLInputElement>('input[name="date"]');
+        const editingMilestone = currentMilestones.find((milestone) => (
+          milestone.title === titleInput?.value && milestone.date === dateInput?.value
+        )) ?? null;
+
+        let host = milestoneModal.querySelector<HTMLElement>("[data-featured-milestone-host]");
+        if (!host) {
+          host = document.createElement("div");
+          host.dataset.featuredMilestoneHost = "true";
+          host.className = "df2-milestone-featured-host";
+          const actions = milestoneModal.querySelector(".df2-modal-actions");
+          milestoneModal.insertBefore(host, actions ?? null);
+        }
+
+        setEditorHost(host);
+        setEditingMilestoneId(editingMilestone?.id ?? null);
       }
-      if (title.textContent !== shown.title) title.textContent = shown.title;
-      if (date && date.textContent !== longDate(shown.date)) date.textContent = longDate(shown.date);
-      card.setAttribute("aria-label", `${pinned ? "Vybraný" : "Nejbližší"} termín ${shown.title}, zbývá ${remaining} dní`);
     };
 
     sync();
@@ -131,7 +161,6 @@ export function MilestoneFeaturedController() {
       window.clearInterval(timer);
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
-      lastCard = null;
     };
   }, [selectedId]);
 
@@ -146,34 +175,52 @@ export function MilestoneFeaturedController() {
     return () => document.removeEventListener("pointerdown", close, true);
   }, [open]);
 
-  if (!anchor) return null;
-
   const today = localDateKey(new Date());
   const upcoming = milestones.filter((milestone) => milestone.date >= today);
   const manual = selectedId !== "auto" && upcoming.some((milestone) => milestone.id === selectedId);
-  const menuLeft = Math.max(8, anchor.right - 278);
+  const menuLeft = anchor ? Math.max(8, anchor.right - 278) : 8;
 
-  function choose(id: string) {
+  function choose(id: string, closeMenu = true) {
     setSelectedId(id);
     window.localStorage.setItem(FEATURED_KEY, id);
-    setOpen(false);
+    if (closeMenu) setOpen(false);
   }
+
+  const editorToggle = editorHost && editingMilestoneId
+    ? createPortal(
+      <label className="df2-milestone-featured-toggle">
+        <input
+          type="checkbox"
+          checked={selectedId === editingMilestoneId}
+          onChange={(event) => {
+            if (event.target.checked) choose(editingMilestoneId, false);
+            else if (selectedId === editingMilestoneId) choose("auto", false);
+          }}
+          aria-label="Zobrazovat na Dnes"
+        />
+        <span>Zobrazovat na Dnes</span>
+      </label>,
+      editorHost,
+    )
+    : null;
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`df2-featured-milestone-trigger${manual ? " selected" : ""}`}
-        style={{ top: anchor.top + 12, left: anchor.right - 38 }}
-        aria-label="Vybrat zobrazený milník"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        ⋯
-      </button>
+      {anchor && (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={`df2-featured-milestone-trigger${manual ? " selected" : ""}`}
+          style={{ top: anchor.top + 12, left: anchor.right - 38 }}
+          aria-label="Vybrat zobrazený milník"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          ⋯
+        </button>
+      )}
 
-      {open && (
+      {anchor && open && (
         <div
           ref={menuRef}
           className="df2-featured-milestone-menu"
@@ -198,6 +245,8 @@ export function MilestoneFeaturedController() {
           ))}
         </div>
       )}
+
+      {editorToggle}
     </>
   );
 }
