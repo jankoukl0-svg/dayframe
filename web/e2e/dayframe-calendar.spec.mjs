@@ -93,7 +93,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
       oneHourTaskHeight,
     };
   });
-  expect(weekVisual.bodyHeights.every((height) => height >= 579 && height <= 581)).toBe(true);
+  expect(weekVisual.bodyHeights.every((height) => height >= 604 && height <= 606)).toBe(true);
   expect(weekVisual.visibleHourLabels).toBe(14);
   expect(weekVisual.contained).toBe(true);
   expect(weekVisual.contentFits).toBe(true);
