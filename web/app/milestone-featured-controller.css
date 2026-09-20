@@ -71,6 +71,29 @@
   font: 10px/1.35 "Cascadia Mono", monospace;
 }
 
+.df2-milestone-featured-host {
+  min-height: 40px;
+}
+
+.df2-modal .df2-milestone-featured-toggle {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.df2-modal .df2-milestone-featured-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 @media (max-width: 720px) {
   .df2-featured-milestone-trigger {
     width: 30px;
