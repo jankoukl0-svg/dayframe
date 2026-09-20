@@ -7,6 +7,7 @@ import { HistoryController } from "../app/history-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
 import { WeekCapacityController } from "../app/week-capacity-controller";
 import { WeeklyReviewController } from "../app/weekly-review-controller";
+import { LabelColorsController } from "../app/label-colors-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
@@ -20,6 +21,7 @@ import "../app/today-polish.css";
 import "../app/plan-actual.css";
 import "../app/week-capacity.css";
 import "../app/weekly-review.css";
+import "../app/label-colors-controller.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
@@ -34,5 +36,6 @@ createRoot(root).render(
     <ExecutionTracker />
     <WeekCapacityController />
     <WeeklyReviewController />
+    <LabelColorsController />
   </>,
 );

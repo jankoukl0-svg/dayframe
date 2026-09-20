@@ -1,0 +1,101 @@
+.df2-label-colors-host {
+  margin-top: 36px;
+}
+
+.df2-label-color-list {
+  border-top: 1px solid var(--line);
+}
+
+.df2-label-color-list article {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-label-color-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.df2-label-color-name i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+
+.df2-label-color-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.df2-label-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.df2-label-color-picker input[type="color"] {
+  width: 34px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.df2-label-color-picker code {
+  min-width: 62px;
+  color: var(--muted);
+  font: 10px/1 "Cascadia Mono", monospace;
+}
+
+.df2-label-color-list article > button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-label-color-list article > button:disabled {
+  opacity: .34;
+}
+
+.df2-week-task[data-label-category] {
+  border-left-width: 3px;
+  border-left-color: var(--df2-label-color) !important;
+  background: linear-gradient(var(--df2-label-tint), var(--df2-label-tint)), #f2f0ea;
+}
+
+.df2-week-task[data-label-category]:hover {
+  border-left-color: var(--df2-label-color) !important;
+  background: linear-gradient(var(--df2-label-tint), var(--df2-label-tint)), var(--paper);
+}
+
+@media (max-width: 720px) {
+  .df2-label-color-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 9px 0;
+  }
+
+  .df2-label-color-list article > button {
+    grid-column: 2;
+  }
+
+  .df2-label-color-picker code {
+    display: none;
+  }
+}
