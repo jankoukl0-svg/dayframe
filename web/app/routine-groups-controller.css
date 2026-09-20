@@ -1,0 +1,156 @@
+.df2-routines.df2-routines-grouped > article {
+  display: none !important;
+}
+
+.df2-routine-groups-host {
+  border-top: 1px solid var(--line);
+}
+
+.df2-routine-groups {
+  display: grid;
+}
+
+.df2-routine-group {
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-routine-group-summary {
+  width: 100%;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 4px 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-routine-group-summary:hover,
+.df2-routine-group.open .df2-routine-group-summary {
+  background: var(--paper);
+}
+
+.df2-routine-group-summary > strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.df2-routine-slots {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.df2-routine-slot {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 10px/1 "Cascadia Mono", monospace;
+  white-space: nowrap;
+}
+
+.df2-routine-slot.off {
+  opacity: .4;
+  text-decoration: line-through;
+}
+
+.df2-routine-chevron {
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  text-align: center;
+  transition: transform .16s ease;
+}
+
+.df2-routine-group.open .df2-routine-chevron {
+  transform: rotate(180deg);
+}
+
+.df2-routine-group-detail {
+  display: grid;
+  margin: 0 0 10px 210px;
+  border-left: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.df2-routine-occurrence {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.df2-routine-occurrence:first-child {
+  border-top: 0;
+}
+
+.df2-routine-occurrence > span {
+  color: var(--muted);
+  font: 10px/1.35 "Cascadia Mono", monospace;
+}
+
+.df2-routine-occurrence label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.df2-routine-occurrence input {
+  margin: 0;
+}
+
+.df2-routine-occurrence > button {
+  border: 0;
+  background: transparent;
+  color: #9a3d35;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .df2-routine-group-summary {
+    grid-template-columns: 1fr 22px;
+    gap: 8px 12px;
+    padding: 10px 0;
+  }
+
+  .df2-routine-group-summary > strong {
+    grid-column: 1;
+  }
+
+  .df2-routine-slots {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .df2-routine-chevron {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .df2-routine-group-detail {
+    margin-left: 0;
+  }
+
+  .df2-routine-occurrence {
+    grid-template-columns: 1fr auto;
+  }
+
+  .df2-routine-occurrence > button {
+    grid-column: 2;
+  }
+}
