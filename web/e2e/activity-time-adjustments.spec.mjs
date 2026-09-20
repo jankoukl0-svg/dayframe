@@ -44,6 +44,19 @@ function clockToSeconds(text) {
   return minutes * 60 + seconds;
 }
 
+async function clickLiveCompletionChoice(page, matcher) {
+  const navigation = page.waitForNavigation({ waitUntil: "networkidle" });
+  await page.evaluate((wanted) => {
+    const button = [...document.querySelectorAll(".df2-time-adjust-finish button")]
+      .find((item) => wanted === "Volno"
+        ? item.textContent?.trim() === wanted
+        : item.textContent?.includes(wanted));
+    if (!button) throw new Error(`Completion choice ${wanted} was not found.`);
+    window.setTimeout(() => button.click(), 0);
+  }, matcher);
+  await navigation;
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
@@ -61,12 +74,7 @@ test("finishing early shows saved time and records the real end", async ({ page 
 
   const finishChoice = page.locator(".df2-time-adjust-finish");
   await expect(finishChoice).toContainText(/\+\d+ min volných/);
-  await finishChoice.getByRole("button", { name: "Volno" }).dispatchEvent("click");
-
-  await expect.poll(() => page.evaluate(({ date }) => {
-    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans?.[date] ?? [];
-    return Boolean(tasks.find((task) => task.id === "activity-test")?.completed);
-  }, seeded)).toBe(true);
+  await clickLiveCompletionChoice(page, "Volno");
 
   const stored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date].find((task) => task.id === "activity-test"), seeded);
   expect(stored.completed).toBe(true);
@@ -131,15 +139,8 @@ test("saved time can be used for a short flexible task", async ({ page }) => {
   await page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" }).click();
   const finishChoice = page.locator(".df2-time-adjust-finish");
   await expect(finishChoice.getByRole("button", { name: "Začít další" })).toBeVisible();
-  const shortButton = finishChoice.getByRole("button", { name: /Krátký úkol/ });
-  await expect(shortButton).toContainText("Krátké opakování");
-  await shortButton.dispatchEvent("click");
-
-  await expect.poll(() => page.evaluate(({ date }) => {
-    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans?.[date] ?? [];
-    const task = tasks.find((item) => item.id === "short-task");
-    return Boolean(task?.start && task?.end);
-  }, seeded)).toBe(true);
+  await expect(finishChoice).toContainText("Krátký úkol · Krátké opakování");
+  await clickLiveCompletionChoice(page, "Krátký úkol");
 
   const shortStored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date].find((task) => task.id === "short-task"), seeded);
   expect(shortStored.start).toMatch(/^\d{2}:\d{2}$/);
