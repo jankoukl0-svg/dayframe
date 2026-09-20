@@ -1,0 +1,54 @@
+.df2-time-adjust-host {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.df2-time-adjust-host > button,
+.df2-time-adjust-finish > button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.df2-time-adjust-host > .df2-time-done {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+  color: #fff;
+}
+
+.df2-time-adjust-finish {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.df2-time-adjust-finish > strong {
+  margin-right: 3px;
+  color: var(--accent-dark);
+  font: 700 12px/1.2 "Cascadia Mono", monospace;
+  white-space: nowrap;
+}
+
+.df2-time-adjust-error {
+  max-width: 150px;
+  color: #9a3d35;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.df2-time-adjust-missed-host {
+  display: contents;
+}
+
+@media (max-width: 900px) {
+  .df2-time-adjust-host,
+  .df2-time-adjust-finish {
+    flex-wrap: wrap;
+  }
+}
