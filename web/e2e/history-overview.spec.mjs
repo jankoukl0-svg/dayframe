@@ -8,6 +8,8 @@ test("history overview summarizes completed work and returns to Today", async ({
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const now = new Date();
     const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    state.routines = [];
+    state.plans = {};
     state.plans[date] = [
       {
         id: "history-done",
