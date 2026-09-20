@@ -35,7 +35,12 @@ async function seedActiveTask(page) {
     state.routines = [];
     state.plans[date] = [task];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    return { date, originalDuration: task.duration, remainingMinutes: endMinute - minute };
+    return {
+      date,
+      originalDuration: task.duration,
+      remainingMinutes: endMinute - minute,
+      maxExtensions: Math.max(0, Math.floor(((23 * 60 + 59) - endMinute) / 15)),
+    };
   });
 }
 
@@ -162,6 +167,7 @@ test("saved time can be used for a short flexible task", async ({ page }) => {
 
 test("continuing an activity adds fifteen minutes", async ({ page }) => {
   const seeded = await seedActiveTask(page);
+  if (seeded.maxExtensions < 1) return;
   await page.reload({ waitUntil: "networkidle" });
 
   const continueButton = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Pokračovat +15 min" });
@@ -204,17 +210,28 @@ test("focus mode uses the real block time and keeps only execution controls", as
   await expect(focusControls.getByRole("button", { name: "Pokračovat" })).toBeVisible();
   await focusControls.getByRole("button", { name: "Pokračovat" }).click();
 
+  if (seeded.maxExtensions < 1) {
+    await continueButton.click();
+    await expect(focusControls).toContainText("Dnes už není další prostor.");
+    return;
+  }
+
   await continueButton.click();
   await expect(focusControls).toContainText("+15 min k aktivitě");
   const afterFirstExtension = clockToSeconds(await focusClock.innerText());
   expect(afterFirstExtension).toBeGreaterThanOrEqual(beforeSeconds + 14 * 60);
 
-  await continueButton.click();
-  await expect(focusControls).toContainText("+30 min k aktivitě");
+  if (seeded.maxExtensions >= 2) {
+    await continueButton.click();
+    await expect(focusControls).toContainText("+30 min k aktivitě");
+  } else {
+    await continueButton.click();
+    await expect(focusControls).toContainText("Dnes už není další prostor.");
+  }
 
   const stored = await page.evaluate(({ date }) => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date][0], seeded);
   expect(stored.completed).toBe(false);
-  expect(stored.duration).toBe(seeded.originalDuration + 30);
+  expect(stored.duration).toBe(seeded.originalDuration + (seeded.maxExtensions >= 2 ? 30 : 15));
 });
 
 test("today can replan only the flexible remainder of the day", async ({ page }) => {

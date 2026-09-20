@@ -63,7 +63,7 @@ export type TaskDraft = {
 const DAY_START = 10 * 60;
 const LUNCH_START = 13 * 60;
 const LUNCH_END = 14 * 60;
-const DAY_END = 22 * 60 + 30;
+const DAY_END = 23 * 60;
 const SLOT = 15;
 
 export function localDateKey(date: Date) {
@@ -548,7 +548,7 @@ export function moveTask(state: DayframeState, id: string, toDate: string, toSta
   }
   if (!task) return { state, error: "Úkol nebyl nalezen." };
 
-  const start = roundToQuarter(timeToMinutes(toStart));
+  const start = timeToMinutes(toStart);
   const destination = (state.plans[toDate] ?? []).filter((item) => item.id !== id);
   if (!canPlaceAt(destination, start, task.duration)) return { state, error: "Sem se úkol nevejde." };
 
