@@ -66,11 +66,26 @@
 .df2-time-adjust-focus-completion > button {
   min-height: 42px;
   padding-inline: 15px;
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7f5f1;
+}
+
+.df2-time-adjust-focus-controls > button:hover,
+.df2-time-adjust-focus-completion > button:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.df2-time-adjust-focus-controls > .df2-time-done {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+  color: #fff;
 }
 
 .df2-time-adjust-focus-added,
 .df2-time-adjust-focus-completion > strong {
-  color: var(--accent-dark);
+  color: rgba(255, 255, 255, 0.72);
   font: 700 11px/1.25 "Cascadia Mono", monospace;
   white-space: nowrap;
 }
