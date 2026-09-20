@@ -18,18 +18,21 @@ test("edits a recurring routine and persists the new schedule", async ({ page })
   await editor.getByLabel("Název").fill("CFI / Excel deep");
   await editor.getByLabel("Čas").fill("10:30");
   await editor.getByLabel("Délka").fill("75");
+
+  const reload = page.waitForEvent("load");
   await editor.getByRole("button", { name: "Uložit změny" }).click();
-
+  await reload;
   await page.waitForLoadState("networkidle");
-  await expect(page.getByRole("heading", { name: "Nastavení" })).toBeVisible();
 
-  const editedGroup = page.locator(".df2-routine-group").filter({ hasText: "CFI / Excel deep" }).first();
-  await expect(editedGroup).toBeVisible();
-  await expect(editedGroup.locator(".df2-routine-group-summary")).toContainText("10:30 · 75 min");
+  await expect(page.getByRole("heading", { name: "Nastavení" })).toBeVisible();
 
   const stored = await page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}"));
   const edited = stored.routines.find((routine) => routine.id === "mon-cfi");
   expect(edited.title).toBe("CFI / Excel deep");
   expect(edited.start).toBe("10:30");
   expect(edited.duration).toBe(75);
+
+  const editedGroup = page.locator(".df2-routine-group").filter({ hasText: "CFI / Excel deep" }).first();
+  await expect(editedGroup).toBeVisible();
+  await expect(editedGroup.locator(".df2-routine-group-summary")).toContainText("10:30 · 75 min");
 });
