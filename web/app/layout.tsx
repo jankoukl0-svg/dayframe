@@ -3,9 +3,11 @@ import "./globals.css";
 import "./milestone-featured-controller.css";
 import "./routine-groups-controller.css";
 import "./activity-time-controller.css";
+import "./history-controller.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
+import { HistoryController } from "./history-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -14,5 +16,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /></body></html>;
 }
