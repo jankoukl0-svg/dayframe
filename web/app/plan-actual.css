@@ -1,0 +1,48 @@
+.df2-history-actual {
+  margin-top: 26px;
+  max-width: 820px;
+}
+
+.df2-history-actual > article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 150px 74px;
+  align-items: center;
+  gap: 14px;
+  min-height: 50px;
+  border-top: 1px solid var(--line);
+}
+
+.df2-history-actual > article strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.df2-history-actual > article span,
+.df2-history-actual > article em,
+.df2-history-actual > p {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.df2-history-actual > article span,
+.df2-history-actual > article em {
+  font-family: "Cascadia Mono", monospace;
+}
+
+.df2-history-actual > article em {
+  color: var(--ink);
+  font-style: normal;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .df2-history-actual > article {
+    grid-template-columns: 1fr auto;
+    gap: 5px 12px;
+    padding: 10px 0;
+  }
+  .df2-history-actual > article strong { grid-column: 1 / -1; }
+  .df2-history-actual > article em { grid-column: 2; }
+}
