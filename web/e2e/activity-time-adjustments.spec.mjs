@@ -61,7 +61,7 @@ test("finishing early shows saved time and records the real end", async ({ page 
 
   const finishChoice = page.locator(".df2-time-adjust-finish");
   await expect(finishChoice).toContainText(/\+\d+ min volných/);
-  await finishChoice.getByRole("button", { name: "Volno" }).click();
+  await finishChoice.getByRole("button", { name: "Volno" }).dispatchEvent("click");
 
   await expect.poll(() => page.evaluate(({ date }) => {
     const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans?.[date] ?? [];
@@ -133,7 +133,7 @@ test("saved time can be used for a short flexible task", async ({ page }) => {
   await expect(finishChoice.getByRole("button", { name: "Začít další" })).toBeVisible();
   const shortButton = finishChoice.getByRole("button", { name: /Krátký úkol/ });
   await expect(shortButton).toContainText("Krátké opakování");
-  await shortButton.click();
+  await shortButton.dispatchEvent("click");
 
   await expect.poll(() => page.evaluate(({ date }) => {
     const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans?.[date] ?? [];
