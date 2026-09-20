@@ -458,11 +458,12 @@ export function ActivityTimeController() {
         nextFocus = { actionsHost, clockHost, taskId: focusTask.id };
       }
 
-      if (focusTaskIdRef.current !== nextFocus?.taskId) {
-        focusTaskIdRef.current = nextFocus?.taskId ?? null;
+      const nextFocusTaskId = nextFocus?.taskId ?? null;
+      if (focusTaskIdRef.current !== nextFocusTaskId) {
+        focusTaskIdRef.current = nextFocusTaskId;
         setFocusExtendedBy(0);
         setFocusError("");
-        setCompletion((current) => current?.taskId === nextFocus?.taskId ? current : null);
+        setCompletion((current) => current?.taskId === nextFocusTaskId ? current : null);
         if (focusTask && nextFocus) {
           const remaining = remainingFocusSeconds(focusTask, now);
           setFocusSeconds(remaining);
