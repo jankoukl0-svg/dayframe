@@ -63,12 +63,13 @@ test("a short block can be dragged back to 22:40 and end at 23:00", async ({ pag
     const transfer = window.__dayframeLateDragTransfer;
     if (!(body instanceof HTMLElement) || !(transfer instanceof DataTransfer)) throw new Error("Drag target not ready");
     const rect = body.getBoundingClientRect();
+    const pointerMinute = 22 * 60 + 51;
     const options = {
       bubbles: true,
       cancelable: true,
       dataTransfer: transfer,
       clientX: rect.left + Math.min(80, Math.max(20, rect.width / 2)),
-      clientY: rect.bottom - 6,
+      clientY: rect.top + (pointerMinute - 10 * 60) * 0.72,
     };
     body.dispatchEvent(new DragEvent("dragover", options));
     body.dispatchEvent(new DragEvent("drop", options));
