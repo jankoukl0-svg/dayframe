@@ -138,10 +138,27 @@ function syncSettingsHost() {
   return host;
 }
 
+function syncModalHost() {
+  const categorySelect = document.querySelector('.df2-modal select[name="category"]') as HTMLSelectElement | null;
+  if (!categorySelect) return { host: null as HTMLElement | null, category: "" };
+  const label = categorySelect.closest("label");
+  if (!label) return { host: null as HTMLElement | null, category: "" };
+  let host = label.querySelector<HTMLElement>("[data-label-color-modal-host]");
+  if (!host) {
+    host = document.createElement("div");
+    host.dataset.labelColorModalHost = "true";
+    host.className = "df2-modal-label-color-host";
+    label.appendChild(host);
+  }
+  return { host, category: categorySelect.value.trim() };
+}
+
 export function LabelColorsController() {
   const [colors, setColors] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [host, setHost] = useState<HTMLElement | null>(null);
+  const [modalHost, setModalHost] = useState<HTMLElement | null>(null);
+  const [modalCategory, setModalCategory] = useState("");
   const colorsRef = useRef<Record<string, string>>({});
   const indexRef = useRef(buildCategoryIndex({}));
   const rawStateRef = useRef("");
@@ -161,12 +178,26 @@ export function LabelColorsController() {
       }
       const nextHost = syncSettingsHost();
       setHost((current) => current === nextHost ? current : nextHost);
+      const modal = syncModalHost();
+      setModalHost((current) => current === modal.host ? current : modal.host);
+      setModalCategory((current) => current === modal.category ? current : modal.category);
       applyWeekColors(indexRef.current, colorsRef.current);
     };
 
+    const onChange = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLSelectElement && target.name === "category" && target.closest(".df2-modal")) {
+        setModalCategory(target.value.trim());
+      }
+    };
+
     sync();
+    document.addEventListener("change", onChange);
     const timer = window.setInterval(sync, 350);
-    return () => window.clearInterval(timer);
+    return () => {
+      document.removeEventListener("change", onChange);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -181,9 +212,10 @@ export function LabelColorsController() {
     customized: Boolean(colors[category]),
   })), [categories, colors]);
 
-  if (!host) return null;
+  const modalColor = modalCategory ? colorFor(modalCategory, colors) : DEFAULT_COLOR;
+  const modalCustomized = modalCategory ? Boolean(colors[modalCategory]) : false;
 
-  return createPortal(
+  const settingsPortal = host ? createPortal(
     <section className="df2-label-colors" aria-label="Barvy štítků">
       <div className="df2-section-head"><h2>Barvy štítků</h2></div>
       <div className="df2-label-color-list">
@@ -213,5 +245,31 @@ export function LabelColorsController() {
       </div>
     </section>,
     host,
-  );
+  ) : null;
+
+  const modalPortal = modalHost && modalCategory ? createPortal(
+    <div className="df2-modal-label-color">
+      <span>Barva štítku</span>
+      <i style={{ background: modalColor }} aria-hidden="true" />
+      <input
+        type="color"
+        aria-label={`Barva štítku ${modalCategory} v editoru`}
+        value={modalColor}
+        onChange={(event) => setColors((current) => ({ ...current, [modalCategory]: normalizeHex(event.target.value) }))}
+      />
+      <code>{modalColor.toUpperCase()}</code>
+      <button
+        type="button"
+        disabled={!modalCustomized}
+        onClick={() => setColors((current) => {
+          const next = { ...current };
+          delete next[modalCategory];
+          return next;
+        })}
+      >Výchozí</button>
+    </div>,
+    modalHost,
+  ) : null;
+
+  return <>{settingsPortal}{modalPortal}</>;
 }
