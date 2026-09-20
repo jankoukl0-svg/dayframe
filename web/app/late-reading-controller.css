@@ -1,0 +1,29 @@
+.df2-time-body {
+  height: 605px;
+}
+
+.df2-week-view.df2-reading-late-active .df2-drop-preview {
+  display: none;
+}
+
+.df2-reading-late-preview {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  z-index: 7;
+  min-height: 20px;
+  padding: 4px 6px;
+  border: 1px dashed var(--accent);
+  border-left-width: 2px;
+  border-radius: 3px;
+  background: #fbf1ec;
+  color: var(--accent-dark);
+  font: 700 9px/1.2 "Cascadia Mono", monospace;
+  pointer-events: none;
+}
+
+.df2-reading-late-preview.invalid {
+  border-color: #b75a50;
+  background: #f7e5e2;
+  color: #9a3d35;
+}
