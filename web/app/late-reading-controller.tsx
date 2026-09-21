@@ -36,8 +36,8 @@ type DragInfo = {
 
 const STORAGE_KEY = "dayframe-v1";
 const DAY_START = 10 * 60;
-const LATE_START = 23 * 60;
-const LATE_END = 23 * 60 + 59;
+const NORMAL_DAY_END = 23 * 60;
+const LATE_END = 24 * 60;
 const MINUTE_HEIGHT = 0.72;
 const SNAP = 5;
 
@@ -91,6 +91,7 @@ function timeToMinutes(value?: string) {
 
 function minutesToTime(value: number) {
   const safe = Math.max(0, Math.min(LATE_END, Math.round(value)));
+  if (safe === LATE_END) return "24:00";
   return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
 }
 
@@ -104,24 +105,27 @@ function taskFromButton(state: StoredState, date: string, button: HTMLElement) {
     ?? null;
 }
 
-function targetStart(body: HTMLElement, clientY: number, drag: DragInfo) {
+function rawTargetStart(body: HTMLElement, clientY: number, drag: DragInfo) {
   const rect = body.getBoundingClientRect();
   const pointerMinute = DAY_START + (clientY - rect.top) / MINUTE_HEIGHT;
-  const rawStart = pointerMinute - drag.grabOffsetMinutes;
-  const maxStart = LATE_END - drag.duration;
-  const snapped = Math.round(rawStart / SNAP) * SNAP;
-  return Math.max(LATE_START, Math.min(maxStart, snapped));
+  return pointerMinute - drag.grabOffsetMinutes;
 }
 
-function isLatePointer(body: HTMLElement, clientY: number) {
-  const rect = body.getBoundingClientRect();
-  const pointerMinute = DAY_START + (clientY - rect.top) / MINUTE_HEIGHT;
-  return pointerMinute >= LATE_START;
+function targetStart(body: HTMLElement, clientY: number, drag: DragInfo) {
+  const rawStart = rawTargetStart(body, clientY, drag);
+  const minStart = Math.max(DAY_START, NORMAL_DAY_END - drag.duration);
+  const maxStart = LATE_END - drag.duration;
+  const snapped = Math.round(rawStart / SNAP) * SNAP;
+  return Math.max(minStart, Math.min(maxStart, snapped));
+}
+
+function usesLateLane(body: HTMLElement, clientY: number, drag: DragInfo) {
+  return rawTargetStart(body, clientY, drag) + drag.duration > NORMAL_DAY_END;
 }
 
 function canPlace(state: StoredState, date: string, taskId: string, start: number, duration: number) {
   const end = start + duration;
-  if (start < LATE_START || end > LATE_END) return false;
+  if (start < DAY_START || end > LATE_END) return false;
   return !(state.plans[date] ?? []).some((task) => {
     if (task.id === taskId || !task.start || !task.end) return false;
     const occupiedStart = timeToMinutes(task.start);
@@ -142,7 +146,7 @@ function renderPreview(body: HTMLElement, start: number, duration: number, valid
   preview.className = `df2-reading-late-preview ${valid ? "valid" : "invalid"}`;
   preview.style.top = `${(start - DAY_START) * MINUTE_HEIGHT}px`;
   preview.style.height = `${duration * MINUTE_HEIGHT}px`;
-  preview.textContent = valid ? minutesToTime(start) : "není místo";
+  preview.textContent = valid ? `${minutesToTime(start)}–${minutesToTime(start + duration)}` : "není místo";
   body.appendChild(preview);
 }
 
@@ -209,7 +213,7 @@ export function LateReadingController() {
       if (!drag) return;
       const body = event.target instanceof Element ? event.target.closest<HTMLElement>(".df2-time-body") : null;
       if (!body) return;
-      if (!isLatePointer(body, event.clientY)) {
+      if (!usesLateLane(body, event.clientY, drag)) {
         clearPreview();
         return;
       }
@@ -233,7 +237,7 @@ export function LateReadingController() {
     const onDrop = (event: DragEvent) => {
       if (!drag) return;
       const body = event.target instanceof Element ? event.target.closest<HTMLElement>(".df2-time-body") : null;
-      if (!body || !isLatePointer(body, event.clientY)) return;
+      if (!body || !usesLateLane(body, event.clientY, drag)) return;
 
       event.preventDefault();
       event.stopPropagation();
