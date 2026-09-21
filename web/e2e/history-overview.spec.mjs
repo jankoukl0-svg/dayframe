@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("history overview summarizes completed work and returns to Today", async ({ page }) => {
+test("history overview summarizes completed work and keeps only Overview visually active", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -54,10 +54,12 @@ test("history overview summarizes completed work and returns to Today", async ({
   });
   await page.reload({ waitUntil: "networkidle" });
 
+  const milestones = page.getByRole("button", { name: /Milníky/ });
   const overview = page.getByRole("button", { name: /Přehled/ });
-  await expect(overview).toBeVisible();
-  await overview.click();
+  await milestones.click();
+  await expect(milestones).toHaveClass(/active/);
 
+  await overview.click();
   const history = page.locator(".df2-history-view");
   await expect(history).toBeVisible();
   await expect(history.getByRole("heading", { name: "Přehled" })).toBeVisible();
@@ -65,6 +67,12 @@ test("history overview summarizes completed work and returns to Today", async ({
   await expect(history).toContainText("50%");
   await expect(history).toContainText("45 min");
   await expect(history).toContainText("Finance");
+
+  await expect(overview).toHaveClass(/active/);
+  const milestoneShadow = await milestones.evaluate((element) => getComputedStyle(element).boxShadow);
+  const overviewShadow = await overview.evaluate((element) => getComputedStyle(element).boxShadow);
+  expect(milestoneShadow).toBe("none");
+  expect(overviewShadow).not.toBe("none");
 
   await page.getByRole("button", { name: /Dnes/ }).click();
   await expect(history).toBeHidden();
