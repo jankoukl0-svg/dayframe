@@ -82,8 +82,8 @@
   left: 0;
   right: 0;
   z-index: 5;
-  height: 1px;
-  background: var(--accent);
+  height: 2px;
+  background: #111111;
   pointer-events: none;
 }
 
@@ -92,22 +92,22 @@
   position: absolute;
   left: 3px;
   top: 50%;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--accent);
+  background: #111111;
   transform: translateY(-50%);
 }
 
 .df2-current-time-line > span {
   position: absolute;
-  left: 11px;
-  top: -12px;
-  padding: 1px 3px;
+  left: 13px;
+  top: -14px;
+  padding: 2px 4px;
   border-radius: 2px;
-  background: var(--accent);
+  background: #111111;
   color: #fff;
-  font: 700 8px/1.2 "Cascadia Mono", monospace;
+  font: 700 9px/1.2 "Cascadia Mono", monospace;
 }
 
 .df2-time-adjust-focus-host,
