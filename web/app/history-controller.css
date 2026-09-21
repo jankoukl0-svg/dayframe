@@ -2,6 +2,20 @@
   display: contents;
 }
 
+/* Přehled překrývá běžnou Dayframe view, takže podkladová položka (např. Milníky)
+   nesmí zůstat vizuálně aktivní zároveň s Přehledem. */
+.df2-history-active .df2-sidebar nav > button.active {
+  border-color: transparent;
+  background: transparent;
+  color: #666761;
+  box-shadow: none;
+}
+
+.df2-history-active .df2-sidebar nav > button.active:hover {
+  background: #e2e0da;
+  color: var(--ink);
+}
+
 .df2-history-active .df2-main > :not([data-history-screen-host]) {
   display: none !important;
 }
