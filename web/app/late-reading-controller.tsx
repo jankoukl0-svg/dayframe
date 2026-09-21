@@ -35,6 +35,7 @@ type DragInfo = {
 };
 
 const STORAGE_KEY = "dayframe-v1";
+const STATE_SYNC_EVENT = "dayframe-state-sync";
 const DAY_START = 10 * 60;
 const NORMAL_DAY_END = 23 * 60;
 const LATE_END = 24 * 60;
@@ -261,7 +262,7 @@ export function LateReadingController() {
       const moved = moveReading(state, drag, date, start);
       clearPreview();
       drag = null;
-      if (moved) window.setTimeout(() => window.location.reload(), 0);
+      if (moved) window.dispatchEvent(new Event(STATE_SYNC_EVENT));
     };
 
     const onDragEnd = () => {
