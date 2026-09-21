@@ -111,10 +111,16 @@ async function dispatchLateEvent(page, type) {
   return dispatchAtStart(page, type, 23 * 60);
 }
 
-test("Čtení knihy can be moved into the 23:00 hour", async ({ page }) => {
+async function assertNoReload(page) {
+  await expect.poll(() => page.evaluate(() => window.__dayframeNoReloadSentinel)).toBe("alive");
+  await expect(page.locator(".df2-week-view")).toBeVisible();
+}
+
+test("Čtení knihy can be moved into the 23:00 hour without reloading the page", async ({ page }) => {
   const seeded = await initialize(page, "Čtení knihy", "reading-late-test");
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
+  await page.evaluate(() => { window.__dayframeNoReloadSentinel = "alive"; });
 
   const body = page.locator(".df2-week-day.today .df2-time-body");
   await expect(body).toBeVisible();
@@ -124,11 +130,10 @@ test("Čtení knihy can be moved into the 23:00 hour", async ({ page }) => {
   await startDrag(page, "Čtení knihy");
   await dispatchLateEvent(page, "dragover");
   await expect(page.locator(".df2-reading-late-preview")).toContainText("23:00");
+  await dispatchLateEvent(page, "drop");
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle" }),
-    dispatchLateEvent(page, "drop"),
-  ]);
+  await assertNoReload(page);
+  await expect(page.locator(".df2-week-day.today .df2-week-task").filter({ hasText: "Čtení knihy" })).toContainText("23:00–23:20");
 
   const stored = await page.evaluate(({ date }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -137,18 +142,18 @@ test("Čtení knihy can be moved into the 23:00 hour", async ({ page }) => {
   expect(`${stored.start}-${stored.end}`).toBe("23:00-23:20");
 });
 
-test("an hour-long reading block can move halfway and fully into the 23:00 hour", async ({ page }) => {
+test("an hour-long reading block moves repeatedly without page reload", async ({ page }) => {
   const seeded = await initializeHourlyReading(page);
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
+  await page.evaluate(() => { window.__dayframeNoReloadSentinel = "alive"; });
 
   await startDrag(page, "Čtení knihy");
   await dispatchAtStart(page, "dragover", 22 * 60 + 30);
   await expect(page.locator(".df2-reading-late-preview")).toContainText("22:30–23:30");
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle" }),
-    dispatchAtStart(page, "drop", 22 * 60 + 30),
-  ]);
+  await dispatchAtStart(page, "drop", 22 * 60 + 30);
+  await assertNoReload(page);
+  await expect(page.locator(".df2-week-day.today .df2-week-task").filter({ hasText: "Čtení knihy" })).toContainText("22:30–23:30");
 
   let stored = await page.evaluate(({ date }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -156,14 +161,12 @@ test("an hour-long reading block can move halfway and fully into the 23:00 hour"
   }, seeded);
   expect(`${stored.start}-${stored.end}`).toBe("22:30-23:30");
 
-  await page.getByRole("button", { name: /Týden/ }).click();
   await startDrag(page, "Čtení knihy");
   await dispatchAtStart(page, "dragover", 23 * 60);
   await expect(page.locator(".df2-reading-late-preview")).toContainText("23:00–24:00");
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle" }),
-    dispatchAtStart(page, "drop", 23 * 60),
-  ]);
+  await dispatchAtStart(page, "drop", 23 * 60);
+  await assertNoReload(page);
+  await expect(page.locator(".df2-week-day.today .df2-week-task").filter({ hasText: "Čtení knihy" })).toContainText("23:00–24:00");
 
   stored = await page.evaluate(({ date }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
