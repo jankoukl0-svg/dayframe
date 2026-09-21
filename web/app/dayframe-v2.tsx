@@ -36,6 +36,7 @@ import { daysUntilDate, getDayCountdown } from "@/lib/dayframe-countdown";
 import { parseSmartTaskInput } from "@/lib/dayframe-smart-input";
 
 const STORAGE_KEY = "dayframe-v1";
+const STATE_SYNC_EVENT = "dayframe-state-sync";
 const MINUTE_HEIGHT = 0.72;
 const DROP_MAGNET_RANGE = 60;
 
@@ -147,6 +148,26 @@ export function DayframeV2() {
     }
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    const syncFromStorage = () => {
+      try {
+        const reference = new Date();
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const migrated = migrateStoredState(raw ? JSON.parse(raw) : null, reference);
+        const today = localDateKey(reference);
+        const visibleMonday = addDays(startOfWeek(reference), weekOffset * 7);
+        const visibleKeys = weekKeys(visibleMonday);
+        const rangeStart = visibleKeys[0] < addDaysKey(today, -7) ? visibleKeys[0] : addDaysKey(today, -7);
+        const rangeEnd = visibleKeys[6] > addDaysKey(today, 28) ? visibleKeys[6] : addDaysKey(today, 28);
+        setData(materializeRange(migrated, rangeStart, rangeEnd, reference));
+      } catch {
+        // Keep the current in-memory state if external storage is malformed.
+      }
+    };
+    window.addEventListener(STATE_SYNC_EVENT, syncFromStorage);
+    return () => window.removeEventListener(STATE_SYNC_EVENT, syncFromStorage);
+  }, [weekOffset]);
 
   useEffect(() => {
     if (!hydrated) return;
