@@ -132,7 +132,7 @@ function ensureNavHost() {
     host.dataset.monthCalendarNavHost = "true";
     host.className = "df2-month-calendar-nav-host";
     const weekButton = findButton("Týden");
-    if (weekButton) weekButton.after(host);
+    if (weekButton?.parentNode) weekButton.parentNode.insertBefore(host, weekButton.nextSibling);
     else nav.appendChild(host);
   }
   return host;
