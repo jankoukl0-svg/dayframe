@@ -234,6 +234,50 @@
   cursor: default;
 }
 
+/* Milestone descriptions behave like a compact journal entry: title first,
+   then a readable note about what happens on that date. */
+.df2-milestones article > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 4px;
+}
+
+.df2-milestones article > div:first-child > strong {
+  order: 1;
+}
+
+.df2-milestones article > div:first-child > span {
+  order: 2;
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: pre-wrap;
+}
+
+.df2-milestones article > div:first-child:not(:has(> span))::after {
+  content: "Přidat popisek…";
+  order: 2;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.35;
+  opacity: .58;
+}
+
+.df2-modal .df2-form-grid label:has(> input[name="note"]) {
+  grid-column: 1 / -1;
+}
+
+.df2-modal label:has(> input[name="note"]) input {
+  min-height: 46px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .df2-milestone-filters {
     align-items: flex-start;
