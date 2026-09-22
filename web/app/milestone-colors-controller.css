@@ -44,13 +44,55 @@
   text-transform: uppercase;
 }
 
-.df2-milestone-filters > div {
+.df2-milestone-preset-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
-.df2-milestone-filters button {
+.df2-milestone-preset-filters button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.df2-milestone-preset-filters button:hover {
+  border-color: var(--line-strong);
+  background: var(--paper);
+}
+
+.df2-milestone-preset-filters button > i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+}
+
+.df2-milestone-preset-filters button.is-hidden {
+  border-style: dashed;
+  background: var(--paper);
+}
+
+.df2-milestone-preset-filters button.is-hidden > i {
+  opacity: .28;
+  filter: grayscale(.65);
+}
+
+.df2-milestone-custom-filter {
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+.df2-milestone-custom-filter button,
+.df2-milestone-filters > .show-all {
   min-height: 28px;
   display: inline-flex;
   align-items: center;
@@ -64,30 +106,32 @@
   cursor: pointer;
 }
 
-.df2-milestone-filters button:hover {
+.df2-milestone-custom-filter button:hover:not(:disabled),
+.df2-milestone-filters > .show-all:hover {
   border-color: var(--line-strong);
   background: var(--paper);
 }
 
-.df2-milestone-filters button > i {
-  width: 9px;
-  height: 9px;
-  flex: 0 0 auto;
+.df2-milestone-custom-filter button.is-hidden {
+  color: var(--muted);
+  border-style: dashed;
+  background: var(--paper);
+}
+
+.df2-milestone-custom-filter button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.df2-milestone-custom-filter .custom-swatch {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  background: conic-gradient(#2563eb, #db2777, #ca8a04, #16a34a, #2563eb);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
 }
 
-.df2-milestone-filters button.is-hidden {
-  color: var(--muted);
-  background: var(--paper);
-  border-style: dashed;
-}
-
-.df2-milestone-filters button.is-hidden > i {
-  opacity: .42;
-}
-
-.df2-milestone-filters button.show-all {
+.df2-milestone-filters > .show-all {
   color: var(--accent-dark);
   font-weight: 700;
 }
@@ -98,7 +142,7 @@
 
 .df2-milestone-color-editor {
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
 .df2-milestone-color-editor > span {
@@ -106,10 +150,45 @@
   font-size: 11px;
 }
 
+.df2-milestone-color-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.df2-milestone-color-presets button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.df2-milestone-color-presets button:hover,
+.df2-milestone-color-presets button.active {
+  border-color: var(--ink);
+  background: var(--paper);
+}
+
+.df2-milestone-color-presets button.active {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.df2-milestone-color-presets button > i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+}
+
 .df2-milestone-color-control {
   min-height: 42px;
   display: grid;
-  grid-template-columns: 14px 42px auto auto;
+  grid-template-columns: auto 42px auto auto;
   align-items: center;
   gap: 10px;
   padding: 7px 9px;
@@ -118,11 +197,9 @@
   background: var(--paper);
 }
 
-.df2-milestone-color-control > i {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+.df2-milestone-color-control > span {
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .df2-milestone-color-control input[type="color"] {
@@ -157,9 +234,18 @@
   cursor: default;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .df2-milestone-filters {
     align-items: flex-start;
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .df2-milestone-filters > span {
+    width: 100%;
+  }
+
+  .df2-milestone-custom-filter {
+    padding-left: 0;
+    border-left: 0;
   }
 }
