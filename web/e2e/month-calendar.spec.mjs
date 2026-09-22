@@ -28,7 +28,7 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
   });
 
   await page.reload({ waitUntil: "networkidle" });
-  const calendarNav = page.getByRole("button", { name: /^KalendářK$/ });
+  const calendarNav = page.locator(".df2-month-calendar-nav-button");
   await expect(calendarNav).toBeVisible();
   await calendarNav.click();
 
@@ -70,6 +70,6 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
   })).toBe(true);
 
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /^KalendářK$/ }).click();
+  await page.locator(".df2-month-calendar-nav-button").click();
   await expect(page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`)).toContainText("Cambridge C1");
 });
