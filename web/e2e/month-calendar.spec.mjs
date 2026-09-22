@@ -59,9 +59,10 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
   const addCell = page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`);
   await addCell.getByRole("button", { name: `Přidat milník ${seeded.addKey}` }).click();
   await expect(page.getByRole("heading", { name: "Nový milník" })).toBeVisible();
-  await page.locator('.df2-month-milestone-modal input[name="title"]').fill("Cambridge C1");
-  await page.locator('.df2-month-milestone-modal textarea[name="note"]').fill("Digital test v Praze.");
-  await page.getByRole("button", { name: "Přidat milník" }).click();
+  const createModal = page.locator(".df2-month-milestone-modal");
+  await createModal.locator('input[name="title"]').fill("Cambridge C1");
+  await createModal.locator('textarea[name="note"]').fill("Digital test v Praze.");
+  await createModal.getByRole("button", { name: "Přidat milník", exact: true }).click();
   await expect(addCell).toContainText("Cambridge C1");
   await expect(addCell).toContainText("Digital test v Praze.");
   await expect.poll(() => page.evaluate(() => {
