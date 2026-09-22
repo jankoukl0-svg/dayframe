@@ -28,7 +28,9 @@ test("milestone color can be changed and persists after reload", async ({ page }
   const colorInput = page.getByLabel("Barva milníku");
   await expect(colorInput).toBeVisible();
   await colorInput.evaluate((element) => {
-    element.value = "#2563eb";
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) throw new Error("Native input value setter is unavailable");
+    setter.call(element, "#2563eb");
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
   });
