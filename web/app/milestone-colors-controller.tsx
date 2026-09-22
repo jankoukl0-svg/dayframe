@@ -67,22 +67,23 @@ function readColors(): Record<string, string> {
 
 function readHiddenFilters(): HiddenFilters {
   try {
-    const raw = JSON.parse(window.localStorage.getItem(HIDDEN_COLORS_STORAGE_KEY) || "{}");
+    const raw: unknown = JSON.parse(window.localStorage.getItem(HIDDEN_COLORS_STORAGE_KEY) || "{}");
     if (Array.isArray(raw)) {
-      return {
-        preset: [...new Set(raw.filter((value): value is string => typeof value === "string")
-          .map(normalizeHex)
-          .filter((color) => PRESET_SET.has(color as (typeof PRESET_COLORS)[number]["color"])))],
-        custom: false,
-      };
+      const preset = raw
+        .filter((value): value is string => typeof value === "string")
+        .map(normalizeHex)
+        .filter((color) => PRESET_SET.has(color as (typeof PRESET_COLORS)[number]["color"]));
+      return { preset: [...new Set<string>(preset)], custom: false };
     }
     if (!raw || typeof raw !== "object") return { preset: [], custom: false };
-    const preset = Array.isArray(raw.preset)
-      ? [...new Set(raw.preset.filter((value: unknown): value is string => typeof value === "string")
+    const stored = raw as { preset?: unknown; custom?: unknown };
+    const preset = Array.isArray(stored.preset)
+      ? stored.preset
+        .filter((value): value is string => typeof value === "string")
         .map(normalizeHex)
-        .filter((color: string) => PRESET_SET.has(color as (typeof PRESET_COLORS)[number]["color"]))) ]
+        .filter((color) => PRESET_SET.has(color as (typeof PRESET_COLORS)[number]["color"]))
       : [];
-    return { preset, custom: raw.custom === true };
+    return { preset: [...new Set<string>(preset)], custom: stored.custom === true };
   } catch {
     return { preset: [], custom: false };
   }
