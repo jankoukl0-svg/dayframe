@@ -38,7 +38,9 @@ test("milestone description is shown under the title and persists after editing"
   expect(descriptionBox.y).toBeGreaterThan(titleBox.y);
 
   const emptyRow = page.locator('.df2-milestones article[data-milestone-id="empty-description-test"]');
-  await expect(emptyRow).toContainText("Přidat popisek");
+  await expect.poll(() => emptyRow.locator("div").first().evaluate((element) =>
+    getComputedStyle(element, "::after").content,
+  )).toContain("Přidat popisek");
 
   await row.click();
   const descriptionInput = page.locator('input[name="note"]');
