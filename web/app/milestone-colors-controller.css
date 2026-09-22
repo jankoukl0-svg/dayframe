@@ -4,6 +4,10 @@
   background: linear-gradient(90deg, var(--df2-milestone-tint, transparent), transparent 30%);
 }
 
+.df2-milestones article[hidden] {
+  display: none !important;
+}
+
 .df2-milestones article[data-milestone-color="true"]:hover {
   padding-left: 14px;
 }
@@ -17,6 +21,75 @@
   border-radius: 50%;
   background: var(--df2-milestone-color, var(--accent));
   vertical-align: 1px;
+}
+
+.df2-milestone-filter-host {
+  min-width: 0;
+  margin: -8px 0 14px;
+}
+
+.df2-milestone-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.df2-milestone-filters > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-filters > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.df2-milestone-filters button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.df2-milestone-filters button:hover {
+  border-color: var(--line-strong);
+  background: var(--paper);
+}
+
+.df2-milestone-filters button > i {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+}
+
+.df2-milestone-filters button.is-hidden {
+  color: var(--muted);
+  background: var(--paper);
+  border-style: dashed;
+}
+
+.df2-milestone-filters button.is-hidden > i {
+  opacity: .42;
+}
+
+.df2-milestone-filters button.show-all {
+  color: var(--accent-dark);
+  font-weight: 700;
 }
 
 .df2-milestone-color-host {
@@ -82,4 +155,11 @@
 .df2-milestone-color-control button:disabled {
   opacity: .35;
   cursor: default;
+}
+
+@media (max-width: 640px) {
+  .df2-milestone-filters {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
