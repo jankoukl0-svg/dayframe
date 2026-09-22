@@ -13,10 +13,30 @@ type StoredState = {
   milestones?: MilestoneLike[];
 };
 
+type HiddenFilters = {
+  preset: string[];
+  custom: boolean;
+};
+
 const DAYFRAME_STORAGE_KEY = "dayframe-v1";
 const COLORS_STORAGE_KEY = "dayframe-milestone-colors-v1";
 const HIDDEN_COLORS_STORAGE_KEY = "dayframe-milestone-hidden-colors-v1";
 const DEFAULT_COLOR = "#c85b32";
+
+const PRESET_COLORS = [
+  { color: "#2563eb", name: "modré" },
+  { color: "#c85b32", name: "oranžové" },
+  { color: "#dc2626", name: "červené" },
+  { color: "#16a34a", name: "zelené" },
+  { color: "#7c3aed", name: "fialové" },
+  { color: "#0891b2", name: "tyrkysové" },
+  { color: "#ca8a04", name: "žluté" },
+  { color: "#db2777", name: "růžové" },
+  { color: "#4f46e5", name: "indigové" },
+  { color: "#64748b", name: "šedé" },
+] as const;
+
+const PRESET_SET = new Set(PRESET_COLORS.map((item) => item.color));
 
 function normalizeHex(value: string) {
   const next = value.trim().toLowerCase();
@@ -45,13 +65,27 @@ function readColors(): Record<string, string> {
   }
 }
 
-function readHiddenColors() {
+function readHiddenFilters(): HiddenFilters {
   try {
-    const raw = JSON.parse(window.localStorage.getItem(HIDDEN_COLORS_STORAGE_KEY) || "[]");
-    if (!Array.isArray(raw)) return [];
-    return [...new Set(raw.filter((value): value is string => typeof value === "string").map(normalizeHex))];
+    const raw: unknown = JSON.parse(window.localStorage.getItem(HIDDEN_COLORS_STORAGE_KEY) || "{}");
+    if (Array.isArray(raw)) {
+      const preset = raw
+        .filter((value): value is string => typeof value === "string")
+        .map(normalizeHex)
+        .filter((color) => PRESET_SET.has(color as (typeof PRESET_COLORS)[number]["color"]));
+      return { preset: [...new Set<string>(preset)], custom: false };
+    }
+    if (!raw || typeof raw !== "object") return { preset: [], custom: false };
+    const stored = raw as { preset?: unknown; custom?: unknown };
+    const preset = Array.isArray(stored.preset)
+      ? stored.preset
+        .filter((value): value is string => typeof value === "string")
+        .map(normalizeHex)
+        .filter((color) => PRESET_SET.has(color as (typeof PRESET_COLORS)[number]["color"]))
+      : [];
+    return { preset: [...new Set<string>(preset)], custom: stored.custom === true };
   } catch {
-    return [];
+    return { preset: [], custom: false };
   }
 }
 
@@ -71,43 +105,17 @@ function colorFor(id: string, colors: Record<string, string>) {
   return normalizeHex(colors[id] ?? DEFAULT_COLOR);
 }
 
-function colorName(hex: string) {
-  const value = normalizeHex(hex).slice(1);
-  const red = Number.parseInt(value.slice(0, 2), 16) / 255;
-  const green = Number.parseInt(value.slice(2, 4), 16) / 255;
-  const blue = Number.parseInt(value.slice(4, 6), 16) / 255;
-  const max = Math.max(red, green, blue);
-  const min = Math.min(red, green, blue);
-  const delta = max - min;
-  const saturation = max === 0 ? 0 : delta / max;
-
-  if (max < 0.2) return "černé";
-  if (saturation < 0.12) return max > 0.85 ? "světlé" : "šedé";
-
-  let hue = 0;
-  if (delta !== 0) {
-    if (max === red) hue = 60 * (((green - blue) / delta) % 6);
-    else if (max === green) hue = 60 * ((blue - red) / delta + 2);
-    else hue = 60 * ((red - green) / delta + 4);
-  }
-  if (hue < 0) hue += 360;
-
-  if (hue < 15 || hue >= 345) return "červené";
-  if (hue < 45) return "oranžové";
-  if (hue < 70) return "žluté";
-  if (hue < 165) return "zelené";
-  if (hue < 195) return "tyrkysové";
-  if (hue < 255) return "modré";
-  if (hue < 315) return "fialové";
-  return "růžové";
+function isPresetColor(color: string) {
+  return PRESET_SET.has(normalizeHex(color) as (typeof PRESET_COLORS)[number]["color"]);
 }
 
-function milestoneColors(state: StoredState, colors: Record<string, string>) {
-  return [...new Set(sortedMilestones(state).map((milestone) => colorFor(milestone.id, colors)))];
+function hasCustomMilestones(state: StoredState, colors: Record<string, string>) {
+  return sortedMilestones(state).some((milestone) => !isPresetColor(colorFor(milestone.id, colors)));
 }
 
-function applyMilestoneColors(state: StoredState, colors: Record<string, string>, hiddenColors: Set<string>) {
+function applyMilestoneColors(state: StoredState, colors: Record<string, string>, hidden: HiddenFilters) {
   const milestones = sortedMilestones(state);
+  const hiddenPreset = new Set(hidden.preset);
   const rows = [...document.querySelectorAll<HTMLElement>(".df2-milestones article")];
   rows.forEach((row, index) => {
     const milestone = milestones[index];
@@ -120,11 +128,13 @@ function applyMilestoneColors(state: StoredState, colors: Record<string, string>
       return;
     }
     const color = colorFor(milestone.id, colors);
-    const hidden = hiddenColors.has(color);
+    const preset = isPresetColor(color);
+    const isHidden = preset ? hiddenPreset.has(color) : hidden.custom;
     row.dataset.milestoneId = milestone.id;
     row.dataset.milestoneColor = "true";
-    row.dataset.milestoneHidden = hidden ? "true" : "false";
-    row.hidden = hidden;
+    row.dataset.milestoneColorType = preset ? "preset" : "custom";
+    row.dataset.milestoneHidden = isHidden ? "true" : "false";
+    row.hidden = isHidden;
     row.style.setProperty("--df2-milestone-color", color);
     row.style.setProperty("--df2-milestone-tint", rgba(color, 0.08));
   });
@@ -178,24 +188,24 @@ function syncFilterHost() {
 
 export function MilestoneColorsController() {
   const [colors, setColors] = useState<Record<string, string>>({});
-  const [hiddenColors, setHiddenColors] = useState<string[]>([]);
-  const [availableColors, setAvailableColors] = useState<string[]>([]);
+  const [hiddenFilters, setHiddenFilters] = useState<HiddenFilters>({ preset: [], custom: false });
+  const [customInUse, setCustomInUse] = useState(false);
   const [modalHost, setModalHost] = useState<HTMLElement | null>(null);
   const [filterHost, setFilterHost] = useState<HTMLElement | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const colorsRef = useRef<Record<string, string>>({});
-  const hiddenColorsRef = useRef<Set<string>>(new Set());
+  const hiddenRef = useRef<HiddenFilters>({ preset: [], custom: false });
   const stateRef = useRef<StoredState>({});
   const rawStateRef = useRef("");
   const editingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const initialColors = readColors();
-    const initialHidden = readHiddenColors();
+    const initialHidden = readHiddenFilters();
     colorsRef.current = initialColors;
-    hiddenColorsRef.current = new Set(initialHidden);
+    hiddenRef.current = initialHidden;
     setColors(initialColors);
-    setHiddenColors(initialHidden);
+    setHiddenFilters(initialHidden);
 
     const sync = () => {
       const rawState = window.localStorage.getItem(DAYFRAME_STORAGE_KEY) || "";
@@ -203,9 +213,9 @@ export function MilestoneColorsController() {
         rawStateRef.current = rawState;
         stateRef.current = readState();
       }
-      applyMilestoneColors(stateRef.current, colorsRef.current, hiddenColorsRef.current);
-      const nextColors = milestoneColors(stateRef.current, colorsRef.current);
-      setAvailableColors((current) => current.join("|") === nextColors.join("|") ? current : nextColors);
+      applyMilestoneColors(stateRef.current, colorsRef.current, hiddenRef.current);
+      const nextCustomInUse = hasCustomMilestones(stateRef.current, colorsRef.current);
+      setCustomInUse((current) => current === nextCustomInUse ? current : nextCustomInUse);
 
       const nextFilterHost = syncFilterHost();
       setFilterHost((current) => current === nextFilterHost ? current : nextFilterHost);
@@ -246,27 +256,26 @@ export function MilestoneColorsController() {
   useEffect(() => {
     colorsRef.current = colors;
     window.localStorage.setItem(COLORS_STORAGE_KEY, JSON.stringify(colors));
-    applyMilestoneColors(stateRef.current, colors, hiddenColorsRef.current);
-    const nextColors = milestoneColors(stateRef.current, colors);
-    setAvailableColors((current) => current.join("|") === nextColors.join("|") ? current : nextColors);
+    applyMilestoneColors(stateRef.current, colors, hiddenRef.current);
+    setCustomInUse(hasCustomMilestones(stateRef.current, colors));
   }, [colors]);
 
   useEffect(() => {
-    hiddenColorsRef.current = new Set(hiddenColors);
-    window.localStorage.setItem(HIDDEN_COLORS_STORAGE_KEY, JSON.stringify(hiddenColors));
-    applyMilestoneColors(stateRef.current, colorsRef.current, hiddenColorsRef.current);
-  }, [hiddenColors]);
+    hiddenRef.current = hiddenFilters;
+    window.localStorage.setItem(HIDDEN_COLORS_STORAGE_KEY, JSON.stringify(hiddenFilters));
+    applyMilestoneColors(stateRef.current, colorsRef.current, hiddenFilters);
+  }, [hiddenFilters]);
 
   const currentColor = editingId ? colorFor(editingId, colors) : DEFAULT_COLOR;
   const customized = editingId ? Boolean(colors[editingId]) : false;
+  const anyHidden = hiddenFilters.preset.length > 0 || hiddenFilters.custom;
 
-  const filterPortal = filterHost && availableColors.length > 0 ? createPortal(
+  const filterPortal = filterHost ? createPortal(
     <section className="df2-milestone-filters" aria-label="Skrýt milníky podle barvy">
       <span>Filtr</span>
-      <div>
-        {availableColors.map((color) => {
-          const hidden = hiddenColors.includes(color);
-          const name = colorName(color);
+      <div className="df2-milestone-preset-filters" aria-label="Přednastavené barvy">
+        {PRESET_COLORS.map(({ color, name }) => {
+          const hidden = hiddenFilters.preset.includes(color);
           return (
             <button
               key={color}
@@ -274,19 +283,34 @@ export function MilestoneColorsController() {
               className={hidden ? "is-hidden" : ""}
               aria-pressed={hidden}
               aria-label={`${hidden ? "Zobrazit" : "Skrýt"} ${name} milníky`}
-              onClick={() => setHiddenColors((current) => current.includes(color)
-                ? current.filter((item) => item !== color)
-                : [...current, color])}
+              title={`${hidden ? "Zobrazit" : "Skrýt"} ${name}`}
+              onClick={() => setHiddenFilters((current) => ({
+                ...current,
+                preset: current.preset.includes(color)
+                  ? current.preset.filter((item) => item !== color)
+                  : [...current.preset, color],
+              }))}
             >
               <i style={{ background: color }} aria-hidden="true" />
-              {hidden ? `Zobrazit ${name}` : `Skrýt ${name}`}
             </button>
           );
         })}
-        {hiddenColors.some((color) => availableColors.includes(color)) && (
-          <button type="button" className="show-all" onClick={() => setHiddenColors([])}>Zobrazit vše</button>
-        )}
       </div>
+      <div className="df2-milestone-custom-filter">
+        <button
+          type="button"
+          className={hiddenFilters.custom ? "is-hidden" : ""}
+          aria-pressed={hiddenFilters.custom}
+          disabled={!customInUse}
+          onClick={() => setHiddenFilters((current) => ({ ...current, custom: !current.custom }))}
+        >
+          <i className="custom-swatch" aria-hidden="true" />
+          {hiddenFilters.custom ? "Zobrazit custom" : "Skrýt custom"}
+        </button>
+      </div>
+      {anyHidden && (
+        <button type="button" className="show-all" onClick={() => setHiddenFilters({ preset: [], custom: false })}>Zobrazit vše</button>
+      )}
     </section>,
     filterHost,
   ) : null;
@@ -294,8 +318,22 @@ export function MilestoneColorsController() {
   const modalPortal = modalHost && editingId ? createPortal(
     <div className="df2-milestone-color-editor">
       <span>Barva milníku</span>
+      <div className="df2-milestone-color-presets" aria-label="Přednastavené barvy milníku">
+        {PRESET_COLORS.map(({ color, name }) => (
+          <button
+            key={color}
+            type="button"
+            className={currentColor === color ? "active" : ""}
+            aria-label={`Nastavit ${name}`}
+            title={name}
+            onClick={() => setColors((current) => ({ ...current, [editingId]: color }))}
+          >
+            <i style={{ background: color }} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
       <div className="df2-milestone-color-control">
-        <i style={{ background: currentColor }} aria-hidden="true" />
+        <span>Vlastní</span>
         <input
           type="color"
           aria-label="Barva milníku"
