@@ -9,6 +9,7 @@ import { WeekCapacityController } from "../app/week-capacity-controller";
 import { WeeklyReviewController } from "../app/weekly-review-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
 import { MilestoneColorsController } from "../app/milestone-colors-controller";
+import { MonthCalendarController } from "../app/month-calendar-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
@@ -25,6 +26,7 @@ import "../app/week-capacity.css";
 import "../app/weekly-review.css";
 import "../app/label-colors-controller.css";
 import "../app/milestone-colors-controller.css";
+import "../app/month-calendar-controller.css";
 import "../app/week-bottom-buffer.css";
 import "../app/late-reading-controller.css";
 
@@ -43,6 +45,7 @@ createRoot(root).render(
     <WeeklyReviewController />
     <LabelColorsController />
     <MilestoneColorsController />
+    <MonthCalendarController />
     <LateReadingController />
   </>,
 );
