@@ -135,7 +135,7 @@ function collectTargets() {
       host = document.createElement("div");
       host.dataset.calendarObservancesHost = "true";
       host.className = "df2-calendar-observances-host";
-      events.prepend(host);
+      events.insertBefore(host, events.firstChild);
     }
     return [{ date, host }];
   });
@@ -177,19 +177,19 @@ export function CalendarObservancesController() {
     const byDate = new Map<string, CalendarObservance[]>();
     years.forEach((year) => {
       calendarObservancesForYear(year).forEach((event) => {
-        const events = byDate.get(event.date) ?? [];
-        events.push(event);
-        byDate.set(event.date, events);
+        const eventsForDate = byDate.get(event.date) ?? [];
+        eventsForDate.push(event);
+        byDate.set(event.date, eventsForDate);
       });
     });
     return byDate;
   }, [targets]);
 
   return <>{targets.map(({ date, host }) => {
-    const events = observancesByDate.get(date) ?? [];
-    if (!events.length) return null;
+    const eventsForDate = observancesByDate.get(date) ?? [];
+    if (!eventsForDate.length) return null;
     return createPortal(
-      <>{events.map((event) => (
+      <>{eventsForDate.map((event) => (
         <div
           key={event.id}
           className={`df2-calendar-observance ${event.kind}`}
