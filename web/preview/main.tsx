@@ -13,6 +13,7 @@ import { MonthCalendarController } from "../app/month-calendar-controller";
 import { MonthCalendarCountdownController } from "../app/month-calendar-countdown-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
+import { HistoryEditController } from "../app/history-edit-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
@@ -50,6 +51,7 @@ createRoot(root).render(
     <MonthCalendarController />
     <MonthCalendarCountdownController />
     <FocusWeekSyncController />
+    <HistoryEditController />
     <LateReadingController />
   </>,
 );
