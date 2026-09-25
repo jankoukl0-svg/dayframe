@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Focus → Přehled → Focus keeps overview fully light and restores focus", async ({ page }) => {
+test("Focus → Přehled → Focus keeps the overview light and restores dark focus", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
