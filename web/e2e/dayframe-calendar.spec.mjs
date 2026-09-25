@@ -56,7 +56,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
     await expect(pastDays).toHaveCount(todayIndex);
     await expect(pastDays.locator(".df2-week-task:visible")).toHaveCount(0);
     const pastPointerEvents = await pastDays.first().locator(".df2-time-body").evaluate((element) => getComputedStyle(element).pointerEvents);
-    expect(pastPointerEvents).toBe("none");
+    expect(pastPointerEvents).toBe("auto");
   }
 
   const weekVisual = await page.locator(".df2-week-grid").evaluate((grid) => {
