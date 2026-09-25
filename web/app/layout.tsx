@@ -19,12 +19,13 @@ import { ActivityTimeController } from "./activity-time-controller";
 import { HistoryController } from "./history-controller";
 import { ExecutionTracker } from "./execution-tracker";
 import { WeekCapacityController } from "./week-capacity-controller";
-import { WeeklyReviewController } from "./weekly-review-controller";
+import { WeeklyReviewController } from "./weekly-review";
 import { LabelColorsController } from "./label-colors-controller";
 import { MilestoneColorsController } from "./milestone-colors-controller";
 import { MonthCalendarController } from "./month-calendar-controller";
 import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
 import { LateReadingController } from "./late-reading-controller";
+import { FocusWeekSyncController } from "./focus-week-sync-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -33,5 +34,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><MonthCalendarCountdownController /><LateReadingController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><LateReadingController /></body></html>;
 }
