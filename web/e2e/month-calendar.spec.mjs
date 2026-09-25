@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
 
-test("monthly calendar shows, edits, colors and creates milestones", async ({ page }) => {
+test("monthly calendar shows, edits, colors, countdowns and creates milestones", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -13,6 +13,18 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
     const addKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-20`;
     const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nextKey = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-05`;
+    const targetUtc = Date.UTC(now.getFullYear(), now.getMonth(), 15);
+    const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const currentDays = Math.round((targetUtc - todayUtc) / 86_400_000);
+    const currentCountdown = currentDays === 0
+      ? "dnes"
+      : currentDays === 1
+        ? "zítra"
+        : currentDays > 1
+          ? `za ${currentDays} ${currentDays <= 4 ? "dny" : "dní"}`
+          : currentDays === -1
+            ? "včera"
+            : `před ${Math.abs(currentDays)} dny`;
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     state.milestones = [
       { id: "month-current", title: "SCIO online", date: currentKey, note: "OSP online v 9:00." },
@@ -24,7 +36,7 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
       "month-next": "#dc2626",
     }));
     window.localStorage.setItem("dayframe-milestone-hidden-colors-v1", JSON.stringify({ preset: [], custom: false }));
-    return { currentKey, nextKey, addKey };
+    return { currentKey, nextKey, addKey, currentCountdown };
   });
 
   await page.reload({ waitUntil: "networkidle" });
@@ -38,6 +50,7 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
   const currentMilestone = currentCell.locator('.df2-month-milestone[data-milestone-id="month-current"]');
   await expect(currentMilestone).toContainText("SCIO online");
   await expect(currentMilestone).toContainText("OSP online v 9:00.");
+  await expect(currentMilestone.locator(".df2-month-countdown")).toHaveText(seeded.currentCountdown);
   await expect.poll(() => currentMilestone.evaluate((element) => getComputedStyle(element).borderLeftColor)).toBe("rgb(37, 99, 235)");
 
   await currentMilestone.click();
@@ -54,6 +67,7 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
   await page.getByRole("button", { name: "Další měsíc" }).click();
   const nextCell = page.locator(`.df2-month-day[data-date="${seeded.nextKey}"]`);
   await expect(nextCell.getByText("VŠE nanečisto")).toBeVisible();
+  await expect(nextCell.locator(".df2-month-countdown")).toBeVisible();
 
   await page.getByRole("button", { name: "Tento měsíc" }).click();
   const addCell = page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`);
@@ -65,6 +79,7 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
   await createModal.getByRole("button", { name: "Přidat milník", exact: true }).click();
   await expect(addCell).toContainText("Cambridge C1");
   await expect(addCell).toContainText("Digital test v Praze.");
+  await expect(addCell.locator(".df2-month-countdown")).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     return state.milestones.some((milestone) => milestone.title === "Cambridge C1" && milestone.note === "Digital test v Praze.");
@@ -72,5 +87,7 @@ test("monthly calendar shows, edits, colors and creates milestones", async ({ pa
 
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".df2-month-calendar-nav-button").click();
-  await expect(page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`)).toContainText("Cambridge C1");
+  const reloadedAddCell = page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`);
+  await expect(reloadedAddCell).toContainText("Cambridge C1");
+  await expect(reloadedAddCell.locator(".df2-month-countdown")).toBeVisible();
 });
