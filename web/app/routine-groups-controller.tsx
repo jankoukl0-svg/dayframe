@@ -22,7 +22,21 @@ type RoutineGroup = {
 };
 
 const STATE_KEY = "dayframe-v1";
+const LABELS_STORAGE_KEY = "dayframe-labels-v1";
 const RETURN_TO_SETTINGS_KEY = "dayframe-return-to-settings";
+const DEFAULT_CATEGORIES = [
+  "Studium",
+  "Finance",
+  "Matika",
+  "Angličtina",
+  "VŠE AJ",
+  "Ekonomie",
+  "Opakování",
+  "Plánování",
+  "Rutina",
+  "Osobní",
+  "Flex blok",
+];
 const weekdayLabels: Record<number, string> = { 1: "Po", 2: "Út", 3: "St", 4: "Čt", 5: "Pá", 6: "So", 0: "Ne" };
 const weekdayOptions = [
   { value: 1, label: "Po" },
@@ -33,6 +47,23 @@ const weekdayOptions = [
   { value: 6, label: "So" },
   { value: 0, label: "Ne" },
 ];
+
+function normalizeLabelName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function uniqueLabels(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const label = normalizeLabelName(value);
+    const key = label.toLocaleLowerCase("cs-CZ");
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    result.push(label);
+  }
+  return result;
+}
 
 function readRoutines(): Routine[] {
   try {
@@ -51,6 +82,20 @@ function readRoutines(): Routine[] {
   } catch {
     return [];
   }
+}
+
+function readRoutineLabels(routines: Routine[]) {
+  let stored: string[] | null = null;
+  try {
+    const raw = window.localStorage.getItem(LABELS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) stored = parsed.filter((item): item is string => typeof item === "string");
+    }
+  } catch {
+    stored = null;
+  }
+  return uniqueLabels([...(stored ?? DEFAULT_CATEGORIES), ...routines.map((routine) => routine.category)]);
 }
 
 function weekdayOrder(routine: Routine) {
@@ -134,12 +179,14 @@ function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
 
 export function RoutineGroupsController() {
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [labels, setLabels] = useState<string[]>(DEFAULT_CATEGORIES);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [editingFrequency, setEditingFrequency] = useState<"daily" | "weekly">("weekly");
   const [formError, setFormError] = useState("");
   const signatureRef = useRef("");
+  const labelsSignatureRef = useRef("");
 
   useEffect(() => {
     if (window.sessionStorage.getItem(RETURN_TO_SETTINGS_KEY) === "1") {
@@ -182,6 +229,13 @@ export function RoutineGroupsController() {
       if (signature !== signatureRef.current) {
         signatureRef.current = signature;
         setRoutines(currentRoutines);
+      }
+
+      const currentLabels = readRoutineLabels(currentRoutines);
+      const labelsSignature = JSON.stringify(currentLabels);
+      if (labelsSignature !== labelsSignatureRef.current) {
+        labelsSignatureRef.current = labelsSignature;
+        setLabels(currentLabels);
       }
     };
 
@@ -344,7 +398,11 @@ export function RoutineGroupsController() {
 
         <div className="df2-form-grid">
           <label>Délka<input name="duration" type="number" min="15" max="480" step="5" defaultValue={editingRoutine.duration} /></label>
-          <label>Oblast<input name="category" defaultValue={editingRoutine.category} /></label>
+          <label>Oblast
+            <select name="category" defaultValue={editingRoutine.category}>
+              {uniqueLabels([...labels, editingRoutine.category]).map((label) => <option key={label} value={label}>{label}</option>)}
+            </select>
+          </label>
         </div>
 
         <label className="df2-routine-editor-active">
