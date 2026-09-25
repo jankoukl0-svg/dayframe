@@ -2,6 +2,50 @@
   margin-top: 36px;
 }
 
+.df2-label-add {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) auto auto;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 12px;
+}
+
+.df2-label-add input,
+.df2-label-rename input {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.df2-label-add button,
+.df2-label-rename button,
+.df2-label-row-actions button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-label-add button[type="submit"],
+.df2-label-rename button[type="submit"] {
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
+  font-weight: 650;
+}
+
+.df2-label-manager-error {
+  margin: 0 0 10px;
+  color: #9a3d35;
+  font-size: 11px;
+}
+
 .df2-label-color-list {
   border-top: 1px solid var(--line);
 }
@@ -15,14 +59,16 @@
   border-bottom: 1px solid var(--line);
 }
 
-.df2-label-color-name {
+.df2-label-color-name,
+.df2-label-rename {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.df2-label-color-name i {
+.df2-label-color-name i,
+.df2-label-rename i {
   width: 12px;
   height: 12px;
   flex: 0 0 12px;
@@ -35,6 +81,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+}
+
+.df2-label-rename input {
+  width: min(260px, 100%);
 }
 
 .df2-label-color-picker {
@@ -59,18 +109,21 @@
   font: 10px/1 "Cascadia Mono", monospace;
 }
 
-.df2-label-color-list article > button {
-  min-height: 30px;
-  padding: 0 9px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 10px;
+.df2-label-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
-.df2-label-color-list article > button:disabled {
+.df2-label-row-actions button:disabled,
+.df2-label-add button:disabled,
+.df2-label-rename button:disabled {
   opacity: .34;
+}
+
+.df2-label-row-actions button.danger:not(:disabled) {
+  color: #9a3d35;
 }
 
 .df2-modal-label-color-host {
@@ -141,14 +194,25 @@
   background: linear-gradient(var(--df2-label-tint), var(--df2-label-tint)), var(--paper);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .df2-label-color-list article {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px 12px;
     padding: 9px 0;
   }
 
-  .df2-label-color-list article > button {
+  .df2-label-row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .df2-label-add {
+    grid-template-columns: 1fr auto;
+  }
+
+  .df2-label-add button:last-child {
     grid-column: 2;
   }
 
@@ -159,5 +223,9 @@
 
   .df2-modal-label-color {
     grid-template-columns: auto 12px 34px auto;
+  }
+
+  .df2-label-rename {
+    flex-wrap: wrap;
   }
 }
