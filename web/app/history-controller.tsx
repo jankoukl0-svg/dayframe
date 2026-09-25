@@ -22,15 +22,24 @@ type Task = {
 
 type StoredState = { plans?: Record<string, Task[]> };
 
+type BarSegment = {
+  category: string;
+  color: string;
+  minutes: number;
+};
+
 type DaySummary = {
   key: string;
   label: string;
   planned: number;
   completed: number;
   completedMinutes: number;
+  segments: BarSegment[];
 };
 
 const STORAGE_KEY = "dayframe-v1";
+const LABEL_COLORS_STORAGE_KEY = "dayframe-label-colors-v1";
+const DEFAULT_LABEL_COLOR = "#c85b32";
 
 function localDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -56,6 +65,25 @@ function readState(): StoredState {
   }
 }
 
+function normalizeHex(value: string) {
+  const next = value.trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(next) ? next : DEFAULT_LABEL_COLOR;
+}
+
+function readLabelColors(): Record<string, string> {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(LABEL_COLORS_STORAGE_KEY) || "{}");
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return Object.fromEntries(
+      Object.entries(raw)
+        .filter((entry): entry is [string, string] => typeof entry[0] === "string" && typeof entry[1] === "string")
+        .map(([category, color]) => [category, normalizeHex(color)]),
+    );
+  } catch {
+    return {};
+  }
+}
+
 function formatMinutes(minutes: number) {
   const safe = Math.max(0, Math.round(minutes));
   const hours = Math.floor(safe / 60);
@@ -75,7 +103,22 @@ function plannedDuration(task: Task) {
   return Math.max(0, task.plannedDuration ?? task.duration ?? 0);
 }
 
-function computeDays(state: StoredState, now: Date): DaySummary[] {
+function colorForCategory(category: string, colors: Record<string, string>) {
+  return normalizeHex(colors[category] ?? DEFAULT_LABEL_COLOR);
+}
+
+function buildSegments(tasks: Task[], colors: Record<string, string>) {
+  const minutesByCategory = new Map<string, number>();
+  for (const task of tasks) {
+    const category = task.category?.trim() || "Ostatní";
+    minutesByCategory.set(category, (minutesByCategory.get(category) ?? 0) + actualDuration(task));
+  }
+  return [...minutesByCategory.entries()]
+    .map(([category, minutes]) => ({ category, minutes, color: colorForCategory(category, colors) }))
+    .sort((a, b) => b.minutes - a.minutes || a.category.localeCompare(b.category, "cs"));
+}
+
+function computeDays(state: StoredState, now: Date, colors: Record<string, string>): DaySummary[] {
   const monday = startOfWeek(now);
   const today = localDateKey(now);
   return Array.from({ length: 7 }, (_, index) => {
@@ -90,6 +133,7 @@ function computeDays(state: StoredState, now: Date): DaySummary[] {
       planned: dueTasks.length,
       completed: completedTasks.length,
       completedMinutes: completedTasks.reduce((sum, task) => sum + actualDuration(task), 0),
+      segments: buildSegments(completedTasks, colors),
     };
   });
 }
@@ -110,6 +154,7 @@ export function HistoryController() {
   const [screenHost, setScreenHost] = useState<HTMLElement | null>(null);
   const [active, setActive] = useState(false);
   const [state, setState] = useState<StoredState>({});
+  const [labelColors, setLabelColors] = useState<Record<string, string>>({});
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -150,6 +195,7 @@ export function HistoryController() {
     if (!active) return;
     const sync = () => {
       setState(readState());
+      setLabelColors(readLabelColors());
       setNow(new Date());
     };
     sync();
@@ -177,7 +223,7 @@ export function HistoryController() {
     };
   }, [navHost]);
 
-  const days = useMemo(() => computeDays(state, now), [state, now]);
+  const days = useMemo(() => computeDays(state, now, labelColors), [state, now, labelColors]);
   const due = days.reduce((sum, day) => sum + day.planned, 0);
   const completed = days.reduce((sum, day) => sum + day.completed, 0);
   const completedMinutes = days.reduce((sum, day) => sum + day.completedMinutes, 0);
@@ -233,7 +279,18 @@ export function HistoryController() {
             {days.map((day) => {
               const rate = day.planned ? Math.round((day.completed / day.planned) * 100) : 0;
               return <article key={day.key} title={`${day.completed}/${day.planned} hotovo`}>
-                <div><i style={{ height: `${Math.max(day.completed ? 8 : 0, rate)}%` }} /></div>
+                <div>
+                  <i className="df2-history-bar" style={{ height: `${Math.max(day.completed ? 8 : 0, rate)}%` }}>
+                    {day.segments.map((segment) => (
+                      <span
+                        key={segment.category}
+                        data-category={segment.category}
+                        title={`${segment.category} · ${formatMinutes(segment.minutes)}`}
+                        style={{ flexGrow: segment.minutes, backgroundColor: segment.color }}
+                      />
+                    ))}
+                  </i>
+                </div>
                 <strong>{day.label}</strong>
                 <small>{day.planned ? `${day.completed}/${day.planned}` : "—"}</small>
               </article>;
