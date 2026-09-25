@@ -205,6 +205,13 @@
   .df2-history-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+@media (max-width: 720px) {
+  .df2-root.df2-history-active.df2-focus-mode .df2-history-nav-host button.active {
+    border-color: transparent;
+    box-shadow: inset 0 2px 0 var(--accent);
+  }
+}
+
 @media (max-width: 560px) {
   .df2-history-metrics { grid-template-columns: 1fr; }
   .df2-history-bars { gap: 4px; }
