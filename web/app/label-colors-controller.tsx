@@ -194,7 +194,8 @@ function applyWeekColors(index: ReturnType<typeof buildCategoryIndex>, colors: R
 }
 
 function syncCategorySelectOptions(labels: string[]) {
-  for (const select of document.querySelectorAll<HTMLSelectElement>("select")) {
+  for (const node of document.querySelectorAll("select")) {
+    const select = node as HTMLSelectElement;
     const wrapper = select.closest("label");
     const isCategory = select.name === "category" || wrapper?.textContent?.trim().startsWith("Oblast");
     if (!isCategory) continue;
