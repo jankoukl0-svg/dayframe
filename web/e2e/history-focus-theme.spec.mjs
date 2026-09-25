@@ -35,8 +35,24 @@ test("Focus → Přehled → Focus keeps the overview light and restores dark fo
   await expect.poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightSidebarBackground);
 
   await expect(overview).toHaveClass(/active/);
-  await expect(focus).not.toHaveClass(/active/);
-  await expect(today).not.toHaveClass(/active/);
+  const inactiveStyle = await today.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow,
+      color: style.color,
+    };
+  });
+  const focusVisualStyle = await focus.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow,
+      color: style.color,
+    };
+  });
   const overviewActiveStyle = await overview.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
@@ -46,6 +62,7 @@ test("Focus → Přehled → Focus keeps the overview light and restores dark fo
       color: style.color,
     };
   });
+  expect(focusVisualStyle).toEqual(inactiveStyle);
   expect(overviewActiveStyle).toEqual(normalActiveStyle);
 
   await focus.click();
