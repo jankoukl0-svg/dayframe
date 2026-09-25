@@ -76,9 +76,8 @@ export function MonthCalendarCountdownController() {
           countdown.className = "df2-month-countdown";
           styleCountdown(countdown);
           const title = card.querySelector("strong");
-          if (title?.nextSibling) card.insertBefore(countdown, title.nextSibling);
-          else if (title) title.after(countdown);
-          else card.prepend(countdown);
+          if (title?.parentNode) title.parentNode.insertBefore(countdown, title.nextSibling);
+          else card.insertBefore(countdown, card.firstChild);
         }
         const label = countdownLabel(days);
         countdown.dataset.days = String(days);
