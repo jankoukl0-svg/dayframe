@@ -37,6 +37,16 @@
   color: #666761;
 }
 
+/* Přehled button je portaled uvnitř nav a při aktivním underlying Focus view by
+   jinak stále dědil tmavý .df2-focus-mode active styl. Vrať mu přesně běžný
+   světlý active state. */
+.df2-root.df2-history-active.df2-focus-mode .df2-history-nav-host button.active {
+  border-color: var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 .df2-root.df2-history-active.df2-focus-mode .df2-brand {
   color: var(--ink);
 }
