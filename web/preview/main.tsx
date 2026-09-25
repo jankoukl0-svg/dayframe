@@ -10,6 +10,7 @@ import { WeeklyReviewController } from "../app/weekly-review-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
 import { MilestoneColorsController } from "../app/milestone-colors-controller";
 import { MonthCalendarController } from "../app/month-calendar-controller";
+import { CalendarObservancesController } from "../app/calendar-observances-controller";
 import { MonthCalendarCountdownController } from "../app/month-calendar-countdown-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
@@ -30,6 +31,7 @@ import "../app/weekly-review.css";
 import "../app/label-colors-controller.css";
 import "../app/milestone-colors-controller.css";
 import "../app/month-calendar-controller.css";
+import "../app/calendar-observances-controller.css";
 import "../app/week-bottom-buffer.css";
 import "../app/late-reading-controller.css";
 
@@ -49,6 +51,7 @@ createRoot(root).render(
     <LabelColorsController />
     <MilestoneColorsController />
     <MonthCalendarController />
+    <CalendarObservancesController />
     <MonthCalendarCountdownController />
     <FocusWeekSyncController />
     <HistoryEditController />

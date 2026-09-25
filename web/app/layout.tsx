@@ -11,6 +11,7 @@ import "./weekly-review.css";
 import "./label-colors-controller.css";
 import "./milestone-colors-controller.css";
 import "./month-calendar-controller.css";
+import "./calendar-observances-controller.css";
 import "./week-bottom-buffer.css";
 import "./late-reading-controller.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
@@ -23,6 +24,7 @@ import { WeeklyReviewController } from "./weekly-review-controller";
 import { LabelColorsController } from "./label-colors-controller";
 import { MilestoneColorsController } from "./milestone-colors-controller";
 import { MonthCalendarController } from "./month-calendar-controller";
+import { CalendarObservancesController } from "./calendar-observances-controller";
 import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
 import { LateReadingController } from "./late-reading-controller";
 import { FocusWeekSyncController } from "./focus-week-sync-controller";
@@ -35,5 +37,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /></body></html>;
 }
