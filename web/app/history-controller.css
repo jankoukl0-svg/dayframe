@@ -67,6 +67,10 @@
   margin-top: 26px;
 }
 
+.df2-history-actual {
+  display: none;
+}
+
 .df2-history-bars {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
