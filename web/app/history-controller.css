@@ -93,11 +93,20 @@
   justify-content: center;
 }
 
-.df2-history-bars i {
-  display: block;
+.df2-history-bars .df2-history-bar {
+  display: flex;
+  flex-direction: column-reverse;
   width: min(34px, 60%);
   min-height: 0;
-  background: var(--accent);
+  overflow: hidden;
+  background: transparent;
+}
+
+.df2-history-bars .df2-history-bar > span {
+  display: block;
+  width: 100%;
+  min-height: 1px;
+  flex-basis: 0;
 }
 
 .df2-history-bars strong,
