@@ -139,6 +139,20 @@
   border-top: 1px solid var(--line);
 }
 
+.df2-history-category-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.df2-history-category-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 2px;
+}
+
 .df2-history-categories > article span,
 .df2-history-categories > p {
   color: var(--muted);

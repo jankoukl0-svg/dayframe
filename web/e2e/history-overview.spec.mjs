@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("history overview summarizes completed work, colors bars by labels, and keeps only Overview visually active", async ({ page }) => {
+test("history overview summarizes completed work, colors bars by labels, shows a matching legend, and keeps only Overview visually active", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -99,6 +99,13 @@ test("history overview summarizes completed work, colors bars by labels, and kee
   await expect(todayBar.locator('[data-category="Matika"]')).toHaveCSS("background-color", "rgb(68, 170, 102)");
   expect(await todayBar.locator('[data-category="Finance"]').evaluate((element) => element.style.flexGrow)).toBe("45");
   expect(await todayBar.locator('[data-category="Matika"]').evaluate((element) => element.style.flexGrow)).toBe("15");
+
+  const financeLegend = history.locator('.df2-history-categories article[data-category="Finance"]');
+  const mathLegend = history.locator('.df2-history-categories article[data-category="Matika"]');
+  await expect(financeLegend.locator(".df2-history-category-swatch")).toHaveCSS("background-color", "rgb(17, 34, 51)");
+  await expect(mathLegend.locator(".df2-history-category-swatch")).toHaveCSS("background-color", "rgb(68, 170, 102)");
+  await expect(financeLegend).toContainText("45 min");
+  await expect(mathLegend).toContainText("15 min");
 
   await expect(overview).toHaveClass(/active/);
   const milestoneShadow = await milestones.evaluate((element) => getComputedStyle(element).boxShadow);
