@@ -10,6 +10,7 @@ import { WeeklyReviewController } from "../app/weekly-review-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
 import { MilestoneColorsController } from "../app/milestone-colors-controller";
 import { MonthCalendarController } from "../app/month-calendar-controller";
+import { MonthCalendarCountdownController } from "../app/month-calendar-countdown-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
@@ -46,6 +47,7 @@ createRoot(root).render(
     <LabelColorsController />
     <MilestoneColorsController />
     <MonthCalendarController />
+    <MonthCalendarCountdownController />
     <LateReadingController />
   </>,
 );

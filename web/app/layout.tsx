@@ -23,6 +23,7 @@ import { WeeklyReviewController } from "./weekly-review-controller";
 import { LabelColorsController } from "./label-colors-controller";
 import { MilestoneColorsController } from "./milestone-colors-controller";
 import { MonthCalendarController } from "./month-calendar-controller";
+import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
 import { LateReadingController } from "./late-reading-controller";
 
 export const metadata: Metadata = {
@@ -32,5 +33,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><LateReadingController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><MonthCalendarCountdownController /><LateReadingController /></body></html>;
 }
