@@ -316,7 +316,17 @@ export function HistoryController() {
         <section className="df2-history-categories">
           <div className="df2-section-head"><h2>Čas podle oblasti</h2></div>
           {categories.length ? categories.map(([category, minutes]) => (
-            <article key={category}><strong>{category}</strong><span>{formatMinutes(minutes)}</span></article>
+            <article key={category} data-category={category}>
+              <strong className="df2-history-category-label">
+                <i
+                  className="df2-history-category-swatch"
+                  aria-hidden="true"
+                  style={{ backgroundColor: colorForCategory(category, labelColors) }}
+                />
+                {category}
+              </strong>
+              <span>{formatMinutes(minutes)}</span>
+            </article>
           )) : <p>Zatím tu nejsou dokončené bloky.</p>}
         </section>
       </section>
