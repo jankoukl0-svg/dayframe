@@ -19,7 +19,7 @@ import { ActivityTimeController } from "./activity-time-controller";
 import { HistoryController } from "./history-controller";
 import { ExecutionTracker } from "./execution-tracker";
 import { WeekCapacityController } from "./week-capacity-controller";
-import { WeeklyReviewController } from "./weekly-review";
+import { WeeklyReviewController } from "./weekly-review-controller";
 import { LabelColorsController } from "./label-colors-controller";
 import { MilestoneColorsController } from "./milestone-colors-controller";
 import { MonthCalendarController } from "./month-calendar-controller";
