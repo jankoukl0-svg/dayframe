@@ -26,6 +26,7 @@ import { MonthCalendarController } from "./month-calendar-controller";
 import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
 import { LateReadingController } from "./late-reading-controller";
 import { FocusWeekSyncController } from "./focus-week-sync-controller";
+import { HistoryEditController } from "./history-edit-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -34,5 +35,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><LateReadingController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /></body></html>;
 }
