@@ -80,8 +80,9 @@ export function MonthCalendarCountdownController() {
           else if (title) title.after(countdown);
           else card.prepend(countdown);
         }
+        const label = countdownLabel(days);
         countdown.dataset.days = String(days);
-        countdown.textContent = countdownLabel(days);
+        if (countdown.textContent !== label) countdown.textContent = label;
       });
     };
 
