@@ -16,6 +16,35 @@
   color: var(--ink);
 }
 
+/* Přehled je vždy světlá view. Když se otevře ze Soustředění, podkladový
+   Dayframe view může stále držet df2-focus-mode, proto ho zde vizuálně přebijeme. */
+.df2-root.df2-history-active.df2-focus-mode {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-shell {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-sidebar {
+  background: var(--sidebar);
+  border-color: var(--line);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-sidebar nav button {
+  color: #666761;
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-brand {
+  color: var(--ink);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-main {
+  background: var(--surface);
+}
+
 .df2-history-active .df2-main > :not([data-history-screen-host]) {
   display: none !important;
 }

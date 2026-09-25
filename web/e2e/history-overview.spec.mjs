@@ -117,3 +117,25 @@ test("history overview summarizes completed work, colors bars by labels, shows a
   await expect(history).toBeHidden();
   await expect(page.getByRole("heading", { name: "Dnes" })).toBeVisible();
 });
+
+test("overview returns to the light theme when opened from focus", async ({ page }) => {
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  const root = page.locator(".df2-root");
+  const main = page.locator(".df2-main");
+  const sidebar = page.locator(".df2-sidebar");
+  const lightMainBackground = await main.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const lightSidebarBackground = await sidebar.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  await page.getByRole("button", { name: /Soustředění/ }).click();
+  await expect(root).toHaveClass(/df2-focus-mode/);
+  const focusMainBackground = await main.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(focusMainBackground).not.toBe(lightMainBackground);
+
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  await expect(root).toHaveClass(/df2-history-active/);
+  await expect(page.locator(".df2-history-view")).toBeVisible();
+  await expect.poll(() => main.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightMainBackground);
+  await expect.poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightSidebarBackground);
+});
