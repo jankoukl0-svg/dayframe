@@ -1,0 +1,101 @@
+name: Apply day start patch
+
+on:
+  push:
+    branches:
+      - fix/day-start-8am
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Apply 08:00 day start patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/day-start-8am
+          fetch-depth: 0
+
+      - name: Apply 08:00 day start patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected exactly one match in {path}, found {count}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "web/lib/dayframe-calendar.ts",
+              "const DAY_START = 10 * 60;",
+              "const DAY_START = 8 * 60;",
+          )
+
+          replace_once(
+              "web/app/dayframe-v2.tsx",
+              '''                        <div
+                          className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
+                          onDragOver={(event) => onDragOver(event, key)}
+                          onDrop={(event) => onDrop(event, key)}
+                        >
+                          {Array.from({ length: 14 }, (_, index) => <span className="df2-hour-line" key={index} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{10 + index}:00</em></span>)}''',
+              '''                        <div
+                          className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
+                          style={{ height: `${(calendarBounds.dayEnd - calendarBounds.dayStart) * MINUTE_HEIGHT}px` }}
+                          onDragOver={(event) => onDragOver(event, key)}
+                          onDrop={(event) => onDrop(event, key)}
+                        >
+                          {Array.from({ length: Math.floor((calendarBounds.dayEnd - calendarBounds.dayStart) / 60) + 1 }, (_, index) => {
+                            const minute = calendarBounds.dayStart + index * 60;
+                            return <span className="df2-hour-line" key={minute} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{minutesToTime(minute)}</em></span>;
+                          })}''',
+          )
+
+          replace_once(
+              "web/lib/dayframe-calendar.test.mjs",
+              '''  getTasksForDate,
+  localDateKey,''',
+              '''  getTasksForDate,
+  calendarBounds,
+  localDateKey,''',
+          )
+
+          replace_once(
+              "web/lib/dayframe-calendar.test.mjs",
+              '''    "2026-09-17": [{ id: "busy", title: "Busy", date: "2026-09-17", duration: 750, start: "10:00", end: "22:30", priority: "normal", category: "X", mode: "flexible", completed: false, source: "user", dateLocked: true, createdAt: now.toISOString() }],''',
+              '''    "2026-09-17": [{ id: "busy", title: "Busy", date: "2026-09-17", duration: 870, start: "08:00", end: "22:30", priority: "normal", category: "X", mode: "flexible", completed: false, source: "user", dateLocked: true, createdAt: now.toISOString() }],''',
+          )
+
+          replace_once(
+              "web/lib/dayframe-calendar.test.mjs",
+              '''    duration: 180,
+    start: "10:00",''',
+              '''    duration: 300,
+    start: "08:00",''',
+          )
+
+          replace_once(
+              "web/lib/dayframe-calendar.test.mjs",
+              '''test("automatic scheduling still avoids the lunch preference", () => {''',
+              '''test("day starts at 08:00 and future auto-planning can use the first slot", () => {
+  assert.equal(calendarBounds.dayStart, 8 * 60);
+  const slot = findSlot([], "2026-09-18", 60, now);
+  assert.deepEqual(slot, { start: "08:00", end: "09:00" });
+});
+
+test("automatic scheduling still avoids the lunch preference", () => {''',
+          )
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/lib/dayframe-calendar.ts web/app/dayframe-v2.tsx web/lib/dayframe-calendar.test.mjs
+          git commit -m "Apply 08:00 day start patch"
+          git push origin HEAD:fix/day-start-8am
