@@ -2,51 +2,60 @@
   display: contents;
 }
 
-/* System observances tint the whole day instead of competing with user milestones. */
+/* System observances tint the whole day without competing with user milestones. */
 .df2-month-day:has(.df2-calendar-observance.world) {
-  background: #f5f8fb;
+  background: #eef4fa;
 }
 
 .df2-month-day:has(.df2-calendar-observance.tradition) {
-  background: #fbf7ef;
+  background: #faf1e5;
 }
 
 .df2-month-day:has(.df2-calendar-observance.public) {
-  background: #fbf5f4;
+  background: #f8ecea;
 }
 
 .df2-calendar-observance {
-  --df2-observance-color: #55769a;
+  --df2-observance-color: #45698d;
+  --df2-observance-label-bg: #e5eef7;
   min-width: 0;
   display: block;
-  padding: 1px 2px 2px;
+  padding: 0 1px 2px;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--df2-observance-color);
-  opacity: .68;
+  opacity: .86;
   pointer-events: none;
 }
 
 .df2-calendar-observance.public {
-  --df2-observance-color: #9b5149;
+  --df2-observance-color: #8f453e;
+  --df2-observance-label-bg: #f1dfdc;
 }
 
 .df2-calendar-observance.tradition {
-  --df2-observance-color: #9a6a31;
+  --df2-observance-color: #8a5b23;
+  --df2-observance-label-bg: #f3e6d2;
 }
 
 .df2-calendar-observance.world {
-  --df2-observance-color: #55769a;
+  --df2-observance-color: #45698d;
+  --df2-observance-label-bg: #e5eef7;
 }
 
 .df2-calendar-observance strong {
   min-width: 0;
+  width: fit-content;
+  max-width: 100%;
   display: -webkit-box;
   overflow: hidden;
-  font-size: 9.5px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: var(--df2-observance-label-bg);
+  font-size: 10px;
   line-height: 1.25;
-  font-weight: 580;
+  font-weight: 640;
   letter-spacing: -.005em;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -61,5 +70,5 @@
 }
 
 .df2-month-day.outside .df2-calendar-observance {
-  opacity: .35;
+  opacity: .62;
 }

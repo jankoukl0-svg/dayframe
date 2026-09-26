@@ -44,7 +44,7 @@ async function moveToMonth(page, targetYear, targetMonth) {
   }
 }
 
-test("calendar includes subtle Czech holidays, Easter, Christmas, Halloween and major world observances without storing duplicates", async ({ page }) => {
+test("calendar includes readable but secondary Czech holidays, Easter, Christmas, Halloween and major world observances without storing duplicates", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -63,8 +63,7 @@ test("calendar includes subtle Czech holidays, Easter, Christmas, Halloween and 
   const october28 = page.locator(`.df2-month-day[data-date="${year}-10-28"]`);
   const october31 = page.locator(`.df2-month-day[data-date="${year}-10-31"]`);
   const publicObservance = october28.locator(".df2-calendar-observance.public");
-  const traditionObservance = october31.locator(".df2-calendar-observance.tradition");
-  const worldObservance = october24.locator(".df2-calendar-observance.world");
+  const publicLabel = publicObservance.locator("strong");
 
   await expect(october28.getByText("Den vzniku samostatného československého státu", { exact: true })).toBeVisible();
   await expect(october31.getByText("Halloween", { exact: true })).toBeVisible();
@@ -74,7 +73,13 @@ test("calendar includes subtle Czech holidays, Easter, Christmas, Halloween and 
     background: getComputedStyle(element).backgroundColor,
     border: getComputedStyle(element).borderTopWidth,
     opacity: getComputedStyle(element).opacity,
-  }))).toEqual({ background: "rgba(0, 0, 0, 0)", border: "0px", opacity: "0.68" });
+  }))).toEqual({ background: "rgba(0, 0, 0, 0)", border: "0px", opacity: "0.86" });
+
+  await expect.poll(() => publicLabel.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    fontSize: getComputedStyle(element).fontSize,
+    fontWeight: getComputedStyle(element).fontWeight,
+  }))).toEqual({ background: "rgb(241, 223, 220)", fontSize: "10px", fontWeight: "640" });
 
   const dayBackgrounds = await Promise.all([
     october24,
