@@ -96,7 +96,7 @@ async function dispatchAtStart(page, type, startMinute) {
     const transfer = window.__dayframeReadingLateTransfer;
     if (!(body instanceof HTMLElement) || !(transfer instanceof DataTransfer)) throw new Error("Late drop target not ready");
     const rect = body.getBoundingClientRect();
-    const clientY = rect.top + (wantedStart - 10 * 60) * 0.72 + 1;
+    const clientY = rect.top + (wantedStart - 8 * 60) * 0.72 + 1;
     body.dispatchEvent(new DragEvent(eventType, {
       bubbles: true,
       cancelable: true,
@@ -125,7 +125,7 @@ test("Čtení knihy can be moved into the 23:00 hour without reloading the page"
   const body = page.locator(".df2-week-day.today .df2-time-body");
   await expect(body).toBeVisible();
   const height = await body.evaluate((element) => element.getBoundingClientRect().height);
-  expect(height).toBeGreaterThanOrEqual(604);
+  expect(height).toBeGreaterThanOrEqual(647);
 
   await startDrag(page, "Čtení knihy");
   await dispatchLateEvent(page, "dragover");
