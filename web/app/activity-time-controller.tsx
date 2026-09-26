@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { calendarBounds } from "../lib/dayframe-calendar";
 
 type Task = {
   id: string;
@@ -43,7 +44,7 @@ type CompletionChoice = {
 
 const STATE_KEY = "dayframe-v1";
 const EXTEND_MINUTES = 15;
-const DAY_START = 10 * 60;
+const DAY_START = calendarBounds.dayStart;
 const LUNCH_START = 13 * 60;
 const LUNCH_END = 14 * 60;
 const DAY_END = 22 * 60 + 30;

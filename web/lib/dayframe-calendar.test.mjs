@@ -4,6 +4,7 @@ import {
   addTask,
   findSlot,
   getTasksForDate,
+  calendarBounds,
   localDateKey,
   materializeRange,
   migrateStoredState,
@@ -76,11 +77,17 @@ test("auto planner scans the whole week when no day is chosen", () => {
   let state = migrateStoredState(null, now);
   state.routines = [];
   state.plans = {
-    "2026-09-17": [{ id: "busy", title: "Busy", date: "2026-09-17", duration: 750, start: "10:00", end: "22:30", priority: "normal", category: "X", mode: "flexible", completed: false, source: "user", dateLocked: true, createdAt: now.toISOString() }],
+    "2026-09-17": [{ id: "busy", title: "Busy", date: "2026-09-17", duration: 870, start: "08:00", end: "22:30", priority: "normal", category: "X", mode: "flexible", completed: false, source: "user", dateLocked: true, createdAt: now.toISOString() }],
   };
   const result = addTask(state, { title: "Deep work", duration: 60, priority: "high", category: "Studium", repeat: "none" }, now);
   assert.equal(result.status, "scheduled");
   assert.equal(result.task.date, "2026-09-18");
+});
+
+test("day starts at 08:00 and future auto-planning can use the first slot", () => {
+  assert.equal(calendarBounds.dayStart, 8 * 60);
+  const slot = findSlot([], "2026-09-18", 60, now);
+  assert.deepEqual(slot, { start: "08:00", end: "09:00" });
 });
 
 test("automatic scheduling still avoids the lunch preference", () => {
@@ -88,8 +95,8 @@ test("automatic scheduling still avoids the lunch preference", () => {
     id: "morning",
     title: "Morning",
     date: "2026-09-18",
-    duration: 180,
-    start: "10:00",
+    duration: 300,
+    start: "08:00",
     end: "13:00",
     priority: "normal",
     category: "X",

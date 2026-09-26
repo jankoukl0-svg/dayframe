@@ -472,10 +472,14 @@ export function DayframeV2() {
                         </div>
                         <div
                           className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
+                          style={{ height: `${(24 * 60 - calendarBounds.dayStart) * MINUTE_HEIGHT}px` }}
                           onDragOver={(event) => onDragOver(event, key)}
                           onDrop={(event) => onDrop(event, key)}
                         >
-                          {Array.from({ length: 14 }, (_, index) => <span className="df2-hour-line" key={index} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{10 + index}:00</em></span>)}
+                          {Array.from({ length: Math.floor((calendarBounds.dayEnd - calendarBounds.dayStart) / 60) + 1 }, (_, index) => {
+                            const minute = calendarBounds.dayStart + index * 60;
+                            return <span className="df2-hour-line" key={minute} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{minutesToTime(minute)}</em></span>;
+                          })}
                           <div className="df2-lunch" style={{ top: `${(calendarBounds.lunchStart - calendarBounds.dayStart) * MINUTE_HEIGHT}px`, height: `${60 * MINUTE_HEIGHT}px` }}><span>oběd</span></div>
                           {dropPreview?.date === key && (
                             <div
@@ -573,7 +577,7 @@ export function DayframeV2() {
           {view === "settings" && (
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><h1>Nastavení</h1></div></header>
-              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>10:00–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>00:30</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min</span></div></div>
+              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>{minutesToTime(calendarBounds.dayStart)}–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>00:30</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min</span></div></div>
               <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => setData((current) => ({ ...current, routines: current.routines.map((item) => item.id === routine.id ? { ...item, active: event.target.checked } : item) }))} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id))}>Smazat</button></article>)}</section>
             </section>
           )}

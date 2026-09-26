@@ -36,7 +36,7 @@ type DragInfo = {
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
-const DAY_START = 10 * 60;
+const DAY_START = 8 * 60;
 const NORMAL_DAY_END = 23 * 60;
 const LATE_END = 24 * 60;
 const MINUTE_HEIGHT = 0.72;

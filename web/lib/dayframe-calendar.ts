@@ -60,7 +60,7 @@ export type TaskDraft = {
   repeat?: RepeatRule;
 };
 
-const DAY_START = 10 * 60;
+const DAY_START = 8 * 60;
 const LUNCH_START = 13 * 60;
 const LUNCH_END = 14 * 60;
 const DAY_END = 23 * 60;

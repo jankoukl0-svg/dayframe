@@ -58,5 +58,6 @@ test("late short blocks stay fully visible at the bottom of week", async ({ page
     return taskNode.getBoundingClientRect().bottom <= bodyNode.getBoundingClientRect().bottom + 0.5;
   });
   expect(fits).toBe(true);
-  await expect(body).toHaveCSS("height", "605px");
+  const bodyHeight = await body.evaluate((element) => element.getBoundingClientRect().height);
+  expect(bodyHeight).toBeGreaterThan(690);
 });
