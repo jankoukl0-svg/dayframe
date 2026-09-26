@@ -69,7 +69,7 @@ test("a short block can be dragged back to 22:40 and end at 23:00", async ({ pag
       cancelable: true,
       dataTransfer: transfer,
       clientX: rect.left + Math.min(80, Math.max(20, rect.width / 2)),
-      clientY: rect.top + (pointerMinute - 10 * 60) * 0.72,
+      clientY: rect.top + (pointerMinute - 8 * 60) * 0.72,
     };
     body.dispatchEvent(new DragEvent("dragover", options));
     body.dispatchEvent(new DragEvent("drop", options));
