@@ -64,7 +64,8 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
     const tasks = [...grid.querySelectorAll(".df2-week-task")]
       .filter((task) => getComputedStyle(task).display !== "none");
     const visibleHourLabels = [...grid.querySelectorAll(".df2-hour-line em")]
-      .filter((label) => getComputedStyle(label).display !== "none").length;
+      .filter((label) => getComputedStyle(label).display !== "none")
+      .map((label) => label.textContent?.trim() ?? "");
     const contained = tasks.every((task) => {
       const body = task.closest(".df2-time-body");
       if (!body) return false;
@@ -93,8 +94,10 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
       oneHourTaskHeight,
     };
   });
-  expect(weekVisual.bodyHeights.every((height) => height >= 604 && height <= 606)).toBe(true);
-  expect(weekVisual.visibleHourLabels).toBe(14);
+  expect(weekVisual.bodyHeights.every((height) => Math.abs(height - weekVisual.hourSlotHeight * 15) < 1.5)).toBe(true);
+  expect(weekVisual.visibleHourLabels).toHaveLength(16);
+  expect(weekVisual.visibleHourLabels.slice(0, 3)).toEqual(["08:00", "09:00", "10:00"]);
+  expect(weekVisual.visibleHourLabels.at(-1)).toBe("23:00");
   expect(weekVisual.contained).toBe(true);
   expect(weekVisual.contentFits).toBe(true);
   expect(weekVisual.hourSlotHeight).toBeGreaterThan(43);
