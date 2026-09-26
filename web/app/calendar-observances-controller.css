@@ -2,66 +2,64 @@
   display: contents;
 }
 
+/* System observances tint the whole day instead of competing with user milestones. */
+.df2-month-day:has(.df2-calendar-observance.world) {
+  background: #f5f8fb;
+}
+
+.df2-month-day:has(.df2-calendar-observance.tradition) {
+  background: #fbf7ef;
+}
+
+.df2-month-day:has(.df2-calendar-observance.public) {
+  background: #fbf5f4;
+}
+
 .df2-calendar-observance {
-  --df2-observance-color: #2563eb;
-  --df2-observance-bg: #eff6ff;
+  --df2-observance-color: #55769a;
   min-width: 0;
-  display: grid;
-  gap: 2px;
-  padding: 5px 7px;
-  border: 1px solid rgba(0, 0, 0, .07);
-  border-left: 3px solid var(--df2-observance-color);
-  border-radius: 3px;
-  background: var(--df2-observance-bg);
-  color: var(--ink);
+  display: block;
+  padding: 1px 2px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--df2-observance-color);
+  opacity: .68;
+  pointer-events: none;
 }
 
 .df2-calendar-observance.public {
-  --df2-observance-color: #b42318;
-  --df2-observance-bg: #fff1f0;
+  --df2-observance-color: #9b5149;
 }
 
 .df2-calendar-observance.tradition {
-  --df2-observance-color: #c2410c;
-  --df2-observance-bg: #fff7ed;
+  --df2-observance-color: #9a6a31;
 }
 
 .df2-calendar-observance.world {
-  --df2-observance-color: #2563eb;
-  --df2-observance-bg: #eff6ff;
+  --df2-observance-color: #55769a;
 }
 
 .df2-calendar-observance strong {
   min-width: 0;
+  display: -webkit-box;
   overflow: hidden;
-  font-size: 10.5px;
-  line-height: 1.2;
-  font-weight: 720;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 9.5px;
+  line-height: 1.25;
+  font-weight: 580;
+  letter-spacing: -.005em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .df2-calendar-observance strong::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: var(--df2-observance-color);
-  vertical-align: 1px;
+  display: none;
 }
 
 .df2-calendar-observance small {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 8.5px;
-  font-weight: 650;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
 }
 
 .df2-month-day.outside .df2-calendar-observance {
-  opacity: .48;
+  opacity: .35;
 }

@@ -44,7 +44,7 @@ async function moveToMonth(page, targetYear, targetMonth) {
   }
 }
 
-test("calendar includes Czech holidays, Easter, Christmas, Halloween and major world observances without storing duplicates", async ({ page }) => {
+test("calendar includes subtle Czech holidays, Easter, Christmas, Halloween and major world observances without storing duplicates", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -58,11 +58,35 @@ test("calendar includes Czech holidays, Easter, Christmas, Halloween and major w
   await expect(page.getByRole("heading", { name: "Kalendář" })).toBeVisible();
 
   await moveToMonth(page, year, 9);
+  const october24 = page.locator(`.df2-month-day[data-date="${year}-10-24"]`);
+  const october27 = page.locator(`.df2-month-day[data-date="${year}-10-27"]`);
   const october28 = page.locator(`.df2-month-day[data-date="${year}-10-28"]`);
   const october31 = page.locator(`.df2-month-day[data-date="${year}-10-31"]`);
+  const publicObservance = october28.locator(".df2-calendar-observance.public");
+  const traditionObservance = october31.locator(".df2-calendar-observance.tradition");
+  const worldObservance = october24.locator(".df2-calendar-observance.world");
+
   await expect(october28.getByText("Den vzniku samostatného československého státu", { exact: true })).toBeVisible();
   await expect(october31.getByText("Halloween", { exact: true })).toBeVisible();
-  await expect(page.locator(`.df2-month-day[data-date="${year}-10-24"]`).getByText("Den OSN", { exact: true })).toBeVisible();
+  await expect(october24.getByText("Den OSN", { exact: true })).toBeVisible();
+
+  await expect.poll(() => publicObservance.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    border: getComputedStyle(element).borderTopWidth,
+    opacity: getComputedStyle(element).opacity,
+  }))).toEqual({ background: "rgba(0, 0, 0, 0)", border: "0px", opacity: "0.68" });
+
+  const dayBackgrounds = await Promise.all([
+    october24,
+    october27,
+    october28,
+    october31,
+  ].map((locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)));
+  const [worldBackground, ordinaryBackground, publicBackground, traditionBackground] = dayBackgrounds;
+  expect(worldBackground).not.toBe(ordinaryBackground);
+  expect(publicBackground).not.toBe(ordinaryBackground);
+  expect(traditionBackground).not.toBe(ordinaryBackground);
+  expect(new Set([worldBackground, publicBackground, traditionBackground]).size).toBe(3);
 
   await moveToMonth(page, year, 11);
   await expect(page.locator(`.df2-month-day[data-date="${year}-12-24"]`).getByText("Štědrý den", { exact: true })).toBeVisible();
