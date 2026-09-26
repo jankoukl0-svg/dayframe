@@ -125,7 +125,7 @@ test("Čtení knihy can be moved into the 23:00 hour without reloading the page"
   const body = page.locator(".df2-week-day.today .df2-time-body");
   await expect(body).toBeVisible();
   const height = await body.evaluate((element) => element.getBoundingClientRect().height);
-  expect(height).toBeGreaterThanOrEqual(647);
+  expect(height).toBeGreaterThan(690);
 
   await startDrag(page, "Čtení knihy");
   await dispatchLateEvent(page, "dragover");

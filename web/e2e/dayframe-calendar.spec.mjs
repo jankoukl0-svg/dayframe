@@ -94,7 +94,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
       oneHourTaskHeight,
     };
   });
-  expect(weekVisual.bodyHeights.every((height) => Math.abs(height - weekVisual.hourSlotHeight * 15) < 1.5)).toBe(true);
+  expect(weekVisual.bodyHeights.every((height) => Math.abs(height - weekVisual.hourSlotHeight * 16) < 1.5)).toBe(true);
   expect(weekVisual.visibleHourLabels).toHaveLength(16);
   expect(weekVisual.visibleHourLabels.slice(0, 3)).toEqual(["08:00", "09:00", "10:00"]);
   expect(weekVisual.visibleHourLabels.at(-1)).toBe("23:00");

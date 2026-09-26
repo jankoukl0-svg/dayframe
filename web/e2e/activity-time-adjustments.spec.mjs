@@ -240,7 +240,7 @@ test("today can replan only the flexible remainder of the day", async ({ page })
     const now = new Date();
     const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const minute = now.getHours() * 60 + now.getMinutes();
-    const floor = Math.max(10 * 60, Math.ceil(minute / 15) * 15);
+    const floor = Math.max(8 * 60, Math.ceil(minute / 15) * 15);
     const canMove = floor + 120 <= 22 * 60 + 30;
     const base = canMove ? floor : 19 * 60;
     const toTime = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
@@ -312,6 +312,6 @@ test("week view shows the current-time line on today", async ({ page }) => {
   const line = page.locator(".df2-current-time-line");
   await expect(line).toHaveCount(1);
   const minute = await page.evaluate(() => new Date().getHours() * 60 + new Date().getMinutes());
-  if (minute >= 10 * 60 && minute <= 23 * 60) await expect(line).toBeVisible();
+  if (minute >= 8 * 60 && minute <= 23 * 60) await expect(line).toBeVisible();
   else await expect(line).toBeHidden();
 });
