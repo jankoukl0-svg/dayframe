@@ -472,10 +472,14 @@ export function DayframeV2() {
                         </div>
                         <div
                           className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
+                          style={{ height: `${(calendarBounds.dayEnd - calendarBounds.dayStart) * MINUTE_HEIGHT}px` }}
                           onDragOver={(event) => onDragOver(event, key)}
                           onDrop={(event) => onDrop(event, key)}
                         >
-                          {Array.from({ length: 14 }, (_, index) => <span className="df2-hour-line" key={index} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{10 + index}:00</em></span>)}
+                          {Array.from({ length: Math.floor((calendarBounds.dayEnd - calendarBounds.dayStart) / 60) + 1 }, (_, index) => {
+                            const minute = calendarBounds.dayStart + index * 60;
+                            return <span className="df2-hour-line" key={minute} style={{ top: `${index * 60 * MINUTE_HEIGHT}px` }}><em>{minutesToTime(minute)}</em></span>;
+                          })}
                           <div className="df2-lunch" style={{ top: `${(calendarBounds.lunchStart - calendarBounds.dayStart) * MINUTE_HEIGHT}px`, height: `${60 * MINUTE_HEIGHT}px` }}><span>oběd</span></div>
                           {dropPreview?.date === key && (
                             <div
