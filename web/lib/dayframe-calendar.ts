@@ -63,7 +63,7 @@ export type TaskDraft = {
 const DAY_START = 8 * 60;
 const LUNCH_START = 13 * 60;
 const LUNCH_END = 14 * 60;
-const DAY_END = 23 * 60;
+const DAY_END = 26 * 60;
 const SLOT = 15;
 
 export function localDateKey(date: Date) {
@@ -99,12 +99,25 @@ export function timeToMinutes(time?: string) {
   if (!time) return Number.NaN;
   const [hours, minutes] = time.split(":").map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number.NaN;
-  return hours * 60 + minutes;
+  const clockMinute = hours * 60 + minutes;
+  return hours < DAY_START / 60 ? clockMinute + 24 * 60 : clockMinute;
 }
 
 export function minutesToTime(total: number) {
-  const safe = Math.max(0, Math.min(23 * 60 + 59, Math.round(total)));
-  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+  const safe = Math.max(0, Math.min(DAY_END, Math.round(total)));
+  const clockMinute = safe % (24 * 60);
+  return `${String(Math.floor(clockMinute / 60)).padStart(2, "0")}:${String(clockMinute % 60).padStart(2, "0")}`;
+}
+
+export function planningDateKey(date: Date) {
+  const clockMinute = date.getHours() * 60 + date.getMinutes();
+  if (clockMinute >= 2 * 60) return localDateKey(date);
+  return localDateKey(addDays(date, -1));
+}
+
+export function planningMinute(date: Date) {
+  const clockMinute = date.getHours() * 60 + date.getMinutes();
+  return clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
 }
 
 export function roundToQuarter(minutes: number) {
@@ -321,16 +334,17 @@ export function canPlaceAt(tasks: CalendarTask[], start: number, duration: numbe
 }
 
 export function findSlot(tasks: CalendarTask[], date: string, duration: number, now: Date, deadlineTime = "22:30", exactStart?: string) {
-  const todayKey = localDateKey(now);
+  const todayKey = planningDateKey(now);
   const deadline = Math.min(DAY_END, timeToMinutes(deadlineTime));
   const floor = date === todayKey
-    ? Math.max(DAY_START, Math.ceil((now.getHours() * 60 + now.getMinutes()) / SLOT) * SLOT)
+    ? Math.max(DAY_START, Math.ceil(planningMinute(now) / SLOT) * SLOT)
     : DAY_START;
 
-  /* An explicit/manual start is authoritative, including during lunch. */
+  /* An explicit/manual start is authoritative, including during lunch and the late 22:30–02:00 lane. */
   if (exactStart) {
     const start = timeToMinutes(exactStart);
-    if (!Number.isFinite(start) || start < floor || start + duration > deadline || !canPlaceAt(tasks, start, duration)) return null;
+    const manualDeadline = deadlineTime === "22:30" ? DAY_END : deadline;
+    if (!Number.isFinite(start) || start < floor || start + duration > manualDeadline || !canPlaceAt(tasks, start, duration)) return null;
     return { start: minutesToTime(start), end: minutesToTime(start + duration) };
   }
 
@@ -403,7 +417,7 @@ export function sortTasks(tasks: CalendarTask[]) {
     if (!a.start && b.start) return -1;
     if (a.start && !b.start) return 1;
     if (!a.start && !b.start) return priorityRank(a.priority) - priorityRank(b.priority) || a.createdAt.localeCompare(b.createdAt);
-    return (a.start ?? "").localeCompare(b.start ?? "") || a.title.localeCompare(b.title, "cs");
+    return timeToMinutes(a.start) - timeToMinutes(b.start) || a.title.localeCompare(b.title, "cs");
   });
 }
 
@@ -437,7 +451,7 @@ function createTaskFromDraft(draft: TaskDraft, date: string, now: Date, dateLock
 
 function dateRangeForDraft(draft: TaskDraft, now: Date) {
   if (draft.date) return [draft.date];
-  const today = localDateKey(now);
+  const today = planningDateKey(now);
   const weekEnd = addDaysKey(today, 6);
   const end = draft.dueDate && draft.dueDate < weekEnd ? draft.dueDate : weekEnd;
   const keys: string[] = [];
@@ -581,7 +595,7 @@ export function moveTaskToTomorrow(state: DayframeState, id: string, now = new D
     if (task) break;
   }
   if (!task) return state;
-  const tomorrow = addDaysKey(localDateKey(now), 1);
+  const tomorrow = addDaysKey(planningDateKey(now), 1);
   const without = deleteTask(state, id);
   const stripped: CalendarTask = { ...task, id: taskId(), date: tomorrow, start: undefined, end: undefined, requestedStart: undefined, mode: "flexible", source: "user", routineId: undefined, dateLocked: true, autoScheduled: true, completed: false };
   const next = { ...without, plans: { ...without.plans, [tomorrow]: sortTasks([...(without.plans[tomorrow] ?? []), stripped]) } };
@@ -610,7 +624,7 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
     || a.createdAt.localeCompare(b.createdAt));
 
   for (const task of movable) {
-    const allowed = keys.filter((date) => date >= localDateKey(now) && (!task.dueDate || date <= task.dueDate));
+    const allowed = keys.filter((date) => date >= planningDateKey(now) && (!task.dueDate || date <= task.dueDate));
     let placed = false;
     for (const date of allowed) {
       const slot = findSlot(next.plans[date] ?? [], date, task.duration, now, task.deadlineTime);
@@ -637,8 +651,8 @@ export function deleteRoutine(state: DayframeState, id: string) {
 }
 
 export function overdueTasks(state: DayframeState, now = new Date()) {
-  const today = localDateKey(now);
-  const minute = now.getHours() * 60 + now.getMinutes();
+  const today = planningDateKey(now);
+  const minute = planningMinute(now);
   return (state.plans[today] ?? []).filter((task) => !task.completed && task.end && timeToMinutes(task.end) <= minute);
 }
 

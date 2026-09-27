@@ -38,7 +38,7 @@ const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
 const DAY_START = 8 * 60;
 const NORMAL_DAY_END = 23 * 60;
-const LATE_END = 24 * 60;
+const LATE_END = 26 * 60;
 const MINUTE_HEIGHT = 0.72;
 const SNAP = 5;
 
@@ -81,19 +81,21 @@ function normalizedTitle(value?: string) {
 }
 
 function isReadingTask(task: StoredTask | null | undefined) {
-  return task?.routineId === "read" || normalizedTitle(task?.title) === "čtení knihy";
+  const title = normalizedTitle(task?.title);
+  return task?.routineId === "read" || title === "čtení knihy" || title.includes("čtení");
 }
 
 function timeToMinutes(value?: string) {
   if (!value) return Number.NaN;
   const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
+  const clockMinute = hours * 60 + minutes;
+  return hours < DAY_START / 60 ? clockMinute + 24 * 60 : clockMinute;
 }
 
 function minutesToTime(value: number) {
   const safe = Math.max(0, Math.min(LATE_END, Math.round(value)));
-  if (safe === LATE_END) return "24:00";
-  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+  const clockMinute = safe % (24 * 60);
+  return `${String(Math.floor(clockMinute / 60)).padStart(2, "0")}:${String(clockMinute % 60).padStart(2, "0")}`;
 }
 
 function taskFromButton(state: StoredState, date: string, button: HTMLElement) {
@@ -121,7 +123,7 @@ function targetStart(body: HTMLElement, clientY: number, drag: DragInfo) {
 }
 
 function usesLateLane(body: HTMLElement, clientY: number, drag: DragInfo) {
-  return rawTargetStart(body, clientY, drag) + drag.duration > NORMAL_DAY_END;
+  return targetStart(body, clientY, drag) + drag.duration >= NORMAL_DAY_END;
 }
 
 function canPlace(state: StoredState, date: string, taskId: string, start: number, duration: number) {
@@ -176,7 +178,7 @@ function moveReading(state: StoredState, drag: DragInfo, toDate: string, start: 
   state.plans = { ...state.plans };
   state.plans[drag.fromDate] = fromTasks.filter((item) => item.id !== task.id);
   state.plans[toDate] = [...(state.plans[toDate] ?? []).filter((item) => item.id !== task.id), moved]
-    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
 
   if (task.routineId) {
     state.routineSkips = [...new Set([...(state.routineSkips ?? []), `${task.routineId}:${drag.fromDate}`])];
@@ -219,13 +221,13 @@ export function LateReadingController() {
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-
       if (!drag.reading) {
         clearPreview();
         return;
       }
+
+      event.preventDefault();
+      event.stopPropagation();
 
       const day = body.closest<HTMLElement>(".df2-week-day");
       const date = day ? dateForWeekDay(day) : null;
@@ -240,14 +242,13 @@ export function LateReadingController() {
       const body = event.target instanceof Element ? event.target.closest<HTMLElement>(".df2-time-body") : null;
       if (!body || !usesLateLane(body, event.clientY, drag)) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-
       if (!drag.reading) {
         clearPreview();
-        drag = null;
         return;
       }
+
+      event.preventDefault();
+      event.stopPropagation();
 
       const day = body.closest<HTMLElement>(".df2-week-day");
       const date = day ? dateForWeekDay(day) : null;

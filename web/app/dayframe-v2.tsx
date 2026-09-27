@@ -15,6 +15,8 @@ import {
   durationBetween,
   getTasksForDate,
   localDateKey,
+  planningDateKey,
+  planningMinute,
   materializeRange,
   migrateStoredState,
   minutesToTime,
@@ -128,7 +130,7 @@ export function DayframeV2() {
   const [milestoneDate, setMilestoneDate] = useState("");
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const focusTimer = useRef<number | null>(null);
-  const todayKey = localDateKey(now);
+  const todayKey = planningDateKey(now);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(new Date()), 1000);
@@ -139,13 +141,15 @@ export function DayframeV2() {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       const migrated = migrateStoredState(raw ? JSON.parse(raw) : null, new Date());
-      const today = localDateKey(new Date());
-      const ready = materializeRange(migrated, addDaysKey(today, -7), addDaysKey(today, 28), new Date());
+      const reference = new Date();
+      const today = planningDateKey(reference);
+      const ready = materializeRange(migrated, addDaysKey(today, -7), addDaysKey(today, 28), reference);
       setData(ready);
     } catch {
       const fresh = createEmptyState();
-      const today = localDateKey(new Date());
-      setData(materializeRange(fresh, addDaysKey(today, -7), addDaysKey(today, 28), new Date()));
+      const reference = new Date();
+      const today = planningDateKey(reference);
+      setData(materializeRange(fresh, addDaysKey(today, -7), addDaysKey(today, 28), reference));
     }
     setHydrated(true);
   }, []);
@@ -156,8 +160,8 @@ export function DayframeV2() {
         const reference = new Date();
         const raw = window.localStorage.getItem(STORAGE_KEY);
         const migrated = migrateStoredState(raw ? JSON.parse(raw) : null, reference);
-        const today = localDateKey(reference);
-        const visibleMonday = addDays(startOfWeek(reference), weekOffset * 7);
+        const today = planningDateKey(reference);
+        const visibleMonday = addDays(startOfWeek(dateFromKey(today)), weekOffset * 7);
         const visibleKeys = weekKeys(visibleMonday);
         const rangeStart = visibleKeys[0] < addDaysKey(today, -7) ? visibleKeys[0] : addDaysKey(today, -7);
         const rangeEnd = visibleKeys[6] > addDaysKey(today, 28) ? visibleKeys[6] : addDaysKey(today, 28);
@@ -177,7 +181,7 @@ export function DayframeV2() {
 
   useEffect(() => {
     if (!hydrated) return;
-    const monday = addDays(startOfWeek(now), weekOffset * 7);
+    const monday = addDays(startOfWeek(dateFromKey(todayKey)), weekOffset * 7);
     const keys = weekKeys(monday);
     setData((current) => materializeRange(current, keys[0], keys[6], new Date()));
   }, [weekOffset, hydrated, todayKey]);
@@ -219,7 +223,7 @@ export function DayframeV2() {
 
   const todayTasks = useMemo(() => getTasksForDate(data, todayKey), [data, todayKey]);
   const scheduledToday = todayTasks.filter((task) => task.start && task.end && !task.completed);
-  const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const currentMinute = planningMinute(now);
   const activeTask = scheduledToday.find((task) => timeToMinutes(task.start) <= currentMinute && timeToMinutes(task.end) > currentMinute)
     ?? scheduledToday.find((task) => timeToMinutes(task.start) > currentMinute)
     ?? todayTasks.find((task) => !task.completed)
@@ -229,7 +233,7 @@ export function DayframeV2() {
     : scheduledToday.slice(0, 3);
   const missed = overdueTasks(data, now);
 
-  const monday = useMemo(() => addDays(startOfWeek(now), weekOffset * 7), [weekOffset, todayKey]);
+  const monday = useMemo(() => addDays(startOfWeek(dateFromKey(todayKey)), weekOffset * 7), [weekOffset, todayKey]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(monday, index)), [monday]);
   const weekLabel = `${new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short" }).format(days[0])} – ${new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric" }).format(days[6])}`;
 
@@ -429,7 +433,7 @@ export function DayframeV2() {
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
-          <div className="df2-sidebar-bottom"><span>Den končí</span><strong>00:30</strong></div>
+          <div className="df2-sidebar-bottom"><span>Den končí</span><strong>02:00</strong></div>
         </aside>
 
         <section className="df2-main">
@@ -481,7 +485,7 @@ export function DayframeV2() {
                         </div>
                         <div
                           className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
-                          style={{ height: `${(24 * 60 - calendarBounds.dayStart) * MINUTE_HEIGHT}px` }}
+                          style={{ height: `${(calendarBounds.dayEnd - calendarBounds.dayStart) * MINUTE_HEIGHT}px` }}
                           onDragOver={(event) => onDragOver(event, key)}
                           onDrop={(event) => onDrop(event, key)}
                         >
@@ -557,7 +561,7 @@ export function DayframeV2() {
           {view === "settings" && (
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><h1>Nastavení</h1></div></header>
-              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>{minutesToTime(calendarBounds.dayStart)}–22:30 · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>00:30</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min</span></div></div>
+              <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>{minutesToTime(calendarBounds.dayStart)}–{minutesToTime(calendarBounds.dayEnd)} · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>02:00</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min · standardně do 22:30</span></div></div>
               <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => setData((current) => ({ ...current, routines: current.routines.map((item) => item.id === routine.id ? { ...item, active: event.target.checked } : item) }))} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id))}>Smazat</button></article>)}</section>
             </section>
           )}
@@ -644,7 +648,7 @@ function TodayView({
   const completed = tasks.filter((task) => task.completed).length;
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
   const countdown = getDayCountdown(now);
-  const today = localDateKey(now);
+  const today = planningDateKey(now);
   const nextMilestone = [...milestones]
     .filter((milestone) => milestone.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
@@ -652,7 +656,7 @@ function TodayView({
 
   return (
     <section className="df2-today-view">
-      <header className="df2-page-head"><div><p>{formatDay(now)}</p><h1>Dnes</h1></div><button className="df2-accent-button" onClick={onAdd}>+ Nový úkol</button></header>
+      <header className="df2-page-head"><div><p>{formatDay(dateFromKey(today))}</p><h1>Dnes</h1></div><button className="df2-accent-button" onClick={onAdd}>+ Nový úkol</button></header>
 
       <div className="df2-motivation-grid">
         <section className="df2-day-ruler" aria-label="Odpočet do konce dne">
@@ -661,7 +665,7 @@ function TodayView({
             <strong aria-label={`${countdown.hours} hodin ${countdown.minutes} minut ${countdown.seconds} sekund`}>{countdownText}<em>:{String(countdown.seconds).padStart(2, "0")}</em></strong>
           </div>
           <div className="df2-day-track" aria-hidden="true"><span style={{ width: `${countdown.progressPercent}%` }} /><i style={{ left: `${countdown.progressPercent}%` }} /></div>
-          <div className="df2-day-scale" aria-hidden="true"><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>00:30</span></div>
+          <div className="df2-day-scale" aria-hidden="true"><span>08</span><span>12</span><span>16</span><span>20</span><span>00</span><span>02</span></div>
         </section>
 
         <button type="button" className="df2-event-countdown" onClick={onMilestones} aria-label={nextMilestone ? `Nejbližší termín ${nextMilestone.title}, zbývá ${daysUntilDate(nextMilestone.date, now)} dní` : "Přidat důležitý termín"}>

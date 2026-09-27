@@ -1,4 +1,4 @@
-const DAY_WINDOW_MS = 15.5 * 60 * 60 * 1000;
+const DAY_WINDOW_MS = 18 * 60 * 60 * 1000;
 
 export type DayCountdown = {
   hours: number;
@@ -10,7 +10,7 @@ export type DayCountdown = {
 
 export function getDayCountdown(now: Date): DayCountdown {
   const end = new Date(now);
-  end.setHours(0, 30, 0, 0);
+  end.setHours(2, 0, 0, 0);
   if (end <= now) end.setDate(end.getDate() + 1);
 
   const remainingMs = Math.max(0, end.getTime() - now.getTime());

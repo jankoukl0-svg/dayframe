@@ -4,7 +4,8 @@ import { useEffect } from "react";
 
 function timeToMinutes(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
+  const clockMinute = hours * 60 + minutes;
+  return hours < 8 ? clockMinute + 24 * 60 : clockMinute;
 }
 
 function formatMinutes(total: number) {

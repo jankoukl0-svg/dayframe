@@ -5,7 +5,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
 
   await expect(page.getByText("Do konce dne", { exact: true })).toBeVisible();
-  await expect(page.locator(".df2-sidebar-bottom")).toContainText("00:30");
+  await expect(page.locator(".df2-sidebar-bottom")).toContainText("02:00");
   await expect(page.locator(".df2-event-countdown")).toBeVisible();
   await expect(page.locator(".df2-event-countdown")).toContainText("Nejbližší termín");
 
@@ -94,10 +94,10 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
       oneHourTaskHeight,
     };
   });
-  expect(weekVisual.bodyHeights.every((height) => Math.abs(height - weekVisual.hourSlotHeight * 16) < 1.5)).toBe(true);
-  expect(weekVisual.visibleHourLabels).toHaveLength(16);
+  expect(weekVisual.bodyHeights.every((height) => Math.abs(height - weekVisual.hourSlotHeight * 18) < 1.5)).toBe(true);
+  expect(weekVisual.visibleHourLabels).toHaveLength(19);
   expect(weekVisual.visibleHourLabels.slice(0, 3)).toEqual(["08:00", "09:00", "10:00"]);
-  expect(weekVisual.visibleHourLabels.at(-1)).toBe("23:00");
+  expect(weekVisual.visibleHourLabels.slice(-3)).toEqual(["00:00", "01:00", "02:00"]);
   expect(weekVisual.contained).toBe(true);
   expect(weekVisual.contentFits).toBe(true);
   expect(weekVisual.hourSlotHeight).toBeGreaterThan(43);

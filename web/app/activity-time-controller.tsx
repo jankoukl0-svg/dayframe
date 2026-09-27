@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { calendarBounds } from "../lib/dayframe-calendar";
+import { calendarBounds, planningDateKey, planningMinute } from "../lib/dayframe-calendar";
 
 type Task = {
   id: string;
@@ -48,23 +48,21 @@ const DAY_START = calendarBounds.dayStart;
 const LUNCH_START = 13 * 60;
 const LUNCH_END = 14 * 60;
 const DAY_END = 22 * 60 + 30;
-const WEEK_VIEW_END = 23 * 60;
+const WEEK_VIEW_END = calendarBounds.dayEnd;
 const SLOT = 15;
 const MINUTE_HEIGHT = 0.72;
-
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
 
 function timeToMinutes(time?: string) {
   if (!time) return Number.NaN;
   const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
+  const clockMinute = hours * 60 + minutes;
+  return hours < DAY_START / 60 ? clockMinute + 24 * 60 : clockMinute;
 }
 
 function minutesToTime(total: number) {
-  const safe = Math.max(0, Math.min(23 * 60 + 59, Math.round(total)));
-  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+  const safe = Math.max(0, Math.min(calendarBounds.dayEnd, Math.round(total)));
+  const clockMinute = safe % (24 * 60);
+  return `${String(Math.floor(clockMinute / 60)).padStart(2, "0")}:${String(clockMinute % 60).padStart(2, "0")}`;
 }
 
 function readState(): StoredState | null {
@@ -85,34 +83,34 @@ function writeState(state: StoredState) {
 
 function todayTasks(state: StoredState | null, now = new Date()) {
   if (!state) return [];
-  return state.plans[localDateKey(now)] ?? [];
+  return state.plans[planningDateKey(now)] ?? [];
 }
 
 function currentMinute(now = new Date()) {
-  return now.getHours() * 60 + now.getMinutes();
+  return planningMinute(now);
 }
 
 function currentSecond(now = new Date()) {
-  return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  return planningMinute(now) * 60 + now.getSeconds();
 }
 
 function liveTask(tasks: Task[], minute: number) {
   return tasks
     .filter((task) => !task.completed && task.start && task.end)
-    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
     .find((task) => timeToMinutes(task.start) <= minute && timeToMinutes(task.end) > minute) ?? null;
 }
 
 function missedTasks(tasks: Task[], minute: number) {
   return tasks
     .filter((task) => !task.completed && task.end && timeToMinutes(task.end) <= minute)
-    .sort((a, b) => (a.end ?? "").localeCompare(b.end ?? ""));
+    .sort((a, b) => timeToMinutes(a.end) - timeToMinutes(b.end));
 }
 
 function nextTask(tasks: Task[], currentId: string, minute: number) {
   return tasks
     .filter((task) => task.id !== currentId && !task.completed && task.start && task.end && timeToMinutes(task.start) >= minute)
-    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))[0] ?? null;
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0] ?? null;
 }
 
 function priorityRank(priority?: Task["priority"]) {
@@ -150,7 +148,7 @@ function sameMissedTargets(a: MissedTarget[], b: MissedTarget[]) {
 function finishTask(taskId: string, finishMinute: number, startTaskId: string | null) {
   const state = readState();
   if (!state) return false;
-  const date = localDateKey(new Date());
+  const date = planningDateKey(new Date());
   const tasks = [...(state.plans[date] ?? [])];
   const target = tasks.find((task) => task.id === taskId);
   if (!target?.start) return false;
@@ -171,7 +169,7 @@ function finishTask(taskId: string, finishMinute: number, startTaskId: string | 
     if (candidate) {
       const candidateDuration = Math.max(1, candidate.duration || (timeToMinutes(candidate.end) - timeToMinutes(candidate.start)));
       const candidateEnd = actualEnd + candidateDuration;
-      if (candidateEnd <= 23 * 60 + 59) {
+      if (candidateEnd <= calendarBounds.dayEnd) {
         const index = updated.findIndex((task) => task.id === candidate.id);
         updated[index] = {
           ...candidate,
@@ -193,7 +191,7 @@ function finishTask(taskId: string, finishMinute: number, startTaskId: string | 
 function extendTask(taskId: string, now = new Date()) {
   const state = readState();
   if (!state) return { ok: false, error: "Plán se nepodařilo načíst." };
-  const date = localDateKey(now);
+  const date = planningDateKey(now);
   const tasks = [...(state.plans[date] ?? [])];
   const target = tasks.find((task) => task.id === taskId);
   if (!target?.start || !target.end) return { ok: false, error: "Blok nemá konkrétní čas." };
@@ -201,11 +199,11 @@ function extendTask(taskId: string, now = new Date()) {
   const targetStart = timeToMinutes(target.start);
   const oldEnd = timeToMinutes(target.end);
   const extendedEnd = Math.max(oldEnd, currentMinute(now)) + EXTEND_MINUTES;
-  if (extendedEnd > 23 * 60 + 59) return { ok: false, error: "Dnes už není další prostor." };
+  if (extendedEnd > calendarBounds.dayEnd) return { ok: false, error: "Dnes už není další prostor." };
 
   const sorted = tasks
     .map((task) => ({ ...task }))
-    .sort((a, b) => (a.start ?? "99:99").localeCompare(b.start ?? "99:99"));
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
   let cursor = extendedEnd;
   let seenTarget = false;
 
@@ -222,7 +220,7 @@ function extendTask(taskId: string, now = new Date()) {
     const duration = Math.max(1, task.duration || (timeToMinutes(task.end) - startMinute));
     if (startMinute < cursor) {
       const shiftedEnd = cursor + duration;
-      if (shiftedEnd > 23 * 60 + 59) return { ok: false, error: "Navazující bloky už se dnes nevejdou." };
+      if (shiftedEnd > calendarBounds.dayEnd) return { ok: false, error: "Navazující bloky už se dnes nevejdou." };
       task.start = minutesToTime(cursor);
       task.end = minutesToTime(shiftedEnd);
       task.requestedStart = task.start;
@@ -269,7 +267,7 @@ function isFixedForToday(task: Task) {
 function replanRemainingToday(now = new Date()) {
   const state = readState();
   if (!state) return false;
-  const date = localDateKey(now);
+  const date = planningDateKey(now);
   const minute = currentMinute(now);
   const floor = Math.max(DAY_START, Math.ceil(minute / SLOT) * SLOT);
   const tasks = [...(state.plans[date] ?? [])];
@@ -314,7 +312,7 @@ function replanRemainingToday(now = new Date()) {
       if (!a.start && b.start) return -1;
       if (a.start && !b.start) return 1;
       if (!a.start && !b.start) return priorityRank(a.priority) - priorityRank(b.priority);
-      return (a.start ?? "").localeCompare(b.start ?? "");
+      return timeToMinutes(a.start) - timeToMinutes(b.start);
     }),
   };
   writeState(state);
@@ -360,7 +358,7 @@ function syncCurrentTimeLine(now = new Date()) {
     body.appendChild(line);
   }
 
-  const minute = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const minute = planningMinute(now) + now.getSeconds() / 60;
   const visible = minute >= DAY_START && minute <= WEEK_VIEW_END;
   line.hidden = !visible;
   if (!visible) return;

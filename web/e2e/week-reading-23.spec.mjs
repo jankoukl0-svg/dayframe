@@ -163,19 +163,19 @@ test("an hour-long reading block moves repeatedly without page reload", async ({
 
   await startDrag(page, "Čtení knihy");
   await dispatchAtStart(page, "dragover", 23 * 60);
-  await expect(page.locator(".df2-reading-late-preview")).toContainText("23:00–24:00");
+  await expect(page.locator(".df2-reading-late-preview")).toContainText("23:00–00:00");
   await dispatchAtStart(page, "drop", 23 * 60);
   await assertNoReload(page);
-  await expect(page.locator(".df2-week-day.today .df2-week-task").filter({ hasText: "Čtení knihy" })).toContainText("23:00–24:00");
+  await expect(page.locator(".df2-week-day.today .df2-week-task").filter({ hasText: "Čtení knihy" })).toContainText("23:00–00:00");
 
   stored = await page.evaluate(({ date }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     return state.plans[date].find((task) => task.id === "reading-hour-test");
   }, seeded);
-  expect(`${stored.start}-${stored.end}`).toBe("23:00-24:00");
+  expect(`${stored.start}-${stored.end}`).toBe("23:00-00:00");
 });
 
-test("the 23:00 hour stays locked for ordinary tasks", async ({ page }) => {
+test("ordinary tasks can use the late lane through 02:00", async ({ page }) => {
   const seeded = await initialize(page, "Jiný úkol", "ordinary-late-test");
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
@@ -190,5 +190,5 @@ test("the 23:00 hour stays locked for ordinary tasks", async ({ page }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     return state.plans[date].find((task) => task.id === "ordinary-late-test");
   }, seeded);
-  expect(`${stored.start}-${stored.end}`).toBe("20:00-20:20");
+  expect(`${stored.start}-${stored.end}`).toBe("23:00-23:20");
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-calendar";
 
 type TrackedTask = {
   id: string;
@@ -25,10 +26,6 @@ type StoredState = { plans?: Record<string, TrackedTask[]>; [key: string]: unkno
 
 const STORAGE_KEY = "dayframe-v1";
 
-function localDateKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function readState(): StoredState | null {
   try {
     return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null") as StoredState | null;
@@ -41,14 +38,9 @@ function writeState(state: StoredState) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function timeToMinutes(time?: string) {
-  if (!time) return Number.NaN;
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
 function findTaskForElement(element: HTMLElement, state: StoredState) {
-  const tasks = state.plans?.[localDateKey()] ?? [];
+  const now = new Date();
+  const tasks = state.plans?.[planningDateKey(now)] ?? [];
   const focusView = element.closest(".df2-focus-view") as HTMLElement | null;
   const nowCard = element.closest(".df2-now-card") as HTMLElement | null;
   const missedArticle = element.closest(".df2-missed article") as HTMLElement | null;
@@ -58,14 +50,14 @@ function findTaskForElement(element: HTMLElement, state: StoredState) {
   if (!title) return null;
   const matching = tasks.filter((task) => !task.completed && task.title === title);
   if (matching.length <= 1) return matching[0] ?? null;
-  const minute = new Date().getHours() * 60 + new Date().getMinutes();
+  const minute = planningMinute(now);
   return matching.sort((a, b) => Math.abs(timeToMinutes(a.start) - minute) - Math.abs(timeToMinutes(b.start) - minute))[0] ?? null;
 }
 
 function updateTask(taskId: string, updater: (task: TrackedTask) => TrackedTask) {
   const state = readState();
   if (!state) return;
-  const date = localDateKey();
+  const date = planningDateKey(new Date());
   const tasks = state.plans?.[date];
   if (!tasks) return;
   state.plans = {
