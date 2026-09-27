@@ -1,0 +1,26 @@
+name: Apply 2am follow-up fixes
+
+on:
+  push:
+    branches:
+      - feature/day-end-2am
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/day-end-2am
+      - run: python3 scripts/fix-day-end-2am.py
+      - run: |
+          rm scripts/fix-day-end-2am.py .github/workflows/fix-day-end-2am.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Polish 2am planning boundary"
+          git push origin HEAD:feature/day-end-2am
