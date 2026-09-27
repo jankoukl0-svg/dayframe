@@ -64,6 +64,7 @@ declare global {
             client_id: string;
             scope: string;
             callback: (response: GoogleTokenResponse) => void;
+            error_callback?: (error: { type?: string; message?: string }) => void;
           }) => GoogleTokenClient;
           revoke?: (token: string, done?: () => void) => void;
         };
@@ -183,21 +184,37 @@ function localEvent(event: GoogleCalendarApiEvent, index: number): CalendarEvent
   if (!event.start.dateTime) return [];
   const startDate = new Date(event.start.dateTime);
   if (Number.isNaN(startDate.getTime())) return [];
-  const endDate = event.end?.dateTime ? new Date(event.end.dateTime) : new Date(startDate.getTime() + 60 * 60 * 1000);
-  const startMinute = startDate.getHours() * 60 + startDate.getMinutes();
-  const rawEnd = endDate.getHours() * 60 + endDate.getMinutes();
-  const crossesDay = dateKey(endDate) !== dateKey(startDate);
-  const endMinute = crossesDay ? DAY_END : Math.max(startMinute + 1, rawEnd);
-  return [{
-    id,
-    title,
-    date: dateKey(startDate),
-    allDay: false,
-    startMinute,
-    endMinute,
-    timeLabel: `${minutesLabel(startMinute)}–${minutesLabel(Math.min(endMinute, 23 * 60 + 59))}`,
-    htmlLink,
-  }];
+  const fallbackEnd = new Date(startDate.getTime() + 60 * 60 * 1000);
+  const parsedEnd = event.end?.dateTime ? new Date(event.end.dateTime) : fallbackEnd;
+  const endDate = Number.isNaN(parsedEnd.getTime()) || parsedEnd <= startDate ? fallbackEnd : parsedEnd;
+  const startKey = dateKey(startDate);
+  const endKey = dateKey(endDate);
+  const result: CalendarEvent[] = [];
+  let cursor = startKey;
+  let dayIndex = 0;
+
+  while (cursor <= endKey && dayIndex < 366) {
+    const isFirstDay = cursor === startKey;
+    const isLastDay = cursor === endKey;
+    const segmentStart = isFirstDay ? startDate.getHours() * 60 + startDate.getMinutes() : 0;
+    const segmentEnd = isLastDay ? endDate.getHours() * 60 + endDate.getMinutes() : DAY_END;
+    if (segmentEnd > segmentStart) {
+      result.push({
+        id: `${id}-${cursor}`,
+        title,
+        date: cursor,
+        allDay: false,
+        startMinute: segmentStart,
+        endMinute: segmentEnd,
+        timeLabel: `${minutesLabel(segmentStart)}–${minutesLabel(segmentEnd)}`,
+        htmlLink,
+      });
+    }
+    if (isLastDay) break;
+    cursor = addDaysKey(cursor, 1);
+    dayIndex += 1;
+  }
+  return result;
 }
 
 async function fetchGoogleEvents(accessToken: string, startDate: string, endDate: string) {
@@ -381,6 +398,7 @@ export function GoogleCalendarController() {
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
+        fetchedRangeRef.current = "";
         if (cause instanceof Error && cause.message === "GOOGLE_AUTH_EXPIRED") {
           window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
           setToken(null);
@@ -418,6 +436,13 @@ export function GoogleCalendarController() {
       const client = oauth.initTokenClient({
         client_id: clientId,
         scope: GOOGLE_SCOPE,
+        error_callback: (oauthError) => {
+          setConnecting(false);
+          const closed = oauthError.type === "popup_closed";
+          setError(closed
+            ? "Připojení ke Google Kalendáři bylo zavřeno."
+            : oauthError.message || "Google přihlášení se nepodařilo otevřít.");
+        },
         callback: (response) => {
           setConnecting(false);
           if (response.error || !response.access_token) {
