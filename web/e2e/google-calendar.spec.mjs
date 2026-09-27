@@ -87,6 +87,7 @@ test("Google Calendar connects read-only and renders events in month and week vi
   await expect.poll(() => page.evaluate(() => Boolean(window.sessionStorage.getItem("dayframe-google-calendar-token-v1")))).toBe(true);
 
   await page.getByRole("button", { name: "Týden" }).click();
+  await expect(page.locator(".df2-week-controls > button").first()).toHaveText("←");
   const todayWeek = page.locator(".df2-week-day.today");
   await expect(todayWeek.locator(".df2-google-week-event").filter({ hasText: "Google schůzka" })).toContainText("09:15–10:00");
   await expect(todayWeek.locator(".df2-google-week-all-day-event").filter({ hasText: "Google celý den" })).toBeVisible();
