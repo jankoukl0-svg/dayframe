@@ -11,6 +11,9 @@ export default defineConfig({
   // Relative assets work at both Vercel / and GitHub Pages /dayframe/.
   base: "./",
   plugins: [react()],
+  define: {
+    "process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID": JSON.stringify(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""),
+  },
   resolve: {
     alias: {
       "@": webRoot,

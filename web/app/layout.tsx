@@ -12,6 +12,7 @@ import "./label-colors-controller.css";
 import "./milestone-colors-controller.css";
 import "./month-calendar-controller.css";
 import "./calendar-observances-controller.css";
+import "./google-calendar-controller.css";
 import "./week-bottom-buffer.css";
 import "./late-reading-controller.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
@@ -25,6 +26,7 @@ import { LabelColorsController } from "./label-colors-controller";
 import { MilestoneColorsController } from "./milestone-colors-controller";
 import { MonthCalendarController } from "./month-calendar-controller";
 import { CalendarObservancesController } from "./calendar-observances-controller";
+import { GoogleCalendarController } from "./google-calendar-controller";
 import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
 import { LateReadingController } from "./late-reading-controller";
 import { FocusWeekSyncController } from "./focus-week-sync-controller";
@@ -37,5 +39,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /></body></html>;
 }
