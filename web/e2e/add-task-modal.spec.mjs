@@ -34,14 +34,13 @@ test("add task opens as a modal without leaving Today and closes with Escape", a
 
 test("shortcut 2 opens the modal while preserving the active week", async ({ page }) => {
   const weekNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" });
-  const addNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" });
+  await expect(page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" })).toHaveCount(0);
   await weekNav.click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 
   await page.keyboard.press("2");
   await expect(page.getByRole("dialog", { name: "Přidat úkol" })).toBeVisible();
   await expect(weekNav).toHaveClass(/active/);
-  await expect(addNav).not.toHaveClass(/active/);
 
   await page.getByRole("button", { name: "Zavřít" }).click();
   await page.keyboard.press("2");
