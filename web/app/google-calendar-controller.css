@@ -47,6 +47,22 @@
   line-height: 1.35;
 }
 
+.df2-google-calendar-retry {
+  display: block;
+  margin-top: 7px;
+  padding: 4px 7px;
+  border: 1px solid #c59b8c;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: 700 9px/1.2 "Cascadia Mono", monospace;
+  cursor: pointer;
+}
+
+.df2-google-calendar-retry:hover {
+  background: #f5e7e2;
+}
+
 .df2-google-calendar-month-host {
   display: contents;
 }

@@ -347,6 +347,7 @@ export function GoogleCalendarController() {
   const [controlTargets, setControlTargets] = useState<ControlTarget[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
+  const [retryNonce, setRetryNonce] = useState(0);
   const fetchedRangeRef = useRef("");
 
   useEffect(() => {
@@ -409,7 +410,7 @@ export function GoogleCalendarController() {
         setError(cause instanceof Error ? cause.message : "Google Kalendář se nepodařilo načíst.");
       });
     return () => { cancelled = true; };
-  }, [token, range]);
+  }, [token, range, retryNonce]);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -461,6 +462,12 @@ export function GoogleCalendarController() {
     }
   };
 
+  const retry = () => {
+    fetchedRangeRef.current = "";
+    setError("");
+    setRetryNonce((value) => value + 1);
+  };
+
   const disconnect = () => {
     const accessToken = token?.accessToken;
     const finish = () => {
@@ -469,6 +476,7 @@ export function GoogleCalendarController() {
       setToken(null);
       setEvents([]);
       setError("");
+      setRetryNonce(0);
     };
     if (accessToken && window.google?.accounts?.oauth2?.revoke) {
       window.google.accounts.oauth2.revoke(accessToken, finish);
@@ -483,7 +491,10 @@ export function GoogleCalendarController() {
         <span className="df2-google-calendar-mark" aria-hidden="true">G</span>
         {connecting ? "Připojuji…" : token ? "Google připojen" : "Google Kalendář"}
       </button>
-      {error && <span className="df2-google-calendar-error" role="status">{error}</span>}
+      {error && <span className="df2-google-calendar-error" role="status">
+        {error}
+        {token && <button type="button" className="df2-google-calendar-retry" onClick={retry}>Zkusit znovu</button>}
+      </span>}
     </div>,
     host,
     id,
