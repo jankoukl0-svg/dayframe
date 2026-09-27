@@ -67,34 +67,38 @@
   display: contents;
 }
 
+/* Google items are deliberately lighter than native Dayframe milestones.
+   The thin blue rail + tiny G badge communicate an external synced source. */
 .df2-google-calendar-month-event {
   width: 100%;
   min-width: 0;
   display: grid;
-  gap: 2px;
-  padding: 6px 7px;
-  border: 1px solid #c9d8ec;
-  border-left: 3px solid #4285f4;
-  border-radius: 3px;
-  background: #eef4fd;
+  gap: 3px;
+  padding: 6px 8px 6px 9px;
+  border: 1px solid rgba(66, 133, 244, .18);
+  border-left: 2px solid rgba(66, 133, 244, .86);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .68);
+  box-shadow: 0 1px 0 rgba(17, 24, 39, .025);
   color: var(--ink);
   text-align: left;
   text-decoration: none;
+  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
 
 .df2-google-calendar-month-event:hover {
-  border-top-color: #9eb6d7;
-  border-right-color: #9eb6d7;
-  border-bottom-color: #9eb6d7;
-  background: #e8f0fc;
+  border-color: rgba(66, 133, 244, .34);
+  border-left-color: #4285f4;
+  background: rgba(248, 251, 255, .95);
+  box-shadow: 0 2px 8px rgba(44, 80, 135, .07);
 }
 
 .df2-google-calendar-month-event strong {
   min-width: 0;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 10.5px;
   line-height: 1.2;
-  font-weight: 720;
+  font-weight: 670;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -102,13 +106,14 @@
 .df2-google-calendar-month-event strong::before {
   content: "G";
   display: inline-grid;
-  width: 13px;
-  height: 13px;
-  margin-right: 5px;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
   place-items: center;
-  border: 1px solid #7ca4dd;
-  border-radius: 2px;
-  color: #2d67b2;
+  border: 1px solid rgba(66, 133, 244, .42);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .9);
+  color: #2f6fc5;
   font: 800 7px/1 "Cascadia Mono", monospace;
   vertical-align: 1px;
 }
@@ -121,8 +126,13 @@
   white-space: nowrap;
 }
 
+.df2-google-calendar-month-event small::after {
+  content: " · Google";
+  color: #687789;
+}
+
 .df2-month-day.outside .df2-google-calendar-month-event {
-  opacity: .48;
+  opacity: .45;
 }
 
 .df2-google-week-timed-host {
@@ -141,28 +151,61 @@
   display: grid;
   align-content: start;
   gap: 2px;
-  padding: 4px 6px;
+  padding: 5px 7px 5px 8px;
   overflow: hidden;
-  border: 1px solid #c9d8ec;
-  border-left: 3px solid #4285f4;
-  border-radius: 3px;
-  background: rgba(238, 244, 253, .88);
+  border: 1px solid rgba(66, 133, 244, .19);
+  border-left: 2px solid rgba(66, 133, 244, .88);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 1px 4px rgba(44, 80, 135, .045);
   color: var(--ink);
   text-decoration: none;
   pointer-events: auto;
+  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.df2-google-week-event:hover {
+  border-color: rgba(66, 133, 244, .34);
+  border-left-color: #4285f4;
+  background: rgba(248, 251, 255, .97);
+  box-shadow: 0 3px 10px rgba(44, 80, 135, .08);
 }
 
 .df2-google-week-event > span {
+  overflow: hidden;
   color: #61738d;
   font: 8px/1.15 "Cascadia Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-google-week-event > span::after {
+  content: " · Google";
+  color: #687789;
 }
 
 .df2-google-week-event > strong {
   overflow: hidden;
   font-size: 10px;
   line-height: 1.15;
+  font-weight: 670;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.df2-google-week-event > strong::before {
+  content: "G";
+  display: inline-grid;
+  width: 11px;
+  height: 11px;
+  margin-right: 5px;
+  place-items: center;
+  border: 1px solid rgba(66, 133, 244, .38);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .9);
+  color: #2f6fc5;
+  font: 800 6px/1 "Cascadia Mono", monospace;
+  vertical-align: 1px;
 }
 
 .df2-google-week-all-day-host {
@@ -180,24 +223,33 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 6px;
-  border: 1px solid #c9d8ec;
-  border-left: 3px solid #4285f4;
-  border-radius: 3px;
-  background: #eef4fd;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid rgba(66, 133, 244, .18);
+  border-left: 2px solid rgba(66, 133, 244, .86);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .72);
+  box-shadow: 0 1px 0 rgba(17, 24, 39, .025);
   color: var(--ink);
   text-decoration: none;
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.df2-google-week-all-day-event:hover {
+  border-color: rgba(66, 133, 244, .34);
+  border-left-color: #4285f4;
+  background: rgba(248, 251, 255, .96);
 }
 
 .df2-google-week-all-day-event > span {
   display: grid;
-  flex: 0 0 14px;
-  height: 14px;
+  flex: 0 0 13px;
+  height: 13px;
   place-items: center;
-  border: 1px solid #7ca4dd;
-  border-radius: 2px;
-  color: #2d67b2;
+  border: 1px solid rgba(66, 133, 244, .4);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .92);
+  color: #2f6fc5;
   font: 800 7px/1 "Cascadia Mono", monospace;
 }
 
@@ -205,8 +257,16 @@
   min-width: 0;
   overflow: hidden;
   font-size: 9px;
+  font-weight: 670;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.df2-google-week-all-day-event > strong::after {
+  content: " · Google";
+  color: #687789;
+  font: 8px/1 "Cascadia Mono", monospace;
+  font-weight: 500;
 }
 
 @media (max-width: 760px) {
