@@ -1,0 +1,62 @@
+name: Apply sidebar cleanup
+
+on:
+  push:
+    branches: [fix/remove-add-task-sidebar]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/remove-add-task-sidebar
+      - name: Remove add-task sidebar item and update test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app = Path('web/app/dayframe-v2.tsx')
+          text = app.read_text()
+          line = '            <NavButton active={false} onClick={() => openAdd()} label="Přidat úkol" shortcut="2" />\n'
+          if line not in text:
+              raise SystemExit('sidebar add-task nav item not found')
+          app.write_text(text.replace(line, '', 1))
+
+          test = Path('web/e2e/add-task-modal.spec.mjs')
+          text = test.read_text()
+          old = '''test("sidebar and shortcut 2 open the modal while preserving the active week", async ({ page }) => {
+  const weekNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" });
+  const addNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" });
+  await weekNav.click();
+  await expect(page.locator(".df2-week-grid")).toBeVisible();
+
+  await addNav.click();
+  await expect(page.getByRole("dialog", { name: "Přidat úkol" })).toBeVisible();
+  await expect(weekNav).toHaveClass(/active/);
+  await expect(addNav).not.toHaveClass(/active/);
+
+  await page.getByRole("button", { name: "Zavřít" }).click();
+  await page.keyboard.press("2");
+'''
+          new = '''test("shortcut 2 opens the modal while preserving the active week", async ({ page }) => {
+  const weekNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" });
+  await expect(page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" })).toHaveCount(0);
+  await weekNav.click();
+  await expect(page.locator(".df2-week-grid")).toBeVisible();
+
+  await page.keyboard.press("2");
+'''
+          if old not in text:
+              raise SystemExit('modal sidebar test block not found')
+          test.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add web/app/dayframe-v2.tsx web/e2e/add-task-modal.spec.mjs
+          git commit -m "Remove add task from sidebar"
+          git push origin HEAD:fix/remove-add-task-sidebar
