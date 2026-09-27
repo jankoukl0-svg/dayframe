@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 
 test("add task opens as a modal without leaving Today and closes with Escape", async ({ page }) => {
   const todayNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Dnes" });
-  const addNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" });
+  await expect(page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" })).toHaveCount(0);
 
   await expect(todayNav).toHaveClass(/active/);
   await page.getByRole("button", { name: "+ Nový úkol" }).click();
@@ -17,7 +17,6 @@ test("add task opens as a modal without leaving Today and closes with Escape", a
   const dialog = page.getByRole("dialog", { name: "Přidat úkol" });
   await expect(dialog).toBeVisible();
   await expect(todayNav).toHaveClass(/active/);
-  await expect(addNav).not.toHaveClass(/active/);
 
   const expectedToday = await page.evaluate(() => {
     const date = new Date();
@@ -33,13 +32,13 @@ test("add task opens as a modal without leaving Today and closes with Escape", a
   await expect(todayNav).toHaveClass(/active/);
 });
 
-test("sidebar and shortcut 2 open the modal while preserving the active week", async ({ page }) => {
+test("shortcut 2 opens the modal while preserving the active week", async ({ page }) => {
   const weekNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" });
   const addNav = page.locator(".df2-sidebar nav button").filter({ hasText: "Přidat úkol" });
   await weekNav.click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 
-  await addNav.click();
+  await page.keyboard.press("2");
   await expect(page.getByRole("dialog", { name: "Přidat úkol" })).toBeVisible();
   await expect(weekNav).toHaveClass(/active/);
   await expect(addNav).not.toHaveClass(/active/);
