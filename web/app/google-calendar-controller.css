@@ -120,7 +120,7 @@
 
 .df2-google-calendar-month-event small {
   overflow: hidden;
-  color: #788493;
+  color: #61738d;
   font: 8px/1.2 "Cascadia Mono", monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -128,7 +128,7 @@
 
 .df2-google-calendar-month-event small::after {
   content: " · Google";
-  color: #8a97a8;
+  color: #687789;
 }
 
 .df2-month-day.outside .df2-google-calendar-month-event {
@@ -173,7 +173,7 @@
 
 .df2-google-week-event > span {
   overflow: hidden;
-  color: #778392;
+  color: #61738d;
   font: 8px/1.15 "Cascadia Mono", monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -181,7 +181,7 @@
 
 .df2-google-week-event > span::after {
   content: " · Google";
-  color: #8b98a8;
+  color: #687789;
 }
 
 .df2-google-week-event > strong {
@@ -264,7 +264,7 @@
 
 .df2-google-week-all-day-event > strong::after {
   content: " · Google";
-  color: #8a97a8;
+  color: #687789;
   font: 8px/1 "Cascadia Mono", monospace;
   font-weight: 500;
 }
