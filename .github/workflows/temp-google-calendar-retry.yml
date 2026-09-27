@@ -1,0 +1,29 @@
+name: Apply Google Calendar retry UI
+
+on:
+  push:
+    branches:
+      - feat/google-calendar-readonly
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/google-calendar-readonly
+          fetch-depth: 0
+      - name: Apply retry patch
+        run: python .github/patch-google-calendar-retry.py
+      - name: Commit retry UI and remove temporary patch files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/app/google-calendar-controller.tsx web/app/google-calendar-controller.css
+          git commit -m "Add retry control for Google Calendar fetch errors"
+          git rm .github/patch-google-calendar-retry.py .github/workflows/temp-google-calendar-retry.yml
+          git commit -m "Remove temporary Google Calendar retry patch"
+          git push origin HEAD:feat/google-calendar-readonly
