@@ -199,6 +199,12 @@ export function DayframeV2() {
   useEffect(() => {
     const keyHandler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      if (event.key === "Escape") {
+        setAddingTask(false);
+        setEditing(null);
+        setEditingMilestoneId(null);
+        return;
+      }
       if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
       if (event.key === "1") setView("today");
       if (event.key.toLowerCase() === "w") setView("week");
@@ -206,11 +212,6 @@ export function DayframeV2() {
       if (event.key === "3") setView("focus");
       if (event.key === "4") setView("milestones");
       if (event.key === "5") setView("settings");
-      if (event.key === "Escape") {
-        setAddingTask(false);
-        setEditing(null);
-        setEditingMilestoneId(null);
-      }
     };
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
