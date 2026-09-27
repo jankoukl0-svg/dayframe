@@ -77,8 +77,22 @@ test("Google Calendar connects read-only and renders events in month and week vi
 
   const today = localDateKey();
   const todayCell = page.locator(`.df2-month-day[data-date="${today}"]`);
-  await expect(todayCell.locator(".df2-google-calendar-month-event").filter({ hasText: "Google schůzka" })).toContainText("09:15–10:00");
+  const monthTimedEvent = todayCell.locator(".df2-google-calendar-month-event").filter({ hasText: "Google schůzka" });
+  await expect(monthTimedEvent).toContainText("09:15–10:00");
   await expect(todayCell.locator(".df2-google-calendar-month-event").filter({ hasText: "Google celý den" })).toContainText("Celý den");
+
+  const monthDesign = await monthTimedEvent.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const meta = element.querySelector("small");
+    return {
+      borderLeftWidth: style.borderLeftWidth,
+      backgroundColor: style.backgroundColor,
+      sourceLabel: meta ? getComputedStyle(meta, "::after").content : "",
+    };
+  });
+  expect(monthDesign.borderLeftWidth).toBe("2px");
+  expect(monthDesign.backgroundColor).toBe("rgba(255, 255, 255, 0.68)");
+  expect(monthDesign.sourceLabel).toContain("Google");
 
   const request = await page.evaluate(() => window.__googleCalendarRequests.at(-1));
   expect(request.authorization).toBe("Bearer test-google-token");
@@ -89,8 +103,22 @@ test("Google Calendar connects read-only and renders events in month and week vi
   await page.getByRole("button", { name: "Týden" }).click();
   await expect(page.locator(".df2-week-controls > button").first()).toHaveText("←");
   const todayWeek = page.locator(".df2-week-day.today");
-  await expect(todayWeek.locator(".df2-google-week-event").filter({ hasText: "Google schůzka" })).toContainText("09:15–10:00");
+  const weekTimedEvent = todayWeek.locator(".df2-google-week-event").filter({ hasText: "Google schůzka" });
+  await expect(weekTimedEvent).toContainText("09:15–10:00");
   await expect(todayWeek.locator(".df2-google-week-all-day-event").filter({ hasText: "Google celý den" })).toBeVisible();
+
+  const weekDesign = await weekTimedEvent.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const meta = element.querySelector("span");
+    return {
+      borderLeftWidth: style.borderLeftWidth,
+      backgroundColor: style.backgroundColor,
+      sourceLabel: meta ? getComputedStyle(meta, "::after").content : "",
+    };
+  });
+  expect(weekDesign.borderLeftWidth).toBe("2px");
+  expect(weekDesign.backgroundColor).toBe("rgba(255, 255, 255, 0.82)");
+  expect(weekDesign.sourceLabel).toContain("Google");
 
   await page.getByRole("button", { name: "Google připojen" }).click();
   await expect(page.getByRole("button", { name: "Google Kalendář" })).toBeVisible();
