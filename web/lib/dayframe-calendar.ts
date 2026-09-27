@@ -340,10 +340,11 @@ export function findSlot(tasks: CalendarTask[], date: string, duration: number, 
     ? Math.max(DAY_START, Math.ceil(planningMinute(now) / SLOT) * SLOT)
     : DAY_START;
 
-  /* An explicit/manual start is authoritative, including during lunch. */
+  /* An explicit/manual start is authoritative, including during lunch and the late 22:30–02:00 lane. */
   if (exactStart) {
     const start = timeToMinutes(exactStart);
-    if (!Number.isFinite(start) || start < floor || start + duration > deadline || !canPlaceAt(tasks, start, duration)) return null;
+    const manualDeadline = deadlineTime === "22:30" ? DAY_END : deadline;
+    if (!Number.isFinite(start) || start < floor || start + duration > manualDeadline || !canPlaceAt(tasks, start, duration)) return null;
     return { start: minutesToTime(start), end: minutesToTime(start + duration) };
   }
 
@@ -594,7 +595,7 @@ export function moveTaskToTomorrow(state: DayframeState, id: string, now = new D
     if (task) break;
   }
   if (!task) return state;
-  const tomorrow = addDaysKey(localDateKey(now), 1);
+  const tomorrow = addDaysKey(planningDateKey(now), 1);
   const without = deleteTask(state, id);
   const stripped: CalendarTask = { ...task, id: taskId(), date: tomorrow, start: undefined, end: undefined, requestedStart: undefined, mode: "flexible", source: "user", routineId: undefined, dateLocked: true, autoScheduled: true, completed: false };
   const next = { ...without, plans: { ...without.plans, [tomorrow]: sortTasks([...(without.plans[tomorrow] ?? []), stripped]) } };
@@ -623,7 +624,7 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
     || a.createdAt.localeCompare(b.createdAt));
 
   for (const task of movable) {
-    const allowed = keys.filter((date) => date >= localDateKey(now) && (!task.dueDate || date <= task.dueDate));
+    const allowed = keys.filter((date) => date >= planningDateKey(now) && (!task.dueDate || date <= task.dueDate));
     let placed = false;
     for (const date of allowed) {
       const slot = findSlot(next.plans[date] ?? [], date, task.duration, now, task.deadlineTime);

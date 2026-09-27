@@ -106,6 +106,14 @@ test("planning day continues through 02:00 after midnight", () => {
   assert.equal(planningMinute(afterMidnight), 25 * 60 + 15);
 });
 
+
+test("manual placement can use the late lane while automatic planning keeps its 22:30 cutoff", () => {
+  const manual = findSlot([], "2026-09-18", 30, now, "22:30", "01:00");
+  assert.deepEqual(manual, { start: "01:00", end: "01:30" });
+  const automatic = findSlot([], "2026-09-18", 30, now, "22:30");
+  assert.deepEqual(automatic, { start: "08:00", end: "08:30" });
+});
+
 test("automatic scheduling still avoids the lunch preference", () => {
   const occupied = [{
     id: "morning",

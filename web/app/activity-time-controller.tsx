@@ -52,10 +52,6 @@ const WEEK_VIEW_END = calendarBounds.dayEnd;
 const SLOT = 15;
 const MINUTE_HEIGHT = 0.72;
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function timeToMinutes(time?: string) {
   if (!time) return Number.NaN;
   const [hours, minutes] = time.split(":").map(Number);
@@ -101,20 +97,20 @@ function currentSecond(now = new Date()) {
 function liveTask(tasks: Task[], minute: number) {
   return tasks
     .filter((task) => !task.completed && task.start && task.end)
-    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
     .find((task) => timeToMinutes(task.start) <= minute && timeToMinutes(task.end) > minute) ?? null;
 }
 
 function missedTasks(tasks: Task[], minute: number) {
   return tasks
     .filter((task) => !task.completed && task.end && timeToMinutes(task.end) <= minute)
-    .sort((a, b) => (a.end ?? "").localeCompare(b.end ?? ""));
+    .sort((a, b) => timeToMinutes(a.end) - timeToMinutes(b.end));
 }
 
 function nextTask(tasks: Task[], currentId: string, minute: number) {
   return tasks
     .filter((task) => task.id !== currentId && !task.completed && task.start && task.end && timeToMinutes(task.start) >= minute)
-    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))[0] ?? null;
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0] ?? null;
 }
 
 function priorityRank(priority?: Task["priority"]) {
@@ -207,7 +203,7 @@ function extendTask(taskId: string, now = new Date()) {
 
   const sorted = tasks
     .map((task) => ({ ...task }))
-    .sort((a, b) => (a.start ?? "99:99").localeCompare(b.start ?? "99:99"));
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
   let cursor = extendedEnd;
   let seenTarget = false;
 
@@ -316,7 +312,7 @@ function replanRemainingToday(now = new Date()) {
       if (!a.start && b.start) return -1;
       if (a.start && !b.start) return 1;
       if (!a.start && !b.start) return priorityRank(a.priority) - priorityRank(b.priority);
-      return (a.start ?? "").localeCompare(b.start ?? "");
+      return timeToMinutes(a.start) - timeToMinutes(b.start);
     }),
   };
   writeState(state);
