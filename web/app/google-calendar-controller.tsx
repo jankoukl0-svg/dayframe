@@ -294,7 +294,7 @@ function ensureControlHost(container: HTMLElement, id: string) {
     host = document.createElement("span");
     host.dataset.googleCalendarControl = id;
     host.className = "df2-google-calendar-control-host";
-    container.insertBefore(host, container.firstChild);
+    container.appendChild(host);
   }
   return { id, host };
 }
