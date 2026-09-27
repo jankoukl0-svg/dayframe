@@ -37,6 +37,10 @@
   margin-bottom: 18px;
 }
 
+.df2-month-calendar-head > div > p {
+  display: none;
+}
+
 .df2-month-calendar-controls {
   display: flex;
   align-items: center;
