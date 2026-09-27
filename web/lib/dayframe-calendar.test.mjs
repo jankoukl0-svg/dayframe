@@ -6,6 +6,10 @@ import {
   getTasksForDate,
   calendarBounds,
   localDateKey,
+  minutesToTime,
+  planningDateKey,
+  planningMinute,
+  timeToMinutes,
   materializeRange,
   migrateStoredState,
   moveTask,
@@ -88,6 +92,18 @@ test("day starts at 08:00 and future auto-planning can use the first slot", () =
   assert.equal(calendarBounds.dayStart, 8 * 60);
   const slot = findSlot([], "2026-09-18", 60, now);
   assert.deepEqual(slot, { start: "08:00", end: "09:00" });
+});
+
+
+test("planning day continues through 02:00 after midnight", () => {
+  assert.equal(calendarBounds.dayEnd, 26 * 60);
+  assert.equal(timeToMinutes("23:30"), 23 * 60 + 30);
+  assert.equal(timeToMinutes("00:30"), 24 * 60 + 30);
+  assert.equal(timeToMinutes("02:00"), 26 * 60);
+  assert.equal(minutesToTime(25 * 60 + 30), "01:30");
+  const afterMidnight = new Date(2026, 8, 18, 1, 15, 0);
+  assert.equal(planningDateKey(afterMidnight), "2026-09-17");
+  assert.equal(planningMinute(afterMidnight), 25 * 60 + 15);
 });
 
 test("automatic scheduling still avoids the lunch preference", () => {
