@@ -81,7 +81,8 @@ function normalizedTitle(value?: string) {
 }
 
 function isReadingTask(task: StoredTask | null | undefined) {
-  return task?.routineId === "read" || normalizedTitle(task?.title) === "čtení knihy";
+  const title = normalizedTitle(task?.title);
+  return task?.routineId === "read" || title === "čtení knihy" || title.includes("čtení");
 }
 
 function timeToMinutes(value?: string) {
@@ -122,7 +123,7 @@ function targetStart(body: HTMLElement, clientY: number, drag: DragInfo) {
 }
 
 function usesLateLane(body: HTMLElement, clientY: number, drag: DragInfo) {
-  return rawTargetStart(body, clientY, drag) + drag.duration > NORMAL_DAY_END;
+  return targetStart(body, clientY, drag) + drag.duration >= NORMAL_DAY_END;
 }
 
 function canPlace(state: StoredState, date: string, taskId: string, start: number, duration: number) {
@@ -220,13 +221,13 @@ export function LateReadingController() {
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-
       if (!drag.reading) {
         clearPreview();
         return;
       }
+
+      event.preventDefault();
+      event.stopPropagation();
 
       const day = body.closest<HTMLElement>(".df2-week-day");
       const date = day ? dateForWeekDay(day) : null;
@@ -241,14 +242,13 @@ export function LateReadingController() {
       const body = event.target instanceof Element ? event.target.closest<HTMLElement>(".df2-time-body") : null;
       if (!body || !usesLateLane(body, event.clientY, drag)) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-
       if (!drag.reading) {
         clearPreview();
-        drag = null;
         return;
       }
+
+      event.preventDefault();
+      event.stopPropagation();
 
       const day = body.closest<HTMLElement>(".df2-week-day");
       const date = day ? dateForWeekDay(day) : null;
