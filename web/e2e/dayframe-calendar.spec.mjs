@@ -118,11 +118,7 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await page.locator(".df2-title-input input").fill("Zeměpis 20 min");
   await page.getByRole("button", { name: "Naplánovat" }).click();
 
-  const result = page.locator(".df2-result");
-  await expect(result).toContainText("Zeměpis");
-  await expect(result).not.toContainText("[[");
-
-  await result.getByRole("button", { name: "Týden", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Přidat úkol" })).toHaveCount(0);
   await expect(page.locator(".df2-week-grid")).toBeVisible();
   const targetAfterSave = page.locator(".df2-week-day").nth(targetIndex);
   await expect(targetAfterSave).toContainText("Zeměpis");

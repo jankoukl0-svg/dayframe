@@ -40,7 +40,7 @@ const STATE_SYNC_EVENT = "dayframe-state-sync";
 const MINUTE_HEIGHT = 0.72;
 const DROP_MAGNET_RANGE = 60;
 
-type View = "today" | "week" | "add" | "focus" | "milestones" | "settings";
+type View = "today" | "week" | "focus" | "milestones" | "settings";
 
 type Draft = {
   title: string;
@@ -115,6 +115,7 @@ export function DayframeV2() {
   const [view, setView] = useState<View>("today");
   const [weekOffset, setWeekOffset] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
+  const [addingTask, setAddingTask] = useState(false);
   const [editing, setEditing] = useState<CalendarTask | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -206,6 +207,7 @@ export function DayframeV2() {
       if (event.key === "4") setView("milestones");
       if (event.key === "5") setView("settings");
       if (event.key === "Escape") {
+        setAddingTask(false);
         setEditing(null);
         setEditingMilestoneId(null);
       }
@@ -230,11 +232,17 @@ export function DayframeV2() {
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(monday, index)), [monday]);
   const weekLabel = `${new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short" }).format(days[0])} – ${new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric" }).format(days[6])}`;
 
-  function openAdd(date = "") {
-    setDraft({ ...emptyDraft(), date });
+  function openAdd(date = "", start = "") {
+    setDraft({ ...emptyDraft(), date, start });
     setError("");
     setNotice("");
-    setView("add");
+    setAddingTask(true);
+  }
+
+  function closeAdd() {
+    setAddingTask(false);
+    setDraft(emptyDraft());
+    setError("");
   }
 
   function submitDraft(event: React.FormEvent) {
@@ -265,6 +273,7 @@ export function DayframeV2() {
       ? `${effective.title} · ${dayLabel(result.task.date, todayKey)}${result.task.start ? ` · ${result.task.start}–${result.task.end}` : ""}`
       : `${effective.title} je uložený, ale zatím nemá volný čas.`);
     setDraft(emptyDraft());
+    setAddingTask(false);
   }
 
   function saveEdit(event: React.FormEvent<HTMLFormElement>) {
@@ -415,7 +424,7 @@ export function DayframeV2() {
           <nav>
             <NavButton active={view === "today"} onClick={() => setView("today")} label="Dnes" shortcut="1" />
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
-            <NavButton active={view === "add"} onClick={() => openAdd()} label="Přidat úkol" shortcut="2" />
+            <NavButton active={false} onClick={() => openAdd()} label="Přidat úkol" shortcut="2" />
             <NavButton active={view === "focus"} onClick={() => setView("focus")} label="Soustředění" shortcut="3" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
@@ -528,35 +537,6 @@ export function DayframeV2() {
             </section>
           )}
 
-          {view === "add" && (
-            <section className="df2-add-view">
-              <header className="df2-page-head"><div><h1>Přidat úkol</h1></div></header>
-              <form className="df2-add-form" onSubmit={submitDraft}>
-                <label className="df2-title-input"><span>Úkol</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>
-                <div className="df2-chips" aria-label="Rychlá nastavení">
-                  <label><span>Den</span><input type="date" value={draft.date} min={todayKey} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
-                  <label><span>Délka</span><select value={draft.duration} onChange={(event) => setDraft({ ...draft, duration: Number(event.target.value) })}><option value={20}>20 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option></select></label>
-                  <label><span>Začít v</span><input type="time" value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label>
-                  <label><span>Priorita</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="normal">Běžná</option><option value="high">Vysoká</option><option value="low">Nízká</option></select></label>
-                </div>
-                <details className="df2-details">
-                  <summary>Podrobnosti</summary>
-                  <div className="df2-details-grid">
-                    <label>Dokončit do<input type="date" value={draft.dueDate} min={todayKey} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} /></label>
-                    <label>Nejpozději v<input type="time" value={draft.deadlineTime} onChange={(event) => setDraft({ ...draft, deadlineTime: event.target.value })} /></label>
-                    <label>Oblast<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
-                    <label>Opakování<select value={draft.repeat} onChange={(event) => setDraft({ ...draft, repeat: event.target.value as RepeatRule })}><option value="none">Neopakovat</option><option value="daily">Každý den</option><option value="weekly">Každý týden</option></select></label>
-                  </div>
-                </details>
-                {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
-                {error && <p className="df2-error">{error}</p>}
-                <button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button>
-              </form>
-              {notice && <div className="df2-result"><strong>{notice}</strong><button onClick={() => { setNotice(""); setView("week"); }}>Týden</button></div>}
-              {data.backlog.length > 0 && <section className="df2-backlog"><h2>Bez místa</h2>{data.backlog.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.duration} min{task.priority === "high" ? " · vysoká priorita" : ""}</small></div><button onClick={() => setData((current) => replanWeek(current, now, now))}>Zkusit naplánovat</button></article>)}</section>}
-            </section>
-          )}
-
           {view === "focus" && (
             <section className="df2-focus-view">
               <p>{focusTask ? `${focusTask.start ?? ""} · ${focusTask.category}` : "Focus blok"}</p>
@@ -583,6 +563,33 @@ export function DayframeV2() {
           )}
         </section>
       </div>
+
+      {addingTask && (
+        <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAdd(); }}>
+          <form className="df2-modal df2-add-modal df2-add-form" role="dialog" aria-modal="true" aria-labelledby="df2-add-task-title" onSubmit={submitDraft}>
+            <header><div><h2 id="df2-add-task-title">Přidat úkol</h2></div><button type="button" aria-label="Zavřít" onClick={closeAdd}>×</button></header>
+            <label className="df2-title-input"><span>Úkol</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>
+            <div className="df2-chips" aria-label="Rychlá nastavení">
+              <label><span>Den</span><input type="date" value={draft.date} min={todayKey} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
+              <label><span>Délka</span><select value={draft.duration} onChange={(event) => setDraft({ ...draft, duration: Number(event.target.value) })}><option value={20}>20 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option></select></label>
+              <label><span>Začít v</span><input type="time" value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label>
+              <label><span>Priorita</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="normal">Běžná</option><option value="high">Vysoká</option><option value="low">Nízká</option></select></label>
+            </div>
+            <details className="df2-details">
+              <summary>Podrobnosti</summary>
+              <div className="df2-details-grid">
+                <label>Dokončit do<input type="date" value={draft.dueDate} min={todayKey} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} /></label>
+                <label>Nejpozději v<input type="time" value={draft.deadlineTime} onChange={(event) => setDraft({ ...draft, deadlineTime: event.target.value })} /></label>
+                <label>Oblast<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
+                <label>Opakování<select value={draft.repeat} onChange={(event) => setDraft({ ...draft, repeat: event.target.value as RepeatRule })}><option value="none">Neopakovat</option><option value="daily">Každý den</option><option value="weekly">Každý týden</option></select></label>
+              </div>
+            </details>
+            {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
+            {error && <p className="df2-error">{error}</p>}
+            <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
+          </form>
+        </div>
+      )}
 
       {editingMilestone && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingMilestoneId(null); }}>
