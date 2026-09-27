@@ -105,7 +105,6 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
     expect(Math.abs(weekVisual.oneHourTaskHeight - weekVisual.hourSlotHeight)).toBeLessThan(0.6);
   }
 
-  await page.locator(".df2-week-controls button").filter({ hasText: "Tento týden" }).click();
   let targetIndex = todayIndex + 1;
   if (targetIndex > 6) {
     await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
