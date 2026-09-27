@@ -1,0 +1,32 @@
+name: Apply add task modal migration
+
+on:
+  push:
+    branches:
+      - feature/add-task-modal
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/add-task-modal
+          fetch-depth: 0
+      - name: Apply migration
+        run: python3 .tmp/apply_add_task_modal.py
+      - name: Remove migration helpers
+        run: |
+          rm -f .tmp/apply_add_task_modal.py
+          rm -f .github/workflows/apply-add-task-modal.yml
+      - name: Commit result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/app/dayframe-v2.tsx web/app/dayframe-v2.css web/e2e/dayframe-calendar.spec.mjs web/e2e/add-task-modal.spec.mjs .tmp/apply_add_task_modal.py .github/workflows/apply-add-task-modal.yml
+          git commit -m "Turn add task into an in-context modal"
+          git push origin HEAD:feature/add-task-modal
