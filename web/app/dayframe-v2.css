@@ -420,3 +420,36 @@
   .df2-page-head > button { width: max-content; }
   .df2-focus-clock { font-size: 70px; }
 }
+
+/* Add-task is an action inside the current view, not a standalone destination. */
+.df2-add-modal {
+  width: min(760px, 100%);
+  gap: 18px;
+}
+
+.df2-add-modal .df2-title-input > input {
+  width: 100%;
+}
+
+.df2-add-modal .df2-details {
+  margin-top: 1px;
+}
+
+@media (max-width: 720px) {
+  .df2-add-modal {
+    width: 100%;
+    max-height: calc(100vh - 28px);
+    padding: 18px;
+  }
+
+  .df2-add-modal .df2-chips {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .df2-add-modal .df2-chips input,
+  .df2-add-modal .df2-chips select {
+    min-width: 0;
+    width: 100%;
+  }
+}
