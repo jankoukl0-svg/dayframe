@@ -16,6 +16,7 @@ import "./google-calendar-controller.css";
 import "./week-bottom-buffer.css";
 import "./late-reading-controller.css";
 import "./notification-controller.css";
+import "./sidebar-shortcuts.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
