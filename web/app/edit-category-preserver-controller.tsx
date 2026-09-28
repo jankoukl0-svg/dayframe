@@ -80,14 +80,15 @@ function findEditedTask(form: HTMLFormElement): StoredTask | null {
   const dated = date ? state.plans?.[date] ?? [] : [];
   const all = Object.values(state.plans ?? {}).flat();
   const candidates = dated.length ? dated : all;
+  const selection = pendingSelection;
 
-  if (pendingSelection?.kind === "unscheduled") {
-    const task = dated.filter((item) => !item.start)[pendingSelection.index];
+  if (selection?.kind === "unscheduled") {
+    const task = dated.filter((item) => !item.start)[selection.index];
     if (task) return task;
   }
 
-  if (pendingSelection?.kind === "scheduled" || pendingSelection?.kind === "today") {
-    const task = dated.find((item) => item.title === pendingSelection?.title && (item.start ?? "") === pendingSelection?.start);
+  if (selection?.kind === "scheduled" || selection?.kind === "today") {
+    const task = dated.find((item) => item.title === selection.title && (item.start ?? "") === selection.start);
     if (task) return task;
   }
 
