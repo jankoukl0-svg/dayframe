@@ -5,9 +5,11 @@ import { defineConfig } from "vite";
 const webRoot = fileURLToPath(new URL("./", import.meta.url));
 const previewRoot = fileURLToPath(new URL("./preview/", import.meta.url));
 const previewOut = fileURLToPath(new URL("./preview-dist/", import.meta.url));
+const publicRoot = fileURLToPath(new URL("./public/", import.meta.url));
 
 export default defineConfig({
   root: previewRoot,
+  publicDir: publicRoot,
   // Relative assets work at both Vercel / and GitHub Pages /dayframe/.
   base: "./",
   plugins: [react()],
