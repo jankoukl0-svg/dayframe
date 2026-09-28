@@ -249,8 +249,8 @@
   font: 500 9px/1.2 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
 
-/* On a monthly view the exact value of every single day is visual clutter.
-   Keep sparse date markers; exact values remain available on hover via title. */
+/* Monthly view uses sparse date markers, but exact daily values remain visible
+   in deliberately quiet type so touch and keyboard users do not lose data. */
 .df2-history-bars[data-mode="month"] {
   gap: 4px;
 }
@@ -260,7 +260,13 @@
 }
 
 .df2-history-bars[data-mode="month"] small {
-  display: none;
+  display: block;
+  min-height: 9px;
+  margin-top: 2px;
+  color: #b0aea7;
+  font-size: 7px;
+  line-height: 1.1;
+  letter-spacing: -.02em;
 }
 
 .df2-history-bars[data-mode="month"] strong {
