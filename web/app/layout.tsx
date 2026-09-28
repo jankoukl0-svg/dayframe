@@ -20,6 +20,7 @@ import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
 import { HistoryController } from "./history-controller";
+import { HistoryPeriodRolloverController } from "./history-period-rollover-controller";
 import { ExecutionTracker } from "./execution-tracker";
 import { FocusManualStartController } from "./focus-manual-start-controller";
 import { WeekCapacityController } from "./week-capacity-controller";
@@ -42,5 +43,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /><NotificationController /></body></html>;
 }
