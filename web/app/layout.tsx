@@ -17,6 +17,7 @@ import "./week-bottom-buffer.css";
 import "./late-reading-controller.css";
 import "./notification-controller.css";
 import "./sidebar-shortcuts.css";
+import "./milestone-ui-cohesion.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
