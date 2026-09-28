@@ -42,6 +42,12 @@ function findTaskForElement(element: HTMLElement, state: StoredState) {
   const now = new Date();
   const tasks = state.plans?.[planningDateKey(now)] ?? [];
   const focusView = element.closest(".df2-focus-view") as HTMLElement | null;
+  const focusTaskId = focusView?.dataset.focusTaskId;
+  if (focusTaskId) {
+    const exact = tasks.find((task) => !task.completed && task.id === focusTaskId);
+    if (exact) return exact;
+  }
+
   const nowCard = element.closest(".df2-now-card") as HTMLElement | null;
   const missedArticle = element.closest(".df2-missed article") as HTMLElement | null;
   const title = focusView?.querySelector("h1")?.textContent?.trim()
