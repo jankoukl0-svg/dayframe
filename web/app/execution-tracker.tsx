@@ -144,13 +144,15 @@ export function ExecutionTracker() {
       const task = findTaskForElement(button, state);
       if (!task) return;
 
-      if (text === "Zahájit blok") {
-        startExecution(task.id);
-        return;
-      }
+      if (text === "Zahájit blok") return;
 
       if (button.closest(".df2-time-adjust-focus-controls")) {
-        if (text === "Pauza") pauseExecution(task.id);
+        if (button.dataset.focusManualAutoPause === "true") {
+          if (task.actualRunningSince) pauseExecution(task.id);
+          return;
+        }
+        if (text === "Start") startExecution(task.id);
+        else if (text === "Pauza") pauseExecution(task.id);
         else if (text === "Pokračovat") resumeExecution(task.id);
         else if (text === "Hotovo") completeExecution(task.id);
         else if (text.includes("+15 min")) preservePlan(task.id);

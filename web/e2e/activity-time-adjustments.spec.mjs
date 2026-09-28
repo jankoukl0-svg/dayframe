@@ -199,13 +199,16 @@ test("focus mode uses the real block time and keeps only execution controls", as
 
   const focusControls = page.locator(".df2-time-adjust-focus-controls");
   const continueButton = focusControls.getByRole("button", { name: "+15 min", exact: true });
-  await expect(focusControls.getByRole("button", { name: "Pauza" })).toBeVisible();
+  const startButton = focusControls.getByRole("button", { name: "Start", exact: true });
+  await expect(startButton).toBeVisible();
   await expect(focusControls.getByRole("button", { name: "Hotovo" })).toBeVisible();
   await expect(continueButton).toBeVisible();
   await expect(page.getByRole("button", { name: "Začít znovu" })).not.toBeVisible();
   await expect(continueButton).toHaveCSS("color", "rgb(247, 245, 241)");
   await expect(continueButton).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
+  await startButton.click();
+  await expect(focusControls.getByRole("button", { name: "Pauza" })).toBeVisible();
   await focusControls.getByRole("button", { name: "Pauza" }).click();
   await expect(focusControls.getByRole("button", { name: "Pokračovat" })).toBeVisible();
   await focusControls.getByRole("button", { name: "Pokračovat" }).click();

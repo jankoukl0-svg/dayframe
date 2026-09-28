@@ -47,6 +47,8 @@ test("focus preserves the original plan and records actual work", async ({ page 
   await expect(focus).toBeVisible();
   const controls = page.locator(".df2-time-adjust-focus-controls");
   await expect(controls).toBeVisible();
+  await controls.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
 
   await controls.getByRole("button", { name: "+15 min", exact: true }).click();
   await controls.getByRole("button", { name: "Hotovo" }).click();

@@ -5,6 +5,7 @@ import { RoutineGroupsController } from "../app/routine-groups-controller";
 import { ActivityTimeController } from "../app/activity-time-controller";
 import { HistoryController } from "../app/history-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
+import { FocusManualStartController } from "../app/focus-manual-start-controller";
 import { WeekCapacityController } from "../app/week-capacity-controller";
 import { WeeklyReviewController } from "../app/weekly-review-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
@@ -51,6 +52,7 @@ createRoot(root).render(
     <ActivityTimeController />
     <HistoryController />
     <ExecutionTracker />
+    <FocusManualStartController />
     <WeekCapacityController />
     <WeeklyReviewController />
     <LabelColorsController />
