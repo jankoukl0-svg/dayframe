@@ -8,6 +8,7 @@ import { ExecutionTracker } from "../app/execution-tracker";
 import { WeekCapacityController } from "../app/week-capacity-controller";
 import { WeeklyReviewController } from "../app/weekly-review-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
+import { EditCategoryPreserverController } from "../app/edit-category-preserver-controller";
 import { MilestoneColorsController } from "../app/milestone-colors-controller";
 import { MonthCalendarController } from "../app/month-calendar-controller";
 import { CalendarObservancesController } from "../app/calendar-observances-controller";
@@ -53,6 +54,7 @@ createRoot(root).render(
     <WeekCapacityController />
     <WeeklyReviewController />
     <LabelColorsController />
+    <EditCategoryPreserverController />
     <MilestoneColorsController />
     <MonthCalendarController />
     <CalendarObservancesController />
