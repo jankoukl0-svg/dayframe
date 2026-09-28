@@ -35,6 +35,7 @@ type TrendBucket = {
   planned: number;
   completed: number;
   minutes: number;
+  categories: [string, number][];
 };
 
 const STORAGE_KEY = "dayframe-v1";
@@ -200,18 +201,27 @@ function comparablePreviousRange(mode: PeriodMode, range: PeriodRange, now: Date
   return { start: previous.start, end: minDate(previous.end, addDays(previous.start, elapsed)) };
 }
 
+function toTrendBucket(key: string, label: string, summary: PeriodSummary): TrendBucket {
+  return {
+    key,
+    label,
+    planned: summary.planned,
+    completed: summary.completed,
+    minutes: summary.minutes,
+    categories: summary.categories,
+  };
+}
+
 function buildTrendBuckets(mode: PeriodMode, state: StoredState, range: PeriodRange, now: Date): TrendBucket[] {
   if (mode === "year") {
     return Array.from({ length: 12 }, (_, month) => {
       const start = new Date(range.start.getFullYear(), month, 1, 12);
       const summary = summarizeRange(state, { start, end: endOfMonth(start) }, now);
-      return {
-        key: localDateKey(start),
-        label: new Intl.DateTimeFormat("cs-CZ", { month: "short" }).format(start).replace(".", ""),
-        planned: summary.planned,
-        completed: summary.completed,
-        minutes: summary.minutes,
-      };
+      return toTrendBucket(
+        localDateKey(start),
+        new Intl.DateTimeFormat("cs-CZ", { month: "short" }).format(start).replace(".", ""),
+        summary,
+      );
     });
   }
 
@@ -222,26 +232,18 @@ function buildTrendBuckets(mode: PeriodMode, state: StoredState, range: PeriodRa
       const start = days[index];
       const end = days[Math.min(index + 6, days.length - 1)];
       const summary = summarizeRange(state, { start, end }, now);
-      buckets.push({
-        key: localDateKey(start),
-        label: `${start.getDate()}–${end.getDate()}`,
-        planned: summary.planned,
-        completed: summary.completed,
-        minutes: summary.minutes,
-      });
+      buckets.push(toTrendBucket(localDateKey(start), `${start.getDate()}–${end.getDate()}`, summary));
     }
     return buckets;
   }
 
   return eachDay(range.start, range.end).map((date) => {
     const summary = summarizeRange(state, { start: date, end: date }, now);
-    return {
-      key: localDateKey(date),
-      label: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", ""),
-      planned: summary.planned,
-      completed: summary.completed,
-      minutes: summary.minutes,
-    };
+    return toTrendBucket(
+      localDateKey(date),
+      new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", ""),
+      summary,
+    );
   });
 }
 
@@ -428,13 +430,38 @@ export function HistoryController() {
           >
             {buckets.map((bucket) => {
               const height = bucket.minutes ? Math.max(8, Math.round((bucket.minutes / maxBucketMinutes) * 100)) : 0;
+              const categorySummary = bucket.categories.map(([category, minutes]) => `${category} ${formatMinutes(minutes)}`).join(", ");
               return (
                 <article
                   key={bucket.key}
-                  aria-label={`${bucket.label}: ${formatMinutes(bucket.minutes)}, ${bucket.completed} z ${bucket.planned} bloků hotovo`}
+                  aria-label={`${bucket.label}: ${formatMinutes(bucket.minutes)}, ${bucket.completed} z ${bucket.planned} bloků hotovo${categorySummary ? `, ${categorySummary}` : ""}`}
                 >
                   <div>
-                    <i className="df2-history-bar" style={{ height: `${height}%` }} />
+                    <i
+                      className="df2-history-bar"
+                      style={{
+                        height: `${height}%`,
+                        display: "flex",
+                        flexDirection: "column-reverse",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {bucket.categories.map(([category, minutes]) => (
+                        <span
+                          key={category}
+                          data-category={category}
+                          title={`${category} · ${formatMinutes(minutes)}`}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            minHeight: 0,
+                            flexBasis: 0,
+                            flexGrow: minutes,
+                            backgroundColor: colorForCategory(category, labelColors),
+                          }}
+                        />
+                      ))}
+                    </i>
                   </div>
                   <strong>{bucket.label}</strong>
                   <small>{bucket.minutes ? formatMinutes(bucket.minutes) : "—"}</small>
