@@ -147,7 +147,10 @@ export function ExecutionTracker() {
       if (text === "Zahájit blok") return;
 
       if (button.closest(".df2-time-adjust-focus-controls")) {
-        if (button.dataset.focusManualAutoPause === "true") return;
+        if (button.dataset.focusManualAutoPause === "true") {
+          if (task.actualRunningSince) pauseExecution(task.id);
+          return;
+        }
         if (text === "Start") startExecution(task.id);
         else if (text === "Pauza") pauseExecution(task.id);
         else if (text === "Pokračovat") resumeExecution(task.id);
