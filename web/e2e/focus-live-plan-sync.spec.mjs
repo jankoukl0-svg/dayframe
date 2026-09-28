@@ -18,46 +18,54 @@ async function setupPlan(page) {
       currentMinute += 24 * 60;
     }
     const date = `${planningDate.getFullYear()}-${String(planningDate.getMonth() + 1).padStart(2, "0")}-${String(planningDate.getDate()).padStart(2, "0")}`;
-    const firstStart = Math.max(8 * 60, Math.min(24 * 60 + 60, currentMinute - 5));
-    const firstEnd = Math.min(26 * 60, firstStart + 40);
-    const secondStart = Math.min(26 * 60 - 30, firstEnd + 15);
+    const firstStart = Math.max(8 * 60, Math.min(26 * 60 - 1, currentMinute - 5));
+    const firstEnd = Math.min(26 * 60, Math.max(firstStart + 1, currentMinute + 20));
     const toTime = (value) => {
-      const clock = value % (24 * 60);
+      const clock = ((value % (24 * 60)) + 24 * 60) % (24 * 60);
       return `${String(Math.floor(clock / 60)).padStart(2, "0")}:${String(clock % 60).padStart(2, "0")}`;
     };
-    const task = (id, title, category, start, end) => ({
-      id,
-      title,
-      date,
-      duration: end - start,
-      start: toTime(start),
-      end: toTime(end),
-      requestedStart: toTime(start),
-      dueDate: date,
-      deadlineTime: "23:59",
-      priority: "normal",
-      category,
-      mode: "flexible",
-      completed: false,
-      source: "user",
-      dateLocked: true,
-      autoScheduled: false,
-      createdAt: now.toISOString(),
-    });
 
     state.routines = [];
     state.plans[date] = [
-      task("focus-live-a", "Původní blok", "Matematika", firstStart, firstEnd),
-      task("focus-live-b", "Další blok", "Angličtina", secondStart, secondStart + 30),
+      {
+        id: "focus-live-a",
+        title: "Původní blok",
+        date,
+        duration: firstEnd - firstStart,
+        start: toTime(firstStart),
+        end: toTime(firstEnd),
+        requestedStart: toTime(firstStart),
+        dueDate: date,
+        deadlineTime: "23:59",
+        priority: "normal",
+        category: "Matematika",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: now.toISOString(),
+      },
+      {
+        id: "focus-live-b",
+        title: "Další blok",
+        date,
+        duration: 30,
+        dueDate: date,
+        deadlineTime: "23:59",
+        priority: "normal",
+        category: "Angličtina",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: true,
+        createdAt: now.toISOString(),
+      },
     ];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    return { date, currentMinute, firstStart, firstEnd, secondStart };
+    return { date, currentMinute };
   });
-}
-
-function timeFromMinute(value) {
-  const clock = ((value % (24 * 60)) + 24 * 60) % (24 * 60);
-  return `${String(Math.floor(clock / 60)).padStart(2, "0")}:${String(clock % 60).padStart(2, "0")}`;
 }
 
 test("focus copy follows edits to the current plan instead of keeping a stale task snapshot", async ({ page }) => {
@@ -98,12 +106,21 @@ test("focus switches to the block that is current in the updated day plan when n
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     state.plans[date] = state.plans[date].map((task) => {
       if (task.id === "focus-live-a") {
-        const start = Math.min(26 * 60 - 30, Math.max(8 * 60, currentMinute + 60));
-        return { ...task, start: toTime(start), end: toTime(start + 30), duration: 30 };
+        return { ...task, start: undefined, end: undefined, requestedStart: undefined, autoScheduled: true };
       }
       if (task.id === "focus-live-b") {
-        const start = Math.max(8 * 60, currentMinute - 5);
-        return { ...task, start: toTime(start), end: toTime(start + 30), duration: 30, title: "Teď podle plánu", category: "Angličtina" };
+        const start = Math.max(8 * 60, Math.min(26 * 60 - 1, currentMinute - 5));
+        const end = Math.min(26 * 60, Math.max(start + 1, currentMinute + 20));
+        return {
+          ...task,
+          start: toTime(start),
+          end: toTime(end),
+          requestedStart: toTime(start),
+          duration: end - start,
+          autoScheduled: false,
+          title: "Teď podle plánu",
+          category: "Angličtina",
+        };
       }
       return task;
     });
@@ -131,10 +148,28 @@ test("a running focus session stays attached to its task while plan times change
     };
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     state.plans[date] = state.plans[date].map((task) => {
-      if (task.id === "focus-live-a") return { ...task, title: "Běžící upravený blok", category: "Finance" };
+      if (task.id === "focus-live-a") {
+        return {
+          ...task,
+          start: undefined,
+          end: undefined,
+          requestedStart: undefined,
+          title: "Běžící upravený blok",
+          category: "Finance",
+        };
+      }
       if (task.id === "focus-live-b") {
-        const start = Math.max(8 * 60, currentMinute - 5);
-        return { ...task, start: toTime(start), end: toTime(start + 30), duration: 30, title: "Jiný aktuální blok" };
+        const start = Math.max(8 * 60, Math.min(26 * 60 - 1, currentMinute - 5));
+        const end = Math.min(26 * 60, Math.max(start + 1, currentMinute + 20));
+        return {
+          ...task,
+          start: toTime(start),
+          end: toTime(end),
+          requestedStart: toTime(start),
+          duration: end - start,
+          autoScheduled: false,
+          title: "Jiný aktuální blok",
+        };
       }
       return task;
     });
