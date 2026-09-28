@@ -17,13 +17,15 @@ type NotificationSettings = {
 };
 
 type PermissionState = NotificationPermission | "unsupported";
-
+type NotificationKind = "lead" | "start" | "overrun";
 type FiredMap = Record<string, number>;
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: false,
   leadMinutes: 10,
 };
+
+let serviceWorkerRegistration: Promise<ServiceWorkerRegistration | null> | null = null;
 
 function readSettings(): NotificationSettings {
   try {
@@ -71,19 +73,43 @@ function scheduledDate(dateKey: string, time: string) {
   return result;
 }
 
-function notificationKey(task: CalendarTask, kind: "lead" | "start" | "overrun", leadMinutes: number) {
-  return `${task.id}:${task.date}:${task.start ?? ""}:${task.end ?? ""}:${kind}:${leadMinutes}`;
+function notificationKey(task: CalendarTask, kind: NotificationKind, leadMinutes: number) {
+  const suffix = kind === "lead" ? `:${leadMinutes}` : "";
+  return `${task.id}:${task.date}:${task.start ?? ""}:${task.end ?? ""}:${kind}${suffix}`;
 }
 
-function showNotification(title: string, body: string, tag: string) {
-  const notification = new Notification(title, { body, tag });
-  notification.onclick = () => {
-    window.focus();
-    notification.close();
-  };
+function getServiceWorkerRegistration() {
+  if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+  if (!serviceWorkerRegistration) {
+    const workerUrl = new URL("dayframe-notifications-sw.js", document.baseURI).toString();
+    serviceWorkerRegistration = navigator.serviceWorker.register(workerUrl)
+      .then(() => navigator.serviceWorker.ready)
+      .catch(() => null);
+  }
+  return serviceWorkerRegistration;
 }
 
-function sendDueNotifications(settings: NotificationSettings) {
+async function showNotification(title: string, body: string, tag: string) {
+  try {
+    const notification = new Notification(title, { body, tag });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+    return true;
+  } catch {
+    const registration = await getServiceWorkerRegistration();
+    if (!registration) return false;
+    try {
+      await registration.showNotification(title, { body, tag });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+async function sendDueNotifications(settings: NotificationSettings) {
   if (!settings.enabled || !("Notification" in window) || Notification.permission !== "granted") return;
   const state = readState();
   if (!state?.plans) return;
@@ -92,34 +118,35 @@ function sendDueNotifications(settings: NotificationSettings) {
   const fired = readFired(now);
   let changed = false;
 
-  const fireOnce = (task: CalendarTask, kind: "lead" | "start" | "overrun", title: string, body: string) => {
+  const fireOnce = async (task: CalendarTask, kind: NotificationKind, title: string, body: string) => {
     const key = notificationKey(task, kind, settings.leadMinutes);
     if (fired[key]) return;
-    showNotification(title, body, key);
+    const shown = await showNotification(title, body, key);
+    if (!shown) return;
     fired[key] = now;
     changed = true;
   };
 
-  Object.values(state.plans).flat().forEach((task) => {
-    if (task.completed || !task.start || !task.end) return;
+  for (const task of Object.values(state.plans).flat()) {
+    if (task.completed || !task.start || !task.end) continue;
     const start = scheduledDate(task.date, task.start)?.getTime();
     const end = scheduledDate(task.date, task.end)?.getTime();
-    if (!start || !end) return;
+    if (!start || !end) continue;
 
     const leadAt = start - settings.leadMinutes * 60_000;
     if (now >= leadAt && now < start && now - leadAt <= 5 * 60_000) {
       const remaining = Math.max(1, Math.ceil((start - now) / 60_000));
-      fireOnce(task, "lead", `${task.title} za ${remaining} min`, `${task.start} · ${task.category}`);
+      await fireOnce(task, "lead", `${task.title} za ${remaining} min`, `${task.start} · ${task.category}`);
     }
 
     if (now >= start && now - start <= 5 * 60_000) {
-      fireOnce(task, "start", `Začíná: ${task.title}`, `${task.start}–${task.end} · ${task.category}`);
+      await fireOnce(task, "start", `Začíná: ${task.title}`, `${task.start}–${task.end} · ${task.category}`);
     }
 
     if (now >= end && now - end <= 15 * 60_000) {
-      fireOnce(task, "overrun", `Blok skončil: ${task.title}`, `Pokud ještě pokračuješ, uprav plán nebo označ úkol jako hotový.`);
+      await fireOnce(task, "overrun", `Blok skončil: ${task.title}`, "Pokud ještě pokračuješ, uprav plán nebo označ úkol jako hotový.");
     }
-  });
+  }
 
   if (changed) writeFired(fired);
 }
@@ -130,8 +157,12 @@ export function NotificationController() {
   const [host, setHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    setSettings(readSettings());
+    const next = readSettings();
+    setSettings(next);
     setPermission("Notification" in window ? Notification.permission : "unsupported");
+    if (next.enabled && "Notification" in window && Notification.permission === "granted") {
+      void getServiceWorkerRegistration();
+    }
   }, []);
 
   useEffect(() => {
@@ -158,18 +189,34 @@ export function NotificationController() {
   }, []);
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === SETTINGS_KEY) {
+        const next = readSettings();
+        setSettings(next);
+        setPermission("Notification" in window ? Notification.permission : "unsupported");
+        if (next.enabled) void sendDueNotifications(next);
+        return;
+      }
+      if (event.key === STATE_KEY) {
+        const next = readSettings();
+        if (next.enabled) void sendDueNotifications(next);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
     if (!settings.enabled) return;
-    const run = () => sendDueNotifications(settings);
+    const run = () => { void sendDueNotifications(settings); };
     run();
     const timer = window.setInterval(run, CHECK_INTERVAL_MS);
     const onSync = () => run();
     const onVisibility = () => { if (document.visibilityState === "visible") run(); };
-    window.addEventListener("storage", onSync);
     window.addEventListener(SYNC_EVENT, onSync);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("storage", onSync);
       window.removeEventListener(SYNC_EVENT, onSync);
       document.removeEventListener("visibilitychange", onVisibility);
     };
@@ -196,7 +243,8 @@ export function NotificationController() {
     const next = { ...settings, enabled: true };
     setSettings(next);
     writeSettings(next);
-    sendDueNotifications(next);
+    void getServiceWorkerRegistration();
+    void sendDueNotifications(next);
   }
 
   function changeLeadMinutes(value: string) {
@@ -212,7 +260,7 @@ export function NotificationController() {
     : permission === "unsupported"
       ? "Tento prohlížeč notifikace nepodporuje"
       : settings.enabled
-        ? `${settings.leadMinutes} min před · začátek · konec bloku`
+        ? `${settings.leadMinutes} min před · začátek · konec · při otevřeném Dayframe`
         : "Upozornění před začátkem, při startu a po konci bloku";
 
   return createPortal(
@@ -229,7 +277,7 @@ export function NotificationController() {
             <option value="10">10 min</option>
           </select>
         </label>
-        <button type="button" onClick={toggleNotifications} disabled={permission === "unsupported" || permission === "denied"}>
+        <button type="button" onClick={toggleNotifications} disabled={permission === "unsupported" || (permission === "denied" && !settings.enabled)}>
           {settings.enabled ? "Vypnout" : "Povolit"}
         </button>
       </div>
