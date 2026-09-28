@@ -1,4 +1,4 @@
-const DAY_WINDOW_MS = 18 * 60 * 60 * 1000;
+const DAY_WINDOW_MS = 16 * 60 * 60 * 1000;
 
 export type DayCountdown = {
   hours: number;
@@ -10,8 +10,13 @@ export type DayCountdown = {
 
 export function getDayCountdown(now: Date): DayCountdown {
   const end = new Date(now);
-  end.setHours(2, 0, 0, 0);
-  if (end <= now) end.setDate(end.getDate() + 1);
+  end.setHours(0, 0, 0, 0);
+
+  // The Today countdown is a visual countdown to midnight, even though the
+  // Dayframe planning day and Week timeline continue until 02:00. Between
+  // midnight and 02:00 it therefore stays at zero instead of starting a new
+  // 24-hour countdown for the still-active planning day.
+  if (now.getHours() >= 2) end.setDate(end.getDate() + 1);
 
   const remainingMs = Math.max(0, end.getTime() - now.getTime());
   const hours = Math.floor(remainingMs / 3_600_000);
