@@ -1,0 +1,112 @@
+/* Gentle visual unification around the Milníky design language.
+   Keep the existing information architecture; only normalize surfaces,
+   controls and typography that drifted into a different visual system. */
+
+/* Přehled: keep the simple content, but use the flatter Milníky surfaces. */
+.df2-overview-summary,
+.df2-history-trend,
+.df2-history-categories,
+.df2-history-period-history {
+  border-color: var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: none;
+}
+
+.df2-overview-summary {
+  border-left: 3px solid var(--accent);
+}
+
+/* The range control should feel like the rest of Dayframe controls,
+   not like a separate pill-based design system. */
+.df2-history-period-switch {
+  gap: 5px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.df2-history-period-switch button {
+  min-width: 70px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.df2-history-period-switch button:hover {
+  border-color: var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.df2-history-period-switch button.active {
+  border-color: var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.df2-history-period-nav button {
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.df2-history-period-nav button:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--paper);
+}
+
+.df2-history-period-nav .df2-history-today {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+}
+
+/* Dnes: retain the current hero and flow, but remove the one-off shadow
+   and use the same heading hierarchy as Milníky and the other sections. */
+.df2-today-view .df2-now-card {
+  border-color: var(--line);
+  border-left-color: var(--accent);
+  box-shadow: none;
+}
+
+.df2-today-view .df2-next .df2-section-head h2 {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Keep form/control geometry consistent with Milníky without changing
+   layout or behavior. */
+.df2-title-input > input,
+.df2-chips label,
+.df2-modal,
+.df2-modal input,
+.df2-modal select,
+.df2-inline-form input,
+.df2-week-controls button,
+.df2-month-calendar-controls button {
+  border-radius: 4px;
+}
+
+/* Focus mode is intentionally a separate execution environment and should
+   keep its dark visual identity. */
+.df2-focus-mode .df2-history-period-switch button,
+.df2-focus-mode .df2-history-period-nav button {
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  .df2-overview-summary,
+  .df2-history-trend,
+  .df2-history-categories,
+  .df2-history-period-history {
+    border-radius: 6px;
+  }
+}
