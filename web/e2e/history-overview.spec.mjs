@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("history overview summarizes completed work, colors bars by labels, shows a matching legend, and keeps only Overview visually active", async ({ page }) => {
+test("history overview stays minimal, keeps category colors, and keeps only Overview visually active", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -85,27 +85,22 @@ test("history overview summarizes completed work, colors bars by labels, shows a
   const history = page.locator(".df2-history-view");
   await expect(history).toBeVisible();
   await expect(history.getByRole("heading", { name: "Přehled" })).toBeVisible();
-  await expect(history).toContainText("2 / 3");
-  await expect(history).toContainText("67%");
-  await expect(history).toContainText("1 h");
-  await expect(history).toContainText("Finance");
-  await expect(history).toContainText("Matika");
+  await expect(history.locator(".df2-overview-summary")).toContainText("2 z 3 bloků");
+  await expect(history.locator(".df2-overview-summary")).toContainText("67 % dokončeno");
+  await expect(history.locator(".df2-overview-summary")).toContainText("1 h");
+  await expect(history.locator(".df2-history-insights")).toHaveCount(0);
+
+  const financeRow = history.locator('.df2-overview-list-row[data-category="Finance"]');
+  const mathRow = history.locator('.df2-overview-list-row[data-category="Matika"]');
+  await expect(financeRow).toContainText("45 min");
+  await expect(mathRow).toContainText("15 min");
+  await expect(financeRow.locator("span > i")).toHaveCSS("background-color", "rgb(17, 34, 51)");
+  await expect(mathRow.locator("span > i")).toHaveCSS("background-color", "rgb(68, 170, 102)");
 
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
-  const todayBar = history.locator(".df2-history-bars article").nth(todayIndex).locator(".df2-history-bar");
-  const segments = todayBar.locator(":scope > span");
-  await expect(segments).toHaveCount(2);
-  await expect(todayBar.locator('[data-category="Finance"]')).toHaveCSS("background-color", "rgb(17, 34, 51)");
-  await expect(todayBar.locator('[data-category="Matika"]')).toHaveCSS("background-color", "rgb(68, 170, 102)");
-  expect(await todayBar.locator('[data-category="Finance"]').evaluate((element) => element.style.flexGrow)).toBe("45");
-  expect(await todayBar.locator('[data-category="Matika"]').evaluate((element) => element.style.flexGrow)).toBe("15");
-
-  const financeLegend = history.locator('.df2-history-categories article[data-category="Finance"]');
-  const mathLegend = history.locator('.df2-history-categories article[data-category="Matika"]');
-  await expect(financeLegend.locator(".df2-history-category-swatch")).toHaveCSS("background-color", "rgb(17, 34, 51)");
-  await expect(mathLegend.locator(".df2-history-category-swatch")).toHaveCSS("background-color", "rgb(68, 170, 102)");
-  await expect(financeLegend).toContainText("45 min");
-  await expect(mathLegend).toContainText("15 min");
+  const todayBucket = history.locator(".df2-history-bars article").nth(todayIndex);
+  await expect(todayBucket).toHaveAttribute("aria-label", /1 h/);
+  await expect(todayBucket.locator(".df2-history-bar")).toHaveCount(1);
 
   await expect(overview).toHaveClass(/active/);
   const milestoneShadow = await milestones.evaluate((element) => getComputedStyle(element).boxShadow);
