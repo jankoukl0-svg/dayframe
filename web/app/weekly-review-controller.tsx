@@ -10,7 +10,6 @@ type Task = {
   duration: number;
   category?: string;
   completed: boolean;
-  actualMinutes?: number;
 };
 
 type StoredState = { plans?: Record<string, Task[]> };
@@ -41,10 +40,8 @@ function readState(): StoredState {
   }
 }
 
-function actualMinutes(task: Task) {
-  return Number.isFinite(task.actualMinutes) && (task.actualMinutes ?? 0) > 0
-    ? task.actualMinutes ?? 0
-    : Math.max(0, task.duration || 0);
+function blockMinutes(task: Task) {
+  return Math.max(0, task.duration || 0);
 }
 
 function formatMinutes(minutes: number) {
@@ -97,7 +94,7 @@ export function WeeklyReviewController() {
         date,
         planned: tasks.length,
         completed: completed.length,
-        minutes: completed.reduce((sum, task) => sum + actualMinutes(task), 0),
+        minutes: completed.reduce((sum, task) => sum + blockMinutes(task), 0),
         tasks: completed,
       };
     });
@@ -110,7 +107,7 @@ export function WeeklyReviewController() {
     for (const day of dayRows) {
       for (const task of day.tasks) {
         const category = task.category || "Ostatní";
-        categories.set(category, (categories.get(category) ?? 0) + actualMinutes(task));
+        categories.set(category, (categories.get(category) ?? 0) + blockMinutes(task));
       }
     }
     const strongestCategory = [...categories.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
