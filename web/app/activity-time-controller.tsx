@@ -320,6 +320,12 @@ function replanRemainingToday(now = new Date()) {
 }
 
 function focusTaskForView(tasks: Task[], focusView: HTMLElement | null) {
+  const focusTaskId = focusView?.dataset.focusTaskId;
+  if (focusTaskId) {
+    const exact = tasks.find((task) => !task.completed && task.id === focusTaskId);
+    if (exact) return exact;
+  }
+
   const title = focusView?.querySelector("h1")?.textContent?.trim();
   if (!title || title === "Soustředění") return null;
   const matching = tasks.filter((task) => !task.completed && task.title === title);

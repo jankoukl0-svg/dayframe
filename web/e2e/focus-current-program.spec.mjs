@@ -1,0 +1,201 @@
+import { test, expect } from "@playwright/test";
+
+const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
+
+async function planningDate(page) {
+  return page.evaluate(() => {
+    const now = new Date();
+    const date = new Date(now);
+    if (now.getHours() < 2) date.setDate(date.getDate() - 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  });
+}
+
+async function setup(page) {
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload({ waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+  const date = await planningDate(page);
+  await page.evaluate(({ date: targetDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.plans[targetDate] = [{
+      id: "focus-original",
+      title: "Původní blok",
+      duration: 45,
+      priority: "normal",
+      category: "Matematika",
+      mode: "flexible",
+      completed: false,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: true,
+      createdAt: new Date().toISOString(),
+    }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, { date });
+  await page.reload({ waitUntil: "networkidle" });
+  return date;
+}
+
+test("Focus follows the current day program after the plan changes", async ({ page }) => {
+  const date = await setup(page);
+
+  await page.keyboard.press("3");
+  const focus = page.locator(".df2-focus-view");
+  await expect(focus).toBeVisible();
+  await expect(focus.locator(":scope > h1")).toHaveText("Původní blok");
+  await expect(focus.locator(":scope > p")).toContainText("Matematika");
+
+  await page.evaluate(({ date: targetDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.plans[targetDate] = [{
+      id: "focus-updated",
+      title: "Aktuální program",
+      duration: 30,
+      priority: "normal",
+      category: "Angličtina",
+      mode: "flexible",
+      completed: false,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: true,
+      createdAt: new Date().toISOString(),
+    }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, { date });
+
+  await expect(focus.locator(":scope > h1")).toHaveText("Aktuální program");
+  await expect(focus.locator(":scope > p")).toContainText("Angličtina");
+});
+
+test("a running Focus session stays attached to its task while its details update", async ({ page }) => {
+  const date = await setup(page);
+
+  await page.keyboard.press("3");
+  const focus = page.locator(".df2-focus-view");
+  const controls = page.locator(".df2-time-adjust-focus-controls");
+  await controls.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+
+  await expect.poll(() => page.evaluate(({ date: targetDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return Boolean(state.plans[targetDate]?.find((item) => item.id === "focus-original")?.actualRunningSince);
+  }, { date })).toBe(true);
+
+  await page.evaluate(({ date: targetDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const running = state.plans[targetDate].find((item) => item.id === "focus-original");
+    state.plans[targetDate] = [
+      {
+        id: "new-plan-item",
+        title: "Nový blok v plánu",
+        duration: 30,
+        priority: "normal",
+        category: "Finance",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: true,
+        createdAt: new Date().toISOString(),
+      },
+      { ...running, title: "Původní blok upravený", category: "VŠE AJ" },
+    ];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, { date });
+
+  await expect(focus.locator(":scope > h1")).toHaveText("Původní blok upravený");
+  await expect(focus.locator(":scope > p")).toContainText("VŠE AJ");
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+});
+
+test("duplicate Focus titles still route Pause and Hotovo to the exact running task", async ({ page }) => {
+  const date = await setup(page);
+
+  await page.keyboard.press("3");
+  const focus = page.locator(".df2-focus-view");
+  const controls = page.locator(".df2-time-adjust-focus-controls");
+  await controls.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+
+  await expect.poll(() => page.evaluate(({ date: targetDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return Boolean(state.plans[targetDate]?.find((item) => item.id === "focus-original")?.actualRunningSince);
+  }, { date })).toBe(true);
+
+  await page.evaluate(({ date: targetDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const running = state.plans[targetDate].find((item) => item.id === "focus-original");
+    const now = new Date();
+    const clockMinutes = now.getHours() * 60 + now.getMinutes();
+    const inEarlyGap = clockMinutes >= 2 * 60 && clockMinutes < 8 * 60;
+    const runningStart = inEarlyGap ? "01:30" : "08:00";
+    const decoyStart = inEarlyGap
+      ? "08:00"
+      : `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+    state.plans[targetDate] = [
+      {
+        id: "focus-decoy",
+        title: "Stejný název",
+        duration: 30,
+        start: decoyStart,
+        end: inEarlyGap ? "08:30" : "02:00",
+        requestedStart: decoyStart,
+        priority: "normal",
+        category: "Finance",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        ...running,
+        title: "Stejný název",
+        category: "VŠE AJ",
+        start: runningStart,
+        end: "02:00",
+        requestedStart: runningStart,
+        duration: inEarlyGap ? 30 : 18 * 60,
+      },
+    ];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, { date });
+
+  await expect(focus.locator(":scope > h1")).toHaveText("Stejný název");
+  await expect(focus).toHaveAttribute("data-focus-task-id", "focus-original");
+
+  await controls.getByRole("button", { name: "Pauza", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pokračovat", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(({ date: targetDate }) => {
+    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[targetDate];
+    const original = tasks.find((item) => item.id === "focus-original");
+    const decoy = tasks.find((item) => item.id === "focus-decoy");
+    return {
+      originalRunning: original?.actualRunningSince,
+      decoyStarted: decoy?.actualStartedAt,
+      decoyRunning: decoy?.actualRunningSince,
+    };
+  }, { date })).toEqual({ originalRunning: undefined, decoyStarted: undefined, decoyRunning: undefined });
+
+  await controls.getByRole("button", { name: "Pokračovat", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+  await controls.getByRole("button", { name: "Hotovo", exact: true }).click();
+
+  const finish = page.locator(".df2-time-adjust-focus-completion");
+  if (await finish.isVisible().catch(() => false)) {
+    await finish.getByRole("button", { name: "Volno", exact: true }).click();
+  }
+
+  await expect.poll(() => page.evaluate(({ date: targetDate }) => {
+    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[targetDate] ?? [];
+    return {
+      originalCompleted: Boolean(tasks.find((item) => item.id === "focus-original")?.completed),
+      decoyCompleted: Boolean(tasks.find((item) => item.id === "focus-decoy")?.completed),
+    };
+  }, { date })).toEqual({ originalCompleted: true, decoyCompleted: false });
+});

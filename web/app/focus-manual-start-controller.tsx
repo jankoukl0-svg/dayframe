@@ -6,6 +6,7 @@ import { planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-
 type FocusTask = {
   id: string;
   title: string;
+  category?: string;
   duration?: number;
   start?: string;
   end?: string;
@@ -23,27 +24,55 @@ const STATE_KEY = "dayframe-v1";
 const AUTO_PAUSE_ATTRIBUTE = "focusManualAutoPause";
 const START_ATTRIBUTE = "focusManualStart";
 
-function currentFocusTask() {
-  const focusView = document.querySelector<HTMLElement>(".df2-focus-view");
-  const title = focusView?.querySelector("h1")?.textContent?.trim();
-  if (!title || title === "Soustředění") return null;
-
+function readCurrentTasks() {
   let state: StoredState | null = null;
   try {
     state = JSON.parse(window.localStorage.getItem(STATE_KEY) || "null") as StoredState | null;
   } catch {
-    return null;
+    return [];
   }
-  if (!state?.plans) return null;
+  if (!state?.plans) return [];
+  return state.plans[planningDateKey(new Date())] ?? [];
+}
 
-  const now = new Date();
-  const tasks = state.plans[planningDateKey(now)] ?? [];
-  const matching = tasks.filter((task) => !task.completed && task.title === title);
-  if (matching.length <= 1) return matching[0] ?? null;
+function currentFocusTask() {
+  const tasks = readCurrentTasks();
+  if (!tasks.length) return null;
 
-  const minute = planningMinute(now);
-  return matching
-    .sort((a, b) => Math.abs(timeToMinutes(a.start) - minute) - Math.abs(timeToMinutes(b.start) - minute))[0] ?? null;
+  // A focus session that is actually running remains the source of truth even
+  // if the underlying schedule is edited while the user is focused.
+  const running = tasks.find((task) => !task.completed && Boolean(task.actualRunningSince));
+  if (running) return running;
+
+  const minute = planningMinute(new Date());
+  const scheduled = tasks
+    .filter((task) => !task.completed && task.start && task.end)
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+  return scheduled.find((task) => timeToMinutes(task.start) <= minute && timeToMinutes(task.end) > minute)
+    ?? scheduled.find((task) => timeToMinutes(task.start) > minute)
+    ?? tasks.find((task) => !task.completed)
+    ?? null;
+}
+
+function syncFocusIdentity(task: FocusTask | null) {
+  const focusView = document.querySelector<HTMLElement>(".df2-focus-view");
+  if (!focusView) return;
+
+  const title = focusView.querySelector<HTMLElement>(":scope > h1");
+  const meta = focusView.querySelector<HTMLElement>(":scope > p");
+
+  if (!task) {
+    delete focusView.dataset.focusTaskId;
+    if (title && title.textContent !== "Soustředění") title.textContent = "Soustředění";
+    if (meta && meta.textContent !== "Focus blok") meta.textContent = "Focus blok";
+    return;
+  }
+
+  focusView.dataset.focusTaskId = task.id;
+  if (title && title.textContent !== task.title) title.textContent = task.title;
+  const metaText = [task.start, task.category].filter(Boolean).join(" · ") || "Focus blok";
+  if (meta && meta.textContent !== metaText) meta.textContent = metaText;
 }
 
 function scheduledRemainingAt(task: FocusTask, at: Date) {
@@ -94,9 +123,14 @@ function syncPersistedClock(task: FocusTask) {
 export function FocusManualStartController() {
   useEffect(() => {
     const sync = () => {
+      const focusView = document.querySelector<HTMLElement>(".df2-focus-view");
+      if (!focusView) return;
+
+      const task = currentFocusTask();
+      syncFocusIdentity(task);
+
       const controls = document.querySelector<HTMLElement>(".df2-time-adjust-focus-controls");
       const button = controls?.querySelector<HTMLButtonElement>(".df2-time-pause") ?? null;
-      const task = currentFocusTask();
       if (!controls || !button || !task) return;
 
       syncPersistedClock(task);
