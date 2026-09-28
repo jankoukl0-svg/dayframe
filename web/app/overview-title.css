@@ -1,0 +1,10 @@
+/* Keep the Přehled title visually identical to primary page headings such as Milníky. */
+.df2-history-head h1 {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 620;
+  letter-spacing: -.05em;
+  line-height: 1;
+}
