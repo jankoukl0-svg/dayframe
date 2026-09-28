@@ -12,7 +12,7 @@ test("core Dayframe views share the softer Přehled visual language without chan
   await week.click();
   await expect(page.locator(".df2-week-grid")).toHaveCSS("border-radius", "18px");
 
-  const calendar = page.getByRole("button", { name: /Kalendář/ });
+  const calendar = page.getByRole("button", { name: "Kalendář", exact: true });
   await calendar.click();
   await expect(calendar).toHaveClass(/active/);
   await expect(calendar).toHaveCSS("border-radius", "10px");
