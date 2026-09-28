@@ -4,10 +4,10 @@ import { MilestoneFeaturedController } from "../app/milestone-featured-controlle
 import { RoutineGroupsController } from "../app/routine-groups-controller";
 import { ActivityTimeController } from "../app/activity-time-controller";
 import { HistoryController } from "../app/history-controller";
+import { HistoryPeriodRolloverController } from "../app/history-period-rollover-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
 import { FocusManualStartController } from "../app/focus-manual-start-controller";
 import { WeekCapacityController } from "../app/week-capacity-controller";
-import { WeeklyReviewController } from "../app/weekly-review-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
 import { EditCategoryPreserverController } from "../app/edit-category-preserver-controller";
 import { MilestoneColorsController } from "../app/milestone-colors-controller";
@@ -28,10 +28,10 @@ import "../app/milestone-featured-controller.css";
 import "../app/routine-groups-controller.css";
 import "../app/activity-time-controller.css";
 import "../app/history-controller.css";
+import "../app/history-soft-ui.css";
 import "../app/today-polish.css";
 import "../app/plan-actual.css";
 import "../app/week-capacity.css";
-import "../app/weekly-review.css";
 import "../app/label-colors-controller.css";
 import "../app/milestone-colors-controller.css";
 import "../app/month-calendar-controller.css";
@@ -52,10 +52,10 @@ createRoot(root).render(
     <RoutineGroupsController />
     <ActivityTimeController />
     <HistoryController />
+    <HistoryPeriodRolloverController />
     <ExecutionTracker />
     <FocusManualStartController />
     <WeekCapacityController />
-    <WeeklyReviewController />
     <LabelColorsController />
     <EditCategoryPreserverController />
     <MilestoneColorsController />
