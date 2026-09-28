@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("overview exposes week, month, and year learning history", async ({ page }) => {
+test("overview keeps learning history while showing a minimal progress summary", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -57,21 +57,22 @@ test("overview exposes week, month, and year learning history", async ({ page })
   await page.getByRole("button", { name: /Přehled/ }).click();
   const history = page.locator(".df2-history-view");
   await expect(history).toBeVisible();
-  await expect(history.locator(".df2-history-insights")).toContainText("Finance");
-  await expect(history).toContainText("2 h 15 min");
-  await expect(history.locator(".df2-history-period-history")).toContainText("Historie týdne");
+  await expect(history.locator(".df2-overview-summary")).toContainText("2 h 15 min");
+  await expect(history.locator(".df2-overview-summary")).toContainText("3 z 3 bloků");
+  await expect(history.locator(".df2-history-categories")).toContainText("Finance");
+  await expect(history.locator(".df2-history-period-history")).toContainText("Historie");
+  await expect(history.locator(".df2-history-insights")).toHaveCount(0);
 
   await history.getByRole("button", { name: "Měsíc", exact: true }).click();
   await expect(history).toHaveAttribute("data-history-mode", "month");
-  await expect(history.locator(".df2-history-period-history")).toContainText("Historie měsíce");
+  await expect(history.locator(".df2-history-bars article")).toHaveCount(5);
   await history.locator(".df2-history-period-grid").getByRole("button", { name: new RegExp(fixture.previousMonthLabel, "i") }).click();
-  await expect(history).toContainText("2 h");
+  await expect(history.locator(".df2-overview-summary")).toContainText("2 h");
   await expect(history.locator(".df2-history-categories")).toContainText("Matika");
 
   await history.getByRole("button", { name: "Rok", exact: true }).click();
   await expect(history).toHaveAttribute("data-history-mode", "year");
-  await expect(history.locator(".df2-history-period-history")).toContainText("Historie roku");
   await history.locator(".df2-history-period-grid").getByRole("button", { name: new RegExp(fixture.previousYearLabel) }).click();
-  await expect(history).toContainText("3 h");
+  await expect(history.locator(".df2-overview-summary")).toContainText("3 h");
   await expect(history.locator(".df2-history-categories")).toContainText("Angličtina");
 });
