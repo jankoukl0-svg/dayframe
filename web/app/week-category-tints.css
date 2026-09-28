@@ -1,0 +1,13 @@
+/* Restore the category-tinted week cards that existed before the visual harmony pass.
+   Keep the newer spacing, radii and shadows; only the task surface color returns. */
+
+.df2-root:not(.df2-focus-mode) .df2-week-task[data-label-category] {
+  border-left-width: 3px;
+  border-left-color: var(--df2-label-color) !important;
+  background: linear-gradient(var(--df2-label-tint), var(--df2-label-tint)), #f2f0ea;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-task[data-label-category]:hover {
+  border-left-color: var(--df2-label-color) !important;
+  background: linear-gradient(var(--df2-label-tint), var(--df2-label-tint)), var(--paper);
+}

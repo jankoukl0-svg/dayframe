@@ -52,12 +52,18 @@ test("label colors can be edited and persist in the week calendar", async ({ pag
   await expect(task).toBeVisible();
   await expect(task).toHaveCSS("border-left-color", "rgb(51, 102, 204)");
   await expect(task).toHaveAttribute("data-label-category", "Matika");
+  await expect(task).toHaveCSS("background-color", "rgb(242, 240, 234)");
+  await expect.poll(() => task.evaluate((element) => getComputedStyle(element).backgroundImage))
+    .toContain("rgba(51, 102, 204, 0.09)");
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
   const persisted = page.locator(".df2-week-task").filter({ hasText: "Barevná matematika" });
   await expect(persisted).toBeVisible();
   await expect(persisted).toHaveCSS("border-left-color", "rgb(51, 102, 204)");
+  await expect(persisted).toHaveCSS("background-color", "rgb(242, 240, 234)");
+  await expect.poll(() => persisted.evaluate((element) => getComputedStyle(element).backgroundImage))
+    .toContain("rgba(51, 102, 204, 0.09)");
 });
 
 test("task edit modal exposes the color picker for its category", async ({ page }) => {
