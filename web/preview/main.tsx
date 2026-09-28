@@ -29,6 +29,7 @@ import "../app/routine-groups-controller.css";
 import "../app/activity-time-controller.css";
 import "../app/history-controller.css";
 import "../app/history-soft-ui.css";
+import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/plan-actual.css";
 import "../app/week-capacity.css";

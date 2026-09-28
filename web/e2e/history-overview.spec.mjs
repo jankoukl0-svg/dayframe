@@ -111,10 +111,8 @@ test("history overview stays minimal, stacks activity by category, keeps categor
   expect(await mathSegment.evaluate((element) => element.style.flexGrow)).toBe("15");
 
   await expect(overview).toHaveClass(/active/);
-  const milestoneShadow = await milestones.evaluate((element) => getComputedStyle(element).boxShadow);
-  const overviewShadow = await overview.evaluate((element) => getComputedStyle(element).boxShadow);
-  expect(milestoneShadow).toBe("none");
-  expect(overviewShadow).not.toBe("none");
+  await expect.poll(() => milestones.evaluate((element) => getComputedStyle(element).boxShadow)).toBe("none");
+  await expect.poll(() => overview.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
 
   await page.getByRole("button", { name: /Dnes/ }).click();
   await expect(history).toBeHidden();
