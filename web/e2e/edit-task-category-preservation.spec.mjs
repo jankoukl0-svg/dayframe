@@ -80,7 +80,7 @@ test("duplicate unscheduled tasks preserve the category of the exact clicked tas
     const baseTask = {
       title: "Stejný úkol",
       date,
-      duration: 45,
+      duration: 900,
       deadlineTime: "22:30",
       priority: "normal",
       mode: "flexible",
