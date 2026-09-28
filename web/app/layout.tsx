@@ -20,6 +20,7 @@ import "./notification-controller.css";
 import "./sidebar-shortcuts.css";
 import "./visual-harmony.css";
 import "./visual-harmony-state-fixes.css";
+import "./week-category-tints.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
