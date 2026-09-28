@@ -42,13 +42,13 @@ test("overview statistics use completed Week block duration instead of Focus act
   await page.getByRole("button", { name: /Přehled/ }).click();
 
   const history = page.locator(".df2-history-view");
-  const workedMetric = history.locator(".df2-history-metrics article").filter({ hasText: "Odpracováno" });
-  await expect(workedMetric).toContainText("2 h");
+  await expect(history.locator(".df2-overview-summary")).toContainText("2 h");
+  await expect(history.locator(".df2-overview-summary")).toContainText("1 z 1 bloků");
 
-  const financeCategory = history.locator('.df2-history-categories article[data-category="Finance"]');
+  const financeCategory = history.locator('.df2-overview-list-row[data-category="Finance"]');
   await expect(financeCategory).toContainText("2 h");
 
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
-  const financeSegment = history.locator(".df2-history-bars article").nth(todayIndex).locator('[data-category="Finance"]');
-  expect(await financeSegment.evaluate((element) => element.style.flexGrow)).toBe("120");
+  const todayBucket = history.locator(".df2-history-bars article").nth(todayIndex);
+  await expect(todayBucket).toHaveAttribute("aria-label", /2 h/);
 });
