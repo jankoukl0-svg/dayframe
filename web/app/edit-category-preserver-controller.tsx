@@ -17,11 +17,57 @@ type StoredState = {
   plans?: Record<string, StoredTask[]>;
 };
 
+type PendingSelection =
+  | { kind: "unscheduled"; index: number }
+  | { kind: "scheduled"; title: string; start: string }
+  | { kind: "today"; title: string; start: string };
+
+let pendingSelection: PendingSelection | null = null;
+
 function readState(): StoredState {
   try {
     return JSON.parse(window.localStorage.getItem(STATE_KEY) || "{}") as StoredState;
   } catch {
     return {};
+  }
+}
+
+function rememberSelection(event: Event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  const unscheduled = target.closest(".df2-unscheduled > button");
+  if (unscheduled instanceof HTMLButtonElement) {
+    const parent = unscheduled.parentElement;
+    const siblings = parent ? [...parent.children].filter((node): node is HTMLButtonElement => node instanceof HTMLButtonElement) : [];
+    const index = siblings.indexOf(unscheduled);
+    if (index >= 0) pendingSelection = { kind: "unscheduled", index };
+    return;
+  }
+
+  const scheduled = target.closest(".df2-week-task");
+  if (scheduled instanceof HTMLButtonElement) {
+    const title = scheduled.querySelector("strong")?.textContent?.trim() ?? "";
+    const start = scheduled.querySelector("span")?.textContent?.split("–")[0]?.trim() ?? "";
+    pendingSelection = { kind: "scheduled", title, start };
+    return;
+  }
+
+  const next = target.closest(".df2-next > button");
+  if (next instanceof HTMLButtonElement) {
+    const title = next.querySelector("strong")?.textContent?.trim() ?? "";
+    const start = next.querySelector("time")?.textContent?.trim() ?? "";
+    pendingSelection = { kind: "scheduled", title, start };
+    return;
+  }
+
+  const action = target.closest(".df2-now-actions button");
+  if (action instanceof HTMLButtonElement && action.textContent?.trim() === "Upravit") {
+    const card = action.closest(".df2-now-card");
+    const title = card?.querySelector("h2")?.textContent?.trim() ?? "";
+    const startText = card?.querySelector(".df2-now-label small")?.textContent?.trim() ?? "";
+    const start = startText.includes("–") ? startText.split("–")[0]?.trim() ?? "" : "";
+    pendingSelection = { kind: "today", title, start };
   }
 }
 
@@ -34,6 +80,16 @@ function findEditedTask(form: HTMLFormElement): StoredTask | null {
   const dated = date ? state.plans?.[date] ?? [] : [];
   const all = Object.values(state.plans ?? {}).flat();
   const candidates = dated.length ? dated : all;
+
+  if (pendingSelection?.kind === "unscheduled") {
+    const task = dated.filter((item) => !item.start)[pendingSelection.index];
+    if (task) return task;
+  }
+
+  if (pendingSelection?.kind === "scheduled" || pendingSelection?.kind === "today") {
+    const task = dated.find((item) => item.title === pendingSelection?.title && (item.start ?? "") === pendingSelection?.start);
+    if (task) return task;
+  }
 
   return candidates.find((task) =>
     task.title === title
@@ -56,6 +112,7 @@ function ensureOriginalCategory(select: HTMLSelectElement) {
   const category = task?.category?.trim();
   if (!category) {
     select.dataset.editCategoryInitialized = "true";
+    pendingSelection = null;
     return;
   }
 
@@ -69,6 +126,8 @@ function ensureOriginalCategory(select: HTMLSelectElement) {
   select.value = category;
   select.dataset.editCategoryInitialized = "true";
   select.dataset.originalCategory = category;
+  if (task?.id) select.dataset.taskId = task.id;
+  pendingSelection = null;
 }
 
 function syncEditCategory() {
@@ -80,10 +139,14 @@ function syncEditCategory() {
 
 export function EditCategoryPreserverController() {
   useEffect(() => {
+    document.addEventListener("click", rememberSelection, true);
     syncEditCategory();
     const observer = new MutationObserver(syncEditCategory);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      document.removeEventListener("click", rememberSelection, true);
+      observer.disconnect();
+    };
   }, []);
 
   return null;
