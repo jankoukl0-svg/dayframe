@@ -23,6 +23,30 @@ test("core Dayframe views share the softer Přehled visual language without chan
   await expect(milestones).toHaveCSS("border-radius", "20px");
   await expect(milestones).toHaveCSS("background-color", "rgb(255, 254, 250)");
 
+  const milestoneTitle = page.locator(".df2-page-head h1");
+  const milestoneTitleStyle = await milestoneTitle.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      letterSpacing: style.letterSpacing,
+      lineHeight: style.lineHeight,
+    };
+  });
+
+  await page.getByRole("button", { name: "Přehled", exact: true }).click();
+  const overviewTitle = page.locator(".df2-history-head h1");
+  await expect(overviewTitle).toHaveText("Přehled");
+  await expect.poll(() => overviewTitle.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      letterSpacing: style.letterSpacing,
+      lineHeight: style.lineHeight,
+    };
+  })).toEqual(milestoneTitleStyle);
+
   await page.getByRole("button", { name: /Nastavení/ }).click();
   const settings = page.locator(".df2-settings-card");
   await expect(settings).toHaveCSS("border-radius", "20px");
