@@ -5,6 +5,7 @@ import "./routine-groups-controller.css";
 import "./activity-time-controller.css";
 import "./history-controller.css";
 import "./history-soft-ui.css";
+import "./overview-title.css";
 import "./today-polish.css";
 import "./plan-actual.css";
 import "./week-capacity.css";
