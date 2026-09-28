@@ -52,6 +52,18 @@ async function setup(page) {
   return seeded;
 }
 
+async function trackedTask(page, date) {
+  return page.evaluate(({ date: targetDate }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[targetDate]
+      .find((item) => item.id === "manual-focus-start");
+    return {
+      started: task?.actualStartedAt,
+      accumulated: task?.actualAccumulatedSeconds ?? 0,
+      running: task?.actualRunningSince,
+    };
+  }, { date });
+}
+
 test("focus waits for Start before counting down or recording execution", async ({ page }) => {
   const seeded = await setup(page);
 
@@ -70,11 +82,7 @@ test("focus waits for Start before counting down or recording execution", async 
   const stillBeforeStart = clockToSeconds(await clock.innerText());
   expect(stillBeforeStart).toBe(before);
 
-  const beforeTracking = await page.evaluate(({ date }) => {
-    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
-      .find((item) => item.id === "manual-focus-start");
-    return { started: task?.actualStartedAt, running: task?.actualRunningSince };
-  }, seeded);
+  const beforeTracking = await trackedTask(page, seeded.date);
   expect(beforeTracking.started).toBeUndefined();
   expect(beforeTracking.running).toBeUndefined();
 
@@ -84,55 +92,69 @@ test("focus waits for Start before counting down or recording execution", async 
   const afterStart = clockToSeconds(await clock.innerText());
   expect(afterStart).toBeLessThan(stillBeforeStart);
 
-  await expect.poll(() => page.evaluate(({ date }) => {
-    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
-      .find((item) => item.id === "manual-focus-start");
-    return Boolean(task?.actualStartedAt && task?.actualRunningSince);
-  }, seeded)).toBe(true);
-
-  await controls.getByRole("button", { name: "Pauza", exact: true }).click();
-  await expect(controls.getByRole("button", { name: "Pokračovat", exact: true })).toBeVisible();
+  await expect.poll(async () => {
+    const task = await trackedTask(page, seeded.date);
+    return Boolean(task.started && task.running);
+  }).toBe(true);
 });
 
-test("reopening focus pauses persisted execution until Start is clicked again", async ({ page }) => {
+test("started focus keeps running after leaving the focus screen until Pause is clicked", async ({ page }) => {
   const seeded = await setup(page);
 
   await page.getByRole("button", { name: "Zahájit blok" }).click();
   const controls = page.locator(".df2-time-adjust-focus-controls");
+  const clock = page.locator(".df2-controller-focus-clock");
   await controls.getByRole("button", { name: "Start", exact: true }).click();
   await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
   await page.waitForTimeout(1100);
+  const beforeLeaving = clockToSeconds(await clock.innerText());
 
   await page.keyboard.press("1");
   await expect(page.locator(".df2-today-view")).toBeVisible();
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  const whileAway = await trackedTask(page, seeded.date);
+  expect(whileAway.running).toBeTruthy();
+
+  await page.waitForTimeout(1400);
+  const stillRunningAway = await trackedTask(page, seeded.date);
+  expect(stillRunningAway.running).toBeTruthy();
+
+  await page.keyboard.press("3");
   await expect(page.locator(".df2-focus-view")).toBeVisible();
-  await expect(controls.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+  const afterReturning = clockToSeconds(await clock.innerText());
+  expect(afterReturning).toBeLessThan(beforeLeaving);
 
-  const paused = await expect.poll(() => page.evaluate(({ date }) => {
-    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
-      .find((item) => item.id === "manual-focus-start");
-    return {
-      accumulated: task?.actualAccumulatedSeconds ?? 0,
-      running: task?.actualRunningSince,
-    };
-  }, seeded)).toMatchObject({ running: undefined });
+  await controls.getByRole("button", { name: "Pauza", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pokračovat", exact: true })).toBeVisible();
+  await expect.poll(async () => (await trackedTask(page, seeded.date)).running).toBeUndefined();
 
-  const beforeWait = await page.evaluate(({ date }) => {
-    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
-      .find((item) => item.id === "manual-focus-start");
-    return task?.actualAccumulatedSeconds ?? 0;
-  }, seeded);
+  const paused = await trackedTask(page, seeded.date);
   await page.waitForTimeout(1300);
-  const afterWait = await page.evaluate(({ date }) => {
-    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
-      .find((item) => item.id === "manual-focus-start");
-    return {
-      accumulated: task?.actualAccumulatedSeconds ?? 0,
-      running: task?.actualRunningSince,
-    };
-  }, seeded);
+  const afterPauseWait = await trackedTask(page, seeded.date);
+  expect(afterPauseWait.accumulated).toBe(paused.accumulated);
+  expect(afterPauseWait.running).toBeUndefined();
+});
 
-  expect(afterWait.accumulated).toBe(beforeWait);
-  expect(afterWait.running).toBeUndefined();
+test("an explicit pause stays paused after leaving and reopening focus", async ({ page }) => {
+  await setup(page);
+
+  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  const controls = page.locator(".df2-time-adjust-focus-controls");
+  const clock = page.locator(".df2-controller-focus-clock");
+  await controls.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+  await controls.getByRole("button", { name: "Pauza", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pokračovat", exact: true })).toBeVisible();
+
+  await page.keyboard.press("1");
+  await expect(page.locator(".df2-today-view")).toBeVisible();
+  await page.waitForTimeout(700);
+  await page.keyboard.press("3");
+  await expect(page.locator(".df2-focus-view")).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Pokračovat", exact: true })).toBeVisible();
+
+  const before = clockToSeconds(await clock.innerText());
+  await page.waitForTimeout(1300);
+  const after = clockToSeconds(await clock.innerText());
+  expect(after).toBe(before);
 });
