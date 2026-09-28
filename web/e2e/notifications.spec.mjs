@@ -23,37 +23,6 @@ async function installNotificationMock(page, initialPermission = "default") {
   }, { permission: initialPermission });
 }
 
-function taskDateKey(date) {
-  const adjusted = new Date(date);
-  if (adjusted.getHours() < 8) adjusted.setDate(adjusted.getDate() - 1);
-  return `${adjusted.getFullYear()}-${String(adjusted.getMonth() + 1).padStart(2, "0")}-${String(adjusted.getDate()).padStart(2, "0")}`;
-}
-
-function clock(date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function makeTask(id, title, startDate, endDate) {
-  return {
-    id,
-    title,
-    date: taskDateKey(startDate),
-    duration: Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 60000)),
-    start: clock(startDate),
-    end: clock(endDate),
-    requestedStart: clock(startDate),
-    deadlineTime: "22:30",
-    priority: "normal",
-    category: "Studium",
-    mode: "flexible",
-    completed: false,
-    source: "user",
-    dateLocked: true,
-    autoScheduled: false,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 test("notification settings request permission and persist a 5 minute lead", async ({ page }) => {
   await installNotificationMock(page, "default");
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -75,6 +44,7 @@ test("notifications fire before a block, at start, and after an unfinished block
   await installNotificationMock(page, "granted");
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
+  await page.reload({ waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
   await page.evaluate(() => {
