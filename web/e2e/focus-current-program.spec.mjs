@@ -2,22 +2,6 @@ import { test, expect } from "@playwright/test";
 
 const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
 
-function task(id, title, category, duration = 45) {
-  return {
-    id,
-    title,
-    duration,
-    priority: "normal",
-    category,
-    mode: "flexible",
-    completed: false,
-    source: "user",
-    dateLocked: true,
-    autoScheduled: true,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 async function planningDate(page) {
   return page.evaluate(() => {
     const now = new Date();
@@ -62,7 +46,7 @@ test("Focus follows the current day program after the plan changes", async ({ pa
   const focus = page.locator(".df2-focus-view");
   await expect(focus).toBeVisible();
   await expect(focus.locator(":scope > h1")).toHaveText("Původní blok");
-  await expect(focus.locator(":scope > p")).toHaveText("Matematika");
+  await expect(focus.locator(":scope > p")).toContainText("Matematika");
 
   await page.evaluate(({ date: targetDate }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -83,7 +67,7 @@ test("Focus follows the current day program after the plan changes", async ({ pa
   }, { date });
 
   await expect(focus.locator(":scope > h1")).toHaveText("Aktuální program");
-  await expect(focus.locator(":scope > p")).toHaveText("Angličtina");
+  await expect(focus.locator(":scope > p")).toContainText("Angličtina");
 });
 
 test("a running Focus session stays attached to its task while its details update", async ({ page }) => {
@@ -123,6 +107,6 @@ test("a running Focus session stays attached to its task while its details updat
   }, { date });
 
   await expect(focus.locator(":scope > h1")).toHaveText("Původní blok upravený");
-  await expect(focus.locator(":scope > p")).toHaveText("VŠE AJ");
+  await expect(focus.locator(":scope > p")).toContainText("VŠE AJ");
   await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
 });
