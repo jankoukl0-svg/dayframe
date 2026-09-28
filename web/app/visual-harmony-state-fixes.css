@@ -1,0 +1,17 @@
+/* State-specific compatibility for late-loaded visual-harmony.css. */
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav.df2-month-calendar-active > button.active,
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav.df2-month-calendar-active > span:not(.df2-month-calendar-nav-host) button.active {
+  border-color: transparent;
+  background: transparent;
+  color: #666761;
+  box-shadow: none;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav.df2-month-calendar-active .df2-month-calendar-nav-button.active {
+  border-color: var(--df2-soft-border);
+  border-radius: 10px;
+  background: var(--df2-soft-card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(43, 39, 34, .07), inset 2px 0 0 var(--accent);
+}
