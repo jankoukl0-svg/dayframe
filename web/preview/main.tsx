@@ -16,6 +16,7 @@ import { MonthCalendarCountdownController } from "../app/month-calendar-countdow
 import { LateReadingController } from "../app/late-reading-controller";
 import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
 import { HistoryEditController } from "../app/history-edit-controller";
+import { NotificationController } from "../app/notification-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
@@ -36,6 +37,7 @@ import "../app/calendar-observances-controller.css";
 import "../app/google-calendar-controller.css";
 import "../app/week-bottom-buffer.css";
 import "../app/late-reading-controller.css";
+import "../app/notification-controller.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
@@ -59,5 +61,6 @@ createRoot(root).render(
     <FocusWeekSyncController />
     <HistoryEditController />
     <LateReadingController />
+    <NotificationController />
   </>,
 );
