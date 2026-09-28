@@ -42,14 +42,18 @@ async function seedActiveTask(page) {
   });
 }
 
-test("focus waits for Start before counting down or recording execution", async ({ page }) => {
+async function setup(page) {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
-
   const seeded = await seedActiveTask(page);
   await page.reload({ waitUntil: "networkidle" });
+  return seeded;
+}
+
+test("focus waits for Start before counting down or recording execution", async ({ page }) => {
+  const seeded = await setup(page);
 
   await page.getByRole("button", { name: "Zahájit blok" }).click();
   const focus = page.locator(".df2-focus-view");
@@ -88,4 +92,47 @@ test("focus waits for Start before counting down or recording execution", async 
 
   await controls.getByRole("button", { name: "Pauza", exact: true }).click();
   await expect(controls.getByRole("button", { name: "Pokračovat", exact: true })).toBeVisible();
+});
+
+test("reopening focus pauses persisted execution until Start is clicked again", async ({ page }) => {
+  const seeded = await setup(page);
+
+  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  const controls = page.locator(".df2-time-adjust-focus-controls");
+  await controls.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+  await page.waitForTimeout(1100);
+
+  await page.keyboard.press("1");
+  await expect(page.locator(".df2-today-view")).toBeVisible();
+  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await expect(page.locator(".df2-focus-view")).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+
+  const paused = await expect.poll(() => page.evaluate(({ date }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
+      .find((item) => item.id === "manual-focus-start");
+    return {
+      accumulated: task?.actualAccumulatedSeconds ?? 0,
+      running: task?.actualRunningSince,
+    };
+  }, seeded)).toMatchObject({ running: undefined });
+
+  const beforeWait = await page.evaluate(({ date }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
+      .find((item) => item.id === "manual-focus-start");
+    return task?.actualAccumulatedSeconds ?? 0;
+  }, seeded);
+  await page.waitForTimeout(1300);
+  const afterWait = await page.evaluate(({ date }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
+      .find((item) => item.id === "manual-focus-start");
+    return {
+      accumulated: task?.actualAccumulatedSeconds ?? 0,
+      running: task?.actualRunningSince,
+    };
+  }, seeded);
+
+  expect(afterWait.accumulated).toBe(beforeWait);
+  expect(afterWait.running).toBeUndefined();
 });
