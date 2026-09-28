@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("history overview stays minimal, keeps category colors, and keeps only Overview visually active", async ({ page }) => {
+test("history overview stays minimal, stacks activity by category, keeps category colors, and keeps only Overview visually active", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -100,7 +100,15 @@ test("history overview stays minimal, keeps category colors, and keeps only Over
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   const todayBucket = history.locator(".df2-history-bars article").nth(todayIndex);
   await expect(todayBucket).toHaveAttribute("aria-label", /1 h/);
-  await expect(todayBucket.locator(".df2-history-bar")).toHaveCount(1);
+  const activityBar = todayBucket.locator(".df2-history-bar");
+  const segments = activityBar.locator(":scope > span");
+  await expect(segments).toHaveCount(2);
+  const financeSegment = activityBar.locator('[data-category="Finance"]');
+  const mathSegment = activityBar.locator('[data-category="Matika"]');
+  await expect(financeSegment).toHaveCSS("background-color", "rgb(17, 34, 51)");
+  await expect(mathSegment).toHaveCSS("background-color", "rgb(68, 170, 102)");
+  expect(await financeSegment.evaluate((element) => element.style.flexGrow)).toBe("45");
+  expect(await mathSegment.evaluate((element) => element.style.flexGrow)).toBe("15");
 
   await expect(overview).toHaveClass(/active/);
   const milestoneShadow = await milestones.evaluate((element) => getComputedStyle(element).boxShadow);
