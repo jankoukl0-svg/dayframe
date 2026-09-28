@@ -7,7 +7,6 @@ import "./history-controller.css";
 import "./today-polish.css";
 import "./plan-actual.css";
 import "./week-capacity.css";
-import "./weekly-review.css";
 import "./label-colors-controller.css";
 import "./milestone-colors-controller.css";
 import "./month-calendar-controller.css";
@@ -24,7 +23,6 @@ import { HistoryController } from "./history-controller";
 import { ExecutionTracker } from "./execution-tracker";
 import { FocusManualStartController } from "./focus-manual-start-controller";
 import { WeekCapacityController } from "./week-capacity-controller";
-import { WeeklyReviewController } from "./weekly-review-controller";
 import { LabelColorsController } from "./label-colors-controller";
 import { MilestoneColorsController } from "./milestone-colors-controller";
 import { MonthCalendarController } from "./month-calendar-controller";
@@ -44,5 +42,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><WeeklyReviewController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /><NotificationController /></body></html>;
 }
