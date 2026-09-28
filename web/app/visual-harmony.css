@@ -1,0 +1,315 @@
+/*
+  Shared visual language for the core Dayframe views.
+  This deliberately changes presentation, not information architecture:
+  the existing layouts and interactions stay intact while surfaces, borders,
+  controls and radii inherit the calmer visual language introduced in Přehled.
+*/
+
+.df2-root {
+  --df2-soft-card: #fffefa;
+  --df2-soft-card-muted: #f5f3ee;
+  --df2-soft-sidebar: #f0eee8;
+  --df2-soft-border: rgba(211, 208, 199, .64);
+  --df2-soft-border-strong: rgba(170, 167, 158, .68);
+  --df2-soft-shadow: 0 12px 34px rgba(49, 44, 37, .045);
+  --df2-control-radius: 10px;
+  --df2-card-radius: 22px;
+}
+
+/* Shell + navigation ----------------------------------------------------- */
+.df2-root:not(.df2-focus-mode) .df2-shell {
+  border-inline-color: var(--df2-soft-border);
+  background: var(--surface);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar {
+  border-right-color: var(--df2-soft-border);
+  background: var(--df2-soft-sidebar);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-brand > span {
+  border-color: var(--df2-soft-border-strong);
+  border-radius: 9px;
+  background: rgba(255, 254, 250, .7);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav {
+  gap: 4px;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav button {
+  border-color: transparent;
+  border-radius: 10px;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav button:hover {
+  background: #e7e4dd;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar nav button.active {
+  border-color: var(--df2-soft-border);
+  background: var(--df2-soft-card);
+  box-shadow: 0 1px 4px rgba(43, 39, 34, .07), inset 2px 0 0 var(--accent);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-sidebar-bottom {
+  border-top-color: var(--df2-soft-border);
+}
+
+/* Common controls -------------------------------------------------------- */
+.df2-root:not(.df2-focus-mode) .df2-accent-button,
+.df2-root:not(.df2-focus-mode) .df2-primary,
+.df2-root:not(.df2-focus-mode) .df2-week-controls button,
+.df2-root:not(.df2-focus-mode) .df2-month-calendar-controls button,
+.df2-root:not(.df2-focus-mode) .df2-inline-form button,
+.df2-root:not(.df2-focus-mode) .df2-modal-actions > button {
+  border-radius: var(--df2-control-radius);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-controls button,
+.df2-root:not(.df2-focus-mode) .df2-month-calendar-controls button,
+.df2-root:not(.df2-focus-mode) .df2-inline-form button,
+.df2-root:not(.df2-focus-mode) .df2-modal-actions > button {
+  border-color: var(--df2-soft-border-strong);
+  background: rgba(255, 254, 250, .55);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-controls button:hover,
+.df2-root:not(.df2-focus-mode) .df2-month-calendar-controls button:hover,
+.df2-root:not(.df2-focus-mode) .df2-inline-form button:hover,
+.df2-root:not(.df2-focus-mode) .df2-modal-actions > button:hover {
+  background: var(--df2-soft-card);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-controls .df2-accent-button,
+.df2-root:not(.df2-focus-mode) .df2-modal-actions .df2-primary {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+}
+
+/* Today ------------------------------------------------------------------ */
+.df2-root:not(.df2-focus-mode) .df2-now-card {
+  border-color: var(--df2-soft-border);
+  border-left-color: var(--accent);
+  border-radius: var(--df2-card-radius);
+  background: var(--df2-soft-card);
+  box-shadow: var(--df2-soft-shadow);
+  overflow: hidden;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-now-label {
+  border-right-color: var(--df2-soft-border);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-now-actions button {
+  border-color: var(--df2-soft-border-strong);
+  border-radius: var(--df2-control-radius);
+  background: rgba(255, 255, 255, .3);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-now-actions button:first-child {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-missed,
+.df2-root:not(.df2-focus-mode) .df2-notice,
+.df2-root:not(.df2-focus-mode) .df2-result {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-next > button {
+  padding-inline: 16px;
+  border-inline: 1px solid var(--df2-soft-border);
+  border-top-color: var(--df2-soft-border);
+  background: var(--df2-soft-card);
+  transition: background .15s ease;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-next > button:first-of-type {
+  border-radius: 16px 16px 0 0;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-next > button:last-of-type {
+  border-bottom: 1px solid var(--df2-soft-border);
+  border-radius: 0 0 16px 16px;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-next > button:only-of-type {
+  border-radius: 16px;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-next > button:hover {
+  background: var(--df2-soft-card-muted);
+}
+
+/* Week ------------------------------------------------------------------- */
+.df2-root:not(.df2-focus-mode) .df2-week-grid {
+  border: 1px solid var(--df2-soft-border);
+  border-radius: 18px;
+  background: var(--df2-soft-border);
+  overflow: hidden;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-day {
+  background: #faf9f5;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-day.today {
+  background: var(--df2-soft-card);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-day-head button,
+.df2-root:not(.df2-focus-mode) .df2-month-day > header > button {
+  border-radius: 8px;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-day-summary {
+  border-color: var(--df2-soft-border);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-task {
+  border-color: rgba(211, 208, 199, .74);
+  border-left-color: var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 254, 250, .88);
+  box-shadow: 0 1px 3px rgba(49, 44, 37, .035);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-task.flex-block {
+  border-left-color: #7f8f85;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-week-task:hover {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(49, 44, 37, .07);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-unscheduled button {
+  border-radius: 9px;
+}
+
+/* Forms + modals --------------------------------------------------------- */
+.df2-root:not(.df2-focus-mode) .df2-title-input > input,
+.df2-root:not(.df2-focus-mode) .df2-details-grid input,
+.df2-root:not(.df2-focus-mode) .df2-details-grid select,
+.df2-root:not(.df2-focus-mode) .df2-modal input,
+.df2-root:not(.df2-focus-mode) .df2-modal select,
+.df2-root:not(.df2-focus-mode) .df2-inline-form input,
+.df2-root:not(.df2-focus-mode) .df2-month-milestone-modal textarea {
+  border-color: var(--df2-soft-border-strong);
+  border-radius: var(--df2-control-radius);
+  background: var(--df2-soft-card);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-chips label {
+  border-color: var(--df2-soft-border);
+  border-radius: 12px;
+  background: var(--df2-soft-card);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-understood {
+  border-radius: 0 12px 12px 0;
+  background: #f4eee9;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-modal-backdrop {
+  background: rgba(30, 31, 29, .22);
+  backdrop-filter: blur(5px);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-modal {
+  border-color: var(--df2-soft-border);
+  border-radius: 22px;
+  background: var(--df2-soft-card);
+  box-shadow: 0 24px 70px rgba(34, 33, 30, .16);
+}
+
+/* Milestones, settings, routines ---------------------------------------- */
+.df2-root:not(.df2-focus-mode) .df2-milestones,
+.df2-root:not(.df2-focus-mode) .df2-settings-card {
+  border: 1px solid var(--df2-soft-border);
+  border-radius: 20px;
+  background: var(--df2-soft-card);
+  overflow: hidden;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-milestones article {
+  min-height: 76px;
+  padding-inline: 18px;
+  border-bottom-color: var(--df2-soft-border);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-milestones article:last-child {
+  border-bottom: 0;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-milestones article:hover {
+  padding-inline: 18px;
+  background: var(--df2-soft-card-muted);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-settings-card > div {
+  padding: 18px 20px;
+  border-bottom-color: var(--df2-soft-border);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-settings-card > div:last-child {
+  border-bottom: 0;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-routines article {
+  border-top-color: var(--df2-soft-border);
+}
+
+/* Month calendar --------------------------------------------------------- */
+.df2-root:not(.df2-focus-mode) .df2-month-grid {
+  border: 1px solid var(--df2-soft-border);
+  border-radius: 18px;
+  background: var(--df2-soft-border);
+  overflow: hidden;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-weekday {
+  background: var(--df2-soft-card-muted);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-day {
+  background: #faf9f5;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-day.outside {
+  background: #f3f1ec;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-day.today {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-day.today > header > span {
+  background: var(--accent);
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-milestone {
+  border-radius: 8px;
+}
+
+/* Keep Focus distinct, but make its controls belong to the same system. */
+.df2-focus-mode .df2-sidebar nav button,
+.df2-focus-mode .df2-focus-actions button {
+  border-radius: 10px;
+}
+
+.df2-focus-mode .df2-sidebar nav button.active {
+  box-shadow: inset 2px 0 0 #d66d44;
+}
+
+@media (max-width: 720px) {
+  .df2-root:not(.df2-focus-mode) .df2-now-card,
+  .df2-root:not(.df2-focus-mode) .df2-milestones,
+  .df2-root:not(.df2-focus-mode) .df2-settings-card {
+    border-radius: 18px;
+  }
+}
