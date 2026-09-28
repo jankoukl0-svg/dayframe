@@ -1,4 +1,6 @@
 const DAY_WINDOW_MS = 18 * 60 * 60 * 1000;
+const DAY_START_HOUR = 8;
+const DAY_END_HOUR = 2;
 
 export type DayCountdown = {
   hours: number;
@@ -10,8 +12,11 @@ export type DayCountdown = {
 
 export function getDayCountdown(now: Date): DayCountdown {
   const end = new Date(now);
-  end.setHours(2, 0, 0, 0);
-  if (end <= now) end.setDate(end.getDate() + 1);
+  end.setHours(DAY_END_HOUR, 0, 0, 0);
+
+  // The Dayframe day runs 08:00 → 02:00. Once 02:00 is reached, keep the
+  // countdown pinned at zero until the next planning day starts at 08:00.
+  if (now.getHours() >= DAY_START_HOUR) end.setDate(end.getDate() + 1);
 
   const remainingMs = Math.max(0, end.getTime() - now.getTime());
   const hours = Math.floor(remainingMs / 3_600_000);
