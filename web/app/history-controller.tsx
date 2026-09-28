@@ -10,24 +10,10 @@ type Task = {
   duration: number;
   category?: string;
   completed: boolean;
-  start?: string;
-  end?: string;
-  plannedStart?: string;
-  plannedEnd?: string;
-  plannedDuration?: number;
-  actualStartedAt?: string;
-  actualEndedAt?: string;
-  actualMinutes?: number;
 };
 
 type StoredState = { plans?: Record<string, Task[]> };
 type PeriodMode = "week" | "month" | "year";
-
-type BarSegment = {
-  category: string;
-  color: string;
-  minutes: number;
-};
 
 type PeriodRange = {
   start: Date;
@@ -40,10 +26,6 @@ type PeriodSummary = {
   minutes: number;
   completionRate: number;
   activeDays: number;
-  elapsedDays: number;
-  averagePerActiveDay: number;
-  longestStreak: number;
-  strongestDay: { key: string; minutes: number } | null;
   categories: [string, number][];
 };
 
@@ -53,7 +35,6 @@ type TrendBucket = {
   planned: number;
   completed: number;
   minutes: number;
-  segments: BarSegment[];
 };
 
 const STORAGE_KEY = "dayframe-v1";
@@ -66,10 +47,6 @@ function atNoon(date: Date) {
 
 function localDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function parseDateKey(key: string) {
-  return new Date(`${key}T12:00:00`);
 }
 
 function addDays(date: Date, days: number) {
@@ -121,10 +98,6 @@ function samePeriod(mode: PeriodMode, left: Date, right: Date) {
 
 function minDate(left: Date, right: Date) {
   return left.getTime() <= right.getTime() ? left : right;
-}
-
-function daysBetween(start: Date, end: Date) {
-  return Math.max(0, Math.round((atNoon(end).getTime() - atNoon(start).getTime()) / 86_400_000));
 }
 
 function eachDay(start: Date, end: Date) {
@@ -183,59 +156,31 @@ function summarizeRange(state: StoredState, range: PeriodRange, now: Date): Peri
   const effectiveEnd = minDate(range.end, atNoon(now));
 
   if (rangeStartKey > todayKey) {
-    return {
-      planned: 0,
-      completed: 0,
-      minutes: 0,
-      completionRate: 0,
-      activeDays: 0,
-      elapsedDays: 0,
-      averagePerActiveDay: 0,
-      longestStreak: 0,
-      strongestDay: null,
-      categories: [],
-    };
+    return { planned: 0, completed: 0, minutes: 0, completionRate: 0, activeDays: 0, categories: [] };
   }
 
   let planned = 0;
   let completed = 0;
   let minutes = 0;
   let activeDays = 0;
-  let longestStreak = 0;
-  let runningStreak = 0;
-  let strongestDay: { key: string; minutes: number } | null = null;
   const categories = new Map<string, number>();
 
   for (const date of eachDay(range.start, effectiveEnd)) {
     const key = localDateKey(date);
     const tasks = state.plans?.[key] ?? [];
     const completedTasks = tasks.filter((task) => task.completed);
-    const dayMinutes = completedTasks.reduce((sum, task) => sum + completedBlockDuration(task), 0);
-
     planned += tasks.length;
     completed += completedTasks.length;
-    minutes += dayMinutes;
 
-    if (completedTasks.length) {
-      activeDays += 1;
-      runningStreak += 1;
-      longestStreak = Math.max(longestStreak, runningStreak);
-    } else {
-      runningStreak = 0;
-    }
-
-    if (dayMinutes > 0 && (!strongestDay || dayMinutes > strongestDay.minutes)) {
-      strongestDay = { key, minutes: dayMinutes };
-    }
+    if (completedTasks.length) activeDays += 1;
 
     for (const task of completedTasks) {
+      const duration = completedBlockDuration(task);
+      minutes += duration;
       const category = task.category?.trim() || "Ostatní";
-      categories.set(category, (categories.get(category) ?? 0) + completedBlockDuration(task));
+      categories.set(category, (categories.get(category) ?? 0) + duration);
     }
   }
-
-  const sortedCategories = [...categories.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"));
-  const elapsedDays = daysBetween(range.start, effectiveEnd) + 1;
 
   return {
     planned,
@@ -243,64 +188,59 @@ function summarizeRange(state: StoredState, range: PeriodRange, now: Date): Peri
     minutes,
     completionRate: planned ? Math.round((completed / planned) * 100) : 0,
     activeDays,
-    elapsedDays,
-    averagePerActiveDay: activeDays ? Math.round(minutes / activeDays) : 0,
-    longestStreak,
-    strongestDay,
-    categories: sortedCategories,
+    categories: [...categories.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs")),
   };
 }
 
 function comparablePreviousRange(mode: PeriodMode, range: PeriodRange, now: Date): PeriodRange {
-  const effectiveEnd = minDate(range.end, atNoon(now));
-  const span = Math.max(1, daysBetween(range.start, effectiveEnd) + 1);
   const previous = periodRange(mode, shiftPeriod(range.start, mode, -1));
-  return { start: previous.start, end: minDate(previous.end, addDays(previous.start, span - 1)) };
+  if (!samePeriod(mode, range.start, now)) return previous;
+
+  const elapsed = Math.max(0, Math.round((atNoon(now).getTime() - range.start.getTime()) / 86_400_000));
+  return { start: previous.start, end: minDate(previous.end, addDays(previous.start, elapsed)) };
 }
 
-function buildSegments(summary: PeriodSummary, colors: Record<string, string>) {
-  return summary.categories.map(([category, minutes]) => ({
-    category,
-    minutes,
-    color: colorForCategory(category, colors),
-  }));
-}
-
-function buildTrendBuckets(
-  mode: PeriodMode,
-  state: StoredState,
-  range: PeriodRange,
-  now: Date,
-  colors: Record<string, string>,
-): TrendBucket[] {
+function buildTrendBuckets(mode: PeriodMode, state: StoredState, range: PeriodRange, now: Date): TrendBucket[] {
   if (mode === "year") {
     return Array.from({ length: 12 }, (_, month) => {
       const start = new Date(range.start.getFullYear(), month, 1, 12);
-      const monthRange = { start, end: endOfMonth(start) };
-      const summary = summarizeRange(state, monthRange, now);
+      const summary = summarizeRange(state, { start, end: endOfMonth(start) }, now);
       return {
         key: localDateKey(start),
         label: new Intl.DateTimeFormat("cs-CZ", { month: "short" }).format(start).replace(".", ""),
         planned: summary.planned,
         completed: summary.completed,
         minutes: summary.minutes,
-        segments: buildSegments(summary, colors),
       };
     });
   }
 
+  if (mode === "month") {
+    const days = eachDay(range.start, range.end);
+    const buckets: TrendBucket[] = [];
+    for (let index = 0; index < days.length; index += 7) {
+      const start = days[index];
+      const end = days[Math.min(index + 6, days.length - 1)];
+      const summary = summarizeRange(state, { start, end }, now);
+      buckets.push({
+        key: localDateKey(start),
+        label: `${start.getDate()}–${end.getDate()}`,
+        planned: summary.planned,
+        completed: summary.completed,
+        minutes: summary.minutes,
+      });
+    }
+    return buckets;
+  }
+
   return eachDay(range.start, range.end).map((date) => {
-    const dayRange = { start: date, end: date };
-    const summary = summarizeRange(state, dayRange, now);
+    const summary = summarizeRange(state, { start: date, end: date }, now);
     return {
       key: localDateKey(date),
-      label: mode === "week"
-        ? new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", "")
-        : String(date.getDate()),
+      label: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", ""),
       planned: summary.planned,
       completed: summary.completed,
       minutes: summary.minutes,
-      segments: buildSegments(summary, colors),
     };
   });
 }
@@ -321,32 +261,11 @@ function compactPeriodLabel(mode: PeriodMode, range: PeriodRange) {
   return `${start}–${end}`;
 }
 
-function modeNoun(mode: PeriodMode) {
-  if (mode === "week") return "týdne";
-  if (mode === "month") return "měsíce";
-  return "roku";
-}
-
 function deltaLabel(current: number, previous: number) {
-  if (!previous) return current ? "nově oproti minule" : "bez změny";
+  if (!previous) return current ? "Nové období" : "Bez změny";
   const delta = Math.round(((current - previous) / previous) * 100);
-  if (!delta) return "stejně jako minule";
-  return `${delta > 0 ? "+" : "−"}${Math.abs(delta)} % vs. minule`;
-}
-
-function allTimeStats(state: StoredState, now: Date) {
-  const todayKey = localDateKey(now);
-  let minutes = 0;
-  let completed = 0;
-  for (const [key, tasks] of Object.entries(state.plans ?? {})) {
-    if (key > todayKey) continue;
-    for (const task of tasks) {
-      if (!task.completed) continue;
-      completed += 1;
-      minutes += completedBlockDuration(task);
-    }
-  }
-  return { minutes, completed };
+  if (!delta) return "Stejně jako minule";
+  return `${delta > 0 ? "+" : "−"}${Math.abs(delta)} % oproti minule`;
 }
 
 export function HistoryController() {
@@ -429,14 +348,12 @@ export function HistoryController() {
   const summary = useMemo(() => summarizeRange(state, range, now), [state, range, now]);
   const previousRange = useMemo(() => comparablePreviousRange(mode, range, now), [mode, range, now]);
   const previousSummary = useMemo(() => summarizeRange(state, previousRange, now), [state, previousRange, now]);
-  const buckets = useMemo(() => buildTrendBuckets(mode, state, range, now, labelColors), [mode, state, range, now, labelColors]);
+  const buckets = useMemo(() => buildTrendBuckets(mode, state, range, now), [mode, state, range, now]);
   const maxBucketMinutes = Math.max(1, ...buckets.map((bucket) => bucket.minutes));
   const isCurrent = samePeriod(mode, anchor, now);
-  const total = useMemo(() => allTimeStats(state, now), [state, now]);
 
   const historyPeriods = useMemo(() => {
-    const count = mode === "year" ? 5 : 8;
-    return Array.from({ length: count }, (_, index) => {
+    return Array.from({ length: 4 }, (_, index) => {
       const periodAnchor = shiftPeriod(now, mode, -index);
       const period = periodRange(mode, periodAnchor);
       return {
@@ -456,10 +373,9 @@ export function HistoryController() {
 
   const screenPortal = screenHost ? createPortal(
     active ? (
-      <section className="df2-history-view" data-history-mode={mode}>
-        <header className="df2-page-head df2-history-head">
+      <section className="df2-history-view df2-overview-simple" data-history-mode={mode}>
+        <header className="df2-history-head">
           <div>
-            <p>{isCurrent ? `Tento ${mode === "week" ? "týden" : mode === "month" ? "měsíc" : "rok"}` : `Historie ${modeNoun(mode)}`}</p>
             <h1>Přehled</h1>
             <span>{periodLabel(mode, range)}</span>
           </div>
@@ -481,161 +397,94 @@ export function HistoryController() {
         </header>
 
         <div className="df2-history-period-nav">
-          <div>
-            <button type="button" aria-label="Předchozí období" onClick={() => setAnchor((current) => shiftPeriod(current, mode, -1))}>‹</button>
-            <strong>{periodLabel(mode, range)}</strong>
-            <button
-              type="button"
-              aria-label="Následující období"
-              disabled={isCurrent}
-              onClick={() => setAnchor((current) => shiftPeriod(current, mode, 1))}
-            >
-              ›
-            </button>
-            {!isCurrent && <button type="button" className="df2-history-today" onClick={() => setAnchor(now)}>Dnes</button>}
-          </div>
-          <span>Od začátku <strong>{formatMinutes(total.minutes)}</strong> · {total.completed} bloků</span>
+          <button type="button" aria-label="Předchozí období" onClick={() => setAnchor((current) => shiftPeriod(current, mode, -1))}>‹</button>
+          <strong>{periodLabel(mode, range)}</strong>
+          <button
+            type="button"
+            aria-label="Následující období"
+            disabled={isCurrent}
+            onClick={() => setAnchor((current) => shiftPeriod(current, mode, 1))}
+          >
+            ›
+          </button>
+          {!isCurrent && <button type="button" className="df2-history-today" onClick={() => setAnchor(now)}>Dnes</button>}
         </div>
 
-        <div className="df2-history-metrics">
-          <article>
-            <span>Hotovo</span>
-            <strong>{summary.completed}<small> / {summary.planned}</small></strong>
-            <small>{summary.planned ? `${summary.completionRate} % plánovaných bloků` : "Zatím bez bloků"}</small>
-          </article>
-          <article>
-            <span>Dokončení</span>
-            <strong>{summary.completionRate}<small>%</small></strong>
-            <small>{deltaLabel(summary.completionRate, previousSummary.completionRate)}</small>
-          </article>
-          <article>
-            <span>Odpracováno</span>
-            <strong>{formatMinutes(summary.minutes)}</strong>
-            <small>{deltaLabel(summary.minutes, previousSummary.minutes)}</small>
-          </article>
-          <article>
-            <span>Aktivní dny</span>
-            <strong>{summary.activeDays}<small> / {summary.elapsedDays}</small></strong>
-            <small>{summary.activeDays ? `průměr ${formatMinutes(summary.averagePerActiveDay)} / aktivní den` : "Zatím bez dokončeného bloku"}</small>
-          </article>
-        </div>
+        <section className="df2-overview-summary" aria-label="Souhrn období">
+          <span>Odpracováno</span>
+          <strong>{formatMinutes(summary.minutes)}</strong>
+          <p>{summary.completed} z {summary.planned} bloků · {summary.completionRate} % dokončeno</p>
+          <small>{deltaLabel(summary.minutes, previousSummary.minutes)}</small>
+        </section>
 
-        <section className="df2-history-week df2-history-trend" aria-label={`Studijní trend ${modeNoun(mode)}`}>
-          <div className="df2-section-head">
-            <h2>Studijní trend</h2>
-            <span>Délka dokončených bloků · ne Focus timer</span>
+        <section className="df2-history-trend" aria-label="Aktivita">
+          <div className="df2-overview-section-head">
+            <h2>Aktivita</h2>
           </div>
           <div
             className="df2-history-bars"
             data-mode={mode}
-            style={{ gridTemplateColumns: `repeat(${buckets.length}, minmax(${mode === "month" ? 22 : 48}px, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${buckets.length}, minmax(${mode === "year" ? 42 : 52}px, 1fr))` }}
           >
             {buckets.map((bucket) => {
               const height = bucket.minutes ? Math.max(8, Math.round((bucket.minutes / maxBucketMinutes) * 100)) : 0;
               return (
-                <article key={bucket.key} title={`${bucket.label} · ${formatMinutes(bucket.minutes)} · ${bucket.completed}/${bucket.planned} hotovo`}>
+                <article
+                  key={bucket.key}
+                  aria-label={`${bucket.label}: ${formatMinutes(bucket.minutes)}, ${bucket.completed} z ${bucket.planned} bloků hotovo`}
+                >
                   <div>
-                    <i className="df2-history-bar" style={{ height: `${height}%` }}>
-                      {bucket.segments.map((segment) => (
-                        <span
-                          key={segment.category}
-                          data-category={segment.category}
-                          title={`${segment.category} · ${formatMinutes(segment.minutes)}`}
-                          style={{ flexGrow: segment.minutes, backgroundColor: segment.color }}
-                        />
-                      ))}
-                    </i>
+                    <i className="df2-history-bar" style={{ height: `${height}%` }} />
                   </div>
                   <strong>{bucket.label}</strong>
-                  <small>{mode === "month" ? (bucket.minutes ? `${Math.round(bucket.minutes / 60 * 10) / 10}h` : "—") : formatMinutes(bucket.minutes)}</small>
+                  <small>{bucket.minutes ? formatMinutes(bucket.minutes) : "—"}</small>
                 </article>
               );
             })}
           </div>
         </section>
 
-        <section className="df2-history-insights">
-          <div className="df2-section-head">
-            <h2>Jak se učíš</h2>
-            <span>Z dokončených bloků v tomto období</span>
-          </div>
-          <div className="df2-history-insight-grid">
-            <article>
-              <span>Průměr / aktivní den</span>
-              <strong>{formatMinutes(summary.averagePerActiveDay)}</strong>
-            </article>
-            <article>
-              <span>Nejsilnější den</span>
-              <strong>
-                {summary.strongestDay
-                  ? new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "numeric" }).format(parseDateKey(summary.strongestDay.key))
-                  : "—"}
-              </strong>
-              <small>{summary.strongestDay ? formatMinutes(summary.strongestDay.minutes) : "bez dat"}</small>
-            </article>
-            <article>
-              <span>Nejsilnější oblast</span>
-              <strong>{summary.categories[0]?.[0] ?? "—"}</strong>
-              <small>{summary.categories[0] ? formatMinutes(summary.categories[0][1]) : "bez dat"}</small>
-            </article>
-            <article>
-              <span>Nejdelší série</span>
-              <strong>{summary.longestStreak}<small> dní</small></strong>
-            </article>
-          </div>
-        </section>
-
-        <section className="df2-history-categories">
-          <div className="df2-section-head">
-            <h2>Čas podle oblasti</h2>
-            <span>{summary.categories.length ? `${summary.categories.length} oblastí` : "Bez dokončených bloků"}</span>
-          </div>
-          {summary.categories.length ? summary.categories.slice(0, 8).map(([category, minutes]) => {
-            const percentage = summary.minutes ? Math.round((minutes / summary.minutes) * 100) : 0;
-            return (
-              <article key={category} data-category={category}>
-                <div className="df2-history-category-row">
-                  <strong className="df2-history-category-label">
-                    <i
-                      className="df2-history-category-swatch"
-                      aria-hidden="true"
-                      style={{ backgroundColor: colorForCategory(category, labelColors) }}
-                    />
+        <div className="df2-overview-bottom-grid">
+          <section className="df2-history-categories">
+            <div className="df2-overview-section-head">
+              <h2>Oblasti</h2>
+            </div>
+            <div className="df2-overview-list">
+              {summary.categories.length ? summary.categories.slice(0, 3).map(([category, minutes]) => (
+                <div className="df2-overview-list-row" key={category} data-category={category}>
+                  <span>
+                    <i aria-hidden="true" style={{ backgroundColor: colorForCategory(category, labelColors) }} />
                     {category}
-                  </strong>
-                  <span>{formatMinutes(minutes)} · {percentage} %</span>
+                  </span>
+                  <strong>{formatMinutes(minutes)}</strong>
                 </div>
-                <div className="df2-history-category-meter" aria-hidden="true">
-                  <i style={{ width: `${percentage}%`, backgroundColor: colorForCategory(category, labelColors) }} />
-                </div>
-              </article>
-            );
-          }) : <p>Zatím tu nejsou dokončené bloky.</p>}
-        </section>
+              )) : <p className="df2-overview-empty">Zatím bez dokončených bloků.</p>}
+            </div>
+          </section>
 
-        <section className="df2-history-period-history">
-          <div className="df2-section-head">
-            <h2>Historie {modeNoun(mode)}</h2>
-            <span>Kliknutím otevřeš celé období</span>
-          </div>
-          <div className="df2-history-period-grid">
-            {historyPeriods.map((period) => {
-              const selected = samePeriod(mode, anchor, period.anchor);
-              return (
-                <button
-                  key={localDateKey(period.range.start)}
-                  type="button"
-                  className={selected ? "active" : ""}
-                  onClick={() => setAnchor(period.anchor)}
-                >
-                  <span>{compactPeriodLabel(mode, period.range)}</span>
-                  <strong>{formatMinutes(period.summary.minutes)}</strong>
-                  <small>{period.summary.completionRate} % hotovo · {period.summary.activeDays} aktivních dní</small>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+          <section className="df2-history-period-history">
+            <div className="df2-overview-section-head">
+              <h2>Historie</h2>
+            </div>
+            <div className="df2-history-period-grid">
+              {historyPeriods.map((period) => {
+                const selected = samePeriod(mode, anchor, period.anchor);
+                return (
+                  <button
+                    key={localDateKey(period.range.start)}
+                    type="button"
+                    className={selected ? "active" : ""}
+                    onClick={() => setAnchor(period.anchor)}
+                  >
+                    <span>{compactPeriodLabel(mode, period.range)}</span>
+                    <strong>{formatMinutes(period.summary.minutes)}</strong>
+                    <i aria-hidden="true">›</i>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </section>
     ) : null,
     screenHost,
