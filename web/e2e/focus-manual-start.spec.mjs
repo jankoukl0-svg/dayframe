@@ -98,6 +98,29 @@ test("focus waits for Start before counting down or recording execution", async 
   }).toBe(true);
 });
 
+test("running focus derives countdown from persisted time after a background gap", async ({ page }) => {
+  const seeded = await setup(page);
+
+  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  const controls = page.locator(".df2-time-adjust-focus-controls");
+  const clock = page.locator(".df2-controller-focus-clock");
+  await controls.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+  await page.waitForTimeout(400);
+  const beforeGap = clockToSeconds(await clock.innerText());
+
+  await page.evaluate(({ date }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = state.plans[date].find((item) => item.id === "manual-focus-start");
+    task.actualRunningSince = new Date(Date.now() - 8_000).toISOString();
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, seeded);
+
+  await expect.poll(async () => clockToSeconds(await clock.innerText())).toBeLessThanOrEqual(beforeGap - 7);
+  await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
+});
+
 test("started focus keeps running after leaving the focus screen until Pause is clicked", async ({ page }) => {
   const seeded = await setup(page);
 

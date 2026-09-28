@@ -6,9 +6,12 @@ import { planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-
 type FocusTask = {
   id: string;
   title: string;
+  duration?: number;
   start?: string;
+  end?: string;
   completed?: boolean;
   actualStartedAt?: string;
+  actualAccumulatedSeconds?: number;
   actualRunningSince?: string;
 };
 
@@ -43,6 +46,51 @@ function currentFocusTask() {
     .sort((a, b) => Math.abs(timeToMinutes(a.start) - minute) - Math.abs(timeToMinutes(b.start) - minute))[0] ?? null;
 }
 
+function scheduledRemainingAt(task: FocusTask, at: Date) {
+  if (!task.start || !task.end) return Math.max(0, (task.duration ?? 0) * 60);
+  const startSeconds = timeToMinutes(task.start) * 60;
+  const endSeconds = timeToMinutes(task.end) * 60;
+  const atSeconds = planningMinute(at) * 60 + at.getSeconds();
+  if (atSeconds < startSeconds) return Math.max(0, (task.duration ?? 0) * 60);
+  return Math.max(0, endSeconds - atSeconds);
+}
+
+function elapsedExecutionSeconds(task: FocusTask, now: Date) {
+  let elapsed = Math.max(0, task.actualAccumulatedSeconds ?? 0);
+  if (!task.actualRunningSince) return elapsed;
+
+  const runningSince = new Date(task.actualRunningSince).getTime();
+  if (!Number.isFinite(runningSince)) return elapsed;
+  elapsed += Math.max(0, Math.floor((now.getTime() - runningSince) / 1000));
+  return elapsed;
+}
+
+function persistedRemainingSeconds(task: FocusTask, now = new Date()) {
+  if (!task.actualStartedAt) return null;
+  const startedAt = new Date(task.actualStartedAt);
+  if (!Number.isFinite(startedAt.getTime())) return null;
+
+  const initialBudget = scheduledRemainingAt(task, startedAt);
+  return Math.max(0, initialBudget - elapsedExecutionSeconds(task, now));
+}
+
+function formatFocusTime(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+function syncPersistedClock(task: FocusTask) {
+  const clock = document.querySelector<HTMLElement>(".df2-controller-focus-clock");
+  if (!clock) return;
+  const remaining = persistedRemainingSeconds(task);
+  if (remaining === null) return;
+
+  const text = formatFocusTime(remaining);
+  if (clock.textContent !== text) clock.textContent = text;
+  const label = `Zbývá ${text}`;
+  if (clock.getAttribute("aria-label") !== label) clock.setAttribute("aria-label", label);
+}
+
 export function FocusManualStartController() {
   useEffect(() => {
     const sync = () => {
@@ -51,13 +99,14 @@ export function FocusManualStartController() {
       const task = currentFocusTask();
       if (!controls || !button || !task) return;
 
+      syncPersistedClock(task);
+
       const text = button.textContent?.trim() ?? "";
       const isRunning = Boolean(task.actualRunningSince);
       const hasStarted = Boolean(task.actualStartedAt);
 
-      // Once the user has explicitly started the block, leaving Focus must not
-      // pause it. ActivityTimeController restores a running Focus as "Pauza";
-      // in that state we intentionally do nothing.
+      // Once Start has been pressed, the persisted execution timestamp is the
+      // source of truth. Leaving the tab or Focus view must not pause the run.
       if (isRunning) {
         delete button.dataset[START_ATTRIBUTE];
         return;
@@ -98,6 +147,8 @@ export function FocusManualStartController() {
     };
 
     document.addEventListener("click", onClick, true);
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     const timer = window.setInterval(sync, 120);
@@ -105,6 +156,8 @@ export function FocusManualStartController() {
 
     return () => {
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
       observer.disconnect();
       window.clearInterval(timer);
     };
