@@ -93,6 +93,10 @@ function formatMinutes(minutes: number) {
   return `${hours} h ${rest} min`;
 }
 
+function completedBlockDuration(task: Task) {
+  return Math.max(0, task.duration || 0);
+}
+
 function actualDuration(task: Task) {
   return Number.isFinite(task.actualMinutes) && (task.actualMinutes ?? 0) > 0
     ? Math.max(1, task.actualMinutes ?? 0)
@@ -111,7 +115,7 @@ function buildSegments(tasks: Task[], colors: Record<string, string>) {
   const minutesByCategory = new Map<string, number>();
   for (const task of tasks) {
     const category = task.category?.trim() || "Ostatní";
-    minutesByCategory.set(category, (minutesByCategory.get(category) ?? 0) + actualDuration(task));
+    minutesByCategory.set(category, (minutesByCategory.get(category) ?? 0) + completedBlockDuration(task));
   }
   return [...minutesByCategory.entries()]
     .map(([category, minutes]) => ({ category, minutes, color: colorForCategory(category, colors) }))
@@ -132,7 +136,7 @@ function computeDays(state: StoredState, now: Date, colors: Record<string, strin
       label: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(date).replace(".", ""),
       planned: dueTasks.length,
       completed: completedTasks.length,
-      completedMinutes: completedTasks.reduce((sum, task) => sum + actualDuration(task), 0),
+      completedMinutes: completedTasks.reduce((sum, task) => sum + completedBlockDuration(task), 0),
       segments: buildSegments(completedTasks, colors),
     };
   });
@@ -247,7 +251,7 @@ export function HistoryController() {
     const minutes = new Map<string, number>();
     for (const task of completedTasks) {
       const category = task.category || "Ostatní";
-      minutes.set(category, (minutes.get(category) ?? 0) + actualDuration(task));
+      minutes.set(category, (minutes.get(category) ?? 0) + completedBlockDuration(task));
     }
     return [...minutes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [completedTasks]);

@@ -26,6 +26,6 @@ test("overview shows a compact weekly review", async ({ page }) => {
   await expect(review).toBeVisible();
   await expect(review).toContainText("Týdenní review");
   await expect(review).toContainText("3 / 3");
-  await expect(review).toContainText("1 h 45 min");
+  await expect(review).toContainText("2 h 15 min");
   await expect(review).toContainText("Finance");
 });
