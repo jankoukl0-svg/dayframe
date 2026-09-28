@@ -42,6 +42,7 @@ import "../app/late-reading-controller.css";
 import "../app/notification-controller.css";
 import "../app/sidebar-shortcuts.css";
 import "../app/visual-harmony.css";
+import "../app/visual-harmony-state-fixes.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
