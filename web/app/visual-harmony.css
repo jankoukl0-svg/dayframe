@@ -284,6 +284,19 @@
   background: #f3f1ec;
 }
 
+/* Observance tints stay meaningful context inside the softer calendar. */
+.df2-root:not(.df2-focus-mode) .df2-month-day:has(.df2-calendar-observance.world) {
+  background: #eef4fa;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-day:has(.df2-calendar-observance.tradition) {
+  background: #faf1e5;
+}
+
+.df2-root:not(.df2-focus-mode) .df2-month-day:has(.df2-calendar-observance.public) {
+  background: #f8ecea;
+}
+
 .df2-root:not(.df2-focus-mode) .df2-month-day.today {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
@@ -296,13 +309,62 @@
   border-radius: 8px;
 }
 
+/* History is an overlay: preserve its special active-nav semantics. */
+.df2-root.df2-history-active:not(.df2-focus-mode) .df2-sidebar nav > button.active,
+.df2-root.df2-history-active:not(.df2-focus-mode) .df2-sidebar nav > span:not(.df2-history-nav-host) button.active {
+  border-color: transparent;
+  background: transparent;
+  color: #666761;
+  box-shadow: none;
+}
+
+.df2-root.df2-history-active.df2-focus-mode {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-shell {
+  border-color: var(--df2-soft-border);
+  background: var(--surface);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-sidebar {
+  border-color: var(--df2-soft-border);
+  background: var(--df2-soft-sidebar);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-main {
+  background: var(--surface);
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-brand,
+.df2-root.df2-history-active.df2-focus-mode .df2-sidebar nav button {
+  color: #666761;
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-sidebar nav > button.active,
+.df2-root.df2-history-active.df2-focus-mode .df2-sidebar nav > span:not(.df2-history-nav-host) button.active {
+  border-color: transparent;
+  background: transparent;
+  color: #666761;
+  box-shadow: none;
+}
+
+.df2-root.df2-history-active.df2-focus-mode .df2-history-nav-host button.active {
+  border-color: var(--df2-soft-border);
+  border-radius: 10px;
+  background: var(--df2-soft-card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(43, 39, 34, .07), inset 2px 0 0 var(--accent);
+}
+
 /* Keep Focus distinct, but make its controls belong to the same system. */
-.df2-focus-mode .df2-sidebar nav button,
+.df2-focus-mode:not(.df2-history-active) .df2-sidebar nav button,
 .df2-focus-mode .df2-focus-actions button {
   border-radius: 10px;
 }
 
-.df2-focus-mode .df2-sidebar nav button.active {
+.df2-focus-mode:not(.df2-history-active) .df2-sidebar nav button.active {
   box-shadow: inset 2px 0 0 #d66d44;
 }
 
