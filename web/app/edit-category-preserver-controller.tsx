@@ -72,8 +72,10 @@ function ensureOriginalCategory(select: HTMLSelectElement) {
 }
 
 function syncEditCategory() {
-  const selects = document.querySelectorAll<HTMLSelectElement>('.df2-modal select[name="category"]');
-  for (const select of selects) ensureOriginalCategory(select);
+  const nodes = document.querySelectorAll('.df2-modal select[name="category"]');
+  for (const node of Array.from(nodes)) {
+    if (node instanceof HTMLSelectElement) ensureOriginalCategory(node);
+  }
 }
 
 export function EditCategoryPreserverController() {
