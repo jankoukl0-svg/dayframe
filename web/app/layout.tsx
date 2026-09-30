@@ -22,6 +22,7 @@ import "./visual-harmony.css";
 import "./visual-harmony-state-fixes.css";
 import "./week-category-tints.css";
 import "./retroactive-week-controller.css";
+import "./personal-block-controller.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
@@ -45,6 +46,7 @@ import { FocusWeekSyncController } from "./focus-week-sync-controller";
 import { HistoryEditController } from "./history-edit-controller";
 import { NotificationController } from "./notification-controller";
 import { EditCategoryPreserverController } from "./edit-category-preserver-controller";
+import { PersonalBlockController } from "./personal-block-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -53,5 +55,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><LateReadingController /><NotificationController /></body></html>;
 }
