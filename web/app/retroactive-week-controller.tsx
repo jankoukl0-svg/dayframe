@@ -23,6 +23,16 @@ function parseWeekStart() {
   return new Date(startYear, startMonth - 1, startDay, 12, 0, 0, 0);
 }
 
+function dateForWeekDay(day: HTMLElement) {
+  const weekStart = parseWeekStart();
+  const days = [...document.querySelectorAll<HTMLElement>(".df2-week-day")];
+  const index = days.indexOf(day);
+  if (!weekStart || index < 0) return null;
+  const date = new Date(weekStart);
+  date.setDate(date.getDate() + index);
+  return localDateKey(date);
+}
+
 function syncPastDays() {
   const weekStart = parseWeekStart();
   if (!weekStart) return;
@@ -45,6 +55,30 @@ function relaxPastDateInputs() {
     .forEach((input) => input.removeAttribute("min"));
 }
 
+function setControlledDate(input: HTMLInputElement, date: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  if (setter) setter.call(input, date);
+  else input.value = date;
+  input.removeAttribute("min");
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function openPastAdd(date: string) {
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "2", code: "Digit2", bubbles: true }));
+  let attempts = 0;
+  const applyDate = () => {
+    const input = document.querySelector<HTMLInputElement>(".df2-add-form .df2-chips input[type='date']");
+    if (input) {
+      setControlledDate(input, date);
+      return;
+    }
+    attempts += 1;
+    if (attempts < 30) window.requestAnimationFrame(applyDate);
+  };
+  window.requestAnimationFrame(applyDate);
+}
+
 export function RetroactiveWeekController() {
   useEffect(() => {
     let scheduled = false;
@@ -58,11 +92,26 @@ export function RetroactiveWeekController() {
       });
     };
 
+    const onPastHeaderClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const header = target?.closest<HTMLElement>(".df2-week-day.df2-week-past-editable .df2-week-day-head");
+      const day = header?.closest<HTMLElement>(".df2-week-day");
+      if (!header || !day) return;
+      const date = dateForWeekDay(day);
+      if (!date || date >= planningDateKey()) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      openPastAdd(date);
+    };
+
     sync();
+    document.addEventListener("click", onPastHeaderClick, true);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "min", "class"] });
     const timer = window.setInterval(sync, 750);
     return () => {
+      document.removeEventListener("click", onPastHeaderClick, true);
       observer.disconnect();
       window.clearInterval(timer);
     };
