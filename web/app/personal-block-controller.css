@@ -1,0 +1,33 @@
+.df2-personal-block-toggle {
+  min-height: 54px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--df2-soft-border, var(--line));
+  border-radius: 10px;
+  background: var(--df2-soft-card, var(--paper));
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-personal-block-toggle span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.df2-personal-block-toggle small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.df2-personal-block-toggle:hover {
+  border-color: var(--line-strong);
+}
+
+.df2-personal-block-toggle.active {
+  border-color: #9b8f7a;
+  background: #f0ede6;
+  box-shadow: inset 0 0 0 1px rgba(155, 143, 122, .16);
+}
