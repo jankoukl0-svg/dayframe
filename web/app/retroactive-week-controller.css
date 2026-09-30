@@ -1,0 +1,37 @@
+.df2-week-day.df2-week-past-editable {
+  background: #f1f0ec;
+}
+
+.df2-week-day.df2-week-past-editable .df2-week-day-head {
+  cursor: pointer;
+  color: #777872;
+}
+
+.df2-week-day.df2-week-past-editable .df2-week-day-head::after {
+  content: "historie";
+  color: #999993;
+}
+
+.df2-week-day.df2-week-past-editable .df2-week-day-head > button {
+  visibility: visible;
+  opacity: .72;
+  cursor: pointer;
+}
+
+.df2-week-day.df2-week-past-editable .df2-time-body {
+  pointer-events: auto;
+}
+
+.df2-week-day.df2-week-past-editable .df2-week-task,
+.df2-week-day.df2-week-past-editable .df2-week-task.done {
+  display: grid;
+  pointer-events: auto;
+}
+
+.df2-week-day.df2-week-past-editable .df2-unscheduled:not(:empty) {
+  display: grid;
+}
+
+.df2-week-day.df2-week-past-editable .df2-hour-line em {
+  background: #f1f0ec;
+}
