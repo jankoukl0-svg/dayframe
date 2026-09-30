@@ -19,6 +19,7 @@ import { RetroactiveWeekController } from "../app/retroactive-week-controller";
 import { WeekCrossDayController } from "../app/week-cross-day-controller";
 import { WeekDragSafetyController } from "../app/week-drag-safety-controller";
 import { TodayTomorrowSafetyController } from "../app/today-tomorrow-safety-controller";
+import { PersonalBlockController } from "../app/personal-block-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
 import { HistoryEditController } from "../app/history-edit-controller";
@@ -50,6 +51,7 @@ import "../app/visual-harmony.css";
 import "../app/visual-harmony-state-fixes.css";
 import "../app/week-category-tints.css";
 import "../app/retroactive-week-controller.css";
+import "../app/personal-block-controller.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
@@ -78,6 +80,7 @@ createRoot(root).render(
     <WeekCrossDayController />
     <WeekDragSafetyController />
     <TodayTomorrowSafetyController />
+    <PersonalBlockController />
     <LateReadingController />
     <NotificationController />
   </>,
