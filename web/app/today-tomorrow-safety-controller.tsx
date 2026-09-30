@@ -31,6 +31,7 @@ type StoredState = {
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
 const DAY_START = 8 * 60;
+const DAY_END = 26 * 60;
 const LUNCH_START = 13 * 60;
 const LUNCH_END = 14 * 60;
 const DEFAULT_DEADLINE = 22 * 60 + 30;
@@ -98,7 +99,7 @@ function canPlace(tasks: StoredTask[], start: number, duration: number, ignoreId
 
 function findTomorrowSlot(tasks: StoredTask[], task: StoredTask) {
   const parsedDeadline = timeToMinutes(task.deadlineTime);
-  const deadline = Number.isFinite(parsedDeadline) ? parsedDeadline : DEFAULT_DEADLINE;
+  const deadline = Math.min(DAY_END, Number.isFinite(parsedDeadline) ? parsedDeadline : DEFAULT_DEADLINE);
   for (let start = DAY_START; start + task.duration <= deadline; start += SLOT) {
     if (start < LUNCH_END && start + task.duration > LUNCH_START) continue;
     if (canPlace(tasks, start, task.duration, task.id)) return start;
