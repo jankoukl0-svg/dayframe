@@ -78,7 +78,18 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
     const geometryDay = grid.querySelector(".df2-week-day.today");
     const hourLines = geometryDay ? [...geometryDay.querySelectorAll(".df2-hour-line")] : [];
     const oneHourTask = geometryDay
-      ? [...geometryDay.querySelectorAll(".df2-week-task")].find((task) => task.textContent?.includes("Matematika") && getComputedStyle(task).display !== "none")
+      ? [...geometryDay.querySelectorAll(".df2-week-task")].find((task) => {
+        if (getComputedStyle(task).display === "none") return false;
+        const range = task.querySelector("span")?.textContent?.trim() ?? "";
+        const [from, to] = range.split("–");
+        if (!from || !to) return false;
+        const minutes = (value) => {
+          const [hours, mins] = value.split(":").map(Number);
+          const clock = hours * 60 + mins;
+          return hours < 8 ? clock + 24 * 60 : clock;
+        };
+        return minutes(to) - minutes(from) === 60;
+      })
       : null;
     const hourSlotHeight = hourLines.length >= 2
       ? hourLines[1].getBoundingClientRect().top - hourLines[0].getBoundingClientRect().top
