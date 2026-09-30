@@ -14,17 +14,19 @@ function setSelectValue(select: HTMLSelectElement, value: string) {
 }
 
 function findCategorySelect(form: HTMLElement) {
-  return [...form.querySelectorAll<HTMLSelectElement>("select")]
-    .find((select) => [...select.options].some((option) => option.value === PERSONAL_CATEGORY)) ?? null;
+  const selects = Array.from(form.querySelectorAll("select"));
+  return selects.find((select) => Array.from(select.options).some((option) => option.value === PERSONAL_CATEGORY)) ?? null;
 }
 
 function syncPersonalToggle() {
-  document.querySelectorAll<HTMLElement>(".df2-add-form").forEach((form) => {
-    const chips = form.querySelector<HTMLElement>(".df2-chips");
-    const categorySelect = findCategorySelect(form);
-    if (!chips || !categorySelect) return;
+  document.querySelectorAll(".df2-add-form").forEach((node) => {
+    if (!(node instanceof HTMLElement)) return;
+    const chips = node.querySelector(".df2-chips");
+    const categorySelect = findCategorySelect(node);
+    if (!(chips instanceof HTMLElement) || !categorySelect) return;
 
-    let button = chips.querySelector<HTMLButtonElement>("[data-personal-block-toggle]");
+    const existing = chips.querySelector("[data-personal-block-toggle]");
+    let button = existing instanceof HTMLButtonElement ? existing : null;
     if (!button) {
       button = document.createElement("button");
       button.type = "button";
