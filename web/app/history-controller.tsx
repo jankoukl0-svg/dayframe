@@ -41,6 +41,7 @@ type TrendBucket = {
 const STORAGE_KEY = "dayframe-v1";
 const LABEL_COLORS_STORAGE_KEY = "dayframe-label-colors-v1";
 const DEFAULT_LABEL_COLOR = "#c85b32";
+const OVERVIEW_EXCLUDED_CATEGORIES = new Set(["Osobní"]);
 
 function atNoon(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -168,7 +169,7 @@ function summarizeRange(state: StoredState, range: PeriodRange, now: Date): Peri
 
   for (const date of eachDay(range.start, effectiveEnd)) {
     const key = localDateKey(date);
-    const tasks = state.plans?.[key] ?? [];
+    const tasks = (state.plans?.[key] ?? []).filter((task) => !OVERVIEW_EXCLUDED_CATEGORIES.has(task.category?.trim() || ""));
     const completedTasks = tasks.filter((task) => task.completed);
     planned += tasks.length;
     completed += completedTasks.length;
