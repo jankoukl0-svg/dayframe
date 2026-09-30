@@ -9,14 +9,15 @@ test("dropping into an occupied day finds another free slot instead of losing th
     const planning = new Date();
     if (planning.getHours() < 2) planning.setDate(planning.getDate() - 1);
     planning.setHours(12, 0, 0, 0);
-    const dayIndex = (planning.getDay() + 6) % 7;
+    const todayIndex = (planning.getDay() + 6) % 7;
     const monday = new Date(planning);
-    monday.setDate(monday.getDate() - dayIndex);
-    const tuesday = new Date(monday);
-    tuesday.setDate(tuesday.getDate() + 1);
+    monday.setDate(monday.getDate() - todayIndex);
+    const targetIndex = todayIndex === 6 ? 5 : todayIndex + 1;
+    const targetDate = new Date(monday);
+    targetDate.setDate(targetDate.getDate() + targetIndex);
     const key = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    const fromDate = key(monday);
-    const toDate = key(tuesday);
+    const fromDate = key(planning);
+    const toDate = key(targetDate);
     const now = new Date().toISOString();
 
     state.routines = [];
@@ -59,21 +60,21 @@ test("dropping into an occupied day finds another free slot instead of losing th
       }],
     };
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    return { fromDate, toDate };
+    return { fromDate, toDate, targetIndex };
   });
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
 
-  const sourceDay = page.locator(".df2-week-day").nth(0);
-  const targetDay = page.locator(".df2-week-day").nth(1);
+  const sourceDay = page.locator(".df2-week-day.today");
+  const targetDay = page.locator(".df2-week-day").nth(seeded.targetIndex);
   const source = sourceDay.locator(".df2-week-task").filter({ hasText: "Přesouvaný blok" });
   const targetBody = targetDay.locator(".df2-time-body");
   await expect(source).toBeVisible();
   await expect(targetDay.locator(".df2-week-task").filter({ hasText: "Dlouhý blok v cíli" })).toBeVisible();
 
   await page.evaluate(() => {
-    const source = [...document.querySelectorAll(".df2-week-day")][0]?.querySelector(".df2-week-task");
+    const source = document.querySelector(".df2-week-day.today .df2-week-task");
     if (!(source instanceof HTMLElement)) throw new Error("Source task not found");
     const rect = source.getBoundingClientRect();
     const transfer = new DataTransfer();
@@ -87,8 +88,8 @@ test("dropping into an occupied day finds another free slot instead of losing th
     }));
   });
 
-  await page.evaluate(() => {
-    const target = [...document.querySelectorAll(".df2-week-day")][1]?.querySelector(".df2-time-body");
+  await page.evaluate(({ targetIndex }) => {
+    const target = [...document.querySelectorAll(".df2-week-day")][targetIndex]?.querySelector(".df2-time-body");
     const transfer = window.__occupiedColumnTransfer;
     if (!(target instanceof HTMLElement) || !(transfer instanceof DataTransfer)) throw new Error("Target day not ready");
     const rect = target.getBoundingClientRect();
@@ -101,12 +102,12 @@ test("dropping into an occupied day finds another free slot instead of losing th
       clientY: rect.top + (pointerMinute - 8 * 60) * 0.72,
     };
     target.dispatchEvent(new DragEvent("dragover", options));
-  });
+  }, seeded);
 
   await expect(targetBody.locator(".df2-cross-day-drop-preview")).toBeVisible();
 
-  await page.evaluate(() => {
-    const target = [...document.querySelectorAll(".df2-week-day")][1]?.querySelector(".df2-time-body");
+  await page.evaluate(({ targetIndex }) => {
+    const target = [...document.querySelectorAll(".df2-week-day")][targetIndex]?.querySelector(".df2-time-body");
     const transfer = window.__occupiedColumnTransfer;
     if (!(target instanceof HTMLElement) || !(transfer instanceof DataTransfer)) throw new Error("Target day not ready");
     const rect = target.getBoundingClientRect();
@@ -118,7 +119,7 @@ test("dropping into an occupied day finds another free slot instead of losing th
       clientX: rect.left + Math.max(20, rect.width / 2),
       clientY: rect.top + (pointerMinute - 8 * 60) * 0.72,
     }));
-  });
+  }, seeded);
 
   await expect.poll(() => page.evaluate(({ fromDate, toDate }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
