@@ -15,6 +15,7 @@ import { MonthCalendarController } from "../app/month-calendar-controller";
 import { CalendarObservancesController } from "../app/calendar-observances-controller";
 import { GoogleCalendarController } from "../app/google-calendar-controller";
 import { MonthCalendarCountdownController } from "../app/month-calendar-countdown-controller";
+import { WeekDragSafetyController } from "../app/week-drag-safety-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
 import { HistoryEditController } from "../app/history-edit-controller";
@@ -69,6 +70,7 @@ createRoot(root).render(
     <MonthCalendarCountdownController />
     <FocusWeekSyncController />
     <HistoryEditController />
+    <WeekDragSafetyController />
     <LateReadingController />
     <NotificationController />
   </>,

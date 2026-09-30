@@ -35,6 +35,7 @@ import { MonthCalendarController } from "./month-calendar-controller";
 import { CalendarObservancesController } from "./calendar-observances-controller";
 import { GoogleCalendarController } from "./google-calendar-controller";
 import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
+import { WeekDragSafetyController } from "./week-drag-safety-controller";
 import { LateReadingController } from "./late-reading-controller";
 import { FocusWeekSyncController } from "./focus-week-sync-controller";
 import { HistoryEditController } from "./history-edit-controller";
@@ -48,5 +49,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><WeekDragSafetyController /><LateReadingController /><NotificationController /></body></html>;
 }
