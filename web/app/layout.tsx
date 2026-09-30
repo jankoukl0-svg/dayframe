@@ -21,6 +21,7 @@ import "./sidebar-shortcuts.css";
 import "./visual-harmony.css";
 import "./visual-harmony-state-fixes.css";
 import "./week-category-tints.css";
+import "./retroactive-week-controller.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
@@ -35,7 +36,10 @@ import { MonthCalendarController } from "./month-calendar-controller";
 import { CalendarObservancesController } from "./calendar-observances-controller";
 import { GoogleCalendarController } from "./google-calendar-controller";
 import { MonthCalendarCountdownController } from "./month-calendar-countdown-controller";
+import { RetroactiveWeekController } from "./retroactive-week-controller";
+import { WeekCrossDayController } from "./week-cross-day-controller";
 import { WeekDragSafetyController } from "./week-drag-safety-controller";
+import { TodayTomorrowSafetyController } from "./today-tomorrow-safety-controller";
 import { LateReadingController } from "./late-reading-controller";
 import { FocusWeekSyncController } from "./focus-week-sync-controller";
 import { HistoryEditController } from "./history-edit-controller";
@@ -49,5 +53,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><WeekDragSafetyController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><LateReadingController /><NotificationController /></body></html>;
 }

@@ -15,7 +15,10 @@ import { MonthCalendarController } from "../app/month-calendar-controller";
 import { CalendarObservancesController } from "../app/calendar-observances-controller";
 import { GoogleCalendarController } from "../app/google-calendar-controller";
 import { MonthCalendarCountdownController } from "../app/month-calendar-countdown-controller";
+import { RetroactiveWeekController } from "../app/retroactive-week-controller";
+import { WeekCrossDayController } from "../app/week-cross-day-controller";
 import { WeekDragSafetyController } from "../app/week-drag-safety-controller";
+import { TodayTomorrowSafetyController } from "../app/today-tomorrow-safety-controller";
 import { LateReadingController } from "../app/late-reading-controller";
 import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
 import { HistoryEditController } from "../app/history-edit-controller";
@@ -46,6 +49,7 @@ import "../app/sidebar-shortcuts.css";
 import "../app/visual-harmony.css";
 import "../app/visual-harmony-state-fixes.css";
 import "../app/week-category-tints.css";
+import "../app/retroactive-week-controller.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
@@ -70,7 +74,10 @@ createRoot(root).render(
     <MonthCalendarCountdownController />
     <FocusWeekSyncController />
     <HistoryEditController />
+    <RetroactiveWeekController />
+    <WeekCrossDayController />
     <WeekDragSafetyController />
+    <TodayTomorrowSafetyController />
     <LateReadingController />
     <NotificationController />
   </>,

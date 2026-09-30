@@ -52,9 +52,9 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   for (let index = todayIndex + 1; index < 7; index += 1) expect(stateLabels[index]).toBe("plán");
 
   if (todayIndex > 0) {
-    const pastDays = page.locator(".df2-week-day:has(.df2-week-day-head > button:disabled)");
+    const pastDays = page.locator(".df2-week-day.df2-week-past-editable");
     await expect(pastDays).toHaveCount(todayIndex);
-    await expect(pastDays.locator(".df2-week-task:visible")).toHaveCount(0);
+    await expect(pastDays.first().locator(".df2-week-day-head > button")).toBeEnabled();
     const pastPointerEvents = await pastDays.first().locator(".df2-time-body").evaluate((element) => getComputedStyle(element).pointerEvents);
     expect(pastPointerEvents).toBe("auto");
   }
