@@ -234,7 +234,11 @@ export function WeekCrossDayController() {
       const state = readState();
       if (!state) return;
       const desired = desiredStart(body, event.clientY, drag);
-      if (isReadingTask(drag.task) && desired + drag.task.duration >= LATE_START) return;
+      if (isReadingTask(drag.task) && desired + drag.task.duration >= LATE_START) {
+        directTarget = null;
+        clearPreview();
+        return;
+      }
       const start = nearestOpen(state, date, drag, desired);
       if (start == null) {
         directTarget = null;
