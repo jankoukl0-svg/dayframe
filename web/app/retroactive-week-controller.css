@@ -7,8 +7,8 @@
   color: #777872;
 }
 
-.df2-week-day.df2-week-past-editable .df2-week-day-head::after {
-  content: "historie";
+.df2-root .df2-week-day.df2-week-past-editable:not(.today) .df2-week-day-head::after {
+  content: "historie" !important;
   color: #999993;
 }
 
