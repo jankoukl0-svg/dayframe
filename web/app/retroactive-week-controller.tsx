@@ -65,7 +65,7 @@ function setControlledDate(input: HTMLInputElement, date: string) {
 }
 
 function openPastAdd(date: string) {
-  window.dispatchEvent(new KeyboardEvent("keydown", { key: "2", code: "Digit2", bubbles: true }));
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "2", code: "Digit2", bubbles: true }));
   let attempts = 0;
   const applyDate = () => {
     const input = document.querySelector<HTMLInputElement>(".df2-add-form .df2-chips input[type='date']");
