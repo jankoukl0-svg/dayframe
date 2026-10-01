@@ -91,7 +91,62 @@ test("library prefers an exact Google Books match over a misleading partial Open
   expect(stored.completed[0].finishedAt).toBeTruthy();
 });
 
-test("ambiguous titles ask the user to choose instead of saving a random match", async ({ page }) => {
+test("distinct editions of the same title stay available for selection", async ({ page }) => {
+  await page.route("**/openlibrary.org/search.json?**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ docs: [] }) });
+  });
+  await page.route("**/www.googleapis.com/books/v1/volumes?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [
+          {
+            id: "guest-edition-one",
+            volumeInfo: {
+              title: "The Guest",
+              authors: ["Albert Example"],
+              publisher: "Publisher One",
+              pageCount: 120,
+            },
+          },
+          {
+            id: "guest-edition-two",
+            volumeInfo: {
+              title: "The Guest",
+              authors: ["Albert Example"],
+              publisher: "Publisher Two",
+              pageCount: 240,
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  const reading = page.locator(".df2-reading-card");
+  await expect(reading).toBeVisible();
+  await reading.getByRole("button", { name: /Knihovna/ }).click();
+  const library = page.getByRole("dialog", { name: "Moje knihovna" });
+  await library.getByRole("button", { name: /Přidat přečtenou/ }).click();
+
+  const form = library.locator(".df2-reading-library-add-form");
+  await form.getByLabel("Název knihy").fill("The Guest");
+  await expect(form).toContainText("Vyber správnou knihu");
+  await expect(form.getByRole("button", { name: "Uložit do knihovny" })).toBeDisabled();
+
+  const choices = form.locator(".df2-reading-library-auto-choice");
+  await expect(choices).toHaveCount(2);
+  await expect(choices.filter({ hasText: "Publisher One" })).toContainText("120 stran");
+  await expect(choices.filter({ hasText: "Publisher Two" })).toContainText("240 stran");
+  await choices.filter({ hasText: "Publisher Two" }).click();
+  await expect(form.locator(".df2-reading-library-auto-preview")).toContainText("240 stran");
+  await expect(form.getByRole("button", { name: "Uložit do knihovny" })).toBeEnabled();
+});
+
+test("a lone partial match still requires confirmation", async ({ page }) => {
   await page.route("**/openlibrary.org/search.json?**", async (route) => {
     await route.fulfill({
       status: 200,
@@ -99,16 +154,10 @@ test("ambiguous titles ask the user to choose instead of saving a random match",
       body: JSON.stringify({
         docs: [
           {
-            key: "/works/OLALPHA1W",
-            title: "The Guest",
-            author_name: ["Author One"],
-            number_of_pages_median: 120,
-          },
-          {
-            key: "/works/OLALPHA2W",
-            title: "The Guest",
-            author_name: ["Author Two"],
-            number_of_pages_median: 240,
+            key: "/works/OLPARTIAL1W",
+            title: "Miš Kulička v cirkuse",
+            author_name: ["Josef Menzel"],
+            number_of_pages_median: 31,
           },
         ],
       }),
@@ -127,13 +176,11 @@ test("ambiguous titles ask the user to choose instead of saving a random match",
   await library.getByRole("button", { name: /Přidat přečtenou/ }).click();
 
   const form = library.locator(".df2-reading-library-add-form");
-  await form.getByLabel("Název knihy").fill("The Guest");
-  await expect(form).toContainText("Vyber správnou knihu");
+  await form.getByLabel("Název knihy").fill("Kulička");
+  await expect(form).toContainText("Název není přesná shoda");
+  await expect(form).toContainText("Miš Kulička v cirkuse");
   await expect(form.getByRole("button", { name: "Uložit do knihovny" })).toBeDisabled();
 
-  const choices = form.locator(".df2-reading-library-auto-choice");
-  await expect(choices).toHaveCount(2);
-  await choices.filter({ hasText: "Author Two" }).click();
-  await expect(form.locator(".df2-reading-library-auto-preview")).toContainText("240 stran");
+  await form.locator(".df2-reading-library-auto-choice").click();
   await expect(form.getByRole("button", { name: "Uložit do knihovny" })).toBeEnabled();
 });
