@@ -185,15 +185,16 @@ function syncBriefing() {
   const todayView = document.querySelector(".df2-today-view");
   if (!(todayView instanceof HTMLElement)) return;
 
-  let host = todayView.querySelector("[data-today-briefing]");
-  if (!(host instanceof HTMLElement)) {
-    host = document.createElement("section");
-    host.className = "df2-today-briefing";
-    host.dataset.todayBriefing = "true";
-    host.setAttribute("aria-label", "Denní briefing");
+  let host = todayView.querySelector<HTMLElement>("[data-today-briefing]");
+  if (!host) {
+    const created = document.createElement("section");
+    created.className = "df2-today-briefing";
+    created.dataset.todayBriefing = "true";
+    created.setAttribute("aria-label", "Denní briefing");
     const anchor = todayView.querySelector(".df2-motivation-grid");
-    if (anchor) todayView.insertBefore(host, anchor);
-    else todayView.querySelector(".df2-page-head")?.insertAdjacentElement("afterend", host);
+    if (anchor) todayView.insertBefore(created, anchor);
+    else todayView.querySelector(".df2-page-head")?.insertAdjacentElement("afterend", created);
+    host = created;
   }
 
   const state = readState();
