@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 
 type PeriodMode = "week" | "month" | "year";
@@ -26,10 +26,35 @@ type ReadingSnapshot = ReadingSummary & {
   previousMinutes: number;
   mode: PeriodMode;
   rangeKey: string;
+  year: number;
+};
+type ReadingBook = {
+  id: string;
+  title: string;
+  currentPage: number;
+  totalPages: number;
+  startedAt: string;
+};
+type CompletedReadingBook = ReadingBook & {
+  finishedAt: string;
+};
+type ReadingLibrary = {
+  version: 1;
+  current: ReadingBook | null;
+  completed: CompletedReadingBook[];
+};
+type BookDraft = {
+  title: string;
+  currentPage: string;
+  totalPages: string;
 };
 
 const STORAGE_KEY = "dayframe-v1";
+const READING_LIBRARY_KEY = "dayframe-reading-library-v1";
+const READING_LIBRARY_SYNC_EVENT = "dayframe-reading-library-sync";
 const EMPTY_SUMMARY: ReadingSummary = { minutes: 0, days: 0, blocks: 0, averageMinutes: 0, longestStreak: 0 };
+const EMPTY_LIBRARY: ReadingLibrary = { version: 1, current: null, completed: [] };
+const EMPTY_DRAFT: BookDraft = { title: "", currentPage: "0", totalPages: "" };
 
 function atNoon(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -72,6 +97,51 @@ function readState(): StoredState {
   } catch {
     return {};
   }
+}
+
+function sanitizeBook(value: unknown): ReadingBook | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const title = typeof raw.title === "string" ? raw.title.trim() : "";
+  const totalPages = Math.max(0, Math.round(Number(raw.totalPages) || 0));
+  const currentPage = Math.min(totalPages, Math.max(0, Math.round(Number(raw.currentPage) || 0)));
+  const id = typeof raw.id === "string" && raw.id ? raw.id : `book-${Date.now()}`;
+  const startedAt = typeof raw.startedAt === "string" && raw.startedAt ? raw.startedAt : new Date().toISOString();
+  if (!title || totalPages < 1) return null;
+  return { id, title, currentPage, totalPages, startedAt };
+}
+
+function sanitizeCompletedBook(value: unknown): CompletedReadingBook | null {
+  const book = sanitizeBook(value);
+  if (!book || !value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const finishedAt = typeof raw.finishedAt === "string" && raw.finishedAt ? raw.finishedAt : "";
+  if (!finishedAt || Number.isNaN(new Date(finishedAt).getTime())) return null;
+  return { ...book, currentPage: book.totalPages, finishedAt };
+}
+
+function readLibrary(): ReadingLibrary {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(READING_LIBRARY_KEY) || "null") as unknown;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return EMPTY_LIBRARY;
+    const source = raw as Record<string, unknown>;
+    const current = sanitizeBook(source.current);
+    const completed = Array.isArray(source.completed)
+      ? source.completed.map(sanitizeCompletedBook).filter((book): book is CompletedReadingBook => Boolean(book))
+      : [];
+    return { version: 1, current, completed };
+  } catch {
+    return EMPTY_LIBRARY;
+  }
+}
+
+function writeLibrary(library: ReadingLibrary) {
+  window.localStorage.setItem(READING_LIBRARY_KEY, JSON.stringify(library));
+  window.dispatchEvent(new Event(READING_LIBRARY_SYNC_EVENT));
+}
+
+function sameLibrary(left: ReadingLibrary, right: ReadingLibrary) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function parseRange(view: HTMLElement): { mode: PeriodMode; range: PeriodRange } | null {
@@ -206,12 +276,62 @@ function sameSnapshot(left: ReadingSnapshot | null, right: ReadingSnapshot) {
     && left?.longestStreak === right.longestStreak
     && left?.previousMinutes === right.previousMinutes
     && left?.mode === right.mode
-    && left?.rangeKey === right.rangeKey;
+    && left?.rangeKey === right.rangeKey
+    && left?.year === right.year;
+}
+
+function readingYearSummary(library: ReadingLibrary, year: number) {
+  const books = library.completed.filter((book) => new Date(book.finishedAt).getFullYear() === year);
+  return {
+    books: books.length,
+    pages: books.reduce((sum, book) => sum + book.totalPages, 0),
+  };
+}
+
+function formatBookCount(count: number) {
+  if (count === 1) return "1 kniha";
+  if (count >= 2 && count <= 4) return `${count} knihy`;
+  return `${count} knih`;
+}
+
+function formatPageCount(count: number) {
+  if (count === 1) return "1 strana";
+  if (count >= 2 && count <= 4) return `${count} strany`;
+  return `${count} stran`;
+}
+
+function newBookId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `book-${crypto.randomUUID()}`;
+  return `book-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function bookDraft(book: ReadingBook | null): BookDraft {
+  if (!book) return EMPTY_DRAFT;
+  return {
+    title: book.title,
+    currentPage: String(book.currentPage),
+    totalPages: String(book.totalPages),
+  };
+}
+
+function validateDraft(draft: BookDraft) {
+  const title = draft.title.trim();
+  const currentPage = Math.round(Number(draft.currentPage));
+  const totalPages = Math.round(Number(draft.totalPages));
+  if (!title) return { error: "Zadej název knihy." } as const;
+  if (!Number.isFinite(totalPages) || totalPages < 1) return { error: "Počet stran musí být alespoň 1." } as const;
+  if (!Number.isFinite(currentPage) || currentPage < 0) return { error: "Aktuální strana nemůže být záporná." } as const;
+  if (currentPage > totalPages) return { error: "Aktuální strana nemůže být vyšší než počet stran knihy." } as const;
+  return { title, currentPage, totalPages, error: null } as const;
 }
 
 export function ReadingOverviewController() {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [snapshot, setSnapshot] = useState<ReadingSnapshot | null>(null);
+  const [library, setLibrary] = useState<ReadingLibrary>(EMPTY_LIBRARY);
+  const [managerOpen, setManagerOpen] = useState(false);
+  const [draft, setDraft] = useState<BookDraft>(EMPTY_DRAFT);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     const sync = () => {
@@ -242,30 +362,151 @@ export function ReadingOverviewController() {
         previousMinutes: previous.minutes,
         mode: parsed.mode,
         rangeKey: `${localDateKey(parsed.range.start)}:${localDateKey(parsed.range.end)}`,
+        year: parsed.range.end.getFullYear(),
       };
       setSnapshot((existing) => sameSnapshot(existing, nextSnapshot) ? existing : nextSnapshot);
+
+      const nextLibrary = readLibrary();
+      setLibrary((existing) => sameLibrary(existing, nextLibrary) ? existing : nextLibrary);
     };
 
     sync();
     const timer = window.setInterval(sync, 350);
     window.addEventListener("dayframe-state-sync", sync);
+    window.addEventListener(READING_LIBRARY_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("dayframe-state-sync", sync);
+      window.removeEventListener(READING_LIBRARY_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
   }, []);
 
+  useEffect(() => {
+    if (!managerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setManagerOpen(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [managerOpen]);
+
+  const openManager = () => {
+    setDraft(bookDraft(library.current));
+    setFormError("");
+    setManagerOpen(true);
+  };
+
+  const saveBook = (event: FormEvent) => {
+    event.preventDefault();
+    const valid = validateDraft(draft);
+    if (valid.error) {
+      setFormError(valid.error);
+      return;
+    }
+    const nextCurrent: ReadingBook = {
+      id: library.current?.id ?? newBookId(),
+      title: valid.title,
+      currentPage: valid.currentPage,
+      totalPages: valid.totalPages,
+      startedAt: library.current?.startedAt ?? new Date().toISOString(),
+    };
+    const nextLibrary = { ...library, current: nextCurrent };
+    writeLibrary(nextLibrary);
+    setLibrary(nextLibrary);
+    setManagerOpen(false);
+  };
+
+  const finishBook = () => {
+    const valid = validateDraft(draft);
+    if (valid.error) {
+      setFormError(valid.error);
+      return;
+    }
+    const now = new Date().toISOString();
+    const finished: CompletedReadingBook = {
+      id: library.current?.id ?? newBookId(),
+      title: valid.title,
+      currentPage: valid.totalPages,
+      totalPages: valid.totalPages,
+      startedAt: library.current?.startedAt ?? now,
+      finishedAt: now,
+    };
+    const nextLibrary: ReadingLibrary = {
+      version: 1,
+      current: null,
+      completed: [...library.completed, finished],
+    };
+    writeLibrary(nextLibrary);
+    setLibrary(nextLibrary);
+    setDraft(EMPTY_DRAFT);
+    setManagerOpen(false);
+  };
+
+  const removeCompletedBook = (id: string) => {
+    const nextLibrary = {
+      ...library,
+      completed: library.completed.filter((book) => book.id !== id),
+    };
+    writeLibrary(nextLibrary);
+    setLibrary(nextLibrary);
+  };
+
   if (!host || !snapshot) return null;
 
-  return createPortal(
+  const currentBook = library.current;
+  const progress = currentBook ? Math.round((currentBook.currentPage / currentBook.totalPages) * 100) : 0;
+  const yearSummary = readingYearSummary(library, snapshot.year);
+  const completedBooks = [...library.completed].sort((left, right) => right.finishedAt.localeCompare(left.finishedAt));
+
+  const cardPortal = createPortal(
     <section className="df2-reading-card" aria-label="Čtení">
-      <div className="df2-overview-section-head">
+      <div className="df2-overview-section-head df2-reading-head">
         <h2>Čtení</h2>
+        <button type="button" className="df2-reading-manage" onClick={openManager}>
+          {currentBook ? "Upravit knihu" : "Přidat knihu"}
+        </button>
       </div>
+
+      <div className="df2-reading-library-grid">
+        <div className={`df2-reading-current-book${currentBook ? "" : " empty"}`}>
+          <i className="df2-reading-book-cover" aria-hidden="true"><span /></i>
+          <div>
+            <span>Aktuálně čtu</span>
+            {currentBook ? (
+              <>
+                <strong>{currentBook.title}</strong>
+                <div className="df2-reading-progress-copy">
+                  <span>Strana {currentBook.currentPage} z {currentBook.totalPages}</span>
+                  <strong>{progress} %</strong>
+                </div>
+                <div className="df2-reading-progress" aria-label={`${progress} % knihy přečteno`}>
+                  <i style={{ width: `${progress}%` }} />
+                </div>
+              </>
+            ) : (
+              <>
+                <strong>Žádná rozečtená kniha</strong>
+                <button type="button" onClick={openManager}>Začít novou knihu</button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="df2-reading-year-summary">
+          <span>Přečteno · {snapshot.year}</span>
+          <strong>{formatBookCount(yearSummary.books)}</strong>
+          <small>{formatPageCount(yearSummary.pages)}</small>
+        </div>
+      </div>
+
       <div className="df2-reading-card-grid">
         <div className="df2-reading-primary">
+          <span>Čas čtení</span>
           <strong>{formatMinutes(snapshot.minutes)}</strong>
           <small>{deltaLabel(snapshot.minutes, snapshot.previousMinutes)}</small>
         </div>
@@ -285,4 +526,82 @@ export function ReadingOverviewController() {
     </section>,
     host,
   );
+
+  const managerPortal = managerOpen ? createPortal(
+    <div
+      className="df2-reading-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setManagerOpen(false);
+      }}
+    >
+      <div className="df2-reading-modal" role="dialog" aria-modal="true" aria-labelledby="df2-reading-modal-title">
+        <div className="df2-reading-modal-head">
+          <div>
+            <span>{currentBook ? "Aktuální kniha" : "Nová kniha"}</span>
+            <h2 id="df2-reading-modal-title">{currentBook ? "Upravit čtení" : "Co právě čteš?"}</h2>
+          </div>
+          <button type="button" aria-label="Zavřít správu knih" onClick={() => setManagerOpen(false)}>×</button>
+        </div>
+
+        <form onSubmit={saveBook}>
+          <label>
+            <span>Název knihy</span>
+            <input
+              autoFocus
+              value={draft.title}
+              onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Např. The Intelligent Investor"
+            />
+          </label>
+          <div className="df2-reading-modal-pages">
+            <label>
+              <span>Aktuální strana</span>
+              <input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={draft.currentPage}
+                onChange={(event) => setDraft((current) => ({ ...current, currentPage: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Počet stran</span>
+              <input
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={draft.totalPages}
+                onChange={(event) => setDraft((current) => ({ ...current, totalPages: event.target.value }))}
+              />
+            </label>
+          </div>
+          {formError && <p className="df2-reading-form-error" role="alert">{formError}</p>}
+          <div className="df2-reading-modal-actions">
+            {currentBook && <button type="button" className="df2-reading-finish" onClick={finishBook}>Dočteno</button>}
+            <button type="submit" className="df2-reading-save">{currentBook ? "Uložit" : "Začít číst"}</button>
+          </div>
+        </form>
+
+        {completedBooks.length > 0 && (
+          <section className="df2-reading-completed">
+            <h3>Přečtené knihy</h3>
+            <div>
+              {completedBooks.map((book) => (
+                <article key={book.id}>
+                  <div>
+                    <strong>{book.title}</strong>
+                    <span>{formatPageCount(book.totalPages)} · {new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric" }).format(new Date(book.finishedAt))}</span>
+                  </div>
+                  <button type="button" onClick={() => removeCompletedBook(book.id)}>Odstranit</button>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>,
+    document.body,
+  ) : null;
+
+  return <>{cardPortal}{managerPortal}</>;
 }
