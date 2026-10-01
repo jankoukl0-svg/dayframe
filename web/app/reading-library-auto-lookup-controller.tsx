@@ -129,13 +129,15 @@ async function fetchOpenLibraryCandidates(title: string): Promise<BookLookup[]> 
     .sort((left, right) => right.score - left.score)
     .slice(0, 6);
 
-  const candidates = await Promise.all(docs.map(async ({ doc, score }, index) => {
+  const candidates: BookLookup[] = [];
+  for (let index = 0; index < docs.length; index += 1) {
+    const { doc, score } = docs[index];
     let pages = Math.round(Number(doc.number_of_pages_median) || 0);
     if (pages < 1 && index < 3) pages = await pagesFromEditions(doc.key);
-    if (pages < 1) return null;
+    if (pages < 1) continue;
 
     const coverId = Number(doc.cover_i);
-    return {
+    candidates.push({
       id: `ol:${doc.key || `${normalize(doc.title || title)}:${normalize(doc.author_name?.[0] || "")}`}`,
       titleKey,
       title: doc.title?.trim() || title.trim(),
@@ -147,10 +149,9 @@ async function fetchOpenLibraryCandidates(title: string): Promise<BookLookup[]> 
         : undefined,
       pages,
       score,
-    } satisfies BookLookup;
-  }));
-
-  return candidates.filter((candidate): candidate is BookLookup => Boolean(candidate));
+    });
+  }
+  return candidates;
 }
 
 async function fetchGoogleCandidates(title: string): Promise<BookLookup[]> {
@@ -166,26 +167,26 @@ async function fetchGoogleCandidates(title: string): Promise<BookLookup[]> {
   });
   if (!response.ok) throw new Error(`Google Books ${response.status}`);
   const payload = await response.json() as GoogleBooksResponse;
+  const candidates: BookLookup[] = [];
 
-  return (Array.isArray(payload.items) ? payload.items : [])
-    .map((volume) => {
-      const info = volume.volumeInfo;
-      const pages = Math.round(Number(info?.pageCount) || 0);
-      const score = scoreTitle(info?.title, title);
-      if (!info?.title || pages < 1 || score <= 0) return null;
-      return {
-        id: `google:${volume.id || `${normalize(info.title)}:${normalize(info.authors?.[0] || "")}`}`,
-        titleKey,
-        title: info.title.trim(),
-        author: info.authors?.find(Boolean),
-        publisher: info.publisher?.trim() || undefined,
-        genre: info.categories?.find(Boolean),
-        coverUrl: secureUrl(info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail),
-        pages,
-        score,
-      } satisfies BookLookup;
-    })
-    .filter((candidate): candidate is BookLookup => Boolean(candidate));
+  for (const volume of Array.isArray(payload.items) ? payload.items : []) {
+    const info = volume.volumeInfo;
+    const pages = Math.round(Number(info?.pageCount) || 0);
+    const score = scoreTitle(info?.title, title);
+    if (!info?.title || pages < 1 || score <= 0) continue;
+    candidates.push({
+      id: `google:${volume.id || `${normalize(info.title)}:${normalize(info.authors?.[0] || "")}`}`,
+      titleKey,
+      title: info.title.trim(),
+      author: info.authors?.find(Boolean),
+      publisher: info.publisher?.trim() || undefined,
+      genre: info.categories?.find(Boolean),
+      coverUrl: secureUrl(info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail),
+      pages,
+      score,
+    });
+  }
+  return candidates;
 }
 
 function mergeCandidate(existing: BookLookup, next: BookLookup) {
