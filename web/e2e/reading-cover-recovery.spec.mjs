@@ -67,6 +67,28 @@ test("broken reading cover falls back to a working Open Library edition cover", 
   await expect(cover).toBeVisible();
   await expect.poll(async () => cover.getAttribute("src")).toContain("/b/olid/OL17931310M-M.jpg");
 
+  const geometry = await reading.locator(".df2-reading-book-cover").evaluate((element) => {
+    const host = element.querySelector(".df2-reading-real-cover-host");
+    const image = host?.querySelector("img");
+    const parentBox = element.getBoundingClientRect();
+    const hostBox = host?.getBoundingClientRect();
+    const imageBox = image?.getBoundingClientRect();
+    return {
+      parent: { width: parentBox.width, height: parentBox.height },
+      host: hostBox ? { width: hostBox.width, height: hostBox.height } : null,
+      image: imageBox ? { width: imageBox.width, height: imageBox.height } : null,
+    };
+  });
+
+  expect(geometry.host).not.toBeNull();
+  expect(geometry.image).not.toBeNull();
+  expect(Math.abs(geometry.host.width - geometry.parent.width)).toBeLessThan(1);
+  expect(Math.abs(geometry.host.height - geometry.parent.height)).toBeLessThan(1);
+  expect(Math.abs(geometry.image.width - geometry.parent.width)).toBeLessThan(1);
+  expect(Math.abs(geometry.image.height - geometry.parent.height)).toBeLessThan(1);
+  expect(geometry.image.width).toBeGreaterThan(40);
+  expect(geometry.image.height).toBeGreaterThan(60);
+
   const metadata = await page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-reading-book-metadata-v1") || "{}"));
   expect(metadata.undercover.coverUrl).toContain("/b/olid/OL17931310M-M.jpg");
 });
