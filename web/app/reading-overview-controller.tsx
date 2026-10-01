@@ -386,10 +386,13 @@ export function ReadingOverviewController() {
   useEffect(() => {
     if (!managerOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setManagerOpen(false);
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setManagerOpen(false);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [managerOpen]);
 
   const openManager = () => {
