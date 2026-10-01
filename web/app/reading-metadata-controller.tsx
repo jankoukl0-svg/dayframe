@@ -360,7 +360,8 @@ export function ReadingMetadataController() {
     }
 
     const saved = [library.current, ...library.completed]
-      .find((book): book is ReadingBook => Boolean(book) && normalize(book.title) === normalize(title));
+      .filter((book): book is ReadingBook => Boolean(book))
+      .find((book) => normalize(book.title) === normalize(title));
     const savedMetadata = saved ? metadataForBook(saved, metadata) : null;
     if (savedMetadata && !savedMetadata.notFound) {
       setPreviewMetadata(savedMetadata);
