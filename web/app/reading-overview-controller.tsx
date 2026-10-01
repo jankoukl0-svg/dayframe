@@ -11,6 +11,7 @@ type Task = {
   date: string;
   duration: number;
   category?: string;
+  routineId?: string;
   completed?: boolean;
 };
 type StoredState = { plans?: Record<string, Task[]> };
@@ -53,6 +54,7 @@ function normalize(value: string) {
 }
 
 function isReadingTask(task: Task) {
+  if (task.routineId === "read") return true;
   const title = normalize(task.title || "");
   const category = normalize(task.category || "");
   return category === "cteni"
