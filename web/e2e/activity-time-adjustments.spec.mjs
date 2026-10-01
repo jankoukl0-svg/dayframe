@@ -314,7 +314,11 @@ test("week view shows the current-time line on today", async ({ page }) => {
   await page.getByRole("button", { name: "Týden" }).click();
   const line = page.locator(".df2-current-time-line");
   await expect(line).toHaveCount(1);
-  const minute = await page.evaluate(() => new Date().getHours() * 60 + new Date().getMinutes());
-  if (minute >= 8 * 60 && minute <= 23 * 60) await expect(line).toBeVisible();
+  const minute = await page.evaluate(() => {
+    const now = new Date();
+    const clockMinute = now.getHours() * 60 + now.getMinutes();
+    return now.getHours() < 8 ? clockMinute + 24 * 60 : clockMinute;
+  });
+  if (minute >= 8 * 60 && minute <= 26 * 60) await expect(line).toBeVisible();
   else await expect(line).toBeHidden();
 });

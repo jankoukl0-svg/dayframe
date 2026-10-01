@@ -5,6 +5,7 @@ import { RoutineGroupsController } from "../app/routine-groups-controller";
 import { ActivityTimeController } from "../app/activity-time-controller";
 import { HistoryController } from "../app/history-controller";
 import { ReadingOverviewController } from "../app/reading-overview-controller";
+import { OverviewReadingOrderController } from "../app/overview-reading-order-controller";
 import { ReadingMetadataController } from "../app/reading-metadata-controller";
 import { ReadingCoverRecoveryController } from "../app/reading-cover-recovery-controller";
 import { ReadingLibraryController } from "../app/reading-library-controller";
@@ -75,6 +76,7 @@ createRoot(root).render(
     <ActivityTimeController />
     <HistoryController />
     <ReadingOverviewController />
+    <OverviewReadingOrderController />
     <ReadingMetadataController />
     <ReadingCoverRecoveryController />
     <ReadingLibraryController />
