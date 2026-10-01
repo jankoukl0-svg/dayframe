@@ -26,6 +26,10 @@ test("completed books are searchable, filterable and can be added retroactively"
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ docs }) });
   });
 
+  await page.route("https://www.googleapis.com/books/v1/volumes?**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) });
+  });
+
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "domcontentloaded" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
