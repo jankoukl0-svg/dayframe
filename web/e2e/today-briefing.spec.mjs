@@ -7,12 +7,16 @@ function planningDateKeyInBrowser() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-test("Today briefing summarizes the plan and stays in sync", async ({ page }) => {
+async function openFreshToday(page) {
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+}
+
+test("Today briefing summarizes the plan and stays in sync", async ({ page }) => {
+  await openFreshToday(page);
 
   await page.evaluate((date) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -89,4 +93,62 @@ test("Today briefing summarizes the plan and stays in sync", async ({ page }) =>
   await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
   await page.getByRole("button", { name: /Dnes/ }).click();
   await expect(page.locator("[data-today-briefing]")).toHaveCount(1);
+});
+
+test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
+  await openFreshToday(page);
+  const date = await page.evaluate(planningDateKeyInBrowser);
+
+  await page.evaluate((planningDate) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date().toISOString();
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [planningDate]: [
+        {
+          id: "running-focus",
+          title: "Ruční Focus",
+          date: planningDate,
+          duration: 30,
+          start: "08:00",
+          end: "08:30",
+          requestedStart: "08:00",
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          actualRunningSince: now,
+          createdAt: now,
+        },
+        {
+          id: "unscheduled-high",
+          title: "Pozdější priorita",
+          date: planningDate,
+          duration: 45,
+          deadlineTime: "22:30",
+          priority: "high",
+          category: "Angličtina",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: true,
+          createdAt: now,
+        },
+      ],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, date);
+
+  await page.reload({ waitUntil: "networkidle" });
+
+  const briefing = page.locator("[data-today-briefing]");
+  await expect(briefing.locator(".df2-briefing-priority")).toContainText("Ruční Focus");
+  await expect(briefing.locator(".df2-briefing-signals")).toContainText("Právě teď");
+  await expect(briefing.locator(".df2-briefing-signals")).toContainText("Ruční Focus");
 });
