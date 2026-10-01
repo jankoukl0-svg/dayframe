@@ -1,0 +1,16 @@
+.df2-reading-book-cover > .df2-reading-real-cover-host {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  right: auto;
+  bottom: auto;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.df2-reading-book-cover > .df2-reading-real-cover-host img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
