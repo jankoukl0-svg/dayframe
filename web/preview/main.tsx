@@ -7,6 +7,7 @@ import { HistoryController } from "../app/history-controller";
 import { ReadingOverviewController } from "../app/reading-overview-controller";
 import { ReadingMetadataController } from "../app/reading-metadata-controller";
 import { ReadingCoverRecoveryController } from "../app/reading-cover-recovery-controller";
+import { ReadingLibraryController } from "../app/reading-library-controller";
 import { HistoryPeriodRolloverController } from "../app/history-period-rollover-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
 import { ActiveCompletionSafetyController } from "../app/active-completion-safety-controller";
@@ -41,6 +42,7 @@ import "../app/history-soft-ui.css";
 import "../app/reading-overview-controller.css";
 import "../app/reading-metadata-controller.css";
 import "../app/reading-cover-sizing.css";
+import "../app/reading-library-controller.css";
 import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/plan-actual.css";
@@ -73,6 +75,7 @@ createRoot(root).render(
     <ReadingOverviewController />
     <ReadingMetadataController />
     <ReadingCoverRecoveryController />
+    <ReadingLibraryController />
     <HistoryPeriodRolloverController />
     <ExecutionTracker />
     <ActiveCompletionSafetyController />
