@@ -107,7 +107,8 @@ test("reading tracker saves the current page and turns finished books into yearl
   await page.reload({ waitUntil: "networkidle" });
 
   await page.getByRole("button", { name: /Přehled/ }).click();
-  const reading = page.locator(".df2-reading-card");
+  const history = page.locator(".df2-history-view");
+  const reading = history.locator(".df2-reading-card");
   await expect(reading).toBeVisible();
   await expect(reading).toContainText("Žádná rozečtená kniha");
 
@@ -128,6 +129,13 @@ test("reading tracker saves the current page and turns finished books into yearl
   await dialog.getByRole("button", { name: "Uložit" }).click();
   await expect(reading).toContainText("Strana 200 z 400");
   await expect(reading).toContainText("50 %");
+
+  await reading.getByRole("button", { name: "Upravit knihu" }).click();
+  dialog = page.getByRole("dialog", { name: "Upravit čtení" });
+  await dialog.getByRole("button", { name: "Dočteno" }).focus();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(history).toBeVisible();
 
   await reading.getByRole("button", { name: "Upravit knihu" }).click();
   dialog = page.getByRole("dialog", { name: "Upravit čtení" });
