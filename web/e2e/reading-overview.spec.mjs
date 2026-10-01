@@ -13,7 +13,7 @@ test("overview tracks completed reading separately across period modes", async (
       [date]: [
         {
           id: "reading-done",
-          title: "Čtení knihy",
+          title: "Večerní kniha",
           date,
           duration: 35,
           start: "20:00",
@@ -25,7 +25,8 @@ test("overview tracks completed reading separately across period modes", async (
           category: "Rutina",
           mode: "flexible",
           completed: true,
-          source: "user",
+          source: "routine",
+          routineId: "read",
           dateLocked: true,
           autoScheduled: false,
           createdAt: now.toISOString(),
@@ -88,7 +89,6 @@ test("overview tracks completed reading separately across period modes", async (
   await expect(reading).toContainText("dní nejdelší série");
   await expect(reading.locator(".df2-reading-stat").nth(1)).toContainText("35 min");
 
-  const trend = history.locator(".df2-history-trend");
   const readingHost = history.locator("[data-reading-overview-host]");
   await expect(readingHost.evaluate((element) => element.previousElementSibling?.classList.contains("df2-history-trend"))).resolves.toBe(true);
 
