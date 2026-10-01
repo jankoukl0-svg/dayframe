@@ -7,11 +7,17 @@ async function seedActiveTask(page) {
     if (!state?.plans) throw new Error("Dayframe state was not initialized before seeding the activity test.");
 
     const now = new Date();
-    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const minute = now.getHours() * 60 + now.getMinutes();
+    const planningDate = new Date(now);
+    if (now.getHours() < 2) planningDate.setDate(planningDate.getDate() - 1);
+    const date = `${planningDate.getFullYear()}-${String(planningDate.getMonth() + 1).padStart(2, "0")}-${String(planningDate.getDate()).padStart(2, "0")}`;
+    const clockMinute = now.getHours() * 60 + now.getMinutes();
+    const minute = now.getHours() < 2 ? clockMinute + 24 * 60 : clockMinute;
     const startMinute = Math.max(0, minute - 10);
-    const endMinute = Math.min(23 * 60 + 58, minute + 20);
-    const toTime = (value) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+    const endMinute = Math.min(26 * 60 - 2, minute + 20);
+    const toTime = (value) => {
+      const clockValue = ((value % (24 * 60)) + (24 * 60)) % (24 * 60);
+      return `${String(Math.floor(clockValue / 60)).padStart(2, "0")}:${String(clockValue % 60).padStart(2, "0")}`;
+    };
     const task = {
       id: "activity-test",
       title: "Testovací aktivita",
@@ -21,7 +27,7 @@ async function seedActiveTask(page) {
       end: toTime(endMinute),
       requestedStart: toTime(startMinute),
       dueDate: date,
-      deadlineTime: "23:59",
+      deadlineTime: "02:00",
       priority: "normal",
       category: "Studium",
       mode: "flexible",
@@ -39,7 +45,7 @@ async function seedActiveTask(page) {
       date,
       originalDuration: task.duration,
       remainingMinutes: endMinute - minute,
-      maxExtensions: Math.max(0, Math.floor(((23 * 60 + 59) - endMinute) / 15)),
+      maxExtensions: Math.max(0, Math.floor(((26 * 60) - endMinute) / 15)),
     };
   });
 }
