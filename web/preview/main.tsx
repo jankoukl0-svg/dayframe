@@ -4,6 +4,7 @@ import { MilestoneFeaturedController } from "../app/milestone-featured-controlle
 import { RoutineGroupsController } from "../app/routine-groups-controller";
 import { ActivityTimeController } from "../app/activity-time-controller";
 import { HistoryController } from "../app/history-controller";
+import { ReadingOverviewController } from "../app/reading-overview-controller";
 import { HistoryPeriodRolloverController } from "../app/history-period-rollover-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
 import { ActiveCompletionSafetyController } from "../app/active-completion-safety-controller";
@@ -35,6 +36,7 @@ import "../app/routine-groups-controller.css";
 import "../app/activity-time-controller.css";
 import "../app/history-controller.css";
 import "../app/history-soft-ui.css";
+import "../app/reading-overview-controller.css";
 import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/plan-actual.css";
@@ -64,6 +66,7 @@ createRoot(root).render(
     <RoutineGroupsController />
     <ActivityTimeController />
     <HistoryController />
+    <ReadingOverviewController />
     <HistoryPeriodRolloverController />
     <ExecutionTracker />
     <ActiveCompletionSafetyController />

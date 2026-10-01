@@ -1,0 +1,119 @@
+.df2-reading-overview-host {
+  margin-top: 28px;
+}
+
+.df2-reading-card {
+  padding: 25px 26px 24px;
+  border: 1px solid rgba(211, 208, 199, .62);
+  border-radius: 22px;
+  background: #fffefa;
+}
+
+.df2-reading-card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(120px, .75fr));
+  align-items: stretch;
+  gap: 0;
+}
+
+.df2-reading-primary,
+.df2-reading-stat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.df2-reading-primary {
+  padding-right: 28px;
+}
+
+.df2-reading-primary > strong {
+  color: #1f201e;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 660;
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+
+.df2-reading-primary > small {
+  margin-top: 8px;
+  color: #96958e;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 520;
+}
+
+.df2-reading-stat {
+  min-height: 70px;
+  padding: 0 18px;
+  border-left: 1px solid #ebe8e1;
+}
+
+.df2-reading-stat > strong {
+  color: #3f403c;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -.03em;
+}
+
+.df2-reading-stat > span {
+  margin-top: 6px;
+  color: #8d8c85;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 540;
+}
+
+@media (max-width: 800px) {
+  .df2-reading-card-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 0;
+  }
+
+  .df2-reading-primary {
+    grid-column: 1 / -1;
+    padding-right: 0;
+  }
+
+  .df2-reading-stat {
+    padding-left: 0;
+    padding-right: 18px;
+    border-left: 0;
+  }
+
+  .df2-reading-stat:nth-child(3),
+  .df2-reading-stat:nth-child(4) {
+    padding-left: 18px;
+    padding-right: 0;
+    border-left: 1px solid #ebe8e1;
+  }
+}
+
+@media (max-width: 560px) {
+  .df2-reading-card {
+    padding: 21px 18px 20px;
+    border-radius: 20px;
+  }
+
+  .df2-reading-card-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .df2-reading-primary {
+    padding-bottom: 18px;
+  }
+
+  .df2-reading-stat,
+  .df2-reading-stat:nth-child(3),
+  .df2-reading-stat:nth-child(4) {
+    min-height: 54px;
+    padding: 12px 0;
+    border-top: 1px solid #ebe8e1;
+    border-left: 0;
+  }
+}
