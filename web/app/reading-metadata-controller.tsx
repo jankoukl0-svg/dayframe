@@ -54,7 +54,7 @@ function normalize(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
@@ -234,6 +234,7 @@ export function ReadingMetadataController() {
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewMetadata, setPreviewMetadata] = useState<BookMetadata | null>(null);
   const [previewStatus, setPreviewStatus] = useState<LookupStatus>("idle");
+  const [retryNonce, setRetryNonce] = useState(0);
   const enrichingRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -339,17 +340,10 @@ export function ReadingMetadataController() {
         setMetadata(nextStore);
       })
       .catch(() => {
-        const fallback: BookMetadata = {
-          titleKey: normalize(missing.title),
-          fetchedAt: new Date().toISOString(),
-          notFound: true,
-        };
-        const nextStore = { ...readMetadata(), [missing.id]: fallback };
-        writeMetadata(nextStore);
-        setMetadata(nextStore);
+        window.setTimeout(() => setRetryNonce((value) => value + 1), 30_000);
       })
       .finally(() => enrichingRef.current.delete(missing.id));
-  }, [library, metadata]);
+  }, [library, metadata, retryNonce]);
 
   useEffect(() => {
     const title = previewTitle.trim();
