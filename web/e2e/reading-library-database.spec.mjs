@@ -10,7 +10,20 @@ test("completed books are searchable, filterable and can be added retroactively"
   });
 
   await page.route("https://openlibrary.org/search.json**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ docs: [] }) });
+    const url = new URL(route.request().url());
+    const title = url.searchParams.get("title") || "";
+    const docs = title.toLowerCase().includes("most important thing")
+      ? [{
+          key: "/works/OLMOSTIMPORTANTW",
+          title: "The Most Important Thing",
+          author_name: ["Howard Marks"],
+          cover_i: 103,
+          publisher: ["Columbia Business School Publishing"],
+          subject: ["Finance"],
+          number_of_pages_median: 200,
+        }]
+      : [];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ docs }) });
   });
 
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "domcontentloaded" });
@@ -89,11 +102,11 @@ test("completed books are searchable, filterable and can be added retroactively"
 
   await library.getByLabel("Filtrovat podle žánru").selectOption("all");
   await library.getByRole("button", { name: "+ Přidat přečtenou" }).click();
-  await library.getByLabel("Název knihy").fill("The Most Important Thing");
-  await library.getByLabel("Počet stran").fill("200");
-  await library.getByLabel("Začátek čtení").fill("2026-03-01");
-  await library.getByLabel("Dočteno").fill("2026-03-12");
-  await library.getByRole("button", { name: "Uložit do knihovny" }).click();
+  const form = library.locator(".df2-reading-library-add-form");
+  await form.getByLabel("Název knihy").fill("The Most Important Thing");
+  await expect(form.locator(".df2-reading-library-auto-preview")).toContainText("200 stran");
+  await expect(form.getByRole("button", { name: "Uložit do knihovny" })).toBeEnabled();
+  await form.getByRole("button", { name: "Uložit do knihovny" }).click();
 
   await expect(library).toContainText("The Most Important Thing");
   await expect(library.locator(".df2-reading-library-book")).toHaveCount(3);
