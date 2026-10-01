@@ -1,0 +1,263 @@
+.df2-reading-book-cover.has-real-cover {
+  overflow: hidden;
+  background: #ddd8cf;
+  box-shadow: 0 5px 12px rgba(62, 49, 38, .12);
+}
+
+.df2-reading-book-cover.has-real-cover::after,
+.df2-reading-book-cover.has-real-cover > span:not(.df2-reading-real-cover-host) {
+  display: none;
+}
+
+.df2-reading-real-cover-host {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.df2-reading-real-cover-host img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.df2-reading-current-meta-host {
+  margin-top: 6px;
+}
+
+.df2-reading-current-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+}
+
+.df2-reading-current-meta span {
+  position: relative;
+  color: #96938b;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 540;
+}
+
+.df2-reading-current-meta span + span::before {
+  content: "·";
+  position: absolute;
+  left: -6px;
+  color: #c4c0b7;
+}
+
+.df2-reading-book-history-host:empty {
+  display: none;
+}
+
+.df2-reading-book-history {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #ebe8e1;
+}
+
+.df2-reading-book-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.df2-reading-book-history-head h3 {
+  margin: 0;
+  color: #4a4b46;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 660;
+}
+
+.df2-reading-book-history-head > span {
+  min-width: 23px;
+  height: 23px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f0eee8;
+  color: #88867e;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.df2-reading-book-history-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.df2-reading-book-history-list article {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  padding: 12px;
+  border: 1px solid #ebe8e1;
+  border-radius: 14px;
+  background: #faf8f3;
+}
+
+.df2-reading-history-cover {
+  width: 48px;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 5px 7px 7px 5px;
+  background: #ddd5ca;
+  box-shadow: 0 3px 9px rgba(63, 49, 38, .08);
+}
+
+.df2-reading-history-cover img,
+.df2-reading-history-cover i {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.df2-reading-history-cover img {
+  object-fit: cover;
+}
+
+.df2-reading-history-cover i {
+  position: relative;
+  background: linear-gradient(145deg, #d7c9bc, #c9b8a9);
+}
+
+.df2-reading-history-cover i::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.65);
+  box-shadow: 0 7px 0 rgba(255,255,255,.38);
+}
+
+.df2-reading-history-copy {
+  min-width: 0;
+}
+
+.df2-reading-history-copy strong,
+.df2-reading-history-copy span,
+.df2-reading-history-copy small {
+  display: block;
+  overflow: hidden;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-reading-history-copy strong {
+  color: #393a36;
+  font-size: 12px;
+  font-weight: 660;
+}
+
+.df2-reading-history-copy .df2-reading-history-author {
+  margin-top: 3px;
+  color: #6f6e68;
+  font-size: 10px;
+  font-weight: 560;
+}
+
+.df2-reading-history-copy span:not(.df2-reading-history-author) {
+  margin-top: 7px;
+  color: #96938b;
+  font-size: 10px;
+  font-weight: 520;
+}
+
+.df2-reading-history-copy small {
+  margin-top: 3px;
+  color: #8b8982;
+  font-size: 10px;
+  font-weight: 540;
+}
+
+.df2-reading-lookup-preview-host:empty {
+  display: none;
+}
+
+.df2-reading-lookup-preview {
+  min-height: 40px;
+  margin-top: -4px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #f6f4ef;
+  color: #8c8981;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 540;
+}
+
+.df2-reading-lookup-preview.found {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+}
+
+.df2-reading-lookup-cover {
+  width: 36px;
+  height: 50px;
+  overflow: hidden;
+  border-radius: 4px 6px 6px 4px;
+  background: #d9d2c8;
+}
+
+.df2-reading-lookup-cover img,
+.df2-reading-lookup-cover i {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.df2-reading-lookup-cover img {
+  object-fit: cover;
+}
+
+.df2-reading-lookup-cover i {
+  background: linear-gradient(145deg, #d7c9bc, #c9b8a9);
+}
+
+.df2-reading-lookup-preview > div:last-child {
+  min-width: 0;
+}
+
+.df2-reading-lookup-preview strong,
+.df2-reading-lookup-preview.found span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-reading-lookup-preview strong {
+  margin-bottom: 3px;
+  color: #555650;
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.df2-reading-lookup-preview.found span {
+  margin-top: 2px;
+  color: #8b8982;
+  font-size: 9px;
+  font-weight: 540;
+}
+
+@media (max-width: 720px) {
+  .df2-reading-book-history-list {
+    grid-template-columns: 1fr;
+  }
+}
