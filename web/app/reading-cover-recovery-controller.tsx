@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 type ReadingBook = {
   id: string;
   title: string;
+  finishedAt?: string;
 };
 
 type ReadingLibrary = {
@@ -149,10 +150,16 @@ async function recoverBookCover(book: ReadingBook, failedUrl: string | undefined
 
 function findBookForImage(image: HTMLImageElement, library: ReadingLibrary) {
   if (image.closest(".df2-reading-real-cover-host")) return library.current ?? null;
-  const article = image.closest(".df2-reading-book-history-list article");
-  const title = article?.querySelector<HTMLElement>(".df2-reading-history-copy > strong")?.textContent?.trim();
-  if (!title) return null;
-  return (library.completed ?? []).find((book) => book.title === title) ?? null;
+
+  const article = image.closest<HTMLElement>(".df2-reading-book-history-list article");
+  const list = article?.parentElement;
+  if (!article || !list) return null;
+  const articles = [...list.querySelectorAll<HTMLElement>(":scope > article")];
+  const index = articles.indexOf(article);
+  if (index < 0) return null;
+  const completed = [...(library.completed ?? [])]
+    .sort((left, right) => (right.finishedAt || "").localeCompare(left.finishedAt || ""));
+  return completed[index] ?? null;
 }
 
 export function ReadingCoverRecoveryController() {
@@ -167,7 +174,11 @@ export function ReadingCoverRecoveryController() {
       const failedUrl = image.currentSrc || image.src;
       recoverBookCover(book, failedUrl)
         .catch(() => {
-          // Keep the existing metadata if the lookup service itself is unavailable.
+          // A temporary API/network failure should not permanently consume recovery.
+          window.setTimeout(() => {
+            if (!image.isConnected) return;
+            delete image.dataset.readingCoverRecoveryAttached;
+          }, 30_000);
         })
         .finally(() => recovering.current.delete(book.id));
     };
