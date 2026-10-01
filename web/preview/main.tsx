@@ -40,6 +40,7 @@ import "../app/history-controller.css";
 import "../app/history-soft-ui.css";
 import "../app/reading-overview-controller.css";
 import "../app/reading-metadata-controller.css";
+import "../app/reading-cover-sizing.css";
 import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/plan-actual.css";

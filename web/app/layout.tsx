@@ -7,6 +7,7 @@ import "./history-controller.css";
 import "./history-soft-ui.css";
 import "./reading-overview-controller.css";
 import "./reading-metadata-controller.css";
+import "./reading-cover-sizing.css";
 import "./overview-title.css";
 import "./today-polish.css";
 import "./plan-actual.css";
