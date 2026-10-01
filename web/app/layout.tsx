@@ -33,6 +33,7 @@ import { RoutineGroupsController } from "./routine-groups-controller";
 import { ActivityTimeController } from "./activity-time-controller";
 import { HistoryController } from "./history-controller";
 import { ReadingOverviewController } from "./reading-overview-controller";
+import { OverviewReadingOrderController } from "./overview-reading-order-controller";
 import { ReadingMetadataController } from "./reading-metadata-controller";
 import { ReadingCoverRecoveryController } from "./reading-cover-recovery-controller";
 import { ReadingLibraryController } from "./reading-library-controller";
@@ -66,5 +67,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><LateReadingController /><NotificationController /></body></html>;
 }
