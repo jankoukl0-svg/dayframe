@@ -15,6 +15,10 @@ import { daysUntilDate } from "@/lib/dayframe-countdown";
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
 
+type BriefingTask = CalendarTask & {
+  actualRunningSince?: string;
+};
+
 type BriefingModel = {
   greeting: string;
   summary: string;
@@ -78,20 +82,28 @@ function taskSummary(tasks: CalendarTask[], mainTask: CalendarTask | null, misse
   return `${planCopy}${mainCopy}${missedCopy}`;
 }
 
+function runningFocusTask(tasks: BriefingTask[]) {
+  return [...tasks]
+    .filter((task) => !task.completed && Boolean(task.actualRunningSince))
+    .sort((a, b) => Date.parse(b.actualRunningSince ?? "") - Date.parse(a.actualRunningSince ?? ""))[0] ?? null;
+}
+
 function buildModel(state: DayframeState, now: Date): BriefingModel {
   const today = planningDateKey(now);
-  const tasks = getTasksForDate(state, today);
+  const tasks = getTasksForDate(state, today) as BriefingTask[];
   const scheduled = tasks.filter((task) => task.start && task.end).sort(byStart);
   const unfinished = tasks.filter((task) => !task.completed);
   const unfinishedScheduled = scheduled.filter((task) => !task.completed);
   const currentMinute = planningMinute(now);
-  const current = unfinishedScheduled.find((task) => timeToMinutes(task.start) <= currentMinute && timeToMinutes(task.end) > currentMinute) ?? null;
-  const upcoming = unfinishedScheduled.find((task) => timeToMinutes(task.start) > currentMinute) ?? null;
+  const running = runningFocusTask(unfinished);
+  const scheduledCurrent = unfinishedScheduled.find((task) => timeToMinutes(task.start) <= currentMinute && timeToMinutes(task.end) > currentMinute) ?? null;
+  const current = running ?? scheduledCurrent;
+  const upcoming = unfinishedScheduled.find((task) => task.id !== running?.id && timeToMinutes(task.start) > currentMinute) ?? null;
   const highPriority = [...unfinished].filter((task) => task.priority === "high").sort(byStart)[0] ?? null;
-  const mainTask = highPriority ?? current ?? upcoming ?? [...unfinished].sort(byStart)[0] ?? null;
+  const mainTask = running ?? highPriority ?? scheduledCurrent ?? upcoming ?? [...unfinished].sort(byStart)[0] ?? null;
   const completed = tasks.filter((task) => task.completed).length;
   const plannedMinutes = scheduled.reduce((sum, task) => sum + task.duration, 0);
-  const missed = overdueTasks(state, now);
+  const missed = overdueTasks(state, now).filter((task) => task.id !== running?.id);
   const nextMilestone = [...state.milestones]
     .filter((milestone) => milestone.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
