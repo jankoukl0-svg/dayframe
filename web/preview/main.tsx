@@ -6,6 +6,7 @@ import { ActivityTimeController } from "../app/activity-time-controller";
 import { HistoryController } from "../app/history-controller";
 import { HistoryPeriodRolloverController } from "../app/history-period-rollover-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
+import { ActiveCompletionSafetyController } from "../app/active-completion-safety-controller";
 import { FocusManualStartController } from "../app/focus-manual-start-controller";
 import { WeekCapacityController } from "../app/week-capacity-controller";
 import { LabelColorsController } from "../app/label-colors-controller";
@@ -65,6 +66,7 @@ createRoot(root).render(
     <HistoryController />
     <HistoryPeriodRolloverController />
     <ExecutionTracker />
+    <ActiveCompletionSafetyController />
     <FocusManualStartController />
     <WeekCapacityController />
     <LabelColorsController />

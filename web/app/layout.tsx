@@ -29,6 +29,7 @@ import { ActivityTimeController } from "./activity-time-controller";
 import { HistoryController } from "./history-controller";
 import { HistoryPeriodRolloverController } from "./history-period-rollover-controller";
 import { ExecutionTracker } from "./execution-tracker";
+import { ActiveCompletionSafetyController } from "./active-completion-safety-controller";
 import { FocusManualStartController } from "./focus-manual-start-controller";
 import { WeekCapacityController } from "./week-capacity-controller";
 import { LabelColorsController } from "./label-colors-controller";
@@ -55,5 +56,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><LateReadingController /><NotificationController /></body></html>;
 }
