@@ -42,6 +42,7 @@ type CompletionChoice = {
   nextTaskTitle: string | null;
   shortTaskId: string | null;
   shortTaskTitle: string | null;
+  focus: boolean;
 };
 
 const STORAGE_KEY = "dayframe-v1";
@@ -213,6 +214,7 @@ export function ActiveCompletionSafetyController() {
       const savedMinutes = originalEnd - finishMinute;
       const next = nextTask(tasks, found.task.id, finishMinute);
       const short = shortTask(tasks, found.task.id, next?.id ?? null, savedMinutes, originalEnd);
+      const focus = Boolean(button.closest(".df2-focus-view"));
 
       if (!finishImmediately(state, found.date, found.task, finishMinute, now)) return;
 
@@ -227,6 +229,7 @@ export function ActiveCompletionSafetyController() {
         nextTaskTitle: next?.title ?? null,
         shortTaskId: short?.id ?? null,
         shortTaskTitle: short?.title ?? null,
+        focus,
       });
     };
 
@@ -246,14 +249,14 @@ export function ActiveCompletionSafetyController() {
         zIndex: 10000,
         maxWidth: "min(620px, calc(100vw - 48px))",
         padding: "12px 14px",
-        border: "1px solid var(--line-strong)",
+        border: completion.focus ? "1px solid rgba(255, 255, 255, 0.18)" : "1px solid var(--line-strong)",
         borderRadius: 12,
-        background: "var(--paper)",
+        background: completion.focus ? "#171717" : "var(--paper)",
         boxShadow: "0 12px 36px rgba(0, 0, 0, 0.12)",
       }}
       aria-live="polite"
     >
-      <div className="df2-time-adjust-finish">
+      <div className={completion.focus ? "df2-time-adjust-focus-completion" : "df2-time-adjust-finish"}>
         <strong>Hotovo · +{completion.savedMinutes} min volných</strong>
         {completion.nextTaskId && (
           <button type="button" onClick={() => startFreedTimeTask(completion, completion.nextTaskId)}>Začít další</button>
