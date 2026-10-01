@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { planningDateKey, planningMinute, timeToMinutes, minutesToTime } from "../lib/dayframe-calendar";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { calendarBounds, minutesToTime, planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-calendar";
 
 type StoredTask = {
   id: string;
@@ -11,9 +12,19 @@ type StoredTask = {
   start?: string;
   end?: string;
   completed?: boolean;
+  priority?: "high" | "normal" | "low";
+  source?: "user" | "routine" | "legacy";
+  requestedStart?: string;
+  autoScheduled?: boolean;
+  createdAt?: string;
   plannedStart?: string;
   plannedEnd?: string;
   plannedDuration?: number;
+  actualStartedAt?: string;
+  actualEndedAt?: string;
+  actualAccumulatedSeconds?: number;
+  actualRunningSince?: string;
+  actualMinutes?: number;
   [key: string]: unknown;
 };
 
@@ -22,16 +33,19 @@ type StoredState = {
   [key: string]: unknown;
 };
 
-type PendingCompletion = {
-  taskId: string;
+type CompletionChoice = {
   date: string;
+  taskId: string;
   finishMinute: number;
-  timer: number;
+  savedMinutes: number;
+  nextTaskId: string | null;
+  nextTaskTitle: string | null;
+  shortTaskId: string | null;
+  shortTaskTitle: string | null;
 };
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
-const AUTO_COMMIT_DELAY_MS = 1000;
 
 function readState(): StoredState | null {
   try {
@@ -44,6 +58,13 @@ function readState(): StoredState | null {
 function writeState(state: StoredState) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   window.dispatchEvent(new Event(STATE_SYNC_EVENT));
+}
+
+function elapsedSeconds(from: string | undefined, until: Date) {
+  if (!from) return 0;
+  const started = new Date(from).getTime();
+  if (!Number.isFinite(started)) return 0;
+  return Math.max(0, Math.round((until.getTime() - started) / 1000));
 }
 
 function findClickedTask(button: HTMLButtonElement, state: StoredState, now: Date) {
@@ -71,39 +92,104 @@ function findClickedTask(button: HTMLButtonElement, state: StoredState, now: Dat
   return task ? { task, date } : null;
 }
 
-function commitIfStillPending(taskId: string, date: string, finishMinute: number) {
-  const state = readState();
-  if (!state) return;
-  const tasks = state.plans?.[date];
-  if (!tasks) return;
-  const target = tasks.find((task) => task.id === taskId);
-  if (!target || target.completed || !target.start || !target.end) return;
+function priorityRank(priority?: StoredTask["priority"]) {
+  return priority === "high" ? 0 : priority === "low" ? 2 : 1;
+}
 
-  const start = timeToMinutes(target.start);
-  const plannedEnd = timeToMinutes(target.end);
-  if (!Number.isFinite(start) || !Number.isFinite(plannedEnd)) return;
-  if (finishMinute < start || finishMinute >= plannedEnd) return;
+function nextTask(tasks: StoredTask[], currentId: string, minute: number) {
+  return tasks
+    .filter((task) => task.id !== currentId && !task.completed && task.start && task.end && timeToMinutes(task.start) >= minute)
+    .sort((left, right) => timeToMinutes(left.start) - timeToMinutes(right.start))[0] ?? null;
+}
+
+function shortTask(tasks: StoredTask[], currentId: string, nextId: string | null, savedMinutes: number, originalEnd: number) {
+  return tasks
+    .filter((task) => task.id !== currentId
+      && task.id !== nextId
+      && !task.completed
+      && task.duration > 0
+      && task.duration <= savedMinutes
+      && task.source !== "routine"
+      && !task.requestedStart
+      && task.autoScheduled !== false
+      && (!task.start || timeToMinutes(task.start) >= originalEnd))
+    .sort((left, right) => priorityRank(left.priority) - priorityRank(right.priority)
+      || right.duration - left.duration
+      || (left.createdAt ?? "").localeCompare(right.createdAt ?? ""))[0] ?? null;
+}
+
+function finishImmediately(state: StoredState, date: string, task: StoredTask, finishMinute: number, now: Date) {
+  const tasks = state.plans?.[date];
+  if (!tasks || !task.start || !task.end) return false;
+  const start = timeToMinutes(task.start);
+  const originalEnd = timeToMinutes(task.end);
+  if (!Number.isFinite(start) || !Number.isFinite(originalEnd) || finishMinute < start || finishMinute >= originalEnd) return false;
 
   const actualEnd = Math.max(start + 1, finishMinute);
+  const totalSeconds = (task.actualAccumulatedSeconds ?? 0) + elapsedSeconds(task.actualRunningSince, now);
   state.plans = {
     ...state.plans,
-    [date]: tasks.map((task) => task.id === taskId
+    [date]: tasks.map((item) => item.id === task.id
       ? {
-        ...task,
-        plannedStart: task.plannedStart ?? task.start,
-        plannedEnd: task.plannedEnd ?? task.end,
-        plannedDuration: task.plannedDuration ?? task.duration,
+        ...item,
+        plannedStart: item.plannedStart ?? item.start,
+        plannedEnd: item.plannedEnd ?? item.end,
+        plannedDuration: item.plannedDuration ?? item.duration,
         completed: true,
         end: minutesToTime(actualEnd),
         duration: actualEnd - start,
+        actualEndedAt: now.toISOString(),
+        actualAccumulatedSeconds: totalSeconds,
+        actualRunningSince: undefined,
+        actualMinutes: item.actualStartedAt ? Math.max(1, Math.round(totalSeconds / 60)) : item.actualMinutes,
       }
-      : task),
+      : item),
   };
   writeState(state);
+  return true;
+}
+
+function startFreedTimeTask(choice: CompletionChoice, taskId: string | null) {
+  if (!taskId) {
+    window.location.reload();
+    return;
+  }
+
+  const state = readState();
+  const tasks = state?.plans?.[choice.date];
+  if (!state || !tasks) {
+    window.location.reload();
+    return;
+  }
+  const candidate = tasks.find((task) => task.id === taskId && !task.completed);
+  if (!candidate) {
+    window.location.reload();
+    return;
+  }
+
+  const candidateDuration = Math.max(1, candidate.duration || (timeToMinutes(candidate.end) - timeToMinutes(candidate.start)));
+  const candidateEnd = choice.finishMinute + candidateDuration;
+  if (candidateEnd <= calendarBounds.dayEnd) {
+    state.plans = {
+      ...state.plans,
+      [choice.date]: tasks.map((task) => task.id === candidate.id
+        ? {
+          ...task,
+          start: minutesToTime(choice.finishMinute),
+          end: minutesToTime(candidateEnd),
+          requestedStart: minutesToTime(choice.finishMinute),
+          dateLocked: true,
+          autoScheduled: false,
+        }
+        : task),
+    };
+    writeState(state);
+  }
+  window.location.reload();
 }
 
 export function ActiveCompletionSafetyController() {
-  const pendingRef = useRef<PendingCompletion | null>(null);
+  const [completion, setCompletion] = useState<CompletionChoice | null>(null);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -120,23 +206,64 @@ export function ActiveCompletionSafetyController() {
 
       const finishMinute = planningMinute(now);
       const start = timeToMinutes(found.task.start);
-      const end = timeToMinutes(found.task.end);
-      if (!Number.isFinite(start) || !Number.isFinite(end) || finishMinute < start || finishMinute >= end) return;
+      const originalEnd = timeToMinutes(found.task.end);
+      if (!Number.isFinite(start) || !Number.isFinite(originalEnd) || finishMinute < start || finishMinute >= originalEnd) return;
 
-      if (pendingRef.current) window.clearTimeout(pendingRef.current.timer);
-      const timer = window.setTimeout(() => {
-        commitIfStillPending(found.task.id, found.date, finishMinute);
-        if (pendingRef.current?.taskId === found.task.id) pendingRef.current = null;
-      }, AUTO_COMMIT_DELAY_MS);
-      pendingRef.current = { taskId: found.task.id, date: found.date, finishMinute, timer };
+      const tasks = state.plans?.[found.date] ?? [];
+      const savedMinutes = originalEnd - finishMinute;
+      const next = nextTask(tasks, found.task.id, finishMinute);
+      const short = shortTask(tasks, found.task.id, next?.id ?? null, savedMinutes, originalEnd);
+
+      if (!finishImmediately(state, found.date, found.task, finishMinute, now)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setCompletion({
+        date: found.date,
+        taskId: found.task.id,
+        finishMinute,
+        savedMinutes,
+        nextTaskId: next?.id ?? null,
+        nextTaskTitle: next?.title ?? null,
+        shortTaskId: short?.id ?? null,
+        shortTaskTitle: short?.title ?? null,
+      });
     };
 
     document.addEventListener("click", onClick, true);
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      if (pendingRef.current) window.clearTimeout(pendingRef.current.timer);
-    };
+    return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  return null;
+  if (!completion) return null;
+
+  return createPortal(
+    <div
+      className="df2-active-completion-floating"
+      style={{
+        position: "fixed",
+        right: 24,
+        bottom: 24,
+        zIndex: 10000,
+        maxWidth: "min(620px, calc(100vw - 48px))",
+        padding: "12px 14px",
+        border: "1px solid var(--line-strong)",
+        borderRadius: 12,
+        background: "var(--paper)",
+        boxShadow: "0 12px 36px rgba(0, 0, 0, 0.12)",
+      }}
+      aria-live="polite"
+    >
+      <div className="df2-time-adjust-finish">
+        <strong>Hotovo · +{completion.savedMinutes} min volných</strong>
+        {completion.nextTaskId && (
+          <button type="button" onClick={() => startFreedTimeTask(completion, completion.nextTaskId)}>Začít další</button>
+        )}
+        {completion.shortTaskId && (
+          <button type="button" onClick={() => startFreedTimeTask(completion, completion.shortTaskId)}>Krátký úkol · {completion.shortTaskTitle}</button>
+        )}
+        <button type="button" onClick={() => { setCompletion(null); window.location.reload(); }}>Volno</button>
+      </div>
+    </div>,
+    document.body,
+  );
 }
