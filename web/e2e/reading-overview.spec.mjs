@@ -92,7 +92,7 @@ test("overview tracks completed reading separately across period modes", async (
   await expect(reading.locator(".df2-reading-stat").nth(1)).toContainText("35 min");
 
   const readingHost = history.locator("[data-reading-overview-host]");
-  await expect(readingHost.evaluate((element) => element.previousElementSibling?.classList.contains("df2-history-trend"))).resolves.toBe(true);
+  await expect(readingHost.evaluate((element) => element.previousElementSibling?.classList.contains("df2-overview-bottom-grid"))).resolves.toBe(true);
 
   await history.getByRole("button", { name: "Měsíc" }).click();
   await expect(reading.locator(".df2-reading-primary")).toContainText("35 min");
