@@ -6,6 +6,7 @@ import { ActivityTimeController } from "../app/activity-time-controller";
 import { HistoryController } from "../app/history-controller";
 import { ReadingOverviewController } from "../app/reading-overview-controller";
 import { ReadingMetadataController } from "../app/reading-metadata-controller";
+import { ReadingCoverRecoveryController } from "../app/reading-cover-recovery-controller";
 import { HistoryPeriodRolloverController } from "../app/history-period-rollover-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
 import { ActiveCompletionSafetyController } from "../app/active-completion-safety-controller";
@@ -70,6 +71,7 @@ createRoot(root).render(
     <HistoryController />
     <ReadingOverviewController />
     <ReadingMetadataController />
+    <ReadingCoverRecoveryController />
     <HistoryPeriodRolloverController />
     <ExecutionTracker />
     <ActiveCompletionSafetyController />
