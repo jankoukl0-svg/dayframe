@@ -45,12 +45,14 @@ function todayKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-const EMPTY_DRAFT: PastBookDraft = {
-  title: "",
-  totalPages: "",
-  startedAt: "",
-  finishedAt: todayKey(),
-};
+function emptyDraft(): PastBookDraft {
+  return {
+    title: "",
+    totalPages: "",
+    startedAt: "",
+    finishedAt: todayKey(),
+  };
+}
 
 function readLibrary(): ReadingLibrary {
   try {
@@ -131,7 +133,7 @@ export function ReadingLibraryController() {
   const [genre, setGenre] = useState("all");
   const [sort, setSort] = useState<SortMode>("newest");
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<PastBookDraft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<PastBookDraft>(() => emptyDraft());
   const [formError, setFormError] = useState("");
 
   useEffect(() => {
@@ -244,6 +246,10 @@ export function ReadingLibraryController() {
       setFormError("Zadej datum dočtení.");
       return;
     }
+    if (draft.finishedAt > todayKey()) {
+      setFormError("Datum dočtení nemůže být v budoucnosti.");
+      return;
+    }
 
     const finishedFallback = new Date();
     const finishedAt = toIsoDate(draft.finishedAt, finishedFallback);
@@ -270,9 +276,15 @@ export function ReadingLibraryController() {
     window.localStorage.setItem(LIBRARY_KEY, JSON.stringify(nextLibrary));
     window.dispatchEvent(new Event(LIBRARY_SYNC_EVENT));
     setLibrary(nextLibrary);
-    setDraft(EMPTY_DRAFT);
+    setDraft(emptyDraft());
     setFormError("");
     setAdding(false);
+  };
+
+  const openPastBookForm = () => {
+    setDraft(emptyDraft());
+    setFormError("");
+    setAdding(true);
   };
 
   const buttonPortal = buttonHost ? createPortal(
@@ -296,7 +308,7 @@ export function ReadingLibraryController() {
             <h2 id="df2-reading-library-title">Moje knihovna</h2>
           </div>
           <div className="df2-reading-library-head-actions">
-            <button type="button" className="df2-reading-library-add" onClick={() => { setAdding(true); setFormError(""); }}>+ Přidat přečtenou</button>
+            <button type="button" className="df2-reading-library-add" onClick={openPastBookForm}>+ Přidat přečtenou</button>
             <button type="button" className="df2-reading-library-close" aria-label="Zavřít knihovnu" onClick={() => setOpen(false)}>×</button>
           </div>
         </header>
@@ -337,8 +349,8 @@ export function ReadingLibraryController() {
             <div className="df2-reading-library-add-grid">
               <label className="wide"><span>Název knihy</span><input autoFocus value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
               <label><span>Počet stran</span><input type="number" min="1" value={draft.totalPages} onChange={(event) => setDraft((current) => ({ ...current, totalPages: event.target.value }))} /></label>
-              <label><span>Začátek čtení</span><input type="date" value={draft.startedAt} onChange={(event) => setDraft((current) => ({ ...current, startedAt: event.target.value }))} /></label>
-              <label><span>Dočteno</span><input type="date" value={draft.finishedAt} onChange={(event) => setDraft((current) => ({ ...current, finishedAt: event.target.value }))} /></label>
+              <label><span>Začátek čtení</span><input type="date" max={draft.finishedAt || todayKey()} value={draft.startedAt} onChange={(event) => setDraft((current) => ({ ...current, startedAt: event.target.value }))} /></label>
+              <label><span>Dočteno</span><input type="date" max={todayKey()} value={draft.finishedAt} onChange={(event) => setDraft((current) => ({ ...current, finishedAt: event.target.value }))} /></label>
             </div>
             {formError && <p className="df2-reading-library-error" role="alert">{formError}</p>}
             <div className="df2-reading-library-add-actions"><button type="submit">Uložit do knihovny</button></div>
@@ -356,7 +368,7 @@ export function ReadingLibraryController() {
               return (
                 <article key={book.id} className="df2-reading-library-book">
                   <div className="df2-reading-library-cover" aria-hidden="true">
-                    {meta.coverUrl ? <img src={meta.coverUrl} alt="" /> : <i />}
+                    {meta.coverUrl ? <img src={meta.coverUrl} alt="" loading="lazy" decoding="async" /> : <i />}
                   </div>
                   <div className="df2-reading-library-copy">
                     <span className="df2-reading-library-date">{readingSpan(book)}</span>
