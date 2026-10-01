@@ -215,7 +215,12 @@ async function fetchCandidates(title: string): Promise<BookLookup[]> {
   const combined = responses.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   const unique = new Map<string, BookLookup>();
   for (const candidate of combined) {
-    const key = `${normalize(candidate.title)}|${normalize(candidate.author || "")}`;
+    const key = [
+      normalize(candidate.title),
+      normalize(candidate.author || ""),
+      normalize(candidate.publisher || ""),
+      String(candidate.pages),
+    ].join("|");
     const existing = unique.get(key);
     unique.set(key, existing ? mergeCandidate(existing, candidate) : candidate);
   }
@@ -327,11 +332,7 @@ export function ReadingLibraryAutoLookupController() {
 
           setCandidates(results);
           const exact = results.filter((candidate) => normalize(candidate.title) === normalize(value));
-          const automatic = exact.length === 1
-            ? exact[0]
-            : results.length === 1
-              ? results[0]
-              : null;
+          const automatic = exact.length === 1 ? exact[0] : null;
 
           if (automatic) {
             setMatch(automatic);
@@ -403,7 +404,11 @@ export function ReadingLibraryAutoLookupController() {
       {status === "error" && <span className="df2-reading-library-auto-error">Databáze knih jsou teď nedostupné. Zkus to za chvíli znovu.</span>}
       {status === "choose" && (
         <div className="df2-reading-library-auto-choices">
-          <span className="df2-reading-library-auto-choice-label">Našel jsem více možností. Vyber správnou knihu:</span>
+          <span className="df2-reading-library-auto-choice-label">
+            {candidates.length > 1
+              ? "Našel jsem více možností. Vyber správnou knihu:"
+              : "Název není přesná shoda. Potvrď, že jde o správnou knihu:"}
+          </span>
           <div className="df2-reading-library-auto-choice-list">
             {candidates.map((candidate) => {
               const detail = candidateDescription(candidate);
