@@ -98,14 +98,22 @@ test("Today briefing lives in a separate modal, summarizes the plan, and stays i
   await expect(briefing).toContainText("1/2");
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Matematika");
 
+  const closeButton = page.getByRole("button", { name: "Zavřít briefing" });
+  await expect(closeButton).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(closeButton).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(closeButton).toBeFocused();
+
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
   await expect(page.locator("[data-today-briefing-launcher]")).toBeFocused();
 
   await openBriefing(page);
-  await page.getByRole("button", { name: /Týden/ }).click({ force: true });
+  await page.keyboard.press("w");
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
-  await expect(page.locator("[data-today-briefing-launcher]")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Týden" })).toBeVisible();
+  await expect(page.locator("[data-today-briefing-launcher]")).toHaveCount(0);
 
   await page.getByRole("button", { name: /Dnes/ }).click();
   await expect(page.locator("[data-today-briefing-launcher]")).toBeVisible();
