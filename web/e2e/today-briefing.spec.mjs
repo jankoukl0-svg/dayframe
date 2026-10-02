@@ -15,7 +15,17 @@ async function openFreshToday(page) {
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 }
 
-test("Today briefing summarizes the plan and stays in sync", async ({ page }) => {
+async function openBriefing(page) {
+  const launcher = page.locator("[data-today-briefing-launcher]");
+  await expect(launcher).toBeVisible();
+  await launcher.click();
+  const modal = page.locator("[data-today-briefing-modal]");
+  await expect(modal).toBeVisible();
+  await expect(modal.getByRole("dialog", { name: "Ranní briefing" })).toBeVisible();
+  return modal.locator("[data-today-briefing]");
+}
+
+test("Today briefing lives in a separate modal, summarizes the plan, and stays in sync", async ({ page }) => {
   await openFreshToday(page);
 
   await page.evaluate((date) => {
@@ -68,9 +78,8 @@ test("Today briefing summarizes the plan and stays in sync", async ({ page }) =>
 
   await page.reload({ waitUntil: "networkidle" });
 
-  const briefing = page.locator("[data-today-briefing]");
-  await expect(briefing).toHaveCount(1);
-  await expect(briefing).toBeVisible();
+  await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
+  const briefing = await openBriefing(page);
   await expect(briefing).toContainText("Briefing");
   await expect(briefing).toContainText("Cambridge essay");
   await expect(briefing).toContainText("2 h 30 min");
@@ -89,10 +98,18 @@ test("Today briefing summarizes the plan and stays in sync", async ({ page }) =>
   await expect(briefing).toContainText("1/2");
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Matematika");
 
-  await page.getByRole("button", { name: /Týden/ }).click();
-  await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
+  await expect(page.locator("[data-today-briefing-launcher]")).toBeFocused();
+
+  await openBriefing(page);
+  await page.getByRole("button", { name: /Týden/ }).click({ force: true });
+  await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
+  await expect(page.locator("[data-today-briefing-launcher]")).toHaveCount(0);
+
   await page.getByRole("button", { name: /Dnes/ }).click();
-  await expect(page.locator("[data-today-briefing]")).toHaveCount(1);
+  await expect(page.locator("[data-today-briefing-launcher]")).toBeVisible();
+  await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
 });
 
 test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
@@ -147,8 +164,11 @@ test("Today briefing treats a manually running Focus session as the source of tr
 
   await page.reload({ waitUntil: "networkidle" });
 
-  const briefing = page.locator("[data-today-briefing]");
+  const briefing = await openBriefing(page);
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Ruční Focus");
   await expect(briefing.locator(".df2-briefing-signals")).toContainText("Právě teď");
   await expect(briefing.locator(".df2-briefing-signals")).toContainText("Ruční Focus");
+
+  await page.getByRole("button", { name: "Zavřít briefing" }).click();
+  await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
 });
