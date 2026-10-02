@@ -194,17 +194,39 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
   host.appendChild(signals);
 }
 
+function setAppInert(inert: boolean) {
+  const root = document.querySelector<HTMLElement>(".df2-root");
+  if (!root) return;
+  if (inert) root.setAttribute("inert", "");
+  else root.removeAttribute("inert");
+}
+
 function closeBriefingModal(restoreFocus = true) {
   const overlay = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
   overlay?.remove();
   document.body.classList.remove("df2-briefing-modal-open");
+  document.removeEventListener("keydown", handleModalDocumentKeydown, true);
+  setAppInert(false);
   if (restoreFocus) document.querySelector<HTMLElement>("[data-today-briefing-launcher]")?.focus();
 }
 
-function handleModalKeydown(event: KeyboardEvent) {
-  if (event.key !== "Escape") return;
-  event.preventDefault();
-  closeBriefingModal();
+function handleModalDocumentKeydown(event: KeyboardEvent) {
+  const overlay = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
+  if (!overlay) return;
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeBriefingModal();
+    return;
+  }
+
+  if (event.key === "Tab") {
+    const close = overlay.querySelector<HTMLElement>("[data-today-briefing-close]");
+    if (!close) return;
+    event.preventDefault();
+    close.focus();
+  }
 }
 
 function openBriefingModal() {
@@ -243,10 +265,11 @@ function openBriefingModal() {
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) closeBriefingModal();
   });
-  overlay.addEventListener("keydown", handleModalKeydown);
 
   document.body.appendChild(overlay);
   document.body.classList.add("df2-briefing-modal-open");
+  setAppInert(true);
+  document.addEventListener("keydown", handleModalDocumentKeydown, true);
 
   const state = readState();
   if (state) renderBriefing(host, buildModel(state, new Date()));
