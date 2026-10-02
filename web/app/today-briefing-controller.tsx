@@ -14,6 +14,7 @@ import { daysUntilDate } from "@/lib/dayframe-countdown";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
+const MODAL_ID = "dayframe-today-briefing-dialog";
 
 type BriefingTask = CalendarTask & {
   actualRunningSince?: string;
@@ -193,22 +194,96 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
   host.appendChild(signals);
 }
 
-function syncBriefing() {
-  const todayView = document.querySelector(".df2-today-view");
-  if (!(todayView instanceof HTMLElement)) return;
+function closeBriefingModal(restoreFocus = true) {
+  const overlay = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
+  if (!overlay) return;
+  overlay.remove();
+  document.body.classList.remove("df2-briefing-modal-open");
+  if (restoreFocus) document.querySelector<HTMLElement>("[data-today-briefing-launcher]")?.focus();
+}
 
-  let host = todayView.querySelector<HTMLElement>("[data-today-briefing]");
-  if (!host) {
-    const created = document.createElement("section");
-    created.className = "df2-today-briefing";
-    created.dataset.todayBriefing = "true";
-    created.setAttribute("aria-label", "Denní briefing");
-    const anchor = todayView.querySelector(".df2-motivation-grid");
-    if (anchor) todayView.insertBefore(created, anchor);
-    else todayView.querySelector(".df2-page-head")?.insertAdjacentElement("afterend", created);
-    host = created;
+function handleModalKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  closeBriefingModal();
+}
+
+function openBriefingModal() {
+  const existing = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
+  if (existing) {
+    existing.querySelector<HTMLElement>("[data-today-briefing-close]")?.focus();
+    return;
   }
 
+  const overlay = document.createElement("div");
+  overlay.className = "df2-briefing-modal-backdrop";
+  overlay.dataset.todayBriefingModal = "true";
+
+  const dialog = document.createElement("section");
+  dialog.id = MODAL_ID;
+  dialog.className = "df2-briefing-modal";
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-label", "Ranní briefing");
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "df2-briefing-modal-close";
+  close.dataset.todayBriefingClose = "true";
+  close.setAttribute("aria-label", "Zavřít briefing");
+  close.textContent = "×";
+  close.addEventListener("click", () => closeBriefingModal());
+  dialog.appendChild(close);
+
+  const host = document.createElement("div");
+  host.className = "df2-today-briefing";
+  host.dataset.todayBriefing = "true";
+  dialog.appendChild(host);
+  overlay.appendChild(dialog);
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeBriefingModal();
+  });
+  overlay.addEventListener("keydown", handleModalKeydown);
+
+  document.body.appendChild(overlay);
+  document.body.classList.add("df2-briefing-modal-open");
+
+  const state = readState();
+  if (state) renderBriefing(host, buildModel(state, new Date()));
+  close.focus();
+}
+
+function ensureLauncher(todayView: HTMLElement) {
+  let launcher = todayView.querySelector<HTMLButtonElement>("[data-today-briefing-launcher]");
+  if (launcher) return launcher;
+
+  launcher = document.createElement("button");
+  launcher.type = "button";
+  launcher.className = "df2-briefing-launcher";
+  launcher.dataset.todayBriefingLauncher = "true";
+  launcher.setAttribute("aria-haspopup", "dialog");
+  launcher.setAttribute("aria-controls", MODAL_ID);
+  launcher.innerHTML = '<span class="df2-briefing-launcher-dot" aria-hidden="true"></span><span>Ranní briefing</span><span class="df2-briefing-launcher-arrow" aria-hidden="true">↗</span>';
+  launcher.addEventListener("click", openBriefingModal);
+
+  const anchor = todayView.querySelector(".df2-motivation-grid");
+  if (anchor) todayView.insertBefore(launcher, anchor);
+  else todayView.querySelector(".df2-page-head")?.insertAdjacentElement("afterend", launcher);
+  return launcher;
+}
+
+function syncBriefing() {
+  const todayView = document.querySelector(".df2-today-view");
+  if (!(todayView instanceof HTMLElement)) {
+    closeBriefingModal(false);
+    return;
+  }
+
+  ensureLauncher(todayView);
+
+  const host = document.querySelector<HTMLElement>("[data-today-briefing]");
+  if (!host) return;
   const state = readState();
   if (!state) return;
   renderBriefing(host, buildModel(state, new Date()));
@@ -238,6 +313,7 @@ export function TodayBriefingController() {
       window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);
+      closeBriefingModal(false);
     };
   }, []);
 
