@@ -62,10 +62,10 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
           title: "Cambridge essay",
           date,
           duration: 90,
-          start: "09:00",
-          end: "10:30",
-          requestedStart: "09:00",
-          deadlineTime: "22:30",
+          start: "23:00",
+          end: "00:30",
+          requestedStart: "23:00",
+          deadlineTime: "01:30",
           priority: "high",
           category: "Angličtina",
           mode: "flexible",
@@ -80,10 +80,10 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
           title: "Matematika",
           date,
           duration: 60,
-          start: "23:00",
-          end: "00:00",
-          requestedStart: "23:00",
-          deadlineTime: "23:59",
+          start: "00:30",
+          end: "01:30",
+          requestedStart: "00:30",
+          deadlineTime: "01:45",
           priority: "normal",
           category: "Matika",
           mode: "flexible",
@@ -239,8 +239,14 @@ test("Jarvis weather turns strong rain probability into a useful alert", async (
   });
   await openFreshToday(page);
   await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.plans = {};
+    state.backlog = [];
+    state.routines = [];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
   });
+  await page.reload({ waitUntil: "networkidle" });
 
   const briefing = await openBriefing(page);
   await expect(briefing.locator(".df2-jarvis-weather")).toContainText("Déšť");
