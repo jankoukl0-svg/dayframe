@@ -54,21 +54,23 @@ body.df2-briefing-modal-open {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(28, 27, 24, .34);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(28, 27, 24, .38);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   animation: df2-briefing-backdrop-in 150ms ease-out;
 }
 
 .df2-briefing-modal {
   position: relative;
-  width: min(980px, 100%);
-  max-height: min(760px, calc(100vh - 48px));
+  width: min(1120px, 100%);
+  max-height: min(840px, calc(100vh - 48px));
   overflow: auto;
-  border: 1px solid rgba(255, 255, 255, .42);
-  border-radius: 28px;
-  background: var(--paper);
-  box-shadow: 0 30px 90px rgba(24, 22, 18, .24), 0 3px 14px rgba(24, 22, 18, .08);
+  border: 1px solid rgba(255, 255, 255, .48);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent-wash) 72%, transparent) 0, transparent 28%),
+    var(--paper);
+  box-shadow: 0 36px 110px rgba(24, 22, 18, .28), 0 3px 14px rgba(24, 22, 18, .08);
   animation: df2-briefing-modal-in 180ms cubic-bezier(.2, .8, .2, 1);
 }
 
@@ -77,8 +79,8 @@ body.df2-briefing-modal-open {
   top: 18px;
   right: 18px;
   z-index: 2;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   padding: 0 0 2px;
@@ -102,10 +104,17 @@ body.df2-briefing-modal-open {
 
 .df2-today-briefing {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(330px, .85fr);
-  gap: 34px;
+  gap: 24px;
   margin: 0;
-  padding: 42px 42px 38px;
+  padding: 42px;
+}
+
+.df2-jarvis-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 34px;
+  align-items: end;
+  padding-right: 52px;
 }
 
 .df2-briefing-copy {
@@ -118,8 +127,8 @@ body.df2-briefing-modal-open {
   gap: 9px;
   margin-bottom: 15px;
   color: var(--muted);
-  font-size: 12px;
-  letter-spacing: .01em;
+  font-size: 11px;
+  letter-spacing: .11em;
 }
 
 .df2-briefing-eyebrow > span {
@@ -128,18 +137,19 @@ body.df2-briefing-modal-open {
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 5px var(--accent-wash);
+  animation: df2-jarvis-pulse 2.4s ease-in-out infinite;
 }
 
 .df2-briefing-eyebrow strong {
-  font-weight: 650;
+  font-weight: 720;
 }
 
 .df2-briefing-copy h2 {
   margin: 0;
-  font-size: clamp(30px, 4vw, 44px);
+  font-size: clamp(34px, 4vw, 50px);
   font-weight: 620;
-  letter-spacing: -.05em;
-  line-height: 1.03;
+  letter-spacing: -.055em;
+  line-height: 1.02;
 }
 
 .df2-briefing-copy > p {
@@ -150,52 +160,248 @@ body.df2-briefing-modal-open {
   line-height: 1.66;
 }
 
-.df2-briefing-priority {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-top: 24px;
+.df2-jarvis-clock {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  padding-bottom: 3px;
 }
 
-.df2-briefing-priority span {
+.df2-jarvis-clock strong {
+  color: var(--ink);
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 560;
+  letter-spacing: -.05em;
+  line-height: 1;
+}
+
+.df2-jarvis-clock span {
   color: var(--muted);
   font-size: 12px;
+  text-transform: lowercase;
+}
+
+.df2-jarvis-primary-grid,
+.df2-jarvis-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(330px, .75fr);
+  gap: 16px;
+}
+
+.df2-jarvis-weather,
+.df2-jarvis-command,
+.df2-jarvis-sequence,
+.df2-jarvis-insight {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--paper) 93%, #fff);
+  box-shadow: 0 12px 32px rgba(35, 33, 29, .035);
+}
+
+.df2-jarvis-weather {
+  padding: 22px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-wash) 52%, transparent), transparent 48%),
+    color-mix(in srgb, var(--paper) 93%, #fff);
+}
+
+.df2-jarvis-command,
+.df2-jarvis-sequence,
+.df2-jarvis-insight {
+  padding: 22px;
+}
+
+.df2-jarvis-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.df2-jarvis-card-head > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.df2-jarvis-card-head > small {
+  overflow: hidden;
+  color: #8c8a83;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-jarvis-weather-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 21px;
+}
+
+.df2-jarvis-weather-icon {
+  width: 68px;
+  color: var(--ink);
+  font-size: 54px;
+  font-weight: 350;
+  line-height: 1;
+  text-align: center;
+}
+
+.df2-jarvis-weather-main > div {
+  display: grid;
+  gap: 3px;
+}
+
+.df2-jarvis-weather-main > div strong {
+  color: var(--ink);
+  font-size: 43px;
+  font-weight: 560;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+
+.df2-jarvis-weather-main > div span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.df2-jarvis-weather-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+
+.df2-jarvis-weather-metrics > div {
+  display: grid;
+  gap: 5px;
+  padding: 13px 10px 0 0;
+}
+
+.df2-jarvis-weather-metrics span,
+.df2-briefing-priority span,
+.df2-jarvis-next span,
+.df2-jarvis-milestone span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-jarvis-weather-metrics strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.df2-jarvis-weather-loading {
+  min-height: 134px;
+  display: grid;
+  place-content: center start;
+  gap: 7px;
+}
+
+.df2-jarvis-weather-loading strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 620;
+}
+
+.df2-jarvis-weather-loading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.df2-briefing-priority {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 3px 0 19px;
+  border-bottom: 1px solid var(--line);
 }
 
 .df2-briefing-priority strong {
   min-width: 0;
   overflow: hidden;
-  font-size: 15px;
-  font-weight: 680;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1.22;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.df2-jarvis-next {
+  display: grid;
+  gap: 6px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-jarvis-next strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-jarvis-milestone {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 17px;
+}
+
+.df2-jarvis-milestone > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.df2-jarvis-milestone strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-jarvis-milestone > b {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .df2-briefing-signals {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-left: 1px solid var(--line);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 95%, #fff);
 }
 
 .df2-briefing-signals > div {
   min-width: 0;
   display: grid;
-  align-content: center;
   gap: 7px;
-  padding: 13px 0 13px 24px;
+  padding: 15px 18px;
 }
 
-.df2-briefing-signals > div:nth-child(odd) {
-  border-right: 1px solid var(--line);
-}
-
-.df2-briefing-signals > div:nth-child(-n + 2) {
-  border-bottom: 1px solid var(--line);
+.df2-briefing-signals > div + div {
+  border-left: 1px solid var(--line);
 }
 
 .df2-briefing-signals span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .df2-briefing-signals strong {
@@ -208,6 +414,91 @@ body.df2-briefing-modal-open {
   white-space: nowrap;
 }
 
+.df2-jarvis-sequence-list {
+  display: grid;
+}
+
+.df2-jarvis-sequence-list > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: center;
+  padding: 11px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.df2-jarvis-sequence-list > div:first-child {
+  border-top: 0;
+  padding-top: 1px;
+}
+
+.df2-jarvis-sequence-list time {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.df2-jarvis-sequence-list > div > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.df2-jarvis-sequence-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-jarvis-sequence-list span,
+.df2-jarvis-sequence-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.df2-jarvis-sequence-list b {
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.df2-jarvis-insight {
+  display: grid;
+  align-content: space-between;
+}
+
+.df2-jarvis-insight > p {
+  margin: 5px 0 28px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 560;
+  letter-spacing: -.015em;
+  line-height: 1.45;
+}
+
+.df2-jarvis-system-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-jarvis-system-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
 @keyframes df2-briefing-backdrop-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -218,19 +509,28 @@ body.df2-briefing-modal-open {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes df2-jarvis-pulse {
+  0%, 100% { opacity: .55; box-shadow: 0 0 0 4px var(--accent-wash); }
+  50% { opacity: 1; box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent-wash) 62%, transparent); }
+}
+
 @media (max-width: 1040px) {
-  .df2-today-briefing {
+  .df2-jarvis-primary-grid,
+  .df2-jarvis-lower-grid {
     grid-template-columns: 1fr;
-    gap: 28px;
   }
 
   .df2-briefing-signals {
-    border-top: 1px solid var(--line);
-    border-left: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .df2-briefing-signals > div {
-    padding: 18px 18px 8px 0;
+  .df2-briefing-signals > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .df2-briefing-signals > div:nth-child(4) {
+    border-top: 1px solid var(--line);
   }
 }
 
@@ -256,41 +556,76 @@ body.df2-briefing-modal-open {
   }
 
   .df2-today-briefing {
-    gap: 22px;
-    padding: 34px 22px 24px;
+    gap: 18px;
+    padding: 34px 20px 22px;
+  }
+
+  .df2-jarvis-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding-right: 34px;
   }
 
   .df2-briefing-copy h2 {
-    padding-right: 36px;
+    padding-right: 0;
+    font-size: 34px;
   }
 
   .df2-briefing-copy > p {
     font-size: 14px;
   }
 
-  .df2-briefing-priority {
-    display: grid;
-    gap: 4px;
+  .df2-jarvis-clock {
+    justify-items: start;
   }
 
+  .df2-jarvis-clock strong {
+    font-size: 32px;
+  }
+
+  .df2-jarvis-primary-grid,
+  .df2-jarvis-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .df2-jarvis-weather-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .df2-briefing-signals {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .df2-briefing-signals > div {
+    padding: 13px 14px;
+  }
+
+  .df2-jarvis-sequence-list > div {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .df2-jarvis-sequence-list b {
+    display: none;
+  }
+}
+
+@media (max-width: 460px) {
   .df2-briefing-signals {
     grid-template-columns: 1fr;
   }
 
-  .df2-briefing-signals > div {
-    padding: 13px 0;
-    border-right: 0 !important;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .df2-briefing-signals > div:last-child {
-    border-bottom: 0;
+  .df2-briefing-signals > div + div,
+  .df2-briefing-signals > div:nth-child(3),
+  .df2-briefing-signals > div:nth-child(4) {
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .df2-briefing-modal-backdrop,
-  .df2-briefing-modal {
+  .df2-briefing-modal,
+  .df2-briefing-eyebrow > span {
     animation: none;
   }
 }
