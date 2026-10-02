@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+const FIXED_NOW = new Date("2026-10-02T15:00:00Z");
+
 function planningDateKeyInBrowser() {
   const now = new Date();
   const date = new Date(now);
@@ -29,6 +31,16 @@ async function mockWeather(page, overrides = {}) {
   });
 }
 
+async function seedWeatherLocation(page) {
+  await page.evaluate(() => {
+    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({
+      latitude: 50.4,
+      longitude: 14.9,
+      acquiredAt: Date.now(),
+    }));
+  });
+}
+
 async function openFreshToday(page) {
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -48,6 +60,7 @@ async function openBriefing(page) {
 }
 
 test("Today Jarvis briefing combines the plan, live weather and useful context in a separate modal", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page);
   await openFreshToday(page);
 
@@ -96,9 +109,9 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
       ],
     };
     state.backlog = [];
-    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
   }, await page.evaluate(planningDateKeyInBrowser));
+  await seedWeatherLocation(page);
 
   await page.reload({ waitUntil: "networkidle" });
 
@@ -159,6 +172,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
 });
 
 test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page);
   await openFreshToday(page);
   const date = await page.evaluate(planningDateKeyInBrowser);
@@ -206,9 +220,9 @@ test("Today briefing treats a manually running Focus session as the source of tr
         },
       ],
     };
-    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
   }, date);
+  await seedWeatherLocation(page);
 
   await page.reload({ waitUntil: "networkidle" });
 
@@ -221,7 +235,49 @@ test("Today briefing treats a manually running Focus session as the source of tr
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
 });
 
+test("Jarvis remaining work includes an unfinished task without a time slot", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
+  await mockWeather(page);
+  await openFreshToday(page);
+  const date = await page.evaluate(planningDateKeyInBrowser);
+
+  await page.evaluate((planningDate) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [planningDate]: [
+        {
+          id: "unscheduled-work",
+          title: "Nezařazený úkol",
+          date: planningDate,
+          duration: 45,
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: true,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, date);
+  await seedWeatherLocation(page);
+  await page.reload({ waitUntil: "networkidle" });
+
+  const briefing = await openBriefing(page);
+  const signals = briefing.locator(".df2-briefing-signals");
+  await expect(signals).toContainText("Zbývá");
+  await expect(signals).toContainText("45 min");
+  await expect(briefing.locator(".df2-jarvis-command")).toContainText("Bez času");
+});
+
 test("Jarvis weather turns strong rain probability into a useful alert", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page, {
     current: {
       temperature_2m: 9,
@@ -244,8 +300,8 @@ test("Jarvis weather turns strong rain probability into a useful alert", async (
     state.backlog = [];
     state.routines = [];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
   });
+  await seedWeatherLocation(page);
   await page.reload({ waitUntil: "networkidle" });
 
   const briefing = await openBriefing(page);
