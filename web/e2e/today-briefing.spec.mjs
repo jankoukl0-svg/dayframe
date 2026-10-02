@@ -243,10 +243,29 @@ test("Jarvis remaining work includes an unfinished task without a time slot", as
 
   await page.evaluate((planningDate) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const createdAt = new Date().toISOString();
     state.routines = [];
     state.backlog = [];
     state.plans = {
       [planningDate]: [
+        {
+          id: "occupied-auto-window",
+          title: "Obsazený den",
+          date: planningDate,
+          duration: 870,
+          start: "08:00",
+          end: "22:30",
+          requestedStart: "08:00",
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "fixed",
+          completed: true,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt,
+        },
         {
           id: "unscheduled-work",
           title: "Nezařazený úkol",
@@ -260,7 +279,7 @@ test("Jarvis remaining work includes an unfinished task without a time slot", as
           source: "user",
           dateLocked: true,
           autoScheduled: true,
-          createdAt: new Date().toISOString(),
+          createdAt,
         },
       ],
     };
@@ -268,6 +287,12 @@ test("Jarvis remaining work includes an unfinished task without a time slot", as
   }, date);
   await seedWeatherLocation(page);
   await page.reload({ waitUntil: "networkidle" });
+
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = Object.values(state.plans || {}).flat().find((item) => item.id === "unscheduled-work");
+    return Boolean(task) && !task.start && !task.end;
+  })).toBe(true);
 
   const briefing = await openBriefing(page);
   const signals = briefing.locator(".df2-briefing-signals");
