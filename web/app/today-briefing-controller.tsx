@@ -196,8 +196,7 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
 
 function closeBriefingModal(restoreFocus = true) {
   const overlay = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
-  if (!overlay) return;
-  overlay.remove();
+  overlay?.remove();
   document.body.classList.remove("df2-briefing-modal-open");
   if (restoreFocus) document.querySelector<HTMLElement>("[data-today-briefing-launcher]")?.focus();
 }
@@ -273,9 +272,24 @@ function ensureLauncher(todayView: HTMLElement) {
   return launcher;
 }
 
+function activeViewLabel() {
+  return document.querySelector<HTMLElement>(".df2-sidebar nav button.active span")?.textContent?.trim() ?? "";
+}
+
+function removeLaunchers() {
+  document.querySelectorAll<HTMLElement>("[data-today-briefing-launcher]").forEach((launcher) => launcher.remove());
+}
+
 function syncBriefing() {
   const todayView = document.querySelector(".df2-today-view");
+  const activeView = activeViewLabel();
+  if (activeView && activeView !== "Dnes") {
+    removeLaunchers();
+    closeBriefingModal(false);
+    return;
+  }
   if (!(todayView instanceof HTMLElement)) {
+    removeLaunchers();
     closeBriefingModal(false);
     return;
   }
@@ -305,7 +319,7 @@ export function TodayBriefingController() {
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     const timer = window.setInterval(sync, 30_000);
 
     return () => {
@@ -313,6 +327,7 @@ export function TodayBriefingController() {
       window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);
+      removeLaunchers();
       closeBriefingModal(false);
     };
   }, []);
