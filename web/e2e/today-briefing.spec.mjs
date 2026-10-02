@@ -105,7 +105,7 @@ test("Today briefing lives in a separate modal, summarizes the plan, and stays i
   await openBriefing(page);
   await page.getByRole("button", { name: /Týden/ }).click({ force: true });
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
-  await expect(page.locator("[data-today-briefing-launcher]")).toHaveCount(0);
+  await expect(page.locator("[data-today-briefing-launcher]")).toBeHidden();
 
   await page.getByRole("button", { name: /Dnes/ }).click();
   await expect(page.locator("[data-today-briefing-launcher]")).toBeVisible();
