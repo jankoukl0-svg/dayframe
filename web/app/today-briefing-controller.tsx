@@ -17,6 +17,7 @@ const STATE_SYNC_EVENT = "dayframe-state-sync";
 const MODAL_ID = "dayframe-today-briefing-dialog";
 const WEATHER_COORDS_KEY = "dayframe-weather-location-v1";
 const WEATHER_REFRESH_MS = 20 * 60 * 1000;
+const WEATHER_LOCATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_WEATHER_LOCATION = { latitude: 50.0755, longitude: 14.4378, label: "Praha · výchozí" };
 
 type BriefingTask = CalendarTask & {
@@ -181,7 +182,7 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
   const mainTask = running ?? highPriority ?? scheduledCurrent ?? upcoming ?? [...unfinished].sort(byStart)[0] ?? null;
   const completed = tasks.filter((task) => task.completed).length;
   const plannedMinutes = scheduled.reduce((sum, task) => sum + task.duration, 0);
-  const remainingMinutes = unfinishedScheduled.reduce((sum, task) => sum + task.duration, 0);
+  const remainingMinutes = unfinished.reduce((sum, task) => sum + task.duration, 0);
   const missed = overdueTasks(state, now).filter((task) => task.id !== running?.id);
   const nextMilestone = [...state.milestones]
     .filter((milestone) => milestone.date >= today)
@@ -439,8 +440,10 @@ function readStoredCoordinates() {
   try {
     const raw = window.localStorage.getItem(WEATHER_COORDS_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { latitude?: number; longitude?: number };
-    if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude)) return null;
+    const parsed = JSON.parse(raw) as { latitude?: number; longitude?: number; acquiredAt?: number };
+    if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude) || !Number.isFinite(parsed.acquiredAt)) return null;
+    const age = Date.now() - Number(parsed.acquiredAt);
+    if (age < 0 || age >= WEATHER_LOCATION_MAX_AGE_MS) return null;
     return { latitude: Number(parsed.latitude), longitude: Number(parsed.longitude), label: "Moje poloha" };
   } catch {
     return null;
@@ -461,14 +464,18 @@ function locateForWeather(): Promise<{ latitude: number; longitude: number; labe
           label: "Moje poloha",
         };
         try {
-          window.localStorage.setItem(WEATHER_COORDS_KEY, JSON.stringify({ latitude: location.latitude, longitude: location.longitude }));
+          window.localStorage.setItem(WEATHER_COORDS_KEY, JSON.stringify({
+            latitude: location.latitude,
+            longitude: location.longitude,
+            acquiredAt: Date.now(),
+          }));
         } catch {
           // Weather still works without persisting coordinates.
         }
         resolve(location);
       },
       () => resolve(DEFAULT_WEATHER_LOCATION),
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 6 * 60 * 60 * 1000 },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: WEATHER_LOCATION_MAX_AGE_MS },
     );
   });
 }
@@ -513,16 +520,16 @@ async function refreshWeather() {
       sunrise: payload.daily?.sunrise?.[0],
       sunset: payload.daily?.sunset?.[0],
     };
-    weatherFetchedAt = Date.now();
   } catch {
     weatherSnapshot = { status: "error", location: location.label };
   }
+  weatherFetchedAt = Date.now();
   syncBriefing();
 }
 
 function ensureWeather() {
   if (weatherPromise) return;
-  if (weatherSnapshot.status === "ready" && Date.now() - weatherFetchedAt < WEATHER_REFRESH_MS) return;
+  if (weatherFetchedAt && Date.now() - weatherFetchedAt < WEATHER_REFRESH_MS) return;
   weatherPromise = refreshWeather().finally(() => {
     weatherPromise = null;
   });
@@ -656,6 +663,7 @@ function syncBriefing() {
 
   const host = document.querySelector<HTMLElement>("[data-today-briefing]");
   if (!host) return;
+  ensureWeather();
   const state = readState();
   if (!state) return;
   renderBriefing(host, buildModel(state, new Date()));
