@@ -206,6 +206,15 @@ body.df2-briefing-modal-open {
     color-mix(in srgb, var(--paper) 93%, #fff);
 }
 
+.df2-jarvis-weather::after {
+  content: "Počasí: Open-Meteo";
+  display: block;
+  margin-top: 13px;
+  color: #9a978f;
+  font-size: 9px;
+  letter-spacing: .015em;
+}
+
 .df2-jarvis-command,
 .df2-jarvis-sequence,
 .df2-jarvis-insight {
