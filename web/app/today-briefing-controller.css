@@ -1,13 +1,111 @@
+body.df2-briefing-modal-open {
+  overflow: hidden;
+}
+
+.df2-briefing-launcher {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 5px 18px rgba(35, 33, 29, .035);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.df2-briefing-launcher:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+  box-shadow: 0 8px 22px rgba(35, 33, 29, .065);
+}
+
+.df2-briefing-launcher:focus-visible,
+.df2-briefing-modal-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.df2-briefing-launcher-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
+.df2-briefing-launcher-arrow {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.df2-briefing-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(28, 27, 24, .34);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: df2-briefing-backdrop-in 150ms ease-out;
+}
+
+.df2-briefing-modal {
+  position: relative;
+  width: min(980px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, .42);
+  border-radius: 28px;
+  background: var(--paper);
+  box-shadow: 0 30px 90px rgba(24, 22, 18, .24), 0 3px 14px rgba(24, 22, 18, .08);
+  animation: df2-briefing-modal-in 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.df2-briefing-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 2px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 88%, #fff);
+  color: var(--muted);
+  font: inherit;
+  font-size: 23px;
+  font-weight: 350;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.df2-briefing-modal-close:hover {
+  transform: scale(1.04);
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+
 .df2-today-briefing {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(330px, .85fr);
   gap: 34px;
-  margin: 0 0 30px;
-  padding: 28px 30px;
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  background: var(--paper);
-  box-shadow: 0 10px 32px rgba(35, 33, 29, .045);
+  margin: 0;
+  padding: 42px 42px 38px;
 }
 
 .df2-briefing-copy {
@@ -38,25 +136,25 @@
 
 .df2-briefing-copy h2 {
   margin: 0;
-  font-size: clamp(27px, 3vw, 38px);
+  font-size: clamp(30px, 4vw, 44px);
   font-weight: 620;
-  letter-spacing: -.045em;
-  line-height: 1.05;
+  letter-spacing: -.05em;
+  line-height: 1.03;
 }
 
 .df2-briefing-copy > p {
   max-width: 720px;
-  margin: 13px 0 0;
+  margin: 15px 0 0;
   color: #62625d;
   font-size: 15px;
-  line-height: 1.62;
+  line-height: 1.66;
 }
 
 .df2-briefing-priority {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin-top: 21px;
+  margin-top: 24px;
 }
 
 .df2-briefing-priority span {
@@ -67,7 +165,7 @@
 .df2-briefing-priority strong {
   min-width: 0;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 680;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -110,10 +208,20 @@
   white-space: nowrap;
 }
 
+@keyframes df2-briefing-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes df2-briefing-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @media (max-width: 1040px) {
   .df2-today-briefing {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 28px;
   }
 
   .df2-briefing-signals {
@@ -122,15 +230,38 @@
   }
 
   .df2-briefing-signals > div {
-    padding: 17px 18px 8px 0;
+    padding: 18px 18px 8px 0;
   }
 }
 
 @media (max-width: 720px) {
+  .df2-briefing-launcher {
+    margin-bottom: 18px;
+  }
+
+  .df2-briefing-modal-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .df2-briefing-modal {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+    border-radius: 24px;
+  }
+
+  .df2-briefing-modal-close {
+    top: 14px;
+    right: 14px;
+  }
+
   .df2-today-briefing {
-    gap: 20px;
-    padding: 22px 20px;
-    border-radius: 18px;
+    gap: 22px;
+    padding: 34px 22px 24px;
+  }
+
+  .df2-briefing-copy h2 {
+    padding-right: 36px;
   }
 
   .df2-briefing-copy > p {
@@ -154,5 +285,12 @@
 
   .df2-briefing-signals > div:last-child {
     border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df2-briefing-modal-backdrop,
+  .df2-briefing-modal {
+    animation: none;
   }
 }

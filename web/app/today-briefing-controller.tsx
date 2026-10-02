@@ -14,6 +14,7 @@ import { daysUntilDate } from "@/lib/dayframe-countdown";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
+const MODAL_ID = "dayframe-today-briefing-dialog";
 
 type BriefingTask = CalendarTask & {
   actualRunningSince?: string;
@@ -193,22 +194,133 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
   host.appendChild(signals);
 }
 
-function syncBriefing() {
-  const todayView = document.querySelector(".df2-today-view");
-  if (!(todayView instanceof HTMLElement)) return;
+function setAppInert(inert: boolean) {
+  const root = document.querySelector<HTMLElement>(".df2-root");
+  if (!root) return;
+  if (inert) root.setAttribute("inert", "");
+  else root.removeAttribute("inert");
+}
 
-  let host = todayView.querySelector<HTMLElement>("[data-today-briefing]");
-  if (!host) {
-    const created = document.createElement("section");
-    created.className = "df2-today-briefing";
-    created.dataset.todayBriefing = "true";
-    created.setAttribute("aria-label", "Denní briefing");
-    const anchor = todayView.querySelector(".df2-motivation-grid");
-    if (anchor) todayView.insertBefore(created, anchor);
-    else todayView.querySelector(".df2-page-head")?.insertAdjacentElement("afterend", created);
-    host = created;
+function closeBriefingModal(restoreFocus = true) {
+  const overlay = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
+  overlay?.remove();
+  document.body.classList.remove("df2-briefing-modal-open");
+  document.removeEventListener("keydown", handleModalDocumentKeydown, true);
+  setAppInert(false);
+  if (restoreFocus) document.querySelector<HTMLElement>("[data-today-briefing-launcher]")?.focus();
+}
+
+function handleModalDocumentKeydown(event: KeyboardEvent) {
+  const overlay = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
+  if (!overlay) return;
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeBriefingModal();
+    return;
   }
 
+  if (event.key === "Tab") {
+    const close = overlay.querySelector<HTMLElement>("[data-today-briefing-close]");
+    if (!close) return;
+    event.preventDefault();
+    close.focus();
+  }
+}
+
+function openBriefingModal() {
+  const existing = document.querySelector<HTMLElement>("[data-today-briefing-modal]");
+  if (existing) {
+    existing.querySelector<HTMLElement>("[data-today-briefing-close]")?.focus();
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "df2-briefing-modal-backdrop";
+  overlay.dataset.todayBriefingModal = "true";
+
+  const dialog = document.createElement("section");
+  dialog.id = MODAL_ID;
+  dialog.className = "df2-briefing-modal";
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-label", "Ranní briefing");
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "df2-briefing-modal-close";
+  close.dataset.todayBriefingClose = "true";
+  close.setAttribute("aria-label", "Zavřít briefing");
+  close.textContent = "×";
+  close.addEventListener("click", () => closeBriefingModal());
+  dialog.appendChild(close);
+
+  const host = document.createElement("div");
+  host.className = "df2-today-briefing";
+  host.dataset.todayBriefing = "true";
+  dialog.appendChild(host);
+  overlay.appendChild(dialog);
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeBriefingModal();
+  });
+
+  document.body.appendChild(overlay);
+  document.body.classList.add("df2-briefing-modal-open");
+  setAppInert(true);
+  document.addEventListener("keydown", handleModalDocumentKeydown, true);
+
+  const state = readState();
+  if (state) renderBriefing(host, buildModel(state, new Date()));
+  close.focus();
+}
+
+function ensureLauncher(todayView: HTMLElement) {
+  let launcher = todayView.querySelector<HTMLButtonElement>("[data-today-briefing-launcher]");
+  if (launcher) return launcher;
+
+  launcher = document.createElement("button");
+  launcher.type = "button";
+  launcher.className = "df2-briefing-launcher";
+  launcher.dataset.todayBriefingLauncher = "true";
+  launcher.setAttribute("aria-haspopup", "dialog");
+  launcher.setAttribute("aria-controls", MODAL_ID);
+  launcher.innerHTML = '<span class="df2-briefing-launcher-dot" aria-hidden="true"></span><span>Ranní briefing</span><span class="df2-briefing-launcher-arrow" aria-hidden="true">↗</span>';
+  launcher.addEventListener("click", openBriefingModal);
+
+  const anchor = todayView.querySelector(".df2-motivation-grid");
+  if (anchor) todayView.insertBefore(launcher, anchor);
+  else todayView.querySelector(".df2-page-head")?.insertAdjacentElement("afterend", launcher);
+  return launcher;
+}
+
+function activeViewLabel() {
+  return document.querySelector<HTMLElement>(".df2-sidebar nav button.active span")?.textContent?.trim() ?? "";
+}
+
+function removeLaunchers() {
+  document.querySelectorAll<HTMLElement>("[data-today-briefing-launcher]").forEach((launcher) => launcher.remove());
+}
+
+function syncBriefing() {
+  const todayView = document.querySelector(".df2-today-view");
+  const activeView = activeViewLabel();
+  if (activeView && activeView !== "Dnes") {
+    removeLaunchers();
+    closeBriefingModal(false);
+    return;
+  }
+  if (!(todayView instanceof HTMLElement)) {
+    removeLaunchers();
+    closeBriefingModal(false);
+    return;
+  }
+
+  ensureLauncher(todayView);
+
+  const host = document.querySelector<HTMLElement>("[data-today-briefing]");
+  if (!host) return;
   const state = readState();
   if (!state) return;
   renderBriefing(host, buildModel(state, new Date()));
@@ -230,7 +342,7 @@ export function TodayBriefingController() {
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     const timer = window.setInterval(sync, 30_000);
 
     return () => {
@@ -238,6 +350,8 @@ export function TodayBriefingController() {
       window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);
+      removeLaunchers();
+      closeBriefingModal(false);
     };
   }, []);
 
