@@ -7,6 +7,28 @@ function planningDateKeyInBrowser() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+async function mockWeather(page, overrides = {}) {
+  const payload = {
+    current: {
+      temperature_2m: 18.4,
+      apparent_temperature: 17.1,
+      weather_code: 2,
+      wind_speed_10m: 12.2,
+    },
+    daily: {
+      temperature_2m_max: [21.2],
+      temperature_2m_min: [10.8],
+      precipitation_probability_max: [20],
+      sunrise: ["2026-10-02T06:58"],
+      sunset: ["2026-10-02T18:40"],
+    },
+    ...overrides,
+  };
+  await page.route("https://api.open-meteo.com/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
+  });
+}
+
 async function openFreshToday(page) {
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -25,7 +47,8 @@ async function openBriefing(page) {
   return modal.locator("[data-today-briefing]");
 }
 
-test("Today briefing lives in a separate modal, summarizes the plan, and stays in sync", async ({ page }) => {
+test("Today Jarvis briefing combines the plan, live weather and useful context in a separate modal", async ({ page }) => {
+  await mockWeather(page);
   await openFreshToday(page);
 
   await page.evaluate((date) => {
@@ -57,10 +80,10 @@ test("Today briefing lives in a separate modal, summarizes the plan, and stays i
           title: "Matematika",
           date,
           duration: 60,
-          start: "11:00",
-          end: "12:00",
-          requestedStart: "11:00",
-          deadlineTime: "22:30",
+          start: "23:00",
+          end: "00:00",
+          requestedStart: "23:00",
+          deadlineTime: "23:59",
           priority: "normal",
           category: "Matika",
           mode: "flexible",
@@ -73,17 +96,31 @@ test("Today briefing lives in a separate modal, summarizes the plan, and stays i
       ],
     };
     state.backlog = [];
+    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
   }, await page.evaluate(planningDateKeyInBrowser));
 
   await page.reload({ waitUntil: "networkidle" });
 
   await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
+  await expect(page.locator("[data-today-briefing-launcher]")).toContainText("Jarvis briefing");
   const briefing = await openBriefing(page);
-  await expect(briefing).toContainText("Briefing");
+  await expect(briefing).toContainText("JARVIS · LIVE");
   await expect(briefing).toContainText("Cambridge essay");
   await expect(briefing).toContainText("2 h 30 min");
   await expect(briefing).toContainText("0/2");
+
+  const weather = briefing.locator(".df2-jarvis-weather");
+  await expect(weather).toContainText("Moje poloha");
+  await expect(weather).toContainText("18°");
+  await expect(weather).toContainText("Polojasno");
+  await expect(weather).toContainText("21° / 11°");
+  await expect(weather).toContainText("20 %");
+  await expect(weather).toContainText("06:58");
+  await expect(weather).toContainText("18:40");
+
+  await expect(briefing.locator(".df2-jarvis-sequence")).toContainText("Matematika");
+  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Systém je klidný");
 
   await page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -97,6 +134,7 @@ test("Today briefing lives in a separate modal, summarizes the plan, and stays i
 
   await expect(briefing).toContainText("1/2");
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Matematika");
+  await expect(briefing).toContainText("1 h");
 
   const closeButton = page.getByRole("button", { name: "Zavřít briefing" });
   await expect(closeButton).toBeFocused();
@@ -121,6 +159,7 @@ test("Today briefing lives in a separate modal, summarizes the plan, and stays i
 });
 
 test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
+  await mockWeather(page);
   await openFreshToday(page);
   const date = await page.evaluate(planningDateKeyInBrowser);
 
@@ -167,6 +206,7 @@ test("Today briefing treats a manually running Focus session as the source of tr
         },
       ],
     };
+    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
   }, date);
 
@@ -174,9 +214,35 @@ test("Today briefing treats a manually running Focus session as the source of tr
 
   const briefing = await openBriefing(page);
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Ruční Focus");
-  await expect(briefing.locator(".df2-briefing-signals")).toContainText("Právě teď");
-  await expect(briefing.locator(".df2-briefing-signals")).toContainText("Ruční Focus");
+  await expect(briefing.locator(".df2-jarvis-command")).toContainText("Právě teď");
+  await expect(briefing.locator(".df2-jarvis-command")).toContainText("Ruční Focus");
 
   await page.getByRole("button", { name: "Zavřít briefing" }).click();
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
+});
+
+test("Jarvis weather turns strong rain probability into a useful alert", async ({ page }) => {
+  await mockWeather(page, {
+    current: {
+      temperature_2m: 9,
+      apparent_temperature: 7,
+      weather_code: 61,
+      wind_speed_10m: 18,
+    },
+    daily: {
+      temperature_2m_max: [11],
+      temperature_2m_min: [6],
+      precipitation_probability_max: [85],
+      sunrise: ["2026-10-02T06:58"],
+      sunset: ["2026-10-02T18:40"],
+    },
+  });
+  await openFreshToday(page);
+  await page.evaluate(() => {
+    window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({ latitude: 50.4, longitude: 14.9 }));
+  });
+
+  const briefing = await openBriefing(page);
+  await expect(briefing.locator(".df2-jarvis-weather")).toContainText("Déšť");
+  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Deštník se může hodit");
 });
