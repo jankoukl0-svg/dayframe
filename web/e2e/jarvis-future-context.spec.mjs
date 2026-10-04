@@ -163,3 +163,27 @@ test("Jarvis does not invent preparation requirements for an administrative mile
   await expect(prep).toContainText("Bez nutné přípravy");
   await expect(prep).toHaveClass(/neutral/);
 });
+
+test("Jarvis flags missing preparation for an unknown near-term milestone", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-02T15:00:00Z"));
+  await mockWeather(page);
+  await openFresh(page);
+  const today = await page.evaluate(planningDateKeyInBrowser);
+  const milestoneDate = addDaysKey(today, 6);
+
+  await page.evaluate(({ today, milestoneDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.backlog = [];
+    state.milestones = [{ id: "graduation-exam", title: "Maturita", date: milestoneDate, note: "Vlastní termín" }];
+    state.plans = { [today]: [] };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, { today, milestoneDate });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const briefing = await openBriefing(page);
+  const prep = briefing.locator("[data-jarvis-milestone-prep]");
+  await expect(prep).toBeVisible();
+  await expect(prep).toContainText("Bez přípravy v plánu");
+  await expect(prep).toHaveClass(/warning/);
+});
