@@ -257,71 +257,6 @@ function showEditError(form: HTMLFormElement, message: string) {
   error.textContent = message;
 }
 
-function updateFromEditForm(state: DayframeState, original: CalendarTask, form: HTMLFormElement) {
-  if (!form.reportValidity()) return null;
-
-  const values = new FormData(form);
-  const date = String(values.get("date") || original.date);
-  const parsedDuration = Number(values.get("duration"));
-  const duration = Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : original.duration;
-  const start = String(values.get("start") || "");
-  const startMinute = start ? timeToMinutes(start) : Number.NaN;
-  if (start && !Number.isFinite(startMinute)) {
-    showEditError(form, "Neplatný čas začátku.");
-    return null;
-  }
-
-  const result = updateTask(state, original.id, {
-    title: String(values.get("title") || original.title).trim(),
-    date,
-    duration,
-    start: start || undefined,
-    end: start ? minutesToTime(startMinute + duration) : undefined,
-    mode: "flexible",
-    requestedStart: start || undefined,
-    dateLocked: true,
-    priority: String(values.get("priority") || original.priority) as Priority,
-    category: String(values.get("category") || original.category),
-    dueDate: String(values.get("dueDate") || "") || undefined,
-    deadlineTime: String(values.get("deadlineTime") || "22:30"),
-    autoScheduled: !start,
-  }, new Date());
-
-  if (result.error) {
-    showEditError(form, result.error);
-    return null;
-  }
-  return result;
-}
-
-function closeEditModal() {
-  editingTaskRef = null;
-  window.setTimeout(() => {
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
-  }, 0);
-}
-
-function saveCompletedEdit(event: SubmitEvent) {
-  const form = event.target instanceof HTMLFormElement ? event.target : null;
-  const heading = form?.querySelector("h2")?.textContent?.trim();
-  const reference = editingTaskRef;
-  if (!form?.matches("form.df2-modal") || heading !== "Upravit" || !reference) return;
-
-  const state = readState();
-  const original = state ? findTask(state, reference.id) : null;
-  if (!state || !original?.completed || !formStillMatchesTask(form, original, reference)) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  event.stopImmediatePropagation();
-
-  const result = updateFromEditForm(state, original, form);
-  if (!result) return;
-
-  writeState(result.state);
-  closeEditModal();
-}
-
 function saveThenSetCompletion(event: MouseEvent) {
   const button = event.target instanceof Element
     ? event.target.closest<HTMLButtonElement>(".df2-modal-actions button[type='button']")
@@ -342,8 +277,39 @@ function saveThenSetCompletion(event: MouseEvent) {
   event.stopPropagation();
   event.stopImmediatePropagation();
 
-  const result = updateFromEditForm(state, original, form);
-  if (!result) return;
+  if (!form.reportValidity()) return;
+
+  const values = new FormData(form);
+  const date = String(values.get("date") || original.date);
+  const parsedDuration = Number(values.get("duration"));
+  const duration = Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : original.duration;
+  const start = String(values.get("start") || "");
+  const startMinute = start ? timeToMinutes(start) : Number.NaN;
+  if (start && !Number.isFinite(startMinute)) {
+    showEditError(form, "Neplatný čas začátku.");
+    return;
+  }
+
+  const result = updateTask(state, original.id, {
+    title: String(values.get("title") || original.title).trim(),
+    date,
+    duration,
+    start: start || undefined,
+    end: start ? minutesToTime(startMinute + duration) : undefined,
+    mode: "flexible",
+    requestedStart: start || undefined,
+    dateLocked: true,
+    priority: String(values.get("priority") || original.priority) as Priority,
+    category: String(values.get("category") || original.category),
+    dueDate: String(values.get("dueDate") || "") || undefined,
+    deadlineTime: String(values.get("deadlineTime") || "22:30"),
+    autoScheduled: !start,
+  }, new Date());
+
+  if (result.error) {
+    showEditError(form, result.error);
+    return;
+  }
 
   const desiredCompleted = label === "Označit hotovo";
   const updated = findTask(result.state, original.id);
@@ -352,7 +318,10 @@ function saveThenSetCompletion(event: MouseEvent) {
     : result.state;
 
   writeState(finalState);
-  closeEditModal();
+  editingTaskRef = null;
+  window.setTimeout(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+  }, 0);
 }
 
 export function RetroactiveWeekController() {
@@ -386,7 +355,6 @@ export function RetroactiveWeekController() {
     document.addEventListener("click", onPastHeaderClick, true);
     document.addEventListener("click", rememberWeekTask, true);
     document.addEventListener("click", saveThenSetCompletion, true);
-    document.addEventListener("submit", saveCompletedEdit, true);
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
@@ -396,7 +364,6 @@ export function RetroactiveWeekController() {
       document.removeEventListener("click", onPastHeaderClick, true);
       document.removeEventListener("click", rememberWeekTask, true);
       document.removeEventListener("click", saveThenSetCompletion, true);
-      document.removeEventListener("submit", saveCompletedEdit, true);
       window.removeEventListener(STATE_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
       observer.disconnect();
