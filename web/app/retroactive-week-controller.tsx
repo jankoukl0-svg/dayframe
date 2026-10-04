@@ -98,6 +98,49 @@ function syncPastDays() {
   });
 }
 
+function scheduledButtonSignature(button: HTMLButtonElement) {
+  const title = button.querySelector("strong")?.textContent?.trim() ?? "";
+  const time = button.querySelector("span")?.textContent?.trim() ?? "";
+  const [start = "", end = ""] = time.split("–").map((value) => value.trim());
+  return { title, start, end };
+}
+
+function unscheduledButtonTitle(button: HTMLButtonElement) {
+  const marker = button.querySelector("small")?.textContent?.trim() ?? "";
+  const full = button.textContent?.trim() ?? "";
+  return marker && full.endsWith(marker) ? full.slice(0, -marker.length).trim() : full;
+}
+
+function claimScheduledTask(button: HTMLButtonElement, remaining: CalendarTask[]) {
+  const signature = scheduledButtonSignature(button);
+  const currentId = button.dataset[TASK_ID_ATTR];
+  let index = currentId ? remaining.findIndex((task) => task.id === currentId) : -1;
+
+  if (index >= 0) {
+    const current = remaining[index];
+    const domIsCurrent = current.title === signature.title
+      && (current.start ?? "") === signature.start
+      && (current.end ?? "") === signature.end;
+    if (!domIsCurrent) return null;
+  } else {
+    index = remaining.findIndex((task) => task.title === signature.title
+      && (task.start ?? "") === signature.start
+      && (task.end ?? "") === signature.end);
+  }
+
+  return index >= 0 ? remaining.splice(index, 1)[0] : null;
+}
+
+function claimUnscheduledTask(button: HTMLButtonElement, remaining: CalendarTask[]) {
+  const currentId = button.dataset[TASK_ID_ATTR];
+  let index = currentId ? remaining.findIndex((task) => task.id === currentId) : -1;
+  const title = unscheduledButtonTitle(button);
+
+  if (index >= 0 && remaining[index].title !== title) return null;
+  if (index < 0) index = remaining.findIndex((task) => task.title === title);
+  return index >= 0 ? remaining.splice(index, 1)[0] : null;
+}
+
 function syncTaskIds() {
   const state = readState();
   if (!state) return;
@@ -108,9 +151,11 @@ function syncTaskIds() {
     const tasks = getTasksForDate(state, date);
     const scheduled = tasks.filter((task) => task.start && task.end);
     const unscheduled = tasks.filter((task) => !task.start);
+    const remainingScheduled = [...scheduled];
+    const remainingUnscheduled = [...unscheduled];
 
-    day.querySelectorAll<HTMLButtonElement>(".df2-time-body .df2-week-task").forEach((button, index) => {
-      const task = scheduled[index];
+    day.querySelectorAll<HTMLButtonElement>(".df2-time-body .df2-week-task").forEach((button) => {
+      const task = claimScheduledTask(button, remainingScheduled);
       if (task) {
         button.dataset[TASK_ID_ATTR] = task.id;
         const start = timeToMinutes(task.start);
@@ -124,8 +169,8 @@ function syncTaskIds() {
       }
     });
 
-    day.querySelectorAll<HTMLButtonElement>(".df2-unscheduled > button").forEach((button, index) => {
-      const task = unscheduled[index];
+    day.querySelectorAll<HTMLButtonElement>(".df2-unscheduled > button").forEach((button) => {
+      const task = claimUnscheduledTask(button, remainingUnscheduled);
       if (task) button.dataset[TASK_ID_ATTR] = task.id;
       else delete button.dataset[TASK_ID_ATTR];
     });
