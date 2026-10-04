@@ -62,7 +62,7 @@ async function openBriefing(page) {
 }
 
 test("Jarvis shows what waits on the next planning day after midnight", async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-10-05T00:30:00Z"));
+  await page.clock.setFixedTime(new Date("2026-10-04T15:00:00Z"));
   await mockWeather(page);
   await openFresh(page);
   const planningToday = await page.evaluate(planningDateKeyInBrowser);
@@ -91,6 +91,9 @@ test("Jarvis shows what waits on the next planning day after midnight", async ({
   await page.reload({ waitUntil: "networkidle" });
 
   const briefing = await openBriefing(page);
+  await page.clock.setFixedTime(new Date("2026-10-05T00:30:00Z"));
+  await page.evaluate(() => window.dispatchEvent(new Event("dayframe-state-sync")));
+
   const tomorrowCard = briefing.locator("[data-jarvis-tomorrow]");
   await expect(tomorrowCard).toBeVisible();
   await expect(tomorrowCard).toContainText("Po probuzení");
