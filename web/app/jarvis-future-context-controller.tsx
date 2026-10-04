@@ -18,12 +18,17 @@ const CONTEXT_SIGNATURE = "jarvisFutureContextSignature";
 const GENERIC_MILESTONE_TERMS = new Set([
   "test", "zkouska", "zkousky", "termin", "deadline", "prijimacky", "prijimaci", "nanecisto",
   "zapis", "pohovor", "interview", "prezentace", "case", "study", "projekt", "soutez", "finale",
-  "exam", "meeting", "schuzka", "udalost", "event", "den", "deadline", "odevzdani",
+  "exam", "meeting", "schuzka", "udalost", "event", "den", "odevzdani",
 ]);
 
 const PREP_HINT_TERMS = new Set([
-  "test", "zkouska", "zkousky", "prijimacky", "prijimaci", "nanecisto", "pohovor", "interview",
+  "priprava", "test", "zkouska", "zkousky", "prijimacky", "prijimaci", "nanecisto", "pohovor", "interview",
   "prezentace", "case", "study", "projekt", "soutez", "finale", "exam", "odevzdani",
+]);
+
+const ADMIN_MILESTONE_TERMS = new Set([
+  "zapis", "registrace", "registration", "schuzka", "meeting", "udalost", "event", "narozeniny", "svatek",
+  "dovolena", "odjezd", "prijezd",
 ]);
 
 const PREP_ALIASES = [
@@ -99,6 +104,7 @@ function milestoneMatcher(title: string, note?: string) {
   const specificTerms = [...rawTerms].filter((term) => !GENERIC_MILESTONE_TERMS.has(term));
   const aliasGroups = PREP_ALIASES.filter((group) => group.milestone.some((term) => rawTerms.has(term)));
   const explicitPrep = [...rawTerms].some((term) => PREP_HINT_TERMS.has(term));
+  const administrative = [...rawTerms].some((term) => ADMIN_MILESTONE_TERMS.has(term));
 
   const matches = (task: CalendarTask) => {
     const taskTerms = new Set(terms(`${task.title} ${task.category ?? ""}`));
@@ -106,7 +112,7 @@ function milestoneMatcher(title: string, note?: string) {
     return aliasGroups.some((group) => group.task.some((term) => taskTerms.has(term)));
   };
 
-  return { matches, explicitPrep, hasAlias: aliasGroups.length > 0, hasSpecificTerms: specificTerms.length > 0 };
+  return { matches, explicitPrep, administrative };
 }
 
 function prepForMilestone(state: DayframeState, milestone: DayframeState["milestones"][number], now: Date): MilestonePrep {
@@ -118,7 +124,7 @@ function prepForMilestone(state: DayframeState, milestone: DayframeState["milest
     .flatMap(([date, tasks]) => tasks.map((task) => ({ date, task })))
     .filter(({ task }) => matcher.matches(task));
 
-  const shouldTrack = matcher.explicitPrep || matcher.hasAlias || (matcher.hasSpecificTerms && related.length > 0);
+  const shouldTrack = matcher.explicitPrep || !matcher.administrative;
   if (!shouldTrack) {
     return { tracked: false, tone: "neutral", label: "Bez nutné přípravy" };
   }
