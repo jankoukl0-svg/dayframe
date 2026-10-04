@@ -221,6 +221,8 @@ function saveThenSetCompletion(event: MouseEvent) {
   event.stopPropagation();
   event.stopImmediatePropagation();
 
+  if (!form.reportValidity()) return;
+
   const values = new FormData(form);
   const date = String(values.get("date") || original.date);
   const parsedDuration = Number(values.get("duration"));
