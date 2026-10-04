@@ -257,27 +257,8 @@ function showEditError(form: HTMLFormElement, message: string) {
   error.textContent = message;
 }
 
-function saveThenSetCompletion(event: MouseEvent) {
-  const button = event.target instanceof Element
-    ? event.target.closest<HTMLButtonElement>(".df2-modal-actions button[type='button']")
-    : null;
-  const label = button?.textContent?.trim() ?? "";
-  if (!button || (label !== "Označit hotovo" && label !== "Vrátit jako nesplněné")) return;
-
-  const form = button.closest<HTMLFormElement>("form.df2-modal");
-  const heading = form?.querySelector("h2")?.textContent?.trim();
-  const reference = editingTaskRef;
-  if (!form || heading !== "Upravit" || !reference || reference.date >= planningDateKey()) return;
-
-  const state = readState();
-  const original = state ? findTask(state, reference.id) : null;
-  if (!state || !original || !formStillMatchesTask(form, original, reference)) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  event.stopImmediatePropagation();
-
-  if (!form.reportValidity()) return;
+function updateFromEditForm(state: DayframeState, original: CalendarTask, form: HTMLFormElement) {
+  if (!form.reportValidity()) return null;
 
   const values = new FormData(form);
   const date = String(values.get("date") || original.date);
@@ -287,7 +268,7 @@ function saveThenSetCompletion(event: MouseEvent) {
   const startMinute = start ? timeToMinutes(start) : Number.NaN;
   if (start && !Number.isFinite(startMinute)) {
     showEditError(form, "Neplatný čas začátku.");
-    return;
+    return null;
   }
 
   const result = updateTask(state, original.id, {
@@ -308,8 +289,61 @@ function saveThenSetCompletion(event: MouseEvent) {
 
   if (result.error) {
     showEditError(form, result.error);
-    return;
+    return null;
   }
+  return result;
+}
+
+function closeEditModal() {
+  editingTaskRef = null;
+  window.setTimeout(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+  }, 0);
+}
+
+function saveCompletedEdit(event: SubmitEvent) {
+  const form = event.target instanceof HTMLFormElement ? event.target : null;
+  const heading = form?.querySelector("h2")?.textContent?.trim();
+  const reference = editingTaskRef;
+  if (!form?.matches("form.df2-modal") || heading !== "Upravit" || !reference) return;
+
+  const state = readState();
+  const original = state ? findTask(state, reference.id) : null;
+  if (!state || !original?.completed || !formStillMatchesTask(form, original, reference)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+
+  const result = updateFromEditForm(state, original, form);
+  if (!result) return;
+
+  writeState(result.state);
+  closeEditModal();
+}
+
+function saveThenSetCompletion(event: MouseEvent) {
+  const button = event.target instanceof Element
+    ? event.target.closest<HTMLButtonElement>(".df2-modal-actions button[type='button']")
+    : null;
+  const label = button?.textContent?.trim() ?? "";
+  if (!button || (label !== "Označit hotovo" && label !== "Vrátit jako nesplněné")) return;
+
+  const form = button.closest<HTMLFormElement>("form.df2-modal");
+  const heading = form?.querySelector("h2")?.textContent?.trim();
+  const reference = editingTaskRef;
+  if (!form || heading !== "Upravit" || !reference || reference.date >= planningDateKey()) return;
+
+  const state = readState();
+  const original = state ? findTask(state, reference.id) : null;
+  if (!state || !original || !formStillMatchesTask(form, original, reference)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+
+  const result = updateFromEditForm(state, original, form);
+  if (!result) return;
 
   const desiredCompleted = label === "Označit hotovo";
   const updated = findTask(result.state, original.id);
@@ -318,10 +352,7 @@ function saveThenSetCompletion(event: MouseEvent) {
     : result.state;
 
   writeState(finalState);
-  editingTaskRef = null;
-  window.setTimeout(() => {
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
-  }, 0);
+  closeEditModal();
 }
 
 export function RetroactiveWeekController() {
@@ -355,6 +386,7 @@ export function RetroactiveWeekController() {
     document.addEventListener("click", onPastHeaderClick, true);
     document.addEventListener("click", rememberWeekTask, true);
     document.addEventListener("click", saveThenSetCompletion, true);
+    document.addEventListener("submit", saveCompletedEdit, true);
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
@@ -364,6 +396,7 @@ export function RetroactiveWeekController() {
       document.removeEventListener("click", onPastHeaderClick, true);
       document.removeEventListener("click", rememberWeekTask, true);
       document.removeEventListener("click", saveThenSetCompletion, true);
+      document.removeEventListener("submit", saveCompletedEdit, true);
       window.removeEventListener(STATE_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
       observer.disconnect();
