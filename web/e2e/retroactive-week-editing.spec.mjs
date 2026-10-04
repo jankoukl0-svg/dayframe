@@ -134,3 +134,82 @@ test("retroactive edit is saved together with completion, resizes visually and s
   await expect(persisted).toContainText("19:00–21:00");
   await expect.poll(async () => persisted.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
 });
+
+test("an already completed Week block resizes when its duration is edited later", async ({ page }) => {
+  const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+
+  const seeded = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    if (now.getHours() < 2) now.setDate(now.getDate() - 1);
+    const past = new Date(now);
+    past.setDate(past.getDate() - 7);
+    const date = `${past.getFullYear()}-${String(past.getMonth() + 1).padStart(2, "0")}-${String(past.getDate()).padStart(2, "0")}`;
+    const createdAt = new Date().toISOString();
+    state.routines = [];
+    state.plans = state.plans || {};
+    state.plans[date] = [{
+      id: "retro-already-completed",
+      title: "Už hotový blok",
+      date,
+      duration: 60,
+      start: "17:00",
+      end: "18:00",
+      requestedStart: "17:00",
+      dueDate: date,
+      deadlineTime: "22:30",
+      priority: "normal",
+      category: "Studium",
+      mode: "flexible",
+      completed: true,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: false,
+      createdAt,
+    }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    return date;
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
+
+  const completed = page.locator(".df2-week-task.done").filter({ hasText: "Už hotový blok" });
+  await expect(completed).toBeVisible();
+  await expect.poll(async () => completed.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(43.2, 0);
+  await completed.click();
+
+  const edit = page.locator("form.df2-modal").filter({ hasText: "Upravit" });
+  await expect(edit).toBeVisible();
+  await expect(edit.getByRole("button", { name: "Vrátit jako nesplněné", exact: true })).toBeVisible();
+  await edit.locator("input[name='duration']").fill("120");
+  await edit.getByRole("button", { name: "Uložit změny", exact: true }).click();
+
+  await expect(edit).toHaveCount(0);
+  const resized = page.locator(".df2-week-task.done").filter({ hasText: "Už hotový blok" });
+  await expect(resized).toBeVisible();
+  await expect(resized).toContainText("17:00–19:00");
+  await expect.poll(async () => resized.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
+
+  const stored = await page.evaluate((date) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return (state.plans?.[date] || []).find((task) => task.id === "retro-already-completed") || null;
+  }, seeded);
+  expect(stored).toMatchObject({
+    duration: 120,
+    start: "17:00",
+    end: "19:00",
+    completed: true,
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
+
+  const persisted = page.locator(".df2-week-task.done").filter({ hasText: "Už hotový blok" });
+  await expect(persisted).toBeVisible();
+  await expect(persisted).toContainText("17:00–19:00");
+  await expect.poll(async () => persisted.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
+});
