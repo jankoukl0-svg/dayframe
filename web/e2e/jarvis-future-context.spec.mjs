@@ -61,29 +61,6 @@ async function openBriefing(page) {
   return briefing;
 }
 
-function task(id, title, date, duration, start, category = "Studium", completed = false) {
-  const endMinute = start ? Number(start.slice(0, 2)) * 60 + Number(start.slice(3)) + duration : null;
-  const end = endMinute == null ? undefined : `${String(Math.floor((endMinute % 1440) / 60)).padStart(2, "0")}:${String(endMinute % 60).padStart(2, "0")}`;
-  return {
-    id,
-    title,
-    date,
-    duration,
-    start,
-    end,
-    requestedStart: start,
-    deadlineTime: "22:30",
-    priority: "normal",
-    category,
-    mode: "flexible",
-    completed,
-    source: "user",
-    dateLocked: true,
-    autoScheduled: false,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 test("Jarvis shows what waits on the next planning day after midnight", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-05T00:30:00Z"));
   await mockWeather(page);
@@ -91,7 +68,7 @@ test("Jarvis shows what waits on the next planning day after midnight", async ({
   const planningToday = await page.evaluate(planningDateKeyInBrowser);
   const tomorrow = addDaysKey(planningToday, 1);
 
-  await page.evaluate(({ tomorrow }) => {
+  await page.evaluate(({ planningToday, tomorrow }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const makeTask = (id, title, duration, start, end, category) => ({
       id, title, date: tomorrow, duration, start, end, requestedStart: start,
@@ -103,13 +80,14 @@ test("Jarvis shows what waits on the next planning day after midnight", async ({
     state.backlog = [];
     state.milestones = [];
     state.plans = {
+      [planningToday]: [],
       [tomorrow]: [
         makeTask("tomorrow-english", "Cambridge C1", 60, "09:00", "10:00", "Angličtina"),
         makeTask("tomorrow-math", "Matematika", 90, "11:00", "12:30", "Matika"),
       ],
     };
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, { tomorrow });
+  }, { planningToday, tomorrow });
   await page.reload({ waitUntil: "networkidle" });
 
   const briefing = await openBriefing(page);
