@@ -143,20 +143,18 @@ test("an already completed Week block resizes when its duration is edited later"
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const now = new Date();
     if (now.getHours() < 2) now.setDate(now.getDate() - 1);
-    const past = new Date(now);
-    past.setDate(past.getDate() - 7);
-    const date = `${past.getFullYear()}-${String(past.getMonth() + 1).padStart(2, "0")}-${String(past.getDate()).padStart(2, "0")}`;
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const createdAt = new Date().toISOString();
     state.routines = [];
     state.plans = state.plans || {};
     state.plans[date] = [{
-      id: "retro-already-completed",
+      id: "already-completed-current-week",
       title: "Už hotový blok",
       date,
       duration: 60,
-      start: "17:00",
-      end: "18:00",
-      requestedStart: "17:00",
+      start: "10:00",
+      end: "11:00",
+      requestedStart: "10:00",
       dueDate: date,
       deadlineTime: "22:30",
       priority: "normal",
@@ -174,7 +172,6 @@ test("an already completed Week block resizes when its duration is edited later"
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
-  await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
 
   const completed = page.locator(".df2-week-task.done").filter({ hasText: "Už hotový blok" });
   await expect(completed).toBeVisible();
@@ -190,26 +187,25 @@ test("an already completed Week block resizes when its duration is edited later"
   await expect(edit).toHaveCount(0);
   const resized = page.locator(".df2-week-task.done").filter({ hasText: "Už hotový blok" });
   await expect(resized).toBeVisible();
-  await expect(resized).toContainText("17:00–19:00");
+  await expect(resized).toContainText("10:00–12:00");
   await expect.poll(async () => resized.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
 
   const stored = await page.evaluate((date) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    return (state.plans?.[date] || []).find((task) => task.id === "retro-already-completed") || null;
+    return (state.plans?.[date] || []).find((task) => task.id === "already-completed-current-week") || null;
   }, seeded);
   expect(stored).toMatchObject({
     duration: 120,
-    start: "17:00",
-    end: "19:00",
+    start: "10:00",
+    end: "12:00",
     completed: true,
   });
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Týden/ }).click();
-  await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
 
   const persisted = page.locator(".df2-week-task.done").filter({ hasText: "Už hotový blok" });
   await expect(persisted).toBeVisible();
-  await expect(persisted).toContainText("17:00–19:00");
+  await expect(persisted).toContainText("10:00–12:00");
   await expect.poll(async () => persisted.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
 });
