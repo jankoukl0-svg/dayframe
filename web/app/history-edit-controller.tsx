@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { calendarBounds, minutesToTime, timeToMinutes } from "../lib/dayframe-calendar";
 
 type HistoryTask = {
   id: string;
@@ -37,17 +38,6 @@ function writeState(state: StoredState) {
   window.dispatchEvent(new Event(STATE_SYNC_EVENT));
 }
 
-function timeToMinutes(value?: string) {
-  if (!value) return Number.NaN;
-  const [hours, minutes] = value.split(":").map(Number);
-  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : Number.NaN;
-}
-
-function minutesToTime(value: number) {
-  const safe = Math.max(0, Math.min(23 * 60 + 59, Math.round(value)));
-  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
-}
-
 function weekdayLabel(dateKey: string) {
   return new Intl.DateTimeFormat("cs-CZ", { weekday: "short" })
     .format(new Date(`${dateKey}T12:00:00`))
@@ -77,6 +67,13 @@ function actualDefault(task: HistoryTask) {
   return Number.isFinite(task.actualMinutes) && (task.actualMinutes ?? 0) > 0
     ? Math.round(task.actualMinutes ?? task.duration)
     : Math.max(1, Math.round(task.duration || 1));
+}
+
+function defaultEnd(task: HistoryTask) {
+  if (task.end) return task.end;
+  if (!task.start) return "";
+  const start = timeToMinutes(task.start);
+  return Number.isFinite(start) ? minutesToTime(start + Math.max(1, task.duration || 1)) : "";
 }
 
 export function HistoryEditController() {
@@ -123,15 +120,44 @@ export function HistoryEditController() {
     const title = String(form.get("title") || editing.title).trim();
     const date = String(form.get("date") || editing.date);
     const start = String(form.get("start") || "");
-    const end = String(form.get("end") || "");
+    const submittedEnd = String(form.get("end") || "");
     const actual = Number(form.get("actualMinutes"));
-    if (!title || !date || !start || !end || !Number.isFinite(actual) || actual < 1) {
+    if (!title || !date || !start || !submittedEnd || !Number.isFinite(actual) || actual < 1) {
       setError("Vyplň platný čas a skutečně odpracované minuty.");
       return;
     }
+
     const startMinute = timeToMinutes(start);
-    const endMinute = timeToMinutes(end);
-    if (!Number.isFinite(startMinute) || !Number.isFinite(endMinute) || endMinute <= startMinute) {
+    const submittedEndMinute = timeToMinutes(submittedEnd);
+    if (!Number.isFinite(startMinute) || !Number.isFinite(submittedEndMinute)) {
+      setError("Vyplň platný začátek a konec.");
+      return;
+    }
+
+    const roundedActual = Math.max(1, Math.round(actual));
+    const initialActual = actualDefault(editing);
+    const initialEnd = defaultEnd(editing);
+    const actualChanged = roundedActual !== initialActual;
+    const endChanged = submittedEnd !== initialEnd;
+
+    let correctedEnd = submittedEnd;
+    let correctedEndMinute = submittedEndMinute;
+    let correctedDuration = correctedEndMinute - startMinute;
+
+    // For a completed block, editing only “Skutečně odpracováno” is a duration
+    // correction. Keep the start fixed and move the end so the Week card and
+    // Overview use the same corrected duration instead of leaving stale geometry.
+    if (actualChanged && !endChanged) {
+      correctedDuration = roundedActual;
+      correctedEndMinute = startMinute + correctedDuration;
+      if (correctedEndMinute > calendarBounds.dayEnd) {
+        setError("Opravený blok by přesáhl konec Dayframe dne ve 02:00.");
+        return;
+      }
+      correctedEnd = minutesToTime(correctedEndMinute);
+    }
+
+    if (correctedEndMinute <= startMinute || correctedDuration < 1) {
       setError("Konec musí být později než začátek.");
       return;
     }
@@ -159,9 +185,9 @@ export function HistoryEditController() {
       title,
       date,
       start,
-      end,
-      duration: Math.max(1, endMinute - startMinute),
-      actualMinutes: Math.max(1, Math.round(actual)),
+      end: correctedEnd,
+      duration: correctedDuration,
+      actualMinutes: roundedActual,
       completed: true,
     };
     plans[date] = [...(plans[date] ?? []).filter((task) => task.id !== editing.id), corrected]
@@ -195,7 +221,7 @@ export function HistoryEditController() {
         </div>
         <div className="df2-form-grid">
           <label>Začátek<input name="start" type="time" defaultValue={editing.start ?? ""} /></label>
-          <label>Konec<input name="end" type="time" defaultValue={editing.end ?? (editing.start ? minutesToTime(timeToMinutes(editing.start) + editing.duration) : "")} /></label>
+          <label>Konec<input name="end" type="time" defaultValue={defaultEnd(editing)} /></label>
         </div>
         {error && <p className="df2-error">{error}</p>}
         <div className="df2-modal-actions">
