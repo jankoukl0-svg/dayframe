@@ -34,7 +34,7 @@ test("past week days stay editable and accept retroactive tasks", async ({ page 
   await expect(pastDay.locator(".df2-week-task").filter({ hasText: "Zpětně doplněná práce" })).toBeVisible();
 });
 
-test("retroactive edit is saved together with completion and survives reload", async ({ page }) => {
+test("retroactive edit is saved together with completion, resizes visually and survives reload", async ({ page }) => {
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
@@ -101,14 +101,15 @@ test("retroactive edit is saved together with completion and survives reload", a
     completed: false,
   });
 
-  await edit.locator("input[name='duration']").fill("30");
+  await edit.locator("input[name='duration']").fill("120");
   await edit.getByRole("button", { name: "Označit hotovo", exact: true }).click();
 
   await expect(edit).toHaveCount(0);
   const updated = page.locator(".df2-week-task").filter({ hasText: "Skutečně odpracovaný blok" });
   await expect(updated).toBeVisible();
   await expect(updated).toHaveClass(/done/);
-  await expect(updated).toContainText("19:00–19:30");
+  await expect(updated).toContainText("19:00–21:00");
+  await expect.poll(async () => updated.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
 
   const storedBeforeReload = await page.evaluate((date) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -117,8 +118,8 @@ test("retroactive edit is saved together with completion and survives reload", a
   expect(storedBeforeReload).toMatchObject({
     title: "Skutečně odpracovaný blok",
     start: "19:00",
-    end: "19:30",
-    duration: 30,
+    end: "21:00",
+    duration: 120,
     category: "Finance",
     completed: true,
   });
@@ -130,5 +131,6 @@ test("retroactive edit is saved together with completion and survives reload", a
   const persisted = page.locator(".df2-week-task").filter({ hasText: "Skutečně odpracovaný blok" });
   await expect(persisted).toBeVisible();
   await expect(persisted).toHaveClass(/done/);
-  await expect(persisted).toContainText("19:00–19:30");
+  await expect(persisted).toContainText("19:00–21:00");
+  await expect.poll(async () => persisted.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
 });
