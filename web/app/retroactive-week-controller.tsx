@@ -14,6 +14,8 @@ import {
 } from "../lib/dayframe-calendar";
 
 const DAY_END_HOUR = 2;
+const DAY_START_MINUTE = 8 * 60;
+const MINUTE_HEIGHT = 0.72;
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
 const TASK_ID_ATTR = "dayframeTaskId";
@@ -109,8 +111,17 @@ function syncTaskIds() {
 
     day.querySelectorAll<HTMLButtonElement>(".df2-time-body .df2-week-task").forEach((button, index) => {
       const task = scheduled[index];
-      if (task) button.dataset[TASK_ID_ATTR] = task.id;
-      else delete button.dataset[TASK_ID_ATTR];
+      if (task) {
+        button.dataset[TASK_ID_ATTR] = task.id;
+        const start = timeToMinutes(task.start);
+        const end = timeToMinutes(task.end);
+        if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+          button.style.top = `${(start - DAY_START_MINUTE) * MINUTE_HEIGHT}px`;
+          button.style.height = `${(end - start) * MINUTE_HEIGHT}px`;
+        }
+      } else {
+        delete button.dataset[TASK_ID_ATTR];
+      }
     });
 
     day.querySelectorAll<HTMLButtonElement>(".df2-unscheduled > button").forEach((button, index) => {
