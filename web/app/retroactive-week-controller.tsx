@@ -1,8 +1,32 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  getTasksForDate,
+  migrateStoredState,
+  minutesToTime,
+  timeToMinutes,
+  toggleTask,
+  updateTask,
+  type CalendarTask,
+  type DayframeState,
+  type Priority,
+} from "../lib/dayframe-calendar";
 
 const DAY_END_HOUR = 2;
+const STORAGE_KEY = "dayframe-v1";
+const STATE_SYNC_EVENT = "dayframe-state-sync";
+const TASK_ID_ATTR = "dayframeTaskId";
+
+type EditingTaskRef = {
+  id: string;
+  date: string;
+  title: string;
+  start: string;
+  duration: number;
+};
+
+let editingTaskRef: EditingTaskRef | null = null;
 
 function localDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -33,6 +57,28 @@ function dateForWeekDay(day: HTMLElement) {
   return localDateKey(date);
 }
 
+function readState() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return migrateStoredState(raw ? JSON.parse(raw) : null, new Date());
+  } catch {
+    return null;
+  }
+}
+
+function writeState(state: DayframeState) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  window.dispatchEvent(new Event(STATE_SYNC_EVENT));
+}
+
+function findTask(state: DayframeState, id: string) {
+  for (const tasks of Object.values(state.plans)) {
+    const task = tasks.find((item) => item.id === id);
+    if (task) return task;
+  }
+  return state.backlog.find((item) => item.id === id) ?? null;
+}
+
 function syncPastDays() {
   const weekStart = parseWeekStart();
   if (!weekStart) return;
@@ -47,6 +93,31 @@ function syncPastDays() {
 
     const addButton = day.querySelector<HTMLButtonElement>(".df2-week-day-head > button");
     if (isPast && addButton?.disabled) addButton.disabled = false;
+  });
+}
+
+function syncTaskIds() {
+  const state = readState();
+  if (!state) return;
+
+  document.querySelectorAll<HTMLElement>(".df2-week-day").forEach((day) => {
+    const date = dateForWeekDay(day);
+    if (!date) return;
+    const tasks = getTasksForDate(state, date);
+    const scheduled = tasks.filter((task) => task.start && task.end);
+    const unscheduled = tasks.filter((task) => !task.start);
+
+    day.querySelectorAll<HTMLButtonElement>(".df2-time-body .df2-week-task").forEach((button, index) => {
+      const task = scheduled[index];
+      if (task) button.dataset[TASK_ID_ATTR] = task.id;
+      else delete button.dataset[TASK_ID_ATTR];
+    });
+
+    day.querySelectorAll<HTMLButtonElement>(".df2-unscheduled > button").forEach((button, index) => {
+      const task = unscheduled[index];
+      if (task) button.dataset[TASK_ID_ATTR] = task.id;
+      else delete button.dataset[TASK_ID_ATTR];
+    });
   });
 }
 
@@ -79,6 +150,122 @@ function openPastAdd(date: string) {
   window.requestAnimationFrame(applyDate);
 }
 
+function rememberWeekTask(event: MouseEvent) {
+  const target = event.target instanceof Element
+    ? event.target.closest<HTMLButtonElement>(".df2-week-task, .df2-unscheduled > button")
+    : null;
+  if (!target) return;
+
+  syncTaskIds();
+  const id = target.dataset[TASK_ID_ATTR];
+  if (!id) return;
+  const state = readState();
+  const task = state ? findTask(state, id) : null;
+  if (!task) return;
+  editingTaskRef = {
+    id: task.id,
+    date: task.date,
+    title: task.title,
+    start: task.start ?? "",
+    duration: task.duration,
+  };
+}
+
+function formStillMatchesTask(form: HTMLFormElement, task: CalendarTask, reference: EditingTaskRef) {
+  const title = form.querySelector<HTMLInputElement>("input[name='title']");
+  const date = form.querySelector<HTMLInputElement>("input[name='date']");
+  const duration = form.querySelector<HTMLInputElement>("input[name='duration']");
+  const start = form.querySelector<HTMLInputElement>("input[name='start']");
+  return Boolean(
+    title && date && duration && start
+      && reference.id === task.id
+      && reference.date === task.date
+      && reference.title === task.title
+      && reference.start === (task.start ?? "")
+      && reference.duration === task.duration
+      && title.defaultValue === task.title
+      && date.defaultValue === task.date
+      && duration.defaultValue === String(task.duration)
+      && start.defaultValue === (task.start ?? ""),
+  );
+}
+
+function showEditError(form: HTMLFormElement, message: string) {
+  let error = form.querySelector<HTMLElement>(".df2-error[data-retroactive-edit-error]");
+  if (!error) {
+    error = document.createElement("p");
+    error.className = "df2-error";
+    error.dataset.retroactiveEditError = "true";
+    form.querySelector(".df2-modal-actions")?.insertAdjacentElement("beforebegin", error);
+  }
+  error.textContent = message;
+}
+
+function saveThenSetCompletion(event: MouseEvent) {
+  const button = event.target instanceof Element
+    ? event.target.closest<HTMLButtonElement>(".df2-modal-actions button[type='button']")
+    : null;
+  const label = button?.textContent?.trim() ?? "";
+  if (!button || (label !== "Označit hotovo" && label !== "Vrátit jako nesplněné")) return;
+
+  const form = button.closest<HTMLFormElement>("form.df2-modal");
+  const heading = form?.querySelector("h2")?.textContent?.trim();
+  const reference = editingTaskRef;
+  if (!form || heading !== "Upravit" || !reference || reference.date >= planningDateKey()) return;
+
+  const state = readState();
+  const original = state ? findTask(state, reference.id) : null;
+  if (!state || !original || !formStillMatchesTask(form, original, reference)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+
+  const values = new FormData(form);
+  const date = String(values.get("date") || original.date);
+  const parsedDuration = Number(values.get("duration"));
+  const duration = Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : original.duration;
+  const start = String(values.get("start") || "");
+  const startMinute = start ? timeToMinutes(start) : Number.NaN;
+  if (start && !Number.isFinite(startMinute)) {
+    showEditError(form, "Neplatný čas začátku.");
+    return;
+  }
+
+  const result = updateTask(state, original.id, {
+    title: String(values.get("title") || original.title).trim(),
+    date,
+    duration,
+    start: start || undefined,
+    end: start ? minutesToTime(startMinute + duration) : undefined,
+    mode: "flexible",
+    requestedStart: start || undefined,
+    dateLocked: true,
+    priority: String(values.get("priority") || original.priority) as Priority,
+    category: String(values.get("category") || original.category),
+    dueDate: String(values.get("dueDate") || "") || undefined,
+    deadlineTime: String(values.get("deadlineTime") || "22:30"),
+    autoScheduled: !start,
+  }, new Date());
+
+  if (result.error) {
+    showEditError(form, result.error);
+    return;
+  }
+
+  const desiredCompleted = label === "Označit hotovo";
+  const updated = findTask(result.state, original.id);
+  const finalState = updated && updated.completed !== desiredCompleted
+    ? toggleTask(result.state, original.id)
+    : result.state;
+
+  writeState(finalState);
+  editingTaskRef = null;
+  window.setTimeout(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+  }, 0);
+}
+
 export function RetroactiveWeekController() {
   useEffect(() => {
     let scheduled = false;
@@ -88,6 +275,7 @@ export function RetroactiveWeekController() {
       window.requestAnimationFrame(() => {
         scheduled = false;
         syncPastDays();
+        syncTaskIds();
         relaxPastDateInputs();
       });
     };
@@ -107,13 +295,22 @@ export function RetroactiveWeekController() {
 
     sync();
     document.addEventListener("click", onPastHeaderClick, true);
+    document.addEventListener("click", rememberWeekTask, true);
+    document.addEventListener("click", saveThenSetCompletion, true);
+    window.addEventListener(STATE_SYNC_EVENT, sync);
+    window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "min", "class"] });
     const timer = window.setInterval(sync, 750);
     return () => {
       document.removeEventListener("click", onPastHeaderClick, true);
+      document.removeEventListener("click", rememberWeekTask, true);
+      document.removeEventListener("click", saveThenSetCompletion, true);
+      window.removeEventListener(STATE_SYNC_EVENT, sync);
+      window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);
+      editingTaskRef = null;
     };
   }, []);
 
