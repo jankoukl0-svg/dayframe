@@ -83,8 +83,25 @@ test("retroactive edit is saved together with completion and survives reload", a
   await expect(edit).toBeVisible();
   await edit.locator("input[name='title']").fill("Skutečně odpracovaný blok");
   await edit.locator("input[name='start']").fill("19:00");
-  await edit.locator("input[name='duration']").fill("30");
+  await edit.locator("input[name='duration']").fill("16");
   await edit.locator("select[name='category']").selectOption({ label: "Finance" });
+  await edit.getByRole("button", { name: "Označit hotovo", exact: true }).click();
+
+  await expect(edit).toBeVisible();
+  const storedAfterInvalidAttempt = await page.evaluate((date) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return (state.plans?.[date] || []).find((task) => task.id === "retro-edit-completion") || null;
+  }, seeded);
+  expect(storedAfterInvalidAttempt).toMatchObject({
+    title: "Původní zpětný blok",
+    start: "18:00",
+    end: "19:00",
+    duration: 60,
+    category: "Studium",
+    completed: false,
+  });
+
+  await edit.locator("input[name='duration']").fill("30");
   await edit.getByRole("button", { name: "Označit hotovo", exact: true }).click();
 
   await expect(edit).toHaveCount(0);
