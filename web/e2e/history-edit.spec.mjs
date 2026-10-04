@@ -6,7 +6,7 @@ function dateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-test("completed history can correct an incorrect actual duration", async ({ page }) => {
+test("completed history duration correction resizes the Week block", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
@@ -39,7 +39,7 @@ test("completed history can correct an incorrect actual duration", async ({ page
       plannedStart: "22:40",
       plannedEnd: "23:00",
       plannedDuration: 20,
-      actualMinutes: 1,
+      actualMinutes: 20,
       actualStartedAt: historyDate.toISOString(),
       actualEndedAt: historyDate.toISOString(),
     }];
@@ -53,20 +53,41 @@ test("completed history can correct an incorrect actual duration", async ({ page
 
   const block = page.locator(".df2-week-task.done").filter({ hasText: "Čtení knihy historie" });
   await expect(block).toBeVisible();
+  await expect(block).toContainText("22:40–23:00");
+  await expect.poll(async () => block.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(14.4, 0);
   await block.click();
 
   const modal = page.locator(".df2-history-edit-modal");
   await expect(modal).toBeVisible();
-  await expect(modal.locator('input[name="actualMinutes"]')).toHaveValue("1");
-  await modal.locator('input[name="actualMinutes"]').fill("20");
+  await expect(modal.locator('input[name="actualMinutes"]')).toHaveValue("20");
+  await expect(modal.locator('input[name="end"]')).toHaveValue("23:00");
+  await modal.locator('input[name="actualMinutes"]').fill("40");
   await modal.getByRole("button", { name: "Uložit opravu" }).click();
   await expect(modal).toBeHidden();
 
   await expect.poll(() => page.evaluate(({ date }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const task = state.plans[date]?.find((item) => item.id === "history-reading-test");
-    return task ? { actualMinutes: task.actualMinutes, duration: task.duration, completed: task.completed } : null;
-  }, seeded)).toEqual({ actualMinutes: 20, duration: 20, completed: true });
+    return task ? {
+      actualMinutes: task.actualMinutes,
+      duration: task.duration,
+      start: task.start,
+      end: task.end,
+      completed: task.completed,
+    } : null;
+  }, seeded)).toEqual({ actualMinutes: 40, duration: 40, start: "22:40", end: "23:20", completed: true });
 
-  await expect(block).toBeVisible();
+  const resized = page.locator(".df2-week-task.done").filter({ hasText: "Čtení knihy historie" });
+  await expect(resized).toBeVisible();
+  await expect(resized).toContainText("22:40–23:20");
+  await expect.poll(async () => resized.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(28.8, 0);
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Týden" }).click();
+  await page.locator(".df2-week-controls button").first().click();
+
+  const persisted = page.locator(".df2-week-task.done").filter({ hasText: "Čtení knihy historie" });
+  await expect(persisted).toBeVisible();
+  await expect(persisted).toContainText("22:40–23:20");
+  await expect.poll(async () => persisted.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(28.8, 0);
 });
