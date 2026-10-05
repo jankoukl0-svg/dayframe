@@ -36,6 +36,7 @@ import "./visual-harmony-state-fixes.css";
 import "./week-category-tints.css";
 import "./retroactive-week-controller.css";
 import "./personal-block-controller.css";
+import "./completion-experience-controller.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { MilestoneHistoryController } from "./milestone-history-controller";
 import { MilestoneMonthGroupsController } from "./milestone-month-groups-controller";
@@ -74,6 +75,7 @@ import { PersonalBlockController } from "./personal-block-controller";
 import { TodayBriefingController } from "./today-briefing-controller";
 import { JarvisFutureContextController } from "./jarvis-future-context-controller";
 import { JarvisAdvisorController } from "./jarvis-advisor-controller";
+import { CompletionExperienceController } from "./completion-experience-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -82,5 +84,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><MilestoneHistoryController /><MilestoneMonthGroupsController /><BirthdayCalendarController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><ReadingSessionLogController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><TodayBriefingController /><JarvisFutureContextController /><JarvisAdvisorController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><MilestoneHistoryController /><MilestoneMonthGroupsController /><BirthdayCalendarController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><ReadingSessionLogController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><TodayBriefingController /><JarvisFutureContextController /><JarvisAdvisorController /><LateReadingController /><NotificationController /><CompletionExperienceController /></body></html>;
 }
