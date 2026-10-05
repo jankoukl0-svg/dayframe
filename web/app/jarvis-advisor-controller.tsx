@@ -5,6 +5,7 @@ import {
   addDaysKey,
   getTasksForDate,
   planningDateKey,
+  timeToMinutes,
   type CalendarTask,
   type DayframeState,
 } from "@/lib/dayframe-calendar";
@@ -138,33 +139,38 @@ function lightestUpcomingDay(state: DayframeState, now: Date, milestoneDate: str
 
 function milestoneAdvice(state: DayframeState, now: Date): Advice | null {
   const today = planningDateKey(now);
-  const milestone = [...state.milestones]
+  const milestones = [...state.milestones]
     .filter((item) => item.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
-  if (!milestone || !milestoneNeedsPreparation(milestone.title, milestone.note)) return null;
+    .sort((a, b) => a.date.localeCompare(b.date));
 
-  const days = daysUntilDate(milestone.date, now);
-  if (days < 0 || days > 21) return null;
+  for (const milestone of milestones) {
+    const days = daysUntilDate(milestone.date, now);
+    if (days < 0) continue;
+    if (days > 21) break;
+    if (!milestoneNeedsPreparation(milestone.title, milestone.note)) continue;
 
-  const relatedPlanned = Object.entries(state.plans)
-    .filter(([date]) => date >= today && date <= milestone.date)
-    .flatMap(([, tasks]) => tasks)
-    .filter((task) => !task.completed && taskMatchesMilestone(task, milestone.title, milestone.note));
-  if (relatedPlanned.length) return null;
+    const relatedPlanned = Object.entries(state.plans)
+      .filter(([date]) => date >= today && date <= milestone.date)
+      .flatMap(([, tasks]) => tasks)
+      .filter((task) => !task.completed && taskMatchesMilestone(task, milestone.title, milestone.note));
+    if (relatedPlanned.length) continue;
 
-  const lightest = lightestUpcomingDay(state, now, milestone.date);
-  const timing = days === 0 ? "je dnes" : days === 1 ? "je zítra" : `je za ${days} dní`;
-  const slot = lightest
-    ? ` Nejvolnější z příštích dnů je ${weekdayLabel(lightest.key)} (${formatDuration(lightest.minutes)} v plánu).`
-    : "";
+    const lightest = lightestUpcomingDay(state, now, milestone.date);
+    const timing = days === 0 ? "je dnes" : days === 1 ? "je zítra" : `je za ${days} dní`;
+    const slot = lightest
+      ? ` Nejvolnější z příštích dnů je ${weekdayLabel(lightest.key)} (${formatDuration(lightest.minutes)} v plánu).`
+      : "";
 
-  return {
-    id: `milestone-${milestone.id}`,
-    label: "Milník",
-    title: `Příprava na ${milestone.title}`,
-    body: `${milestone.title} ${timing} a v plánu nemáš žádný související blok.${slot}`,
-    tone: days <= 7 ? "warning" : "normal",
-  };
+    return {
+      id: `milestone-${milestone.id}`,
+      label: "Milník",
+      title: `Příprava na ${milestone.title}`,
+      body: `${milestone.title} ${timing} a v plánu nemáš žádný související blok.${slot}`,
+      tone: days <= 7 ? "warning" : "normal",
+    };
+  }
+
+  return null;
 }
 
 function isLeapYear(year: number) {
@@ -213,25 +219,29 @@ function tomorrowAdvice(state: DayframeState, now: Date): Advice | null {
   const tomorrowMinutes = plannedMinutes(tomorrowTasks);
   const scheduled = tomorrowTasks
     .filter((task) => task.start)
-    .sort((left, right) => String(left.start).localeCompare(String(right.start)));
+    .sort((left, right) => timeToMinutes(left.start) - timeToMinutes(right.start));
   const first = scheduled[0] ?? null;
+  const firstMinute = first?.start ? timeToMinutes(first.start) : Number.POSITIVE_INFINITY;
+  const postMidnight = now.getHours() < 2;
+  const nextLabel = postMidnight ? "Po probuzení" : "Zítra";
+  const currentLabel = postMidnight ? "Dosavadní plánovací den" : "Dnes";
 
   if (tomorrowMinutes >= 300 && tomorrowMinutes - todayMinutes >= 120) {
     return {
       id: "tomorrow-load",
-      label: "Zítřek",
-      title: "Zítřek je výrazně plnější",
-      body: `Zítra máš ${formatDuration(tomorrowMinutes)} v ${tomorrowTasks.length} ${tomorrowTasks.length === 1 ? "bloku" : "blocích"}. Dnes je plán lehčí o ${formatDuration(tomorrowMinutes - todayMinutes)}; pokud chceš něco přesouvat, dnešek je přirozenější místo.`,
+      label: postMidnight ? "Po probuzení" : "Zítřek",
+      title: `${nextLabel} je plán výrazně plnější`,
+      body: `${nextLabel} máš ${formatDuration(tomorrowMinutes)} v ${tomorrowTasks.length} ${tomorrowTasks.length === 1 ? "bloku" : "blocích"}. ${currentLabel} je lehčí o ${formatDuration(tomorrowMinutes - todayMinutes)}; pokud chceš něco přesouvat, je to přirozenější místo.`,
       tone: "normal",
     };
   }
 
-  if (first?.start && Number(first.start.slice(0, 2)) < 9 && now.getHours() >= 16) {
+  if (first?.start && firstMinute >= 8 * 60 && firstMinute < 9 * 60 && (now.getHours() >= 16 || postMidnight)) {
     return {
       id: "tomorrow-early",
-      label: "Zítřek",
-      title: "Zítra začínáš brzy",
-      body: `První blok je v ${first.start} · ${first.title}. Počítej s tím už při dnešním večeru.`,
+      label: postMidnight ? "Po probuzení" : "Zítřek",
+      title: `${nextLabel} začínáš brzy`,
+      body: `První blok je v ${first.start} · ${first.title}. Počítej s tím už při plánování večera.`,
       tone: "normal",
     };
   }
