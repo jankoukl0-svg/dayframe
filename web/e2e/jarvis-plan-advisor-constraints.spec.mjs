@@ -27,7 +27,9 @@ async function openFreshToday(page) {
 }
 
 async function openBriefing(page) {
-  await page.locator("[data-today-briefing-launcher]").click();
+  const launcher = page.locator("[data-today-briefing-launcher]");
+  await expect(launcher).toBeVisible();
+  await launcher.click();
   const host = page.locator("[data-today-briefing]");
   await expect(host).toBeVisible();
   return host;
@@ -48,8 +50,8 @@ test("Jarvis respects move deadlines, refreshes constraints and tries another mo
   await page.evaluate(({ dates }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const createdAt = new Date().toISOString();
-    const task = (id, title, date, duration, extra = {}) => ({
-      id, title, date, duration, start: "10:00", end: "11:00", requestedStart: "10:00",
+    const task = (id, title, date, duration, start, end, extra = {}) => ({
+      id, title, date, duration, start, end, requestedStart: start,
       deadlineTime: "22:30", priority: "normal", category: "Finance", mode: "flexible",
       completed: false, source: "user", dateLocked: true, autoScheduled: false, createdAt, ...extra,
     });
@@ -57,11 +59,11 @@ test("Jarvis respects move deadlines, refreshes constraints and tries another mo
     state.backlog = [];
     state.milestones = [];
     state.plans = {
-      [dates.one]: [task("filled-before", "Filled before deadline", dates.one, 240)],
+      [dates.one]: [task("filled-before", "Filled before deadline", dates.one, 240, "10:00", "14:00")],
       [dates.crowded]: [
-        task("move-me", "Valuation model", dates.crowded, 150, { dueDate: dates.crowded }),
-        task("other-a", "CFI Excel", dates.crowded, 100),
-        task("other-b", "Ekonomie", dates.crowded, 80),
+        task("move-me", "Valuation model", dates.crowded, 150, "09:00", "11:30", { dueDate: dates.crowded }),
+        task("other-a", "CFI Excel", dates.crowded, 100, "12:00", "13:40"),
+        task("other-b", "Ekonomie", dates.crowded, 80, "14:00", "15:20"),
       ],
       [dates.light]: [],
     };
