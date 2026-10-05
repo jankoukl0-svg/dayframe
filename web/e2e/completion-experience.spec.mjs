@@ -1,0 +1,113 @@
+import { test, expect } from "@playwright/test";
+
+const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
+
+async function openFresh(page) {
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload({ waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+}
+
+test("completing a high-priority task feels rewarding without adding progress or streak mechanics", async ({ page }) => {
+  await openFresh(page);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [date]: [{
+        id: "completion-priority",
+        title: "Cambridge mock test",
+        date,
+        duration: 100,
+        start: "14:15",
+        end: "15:55",
+        requestedStart: "14:15",
+        deadlineTime: "22:30",
+        priority: "high",
+        category: "Angličtina",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: now.toISOString(),
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  const task = page.locator(".df2-week-task").filter({ hasText: "Cambridge mock test" });
+  await expect(task).toBeVisible();
+  await task.click();
+
+  const modal = page.locator(".df2-modal").filter({ has: page.getByRole("heading", { name: "Upravit" }) });
+  const complete = modal.getByRole("button", { name: "Označit hotovo" });
+  await expect(complete).toHaveClass(/df2-completion-action/);
+  await complete.click();
+
+  const feedback = page.locator('[data-completion-experience="true"]');
+  await expect(feedback).toBeVisible();
+  await expect(feedback).toContainText("Jarvis");
+  await expect(feedback).toContainText("Hlavní priorita splněna");
+  await expect(feedback).toContainText("Cambridge mock test");
+
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return Object.values(state.plans || {}).flat().find((item) => item.id === "completion-priority")?.completed;
+  })).toBe(true);
+
+  await expect(task).toHaveClass(/done/);
+  await expect(page.locator("body")).not.toContainText(/streak/i);
+});
+
+test("normal task completion gets a compact Hotovo acknowledgement", async ({ page }) => {
+  await openFresh(page);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [date]: [{
+        id: "completion-normal",
+        title: "Projít poznámky",
+        date,
+        duration: 45,
+        start: "16:00",
+        end: "16:45",
+        requestedStart: "16:00",
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Studium",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: now.toISOString(),
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  await page.locator(".df2-week-task").filter({ hasText: "Projít poznámky" }).click();
+  const modal = page.locator(".df2-modal").filter({ has: page.getByRole("heading", { name: "Upravit" }) });
+  await modal.getByRole("button", { name: "Označit hotovo" }).click();
+
+  const feedback = page.locator('[data-completion-experience="true"]');
+  await expect(feedback).toBeVisible();
+  await expect(feedback).toContainText("Hotovo");
+  await expect(feedback).toContainText("Projít poznámky");
+  await expect(feedback).not.toContainText("Hlavní priorita splněna");
+});
