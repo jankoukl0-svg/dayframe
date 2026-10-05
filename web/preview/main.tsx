@@ -10,6 +10,7 @@ import { ReadingMetadataController } from "../app/reading-metadata-controller";
 import { ReadingCoverRecoveryController } from "../app/reading-cover-recovery-controller";
 import { ReadingLibraryController } from "../app/reading-library-controller";
 import { ReadingLibraryAutoLookupController } from "../app/reading-library-auto-lookup-controller";
+import { ReadingSessionLogController } from "../app/reading-session-log-controller";
 import { HistoryPeriodRolloverController } from "../app/history-period-rollover-controller";
 import { ExecutionTracker } from "../app/execution-tracker";
 import { ActiveCompletionSafetyController } from "../app/active-completion-safety-controller";
@@ -48,6 +49,7 @@ import "../app/reading-metadata-controller.css";
 import "../app/reading-cover-sizing.css";
 import "../app/reading-library-controller.css";
 import "../app/reading-library-auto-lookup-controller.css";
+import "../app/reading-session-log-controller.css";
 import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/today-briefing-controller.css";
@@ -85,6 +87,7 @@ createRoot(root).render(
     <ReadingCoverRecoveryController />
     <ReadingLibraryController />
     <ReadingLibraryAutoLookupController />
+    <ReadingSessionLogController />
     <HistoryPeriodRolloverController />
     <ExecutionTracker />
     <ActiveCompletionSafetyController />

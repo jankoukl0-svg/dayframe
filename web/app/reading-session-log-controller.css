@@ -1,0 +1,326 @@
+.df2-reading-session-history-host {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #ebe8e1;
+}
+
+.df2-reading-page-history > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.df2-reading-page-history > header > div {
+  min-width: 0;
+}
+
+.df2-reading-page-history > header span,
+.df2-reading-page-history > header small {
+  display: block;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+.df2-reading-page-history > header span {
+  color: #76756e;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.df2-reading-page-history > header small {
+  margin-top: 4px;
+  color: #9a9891;
+  font-size: 10px;
+  font-weight: 520;
+}
+
+.df2-reading-page-history > header strong {
+  flex: 0 0 auto;
+  color: #292a27;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 660;
+  letter-spacing: -.035em;
+}
+
+.df2-reading-page-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid #ebe8e1;
+  border-radius: 14px;
+  background: #faf8f3;
+}
+
+.df2-reading-page-day,
+.df2-reading-page-days article {
+  min-width: 0;
+  min-height: 116px;
+  padding: 13px 12px 12px;
+  border-left: 1px solid #ebe8e1;
+}
+
+.df2-reading-page-days article:first-child {
+  border-left: 0;
+}
+
+.df2-reading-page-days time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.df2-reading-page-days time span,
+.df2-reading-page-days time small,
+.df2-reading-page-days article > span,
+.df2-reading-page-days article > small {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+.df2-reading-page-days time span {
+  color: #74736c;
+  font-size: 10px;
+  font-weight: 680;
+  text-transform: capitalize;
+}
+
+.df2-reading-page-days time small {
+  color: #a09e97;
+  font-size: 9px;
+  font-weight: 520;
+}
+
+.df2-reading-page-days article > strong {
+  display: block;
+  margin-top: 12px;
+  color: #77766f;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 23px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+.df2-reading-page-days article.has-pages > strong {
+  color: #252622;
+}
+
+.df2-reading-page-days article > span {
+  display: block;
+  margin-top: 3px;
+  color: #9a9891;
+  font-size: 9px;
+  font-weight: 540;
+}
+
+.df2-reading-page-days article > small {
+  display: block;
+  margin-top: 10px;
+  overflow: hidden;
+  color: #8b8982;
+  font-size: 9px;
+  font-weight: 540;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-reading-page-days article.has-pages > small {
+  color: #6e6d67;
+}
+
+.df2-reading-session-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 14000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(40, 38, 34, .24);
+  backdrop-filter: blur(6px);
+}
+
+.df2-reading-session-modal {
+  width: min(100%, 440px);
+  max-height: min(720px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid rgba(205, 201, 191, .82);
+  border-radius: 22px;
+  background: #fffefa;
+  box-shadow: 0 24px 70px rgba(48, 43, 37, .2);
+}
+
+.df2-reading-session-modal > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.df2-reading-session-modal > header > div {
+  min-width: 0;
+}
+
+.df2-reading-session-modal > header span,
+.df2-reading-session-modal > header h2,
+.df2-reading-session-modal > header p {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+.df2-reading-session-modal > header span {
+  color: #96938b;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.df2-reading-session-modal > header h2 {
+  margin: 4px 0 0;
+  color: #20211e;
+  font-size: 25px;
+  font-weight: 660;
+  letter-spacing: -.04em;
+}
+
+.df2-reading-session-modal > header p {
+  margin: 7px 0 0;
+  overflow: hidden;
+  color: #87857e;
+  font-size: 11px;
+  font-weight: 540;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-reading-session-modal > header > button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f0eee8;
+  color: #76746e;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.df2-reading-session-modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.df2-reading-session-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.df2-reading-session-modal label > span {
+  color: #74736d;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.df2-reading-session-modal input,
+.df2-reading-session-modal select {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #dcd8cf;
+  border-radius: 11px;
+  outline: 0;
+  background: #fff;
+  color: #292a27;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 520;
+}
+
+.df2-reading-session-modal input:focus,
+.df2-reading-session-modal select:focus {
+  border-color: #b9a99c;
+  box-shadow: 0 0 0 3px rgba(184, 94, 57, .08);
+}
+
+.df2-reading-session-progress-note {
+  margin-top: -2px;
+  color: #96938b;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 520;
+  line-height: 1.45;
+}
+
+.df2-reading-session-error {
+  margin: 0;
+  color: #a6422f;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 580;
+}
+
+.df2-reading-session-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.df2-reading-session-actions button {
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 10px;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.df2-reading-session-actions .quiet {
+  border: 1px solid #ddd8cf;
+  background: #f5f3ee;
+  color: #77756f;
+}
+
+.df2-reading-session-actions .primary {
+  border: 1px solid #a94f2c;
+  background: #b85e39;
+  color: #fff;
+}
+
+@media (max-width: 800px) {
+  .df2-reading-page-days {
+    grid-template-columns: repeat(7, minmax(112px, 1fr));
+    overflow-x: auto;
+  }
+
+  .df2-reading-page-days article {
+    min-height: 108px;
+  }
+}
+
+@media (max-width: 560px) {
+  .df2-reading-session-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .df2-reading-session-modal {
+    width: 100%;
+    max-height: 88vh;
+    padding: 22px 18px 24px;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .df2-reading-session-actions {
+    flex-direction: column-reverse;
+  }
+
+  .df2-reading-session-actions button {
+    width: 100%;
+  }
+}
