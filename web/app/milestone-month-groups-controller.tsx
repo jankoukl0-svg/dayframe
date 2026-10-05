@@ -121,7 +121,7 @@ function syncDecorations(milestones: Milestone[], types: TypeMap) {
     if (!main) return;
     let badge = main.querySelector<HTMLElement>(":scope > .df2-milestone-kind-badge");
     if (!badge) {
-      badge = document.createElement("span");
+      badge = document.createElement("i");
       badge.className = "df2-milestone-kind-badge";
       main.insertBefore(badge, main.firstChild);
     }
