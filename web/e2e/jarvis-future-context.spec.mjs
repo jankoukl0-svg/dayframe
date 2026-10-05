@@ -89,6 +89,8 @@ test("Jarvis shows what awaits tomorrow", async ({ page }) => {
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
   }, { today, tomorrow });
   await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  await page.getByRole("button", { name: /^Dnes/ }).click();
 
   const briefing = await openBriefing(page);
   const tomorrowCard = briefing.locator("[data-jarvis-tomorrow]");
