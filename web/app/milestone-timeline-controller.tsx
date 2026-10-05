@@ -179,7 +179,9 @@ function ensureTimelineHost() {
     view.insertBefore(host, nativeList ?? null);
   }
   const filterHost = view.querySelector<HTMLElement>("[data-milestone-filter-host]");
-  if (filterHost && filterHost.nextElementSibling !== host) filterHost.after(host);
+  if (filterHost && filterHost.nextElementSibling !== host && filterHost.parentNode) {
+    filterHost.parentNode.insertBefore(host, filterHost.nextSibling);
+  }
   return host;
 }
 
