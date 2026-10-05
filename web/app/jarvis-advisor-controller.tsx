@@ -397,7 +397,7 @@ function syncAdvisor() {
     date: planningDateKey(now),
     hour: now.getHours(),
     milestones: state.milestones,
-    plans: Object.entries(state.plans).map(([date, tasks]) => [date, tasks.map((task) => [task.id, task.title, task.category, task.duration, task.start, task.completed])]),
+    plans: Object.entries(state.plans).map(([date, tasks]) => [date, tasks.map((task) => [task.id, task.title, task.category, task.duration, task.start, task.completed, task.mode, task.dueDate])]),
     birthdays,
     advice,
   });
