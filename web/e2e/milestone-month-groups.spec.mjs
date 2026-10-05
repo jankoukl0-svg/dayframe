@@ -37,9 +37,6 @@ test("milestones group by month, show day spacing, and distinguish deadline from
       "next-month-deadline": "deadline",
     }));
     return {
-      first,
-      second,
-      third,
       nextMonthYear: nextMonth.getFullYear(),
       nextMonthIndex: nextMonth.getMonth(),
     };
@@ -49,41 +46,41 @@ test("milestones group by month, show day spacing, and distinguish deadline from
   await page.locator(".df2-sidebar nav button", { hasText: "Milníky" }).click();
   await expect(page.getByRole("heading", { name: "Milníky" })).toBeVisible();
 
-  const groups = page.locator(".df2-milestone-month-group");
-  await expect(groups).toHaveCount(2);
-  await expect(page.locator('.df2-milestone-month-card[data-milestone-id="past-hidden"]')).toHaveCount(0);
+  const list = page.locator(".df2-milestones");
+  await expect(list.locator(":scope > .df2-milestone-month-divider")).toHaveCount(2);
+  await expect(list.locator('article[data-milestone-id="past-hidden"]')).toBeHidden();
 
-  const firstGroup = groups.nth(0);
-  await expect(firstGroup.locator(".df2-milestone-month-card")).toHaveCount(2);
-  await expect(firstGroup.locator('.df2-milestone-month-card[data-milestone-id="month-deadline"] .df2-milestone-kind')).toHaveText("Deadline");
-  await expect(firstGroup.locator('.df2-milestone-month-card[data-milestone-id="month-option"] .df2-milestone-kind')).toHaveText("Možnost");
+  const deadline = list.locator('article[data-milestone-id="month-deadline"]');
+  const option = list.locator('article[data-milestone-id="month-option"]');
+  await expect(deadline).toBeVisible();
+  await expect(option).toBeVisible();
+  await expect(deadline.locator(".df2-milestone-kind-badge")).toHaveText("Deadline");
+  await expect(option.locator(".df2-milestone-kind-badge")).toHaveText("Možnost");
 
-  const gap = firstGroup.locator(".df2-milestone-day-gap");
+  const gap = list.locator(':scope > .df2-milestone-day-gap[aria-label="7 dní mezi termíny"]');
   await expect(gap).toHaveCount(1);
   await expect(gap).toHaveAttribute("style", /--df2-gap-days: 7/);
-  await expect(gap).toHaveAttribute("aria-label", "7 dní mezi termíny");
 
-  const optionCard = firstGroup.locator('.df2-milestone-month-card[data-milestone-id="month-option"]');
-  await optionCard.click();
+  await option.click();
   const editModal = page.locator(".df2-modal", { has: page.getByRole("heading", { name: "Upravit milník" }) });
   await expect(editModal).toBeVisible();
   const kindSelect = editModal.locator(".df2-milestone-kind-editor select");
   await expect(kindSelect).toHaveValue("option");
   await kindSelect.selectOption("deadline");
   await editModal.getByRole("button", { name: "×" }).click();
-  await expect(firstGroup.locator('.df2-milestone-month-card[data-milestone-id="month-option"] .df2-milestone-kind')).toHaveText("Deadline");
+  await expect(option.locator(".df2-milestone-kind-badge")).toHaveText("Deadline");
   await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-milestone-types-v1") || "{}")["month-option"])).toBe("deadline");
 
   const newDate = atMonth(seed.nextMonthYear, seed.nextMonthIndex, 20);
-  const addForm = page.locator(".df2-milestone-month-add");
-  await addForm.getByLabel("Nový milník").fill("Dodatečná možnost");
-  await addForm.getByLabel("Datum milníku").fill(newDate);
+  const addForm = page.locator(".df2-inline-form");
+  await addForm.locator('input[placeholder="Nový milník"]').fill("Dodatečná možnost");
+  await addForm.locator('input[type="date"]').fill(newDate);
   await addForm.getByLabel("Typ milníku").selectOption("option");
   await addForm.getByRole("button", { name: "Přidat" }).click();
 
-  const added = firstGroup.locator(".df2-milestone-month-card", { hasText: "Dodatečná možnost" });
+  const added = list.locator("article", { hasText: "Dodatečná možnost" });
   await expect(added).toBeVisible();
-  await expect(added.locator(".df2-milestone-kind")).toHaveText("Možnost");
+  await expect(added.locator(".df2-milestone-kind-badge")).toHaveText("Možnost");
   await expect.poll(() => page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const types = JSON.parse(window.localStorage.getItem("dayframe-milestone-types-v1") || "{}");
