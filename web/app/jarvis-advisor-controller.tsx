@@ -207,12 +207,13 @@ function betterDayAdvice(state: DayframeState, now: Date): Advice | null {
   const today = planningDateKey(now);
   const days = Array.from({ length: PLAN_HORIZON_DAYS }, (_, index) => {
     const key = addDaysKey(today, index + 1);
-    const tasks = getTasksForDate(state, key).filter((task) => !task.completed);
-    return { key, tasks, minutes: plannedMinutes(tasks) };
+    const tasks = getTasksForDate(state, key);
+    const activeTasks = tasks.filter((task) => !task.completed);
+    return { key, tasks, activeTasks, minutes: plannedMinutes(tasks) };
   });
 
   for (const crowded of days.filter((day) => day.minutes >= 300).sort((a, b) => b.minutes - a.minutes)) {
-    const candidates = crowded.tasks
+    const candidates = crowded.activeTasks
       .filter((task) => task.mode === "flexible" && Math.max(0, task.duration || 0) >= 90 && normalize(task.category ?? "") !== "osobni")
       .sort((a, b) => (b.duration || 0) - (a.duration || 0));
 
