@@ -33,6 +33,19 @@ function validMonthDay(month: number, day: number) {
   return probe.getMonth() === month - 1 && probe.getDate() === day;
 }
 
+function isLeapYear(year: number) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+function birthdayOccursOn(birthday: Birthday, occurrence: { year: number; month: number; day: number }) {
+  if (birthday.month === occurrence.month && birthday.day === occurrence.day) return true;
+  return birthday.month === 2
+    && birthday.day === 29
+    && occurrence.month === 2
+    && occurrence.day === 28
+    && !isLeapYear(occurrence.year);
+}
+
 function readBirthdays(): Birthday[] {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(BIRTHDAYS_STORAGE_KEY) || "[]");
@@ -113,7 +126,7 @@ function syncCalendarDom() {
 
     const events = cell.querySelector<HTMLElement>(".df2-month-events");
     if (!events) return;
-    const matches = birthdays.filter((birthday) => birthday.month === parsed.month && birthday.day === parsed.day);
+    const matches = birthdays.filter((birthday) => birthdayOccursOn(birthday, parsed));
     const wantedIds = new Set(matches.map((birthday) => birthday.id));
 
     events.querySelectorAll<HTMLElement>(".df2-month-birthday[data-birthday-id]").forEach((existing) => {
@@ -276,7 +289,7 @@ export function BirthdayCalendarController() {
           <label>Rok narození <span>volitelně</span><input name="birthYear" type="number" min="1900" max={new Date().getFullYear()} defaultValue={shown.birthYear ?? ""} placeholder="2006" /></label>
         </div>
         <label>Poznámka<textarea name="note" rows={3} defaultValue={shown.note ?? ""} placeholder="Např. koupit dárek…" /></label>
-        <p className="df2-birthday-repeat-note">🎂 Narozeniny se v kalendáři automaticky zobrazí každý rok.</p>
+        <p className="df2-birthday-repeat-note">🎂 Narozeniny se v kalendáři automaticky zobrazí každý rok. 29. února se v nepřestupném roce zobrazí 28. února.</p>
         <div className="df2-modal-actions">
           <button className="df2-primary">{editing ? "Uložit změny" : "Přidat narozeniny"}</button>
           {editing && <button type="button" className="danger" onClick={remove}>Smazat narozeniny</button>}
