@@ -42,7 +42,7 @@ function countdownLabel(days: number) {
   if (days === 0) return "dnes";
   if (days === 1) return "zítra";
   if (days > 1) return `za ${days} ${days <= 4 ? "dny" : "dní"}`;
-  if (days === -1) return "včera";
+  if (days === -1) return "před 1 dnem";
   return `před ${Math.abs(days)} dny`;
 }
 
@@ -81,6 +81,7 @@ export function MonthCalendarCountdownController() {
         }
         const label = countdownLabel(days);
         countdown.dataset.days = String(days);
+        countdown.classList.toggle("is-past", days < 0);
         if (countdown.textContent !== label) countdown.textContent = label;
       });
     };
