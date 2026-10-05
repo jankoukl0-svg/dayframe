@@ -198,7 +198,6 @@ function underpreparedMilestoneAdvice(state: DayframeState, now: Date): Advice |
       .filter(([date]) => date >= today && date <= prepEnd)
       .flatMap(([, tasks]) => tasks)
       .filter((task) => !task.completed && taskMatchesMilestone(task, milestone.title, milestone.note));
-    if (!relatedPlanned.length) continue;
 
     const prepMinutes = relatedPlanned.reduce((sum, task) => sum + Math.max(0, task.duration || 0), 0);
     if (prepMinutes >= preparationTarget(days)) continue;
@@ -228,28 +227,29 @@ function betterDayAdvice(state: DayframeState, now: Date): Advice | null {
   });
 
   for (const crowded of days.filter((day) => day.minutes >= 300).sort((a, b) => b.minutes - a.minutes)) {
-    const demanding = crowded.tasks
+    const candidates = crowded.tasks
       .filter((task) => task.mode === "flexible" && Math.max(0, task.duration || 0) >= 90 && normalize(task.category ?? "") !== "osobni")
-      .sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
-    if (!demanding) continue;
+      .sort((a, b) => (b.duration || 0) - (a.duration || 0));
 
-    const demandingMinutes = Math.max(0, demanding.duration || 0);
-    const lighter = days
-      .filter((day) => day.key !== crowded.key
-        && (!demanding.dueDate || day.key <= demanding.dueDate)
-        && day.minutes <= 180
-        && crowded.minutes - day.minutes >= 150
-        && day.minutes + demandingMinutes <= crowded.minutes - 90)
-      .sort((a, b) => a.minutes - b.minutes || a.key.localeCompare(b.key))[0];
-    if (!lighter) continue;
+    for (const demanding of candidates) {
+      const demandingMinutes = Math.max(0, demanding.duration || 0);
+      const lighter = days
+        .filter((day) => day.key !== crowded.key
+          && (!demanding.dueDate || day.key <= demanding.dueDate)
+          && day.minutes <= 180
+          && crowded.minutes - day.minutes >= 150
+          && day.minutes + demandingMinutes <= crowded.minutes - 90)
+        .sort((a, b) => a.minutes - b.minutes || a.key.localeCompare(b.key))[0];
+      if (!lighter) continue;
 
-    return {
-      id: `better-day-${demanding.id}`,
-      label: "Plán",
-      title: `${demanding.title} by měl lepší místo jinde`,
-      body: `${weekdayLabel(crowded.key)} máš ${formatDuration(crowded.minutes)} v plánu, zatímco ${weekdayLabel(lighter.key)} jen ${formatDuration(lighter.minutes)}. Pokud je blok přesunutelný, zvaž přesun ${demanding.title} na volnější den.`,
-      tone: "normal",
-    };
+      return {
+        id: `better-day-${demanding.id}`,
+        label: "Plán",
+        title: `${demanding.title} by měl lepší místo jinde`,
+        body: `${weekdayLabel(crowded.key)} máš ${formatDuration(crowded.minutes)} v plánu, zatímco ${weekdayLabel(lighter.key)} jen ${formatDuration(lighter.minutes)}. Pokud je blok přesunutelný, zvaž přesun ${demanding.title} na volnější den.`,
+        tone: "normal",
+      };
+    }
   }
 
   return null;
