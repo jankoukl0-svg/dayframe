@@ -38,15 +38,6 @@ async function dateKeys(page, offsets) {
   })), { key: today, offsets });
 }
 
-function task(id, title, date, duration, start, end, extra = {}) {
-  return {
-    id, title, date, duration, start, end, requestedStart: start,
-    deadlineTime: "22:30", priority: "normal", category: "Finance", mode: "flexible",
-    completed: false, source: "user", dateLocked: true, autoScheduled: false,
-    createdAt: new Date().toISOString(), ...extra,
-  };
-}
-
 test("better-day advice requires a real destination slot before the task deadline", async ({ page }) => {
   await openFresh(page);
   const dates = await dateKeys(page, { crowded: 1, light: 2 });
@@ -69,7 +60,7 @@ test("better-day advice requires a real destination slot before the task deadlin
         make("fill-b", "Fill B", dates.crowded, 70, "14:00", "15:10"),
         make("fill-c", "Fill C", dates.crowded, 60, "16:00", "17:00"),
       ],
-      [dates.light]: [make("morning-blocker", "Morning blocker", dates.light, 60, "08:00", "09:00")],
+      [dates.light]: [make("morning-blocker", "Morning blocker", dates.light, 60, "08:00", "09:00", { completed: true })],
     };
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     window.localStorage.setItem("dayframe-birthdays-v1", "[]");
