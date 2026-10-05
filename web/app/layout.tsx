@@ -17,6 +17,7 @@ import "./reading-session-log-controller.css";
 import "./overview-title.css";
 import "./today-polish.css";
 import "./today-briefing-controller.css";
+import "./jarvis-compact.css";
 import "./jarvis-future-context-controller.css";
 import "./plan-actual.css";
 import "./week-capacity.css";
