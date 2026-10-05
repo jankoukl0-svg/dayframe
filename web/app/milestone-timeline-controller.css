@@ -1,0 +1,301 @@
+.df2-milestone-kind-form {
+  grid-template-columns: minmax(0, 1fr) 170px 132px auto;
+  align-items: end;
+}
+
+.df2-milestone-kind-form > button {
+  grid-column: 4;
+}
+
+.df2-milestone-kind-create-host {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.df2-milestone-kind-create-control {
+  display: grid;
+  gap: 5px;
+}
+
+.df2-milestone-kind-create-control > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-kind-create-control select,
+.df2-milestone-kind-modal-control select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.df2-milestone-kind-modal-host {
+  margin-top: 2px;
+}
+
+.df2-milestone-kind-modal-control {
+  display: grid;
+  gap: 7px;
+}
+
+.df2-milestone-kind-modal-control > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones {
+  --df2-milestone-axis-left: 28px;
+  border-top: 0;
+}
+
+.df2-milestone-today-anchor {
+  position: relative;
+  display: grid;
+  grid-template-columns: 46px auto 1fr;
+  align-items: center;
+  min-height: 36px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.df2-milestone-today-anchor::after {
+  content: "";
+  position: absolute;
+  left: var(--df2-milestone-axis-left);
+  top: 22px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.df2-milestone-today-anchor i {
+  position: absolute;
+  left: calc(var(--df2-milestone-axis-left) - 3px);
+  top: 18px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.df2-milestone-today-anchor span {
+  grid-column: 2;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-today-anchor small {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--muted);
+  font: 10px/1.2 "Cascadia Mono", monospace;
+}
+
+.df2-milestone-day-gap {
+  position: relative;
+  min-height: 0;
+}
+
+.df2-milestone-day-ruler {
+  position: relative;
+  margin-left: var(--df2-milestone-axis-left);
+  width: 20px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.df2-milestone-day-ruler span {
+  display: block;
+  width: 8px;
+  height: 3px;
+  border-top: 1px solid rgba(115, 113, 106, .16);
+}
+
+.df2-milestone-day-ruler span.week {
+  width: 18px;
+  border-top-color: rgba(92, 90, 84, .4);
+}
+
+.df2-milestone-day-gap > small {
+  position: absolute;
+  left: 56px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #a4a29a;
+  font: 9px/1 "Cascadia Mono", monospace;
+}
+
+.df2-milestone-month-head {
+  position: relative;
+  min-height: 48px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0;
+  padding: 12px 4px 9px 52px;
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-milestone-month-head::before {
+  content: "";
+  position: absolute;
+  left: var(--df2-milestone-axis-left);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.df2-milestone-month-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.df2-milestone-month-head > span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: none;
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-kind] {
+  position: relative;
+  min-height: 84px;
+  padding-left: 58px;
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-color="true"] {
+  padding-left: 58px;
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-color="true"]:hover {
+  padding-left: 62px;
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-kind]::before {
+  content: "";
+  position: absolute;
+  left: var(--df2-milestone-axis-left);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-kind]::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--df2-milestone-axis-left) - 4px);
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  transform: translateY(-50%);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--df2-milestone-color, var(--accent));
+  box-shadow: 0 0 0 1px var(--df2-milestone-color, var(--accent));
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-kind="option"]::after {
+  background: var(--surface);
+}
+
+.df2-milestone-kind-chip {
+  justify-self: start;
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  letter-spacing: .07em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+.df2-milestones article > div:first-child > .df2-milestone-kind-chip {
+  order: 0;
+  max-width: none;
+  font-style: normal;
+}
+
+.df2-milestone-kind-chip.deadline {
+  border: 1px solid var(--df2-milestone-color, var(--accent));
+  background: var(--df2-milestone-color, var(--accent));
+  color: white !important;
+}
+
+.df2-milestone-kind-chip.option {
+  border: 1px solid color-mix(in srgb, var(--df2-milestone-color, var(--accent)) 48%, transparent);
+  background: var(--surface);
+  color: var(--df2-milestone-color, var(--accent)) !important;
+}
+
+/* The type badge is also a span, so explicitly keep the existing description
+   span and its empty-description prompt semantically separate from the badge. */
+.df2-milestone-timeline-enhanced .df2-milestones article > div:first-child > span[data-milestone-kind-badge] {
+  order: 0;
+  max-width: none;
+  color: white;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article > div:first-child > span[data-milestone-kind-badge].option {
+  color: var(--df2-milestone-color, var(--accent));
+}
+
+.df2-milestone-timeline-enhanced .df2-milestones article > div:first-child:not(:has(> span:not([data-milestone-kind-badge])))::after {
+  content: "Přidat popisek…";
+  order: 2;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.35;
+  opacity: .58;
+}
+
+@media (max-width: 850px) {
+  .df2-milestone-kind-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .df2-milestone-kind-form > input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .df2-milestone-kind-create-host,
+  .df2-milestone-kind-form > button {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-kind],
+  .df2-milestone-timeline-enhanced .df2-milestones article[data-milestone-color="true"] {
+    padding-left: 48px;
+  }
+
+  .df2-milestone-month-head {
+    padding-left: 48px;
+  }
+}
