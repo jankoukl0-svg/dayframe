@@ -44,6 +44,9 @@ async function openFresh(page) {
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+}
+
+async function seedWeatherLocation(page) {
   await page.evaluate(() => {
     window.localStorage.setItem("dayframe-weather-location-v1", JSON.stringify({
       latitude: 50.4,
@@ -63,6 +66,7 @@ async function openBriefing(page) {
 }
 
 test("Jarvis shows what awaits tomorrow", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page);
   await openFresh(page);
   const today = await page.evaluate(planningDateKeyInBrowser);
@@ -70,27 +74,26 @@ test("Jarvis shows what awaits tomorrow", async ({ page }) => {
 
   await page.evaluate(({ today, tomorrow }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const make = (id, title, duration, start, end, category) => ({
-      id, title, date: tomorrow, duration, start, end, requestedStart: start,
-      deadlineTime: "22:30", priority: "normal", category, mode: "flexible",
+    const now = new Date().toISOString();
+    const make = (id, title, date, duration, start, end, category, priority = "normal") => ({
+      id, title, date, duration, start, end, requestedStart: start,
+      deadlineTime: "22:30", priority, category, mode: "flexible",
       completed: false, source: "user", dateLocked: true, autoScheduled: false,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     });
     state.routines = [];
     state.backlog = [];
-    state.milestones = [];
     state.plans = {
-      [today]: [],
+      [today]: [make("today-anchor", "Dnešní fokus", today, 60, "23:00", "00:00", "Studium", "high")],
       [tomorrow]: [
-        make("tomorrow-english", "Cambridge C1", 60, "09:00", "10:00", "Angličtina"),
-        make("tomorrow-math", "Matematika", 90, "11:00", "12:30", "Matika"),
+        make("tomorrow-english", "Cambridge C1", tomorrow, 60, "09:00", "10:00", "Angličtina"),
+        make("tomorrow-math", "Matematika", tomorrow, 90, "11:00", "12:30", "Matika"),
       ],
     };
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
   }, { today, tomorrow });
+  await seedWeatherLocation(page);
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Týden/ }).click();
-  await page.getByRole("button", { name: /^Dnes/ }).click();
 
   const briefing = await openBriefing(page);
   const tomorrowCard = briefing.locator("[data-jarvis-tomorrow]");
