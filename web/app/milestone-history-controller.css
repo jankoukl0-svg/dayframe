@@ -2,23 +2,20 @@
   display: none !important;
 }
 
-.df2-month-milestone.is-past {
-  opacity: .72;
-}
-
-.df2-month-milestone-past-label {
+.df2-month-countdown.is-past {
   width: max-content;
   max-width: 100%;
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
-  margin-top: 2px;
-  padding: 2px 6px;
+  margin-top: 3px !important;
+  padding: 2px 6px !important;
   border: 1px solid rgba(0, 0, 0, .07);
   border-radius: 999px;
-  background: rgba(255, 255, 255, .58);
-  color: #85837c;
-  font-size: 8px;
-  font-weight: 680;
-  line-height: 1.2;
+  background: rgba(255, 255, 255, .62);
+  color: #85837c !important;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif !important;
+  font-size: 8px !important;
+  font-weight: 680 !important;
+  line-height: 1.2 !important;
   white-space: nowrap;
 }
