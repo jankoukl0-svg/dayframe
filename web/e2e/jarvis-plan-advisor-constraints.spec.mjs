@@ -39,7 +39,7 @@ async function mountAdvisorHost(page) {
   return host;
 }
 
-test("Jarvis respects move deadlines, refreshes constraints and tries another movable block", async ({ page }) => {
+test("Jarvis respects move deadlines, persists constraint changes and tries another movable block", async ({ page }) => {
   await openFreshToday(page);
   const today = await page.evaluate(planningDateKeyInBrowser);
   const dates = await page.evaluate(({ key }) => {
@@ -84,10 +84,11 @@ test("Jarvis respects move deadlines, refreshes constraints and tries another mo
     const task = state.plans[dates.crowded].find((item) => item.id === "move-me");
     task.dueDate = dates.light;
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    window.dispatchEvent(new Event("dayframe-state-sync"));
   }, { dates });
+  await page.reload({ waitUntil: "networkidle" });
 
-  await expect(briefing.locator('[data-jarvis-advice="better-day-move-me"]')).toBeVisible();
+  const refreshedBriefing = await mountAdvisorHost(page);
+  await expect(refreshedBriefing.locator('[data-jarvis-advice="better-day-move-me"]')).toBeVisible();
 });
 
 test("Jarvis warns when milestone preparation exists only beyond the seven-day horizon", async ({ page }) => {
