@@ -46,14 +46,21 @@ function decorateCompletionActions() {
   });
 }
 
-function accentCompletedTask(title: string) {
+function accentCompletedTask(title: string, attempt = 0) {
   window.requestAnimationFrame(() => {
     const matches = [...document.querySelectorAll<HTMLElement>(".df2-week-task.done")];
     const target = matches.find((item) => item.querySelector("strong")?.textContent?.trim() === title);
-    if (!target) return;
+    if (!target) {
+      if (attempt < 4) window.setTimeout(() => accentCompletedTask(title, attempt + 1), 70);
+      return;
+    }
     target.classList.add("df2-just-completed");
     window.setTimeout(() => target.classList.remove("df2-just-completed"), 950);
   });
+}
+
+function completionRank(task: StoredTask) {
+  return task.priority === "high" ? 0 : task.priority === "normal" ? 1 : 2;
 }
 
 export function CompletionExperienceController() {
@@ -70,7 +77,7 @@ export function CompletionExperienceController() {
       if (previous) {
         const newlyCompleted = tasks
           .filter((task) => Boolean(task.completed) && previous.get(task.id) === false)
-          .sort((left, right) => (left.priority === "high" ? -1 : 0) - (right.priority === "high" ? -1 : 0));
+          .sort((left, right) => completionRank(left) - completionRank(right));
         const task = newlyCompleted[0];
         if (task) {
           const event = {
