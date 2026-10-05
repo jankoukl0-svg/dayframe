@@ -1,0 +1,24 @@
+[data-milestone-history-hidden="true"] {
+  display: none !important;
+}
+
+.df2-month-milestone.is-past {
+  opacity: .72;
+}
+
+.df2-month-milestone-past-label {
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 2px;
+  padding: 2px 6px;
+  border: 1px solid rgba(0, 0, 0, .07);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .58);
+  color: #85837c;
+  font-size: 8px;
+  font-weight: 680;
+  line-height: 1.2;
+  white-space: nowrap;
+}
