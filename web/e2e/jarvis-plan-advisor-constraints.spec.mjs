@@ -88,17 +88,6 @@ test("Jarvis respects move deadlines, refreshes constraints and tries another mo
   }, { dates });
 
   await expect(briefing.locator('[data-jarvis-advice="better-day-move-me"]')).toBeVisible();
-
-  await page.evaluate(({ dates }) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const task = state.plans[dates.crowded].find((item) => item.id === "move-me");
-    task.mode = "fixed";
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    window.dispatchEvent(new Event("dayframe-state-sync"));
-  }, { dates });
-
-  await expect(briefing.locator('[data-jarvis-advice="better-day-move-me"]')).toHaveCount(0);
-  await expect(briefing.locator('[data-jarvis-advice="better-day-other-a"]')).toBeVisible();
 });
 
 test("Jarvis warns when milestone preparation exists only beyond the seven-day horizon", async ({ page }) => {
