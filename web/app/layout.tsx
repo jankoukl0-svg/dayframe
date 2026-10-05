@@ -19,6 +19,7 @@ import "./today-polish.css";
 import "./today-briefing-controller.css";
 import "./jarvis-compact.css";
 import "./jarvis-future-context-controller.css";
+import "./jarvis-advisor-controller.css";
 import "./plan-actual.css";
 import "./week-capacity.css";
 import "./label-colors-controller.css";
@@ -72,6 +73,7 @@ import { EditCategoryPreserverController } from "./edit-category-preserver-contr
 import { PersonalBlockController } from "./personal-block-controller";
 import { TodayBriefingController } from "./today-briefing-controller";
 import { JarvisFutureContextController } from "./jarvis-future-context-controller";
+import { JarvisAdvisorController } from "./jarvis-advisor-controller";
 
 export const metadata: Metadata = {
   title: "Dayframe — dnešek má svůj plán",
@@ -80,5 +82,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><MilestoneHistoryController /><MilestoneMonthGroupsController /><BirthdayCalendarController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><ReadingSessionLogController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><TodayBriefingController /><JarvisFutureContextController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><MilestoneHistoryController /><MilestoneMonthGroupsController /><BirthdayCalendarController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><ReadingSessionLogController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><TodayBriefingController /><JarvisFutureContextController /><JarvisAdvisorController /><LateReadingController /><NotificationController /></body></html>;
 }
