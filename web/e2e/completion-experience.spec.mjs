@@ -163,3 +163,57 @@ test("completion acknowledgement survives an immediate synchronous reload", asyn
   await expect(feedback).toContainText("Dokončit valuation");
   await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("dayframe-completion-pending-v1"))).toBe(null);
 });
+
+test("completion pulse targets the exact task when repeated tasks share a title", async ({ page }) => {
+  await openFresh(page);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const firstDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+    const secondDate = new Date(firstDate);
+    secondDate.setDate(secondDate.getDate() + 1);
+    const key = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const firstKey = key(firstDate);
+    const secondKey = key(secondDate);
+    const make = (id, date, completed) => ({
+      id,
+      title: "Běžná angličtina",
+      date,
+      duration: 60,
+      start: "12:00",
+      end: "13:00",
+      requestedStart: "12:00",
+      deadlineTime: "22:30",
+      priority: "normal",
+      category: "Angličtina",
+      mode: "flexible",
+      completed,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: false,
+      createdAt: now.toISOString(),
+    });
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [firstKey]: [make("duplicate-first", firstKey, true)],
+      [secondKey]: [make("duplicate-second", secondKey, false)],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  const second = page.locator(".df2-week-task:not(.done)").filter({ hasText: "Běžná angličtina" });
+  await expect(second).toHaveCount(1);
+  await second.click();
+  const modal = page.locator(".df2-modal").filter({ has: page.getByRole("heading", { name: "Upravit" }) });
+  await modal.getByRole("button", { name: "Označit hotovo" }).click();
+
+  const exact = page.locator('[data-completion-task-id="duplicate-second"]');
+  await expect(exact).toHaveCount(2);
+  await expect(page.locator('.df2-week-task[data-completion-task-id="duplicate-second"]')).toBeVisible();
+  await expect(page.locator('.df2-week-task[data-completion-task-id="duplicate-first"]')).toHaveCount(0);
+  await expect(page.locator('[data-completion-experience="true"][data-completion-task-id="duplicate-second"]')).toBeVisible();
+});
