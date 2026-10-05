@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-type Milestone = {
-  id: string;
-  title: string;
-  date: string;
-  note?: string;
-};
-
+type Milestone = { id: string; title: string; date: string; note?: string };
 type MilestoneKind = "deadline" | "option";
 type TypeMap = Record<string, MilestoneKind>;
 
@@ -28,13 +22,7 @@ function readMilestones(): Milestone[] {
     const state = JSON.parse(window.localStorage.getItem(STATE_KEY) || "{}") as { milestones?: unknown };
     if (!Array.isArray(state.milestones)) return [];
     return state.milestones
-      .filter((item): item is Milestone => Boolean(
-        item
-        && typeof item === "object"
-        && typeof (item as Milestone).id === "string"
-        && typeof (item as Milestone).title === "string"
-        && typeof (item as Milestone).date === "string",
-      ))
+      .filter((item): item is Milestone => Boolean(item && typeof item === "object" && typeof (item as Milestone).id === "string" && typeof (item as Milestone).title === "string" && typeof (item as Milestone).date === "string"))
       .sort((a, b) => a.date.localeCompare(b.date));
   } catch {
     return [];
@@ -45,9 +33,7 @@ function readTypes(): TypeMap {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(TYPE_KEY) || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed).filter(([, value]) => value === "deadline" || value === "option"),
-    ) as TypeMap;
+    return Object.fromEntries(Object.entries(parsed).filter(([, value]) => value === "deadline" || value === "option")) as TypeMap;
   } catch {
     return {};
   }
@@ -56,7 +42,6 @@ function readTypes(): TypeMap {
 function writeTypes(next: TypeMap) {
   window.localStorage.setItem(TYPE_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event(TYPE_SYNC_EVENT));
-  return next;
 }
 
 function monthKey(dateKey: string) {
@@ -65,15 +50,16 @@ function monthKey(dateKey: string) {
 
 function monthLabel(key: string) {
   const [year, month] = key.split("-").map(Number);
-  const text = new Intl.DateTimeFormat("cs-CZ", { month: "long", year: "numeric" })
-    .format(new Date(year, month - 1, 1, 12));
+  const text = new Intl.DateTimeFormat("cs-CZ", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1, 12));
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function dateDistance(from: string, to: string) {
   const a = new Date(`${from}T12:00:00`);
   const b = new Date(`${to}T12:00:00`);
-  return Math.max(0, Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / DAY_MS));
+  const aUtc = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const bUtc = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.max(0, Math.round((bUtc - aUtc) / DAY_MS));
 }
 
 function findMilestoneView() {
@@ -96,7 +82,8 @@ function createMonthHeader(label: string, count: number) {
   title.textContent = label;
   const meta = document.createElement("span");
   meta.textContent = `${count} ${count === 1 ? "termín" : count <= 4 ? "termíny" : "termínů"}`;
-  header.append(title, meta);
+  header.appendChild(title);
+  header.appendChild(meta);
   return header;
 }
 
@@ -120,7 +107,7 @@ function syncDecorations(milestones: Milestone[], types: TypeMap) {
   const rows = directRows(view.list);
   const today = localDateKey(new Date());
 
-  view.list.querySelectorAll<HTMLElement>(":scope > [data-milestone-month-decoration]").forEach((node) => node.remove());
+  view.list.querySelectorAll<HTMLElement>(":scope > [data-milestone-month-decoration]").forEach((node) => node.parentNode?.removeChild(node));
 
   rows.forEach((row, index) => {
     const milestone = milestones[index];
@@ -131,17 +118,16 @@ function syncDecorations(milestones: Milestone[], types: TypeMap) {
     row.classList.toggle("df2-milestone-option", kind === "option");
 
     const main = row.querySelector<HTMLElement>(":scope > div:first-child");
-    if (main) {
-      let badge = main.querySelector<HTMLElement>(":scope > .df2-milestone-kind-badge");
-      if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "df2-milestone-kind-badge";
-        main.prepend(badge);
-      }
-      badge.classList.toggle("deadline", kind === "deadline");
-      badge.classList.toggle("option", kind === "option");
-      badge.textContent = kind === "deadline" ? "Deadline" : "Možnost";
+    if (!main) return;
+    let badge = main.querySelector<HTMLElement>(":scope > .df2-milestone-kind-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "df2-milestone-kind-badge";
+      main.insertBefore(badge, main.firstChild);
     }
+    badge.classList.toggle("deadline", kind === "deadline");
+    badge.classList.toggle("option", kind === "option");
+    badge.textContent = kind === "deadline" ? "Deadline" : "Možnost";
   });
 
   const visibleUpcoming = rows
@@ -155,12 +141,10 @@ function syncDecorations(milestones: Milestone[], types: TypeMap) {
     const previous = index > 0 ? visibleUpcoming[index - 1] : null;
     const currentMonth = monthKey(milestone.date);
     const previousMonth = previous ? monthKey(previous.milestone.date) : null;
-
     if (currentMonth !== previousMonth) {
       row.parentNode?.insertBefore(createMonthHeader(monthLabel(currentMonth), counts.get(currentMonth) ?? 1), row);
       return;
     }
-
     if (previous) {
       const gapDays = dateDistance(previous.milestone.date, milestone.date);
       if (gapDays > 0) row.parentNode?.insertBefore(createDayGap(gapDays), row);
@@ -172,22 +156,26 @@ function ensureAddTypeSelect() {
   const view = findMilestoneView();
   const form = view?.section.querySelector<HTMLFormElement>(".df2-inline-form");
   if (!form) return null;
-  let select = form.querySelector<HTMLSelectElement>("[data-milestone-add-kind]");
+  let select = form.querySelector("[data-milestone-add-kind]") as HTMLElement | null;
   if (!select) {
-    select = document.createElement("select");
+    select = document.createElement("select") as unknown as HTMLElement;
     select.dataset.milestoneAddKind = "true";
     select.className = "df2-milestone-add-kind";
     select.setAttribute("aria-label", "Typ milníku");
     select.innerHTML = '<option value="deadline">Deadline</option><option value="option">Možnost</option>';
     const button = form.querySelector("button");
-    form.insertBefore(select, button ?? null);
+    form.insertBefore(select as unknown as Node, button ?? null);
   }
   return select;
 }
 
+function selectedKind(element: HTMLElement | null): MilestoneKind {
+  if (!element) return "deadline";
+  return (element as unknown as { value?: string }).value === "option" ? "option" : "deadline";
+}
+
 function findEditingMilestone(milestones: Milestone[]) {
-  const modal = [...document.querySelectorAll<HTMLFormElement>(".df2-modal")]
-    .find((item) => item.querySelector("h2")?.textContent?.trim() === "Upravit milník") ?? null;
+  const modal = [...document.querySelectorAll<HTMLFormElement>(".df2-modal")].find((item) => item.querySelector("h2")?.textContent?.trim() === "Upravit milník") ?? null;
   if (!modal) return { modal: null, milestone: null };
   const title = modal.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
   const date = modal.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
@@ -210,14 +198,12 @@ export function MilestoneMonthGroupsController() {
   const [types, setTypes] = useState<TypeMap>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
-  const typesRef = useRef<TypeMap>({});
   const pendingAddRef = useRef<{ ids: Set<string>; kind: MilestoneKind } | null>(null);
 
   useEffect(() => {
     const sync = () => {
       const milestones = readMilestones();
       const nextTypes = readTypes();
-      typesRef.current = nextTypes;
       setTypes((current) => JSON.stringify(current) === JSON.stringify(nextTypes) ? current : nextTypes);
       ensureAddTypeSelect();
       syncDecorations(milestones, nextTypes);
@@ -236,9 +222,8 @@ export function MilestoneMonthGroupsController() {
       if (pending) {
         const added = milestones.find((milestone) => !pending.ids.has(milestone.id));
         if (added) {
-          const next = { ...readTypes(), [added.id]: pending.kind };
           pendingAddRef.current = null;
-          writeTypes(next);
+          writeTypes({ ...readTypes(), [added.id]: pending.kind });
         }
       }
     };
@@ -248,8 +233,8 @@ export function MilestoneMonthGroupsController() {
       if (!form?.matches(".df2-inline-form")) return;
       const view = findMilestoneView();
       if (!view?.section.contains(form)) return;
-      const kind = form.querySelector<HTMLSelectElement>("[data-milestone-add-kind]")?.value === "option" ? "option" : "deadline";
-      pendingAddRef.current = { ids: new Set(readMilestones().map((milestone) => milestone.id)), kind };
+      const selector = form.querySelector("[data-milestone-add-kind]") as HTMLElement | null;
+      pendingAddRef.current = { ids: new Set(readMilestones().map((milestone) => milestone.id)), kind: selectedKind(selector) };
     };
 
     sync();
@@ -258,7 +243,6 @@ export function MilestoneMonthGroupsController() {
     window.addEventListener(TYPE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const timer = window.setInterval(sync, 350);
-
     return () => {
       document.removeEventListener("submit", onSubmit, true);
       window.removeEventListener(STATE_SYNC_EVENT, sync);
@@ -271,7 +255,6 @@ export function MilestoneMonthGroupsController() {
   const chooseKind = (kind: MilestoneKind) => {
     if (!editingId) return;
     const next = { ...readTypes(), [editingId]: kind };
-    typesRef.current = next;
     setTypes(next);
     writeTypes(next);
     window.requestAnimationFrame(() => syncDecorations(readMilestones(), next));
