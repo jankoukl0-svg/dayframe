@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Milestone = {
@@ -27,14 +27,6 @@ const DAY_MS = 86_400_000;
 function normalizeHex(value: string) {
   const normalized = value.trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : DEFAULT_COLOR;
-}
-
-function rgba(hex: string, alpha: number) {
-  const value = normalizeHex(hex).slice(1);
-  const red = Number.parseInt(value.slice(0, 2), 16);
-  const green = Number.parseInt(value.slice(2, 4), 16);
-  const blue = Number.parseInt(value.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 function readMilestones(): Milestone[] {
@@ -156,33 +148,16 @@ function longDate(dateKey: string) {
     .format(new Date(parsed.year, parsed.month - 1, parsed.day, 12));
 }
 
-function meaningfulNote(note?: string) {
-  const value = note?.trim() ?? "";
-  return value && value !== "Vlastní termín" ? value : "";
-}
-
 function findMilestoneView() {
   return [...document.querySelectorAll<HTMLElement>(".df2-simple-view")]
     .find((view) => view.querySelector(".df2-page-head h1")?.textContent?.trim() === "Milníky") ?? null;
 }
 
-function ensureTimelineHost() {
+function findMilestoneList() {
   const view = findMilestoneView();
   if (!view) return null;
   view.classList.add("df2-milestone-timeline-enhanced");
-  let host = view.querySelector<HTMLElement>("[data-milestone-timeline-host]");
-  if (!host) {
-    host = document.createElement("div");
-    host.dataset.milestoneTimelineHost = "true";
-    host.className = "df2-milestone-timeline-host";
-    const nativeList = view.querySelector(".df2-milestones");
-    view.insertBefore(host, nativeList ?? null);
-  }
-  const filterHost = view.querySelector<HTMLElement>("[data-milestone-filter-host]");
-  if (filterHost && filterHost.nextElementSibling !== host && filterHost.parentNode) {
-    filterHost.parentNode.insertBefore(host, filterHost.nextSibling);
-  }
-  return host;
+  return view.querySelector<HTMLElement>(".df2-milestones");
 }
 
 function ensureInlineKindHost() {
@@ -208,8 +183,8 @@ function findMilestoneModal(title: "Upravit milník" | "Nový milník") {
 function ensureModalKindHost(mode: "edit" | "new") {
   const modal = findMilestoneModal(mode === "edit" ? "Upravit milník" : "Nový milník");
   if (!modal) return null;
-  const attribute = mode === "edit" ? "data-milestone-kind-edit-host" : "data-milestone-kind-new-host";
-  let host = modal.querySelector<HTMLElement>(`[${attribute}]`);
+  const selector = mode === "edit" ? "[data-milestone-kind-edit-host]" : "[data-milestone-kind-new-host]";
+  let host = modal.querySelector<HTMLElement>(selector);
   if (!host) {
     host = document.createElement("div");
     if (mode === "edit") host.dataset.milestoneKindEditHost = "true";
@@ -225,31 +200,131 @@ function kindFor(id: string, kinds: Record<string, MilestoneKind>): MilestoneKin
   return kinds[id] ?? "deadline";
 }
 
-function DailyGap({ days }: { days: number }) {
+function createTodayAnchor(today: string) {
+  const anchor = document.createElement("div");
+  anchor.dataset.milestoneTimelineDecoration = "today";
+  anchor.className = "df2-milestone-today-anchor";
+  const dot = document.createElement("i");
+  dot.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.textContent = "Dnes";
+  const date = document.createElement("small");
+  date.textContent = longDate(today);
+  anchor.append(dot, label, date);
+  return anchor;
+}
+
+function createMonthHeader(dateKey: string, count: number) {
+  const header = document.createElement("div");
+  header.dataset.milestoneTimelineDecoration = "month";
+  header.dataset.month = monthKey(dateKey);
+  header.className = "df2-milestone-month-head";
+  const title = document.createElement("h2");
+  title.textContent = monthLabel(dateKey);
+  const meta = document.createElement("span");
+  meta.textContent = `${count} ${count === 1 ? "milník" : count <= 4 ? "milníky" : "milníků"}`;
+  header.append(title, meta);
+  return header;
+}
+
+function createDailyGap(days: number) {
   if (days <= 0) return null;
-  return (
-    <div className="df2-milestone-day-gap" data-gap-days={days} aria-label={`${days} ${days === 1 ? "den" : days <= 4 ? "dny" : "dní"}`}>
-      <div className="df2-milestone-day-ruler" aria-hidden="true">
-        {Array.from({ length: days }, (_, index) => <span key={index} className={(index + 1) % 7 === 0 ? "week" : ""} />)}
-      </div>
-      {days >= 7 && <small>{days} dní</small>}
-    </div>
-  );
+  const gap = document.createElement("div");
+  gap.dataset.milestoneTimelineDecoration = "gap";
+  gap.dataset.gapDays = String(days);
+  gap.className = "df2-milestone-day-gap";
+  gap.setAttribute("aria-label", `${days} ${days === 1 ? "den" : days <= 4 ? "dny" : "dní"}`);
+  const ruler = document.createElement("div");
+  ruler.className = "df2-milestone-day-ruler";
+  ruler.setAttribute("aria-hidden", "true");
+  const fragment = document.createDocumentFragment();
+  for (let index = 0; index < days; index += 1) {
+    const tick = document.createElement("span");
+    if ((index + 1) % 7 === 0) tick.className = "week";
+    fragment.appendChild(tick);
+  }
+  ruler.appendChild(fragment);
+  gap.appendChild(ruler);
+  if (days >= 7) {
+    const label = document.createElement("small");
+    label.textContent = `${days} dní`;
+    gap.appendChild(label);
+  }
+  return gap;
+}
+
+function ensureKindBadge(article: HTMLElement, kind: MilestoneKind) {
+  const copy = article.querySelector<HTMLElement>(":scope > div:first-child");
+  if (!copy) return;
+  let badge = copy.querySelector<HTMLElement>("[data-milestone-kind-badge]");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.dataset.milestoneKindBadge = "true";
+    copy.insertBefore(badge, copy.firstChild);
+  }
+  badge.className = `df2-milestone-kind-chip ${kind}`;
+  badge.textContent = kind === "deadline" ? "Deadline" : "Možnost";
+}
+
+function decorateNativeTimeline(
+  list: HTMLElement,
+  milestones: Milestone[],
+  kinds: Record<string, MilestoneKind>,
+  colors: Record<string, string>,
+  hidden: HiddenFilters,
+  today: string,
+) {
+  list.querySelectorAll<HTMLElement>(":scope > [data-milestone-timeline-decoration]").forEach((node) => node.remove());
+  const rows = [...list.querySelectorAll<HTMLElement>(":scope > article")];
+
+  rows.forEach((row, index) => {
+    const milestone = milestones[index];
+    if (!milestone) return;
+    const kind = kindFor(milestone.id, kinds);
+    row.dataset.milestoneId = milestone.id;
+    row.dataset.milestoneKind = kind;
+    row.classList.toggle("is-deadline", kind === "deadline");
+    row.classList.toggle("is-option", kind === "option");
+    ensureKindBadge(row, kind);
+  });
+
+  const visible = milestones.filter((milestone) => milestone.date >= today && !hiddenByColor(milestone.id, colors, hidden));
+  if (visible.length === 0) return;
+
+  const counts = new Map<string, number>();
+  visible.forEach((milestone) => counts.set(monthKey(milestone.date), (counts.get(monthKey(milestone.date)) ?? 0) + 1));
+
+  let previousDate = today;
+  let previousMonth = "";
+  let insertedAnchor = false;
+
+  visible.forEach((milestone) => {
+    const row = rows[milestones.findIndex((item) => item.id === milestone.id)];
+    if (!row) return;
+    if (!insertedAnchor) {
+      list.insertBefore(createTodayAnchor(today), row);
+      insertedAnchor = true;
+    }
+    const gap = createDailyGap(daysBetween(previousDate, milestone.date));
+    if (gap) list.insertBefore(gap, row);
+    const currentMonth = monthKey(milestone.date);
+    if (currentMonth !== previousMonth) {
+      list.insertBefore(createMonthHeader(milestone.date, counts.get(currentMonth) ?? 0), row);
+      previousMonth = currentMonth;
+    }
+    previousDate = milestone.date;
+  });
 }
 
 export function MilestoneTimelineController() {
-  const [host, setHost] = useState<HTMLElement | null>(null);
   const [inlineKindHost, setInlineKindHost] = useState<HTMLElement | null>(null);
   const [editKindHost, setEditKindHost] = useState<HTMLElement | null>(null);
   const [newKindHost, setNewKindHost] = useState<HTMLElement | null>(null);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [kinds, setKinds] = useState<Record<string, MilestoneKind>>({});
-  const [colors, setColors] = useState<Record<string, string>>({});
-  const [hidden, setHidden] = useState<HiddenFilters>({ preset: [], custom: false });
   const [draftKind, setDraftKind] = useState<MilestoneKind>("deadline");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<MilestoneKind>("deadline");
-  const signatureRef = useRef("");
+  const listRef = useRef<HTMLElement | null>(null);
+  const timelineSignatureRef = useRef("");
   const preferredEditingIdRef = useRef<string | null>(null);
   const pendingCreateRef = useRef<PendingCreate | null>(null);
   const draftKindRef = useRef<MilestoneKind>("deadline");
@@ -260,30 +335,25 @@ export function MilestoneTimelineController() {
 
   useEffect(() => {
     const sync = () => {
-      const nextMilestones = readMilestones();
-      const validIds = new Set(nextMilestones.map((milestone) => milestone.id));
+      const milestones = readMilestones();
+      const validIds = new Set(milestones.map((milestone) => milestone.id));
       const rawKinds = readKinds();
-      const cleanedKinds = Object.fromEntries(Object.entries(rawKinds).filter(([id]) => validIds.has(id)));
-      if (JSON.stringify(cleanedKinds) !== JSON.stringify(rawKinds)) writeKinds(cleanedKinds);
-      const nextColors = readColors();
-      const nextHidden = readHidden();
-
-      const signature = JSON.stringify({
-        milestones: nextMilestones,
-        kinds: cleanedKinds,
-        colors: nextColors,
-        hidden: nextHidden,
-      });
-      if (signature !== signatureRef.current) {
-        signatureRef.current = signature;
-        setMilestones(nextMilestones);
-        setKinds(cleanedKinds);
-        setColors(nextColors);
-        setHidden(nextHidden);
+      const kinds = Object.fromEntries(Object.entries(rawKinds).filter(([id]) => validIds.has(id)));
+      if (JSON.stringify(kinds) !== JSON.stringify(rawKinds)) writeKinds(kinds);
+      const colors = readColors();
+      const hidden = readHidden();
+      const today = localDateKey(new Date());
+      const list = findMilestoneList();
+      const signature = JSON.stringify({ milestones, kinds, colors, hidden, today });
+      const missingDecorations = Boolean(list && milestones.some((milestone) => milestone.date >= today) && !list.querySelector(":scope > [data-milestone-timeline-decoration]"));
+      if (list && (list !== listRef.current || signature !== timelineSignatureRef.current || missingDecorations)) {
+        decorateNativeTimeline(list, milestones, kinds, colors, hidden, today);
+        listRef.current = list;
+        timelineSignatureRef.current = signature;
+      } else if (!list) {
+        listRef.current = null;
       }
 
-      const timelineHost = ensureTimelineHost();
-      setHost((current) => current === timelineHost ? current : timelineHost);
       const createHost = ensureInlineKindHost();
       setInlineKindHost((current) => current === createHost ? current : createHost);
 
@@ -294,16 +364,16 @@ export function MilestoneTimelineController() {
         const title = modal?.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
         const date = modal?.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
         const preferred = preferredEditingIdRef.current
-          ? nextMilestones.find((milestone) => milestone.id === preferredEditingIdRef.current) ?? null
+          ? milestones.find((milestone) => milestone.id === preferredEditingIdRef.current) ?? null
           : null;
         const match = preferred
-          ?? nextMilestones.find((milestone) => milestone.title === title && milestone.date === date)
-          ?? nextMilestones.find((milestone) => milestone.title === title)
+          ?? milestones.find((milestone) => milestone.title === title && milestone.date === date)
+          ?? milestones.find((milestone) => milestone.title === title)
           ?? null;
         const nextId = match?.id ?? null;
         if (nextId !== editingId) {
           setEditingId(nextId);
-          const nextKind = nextId ? kindFor(nextId, cleanedKinds) : "deadline";
+          const nextKind = nextId ? kindFor(nextId, kinds) : "deadline";
           editingKindRef.current = nextKind;
           setEditingKind(nextKind);
         }
@@ -317,13 +387,13 @@ export function MilestoneTimelineController() {
 
       const pending = pendingCreateRef.current;
       if (pending) {
-        const created = nextMilestones.find((milestone) => (
+        const created = milestones.find((milestone) => (
           !pending.ids.has(milestone.id)
           && milestone.title === pending.title
           && milestone.date === pending.date
-        )) ?? nextMilestones.find((milestone) => !pending.ids.has(milestone.id));
+        )) ?? milestones.find((milestone) => !pending.ids.has(milestone.id));
         if (created) {
-          writeKinds({ ...cleanedKinds, [created.id]: pending.kind });
+          writeKinds({ ...kinds, [created.id]: pending.kind });
           pendingCreateRef.current = null;
           draftKindRef.current = "deadline";
           setDraftKind("deadline");
@@ -331,6 +401,17 @@ export function MilestoneTimelineController() {
           pendingCreateRef.current = null;
         }
       }
+    };
+
+    const rememberMilestone = (target: EventTarget | null) => {
+      const row = target instanceof Element ? target.closest<HTMLElement>(".df2-milestones article[data-milestone-id]") : null;
+      if (!row?.dataset.milestoneId) return;
+      preferredEditingIdRef.current = row.dataset.milestoneId;
+    };
+
+    const onClick = (event: MouseEvent) => rememberMilestone(event.target);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") rememberMilestone(event.target);
     };
 
     const onSubmit = (event: SubmitEvent) => {
@@ -347,31 +428,35 @@ export function MilestoneTimelineController() {
         const date = isInline
           ? form.querySelector<HTMLInputElement>('input[type="date"]')?.value ?? ""
           : form.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
-        if (!title || !date) return;
-        pendingCreateRef.current = {
-          ids: new Set(readMilestones().map((milestone) => milestone.id)),
-          title,
-          date,
-          kind: draftKindRef.current,
-          startedAt: Date.now(),
-        };
+        if (title && date) {
+          pendingCreateRef.current = {
+            ids: new Set(readMilestones().map((milestone) => milestone.id)),
+            title,
+            date,
+            kind: draftKindRef.current,
+            startedAt: Date.now(),
+          };
+        }
       }
 
       if (isEditModal && editingId) {
         const title = form.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
         const date = form.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
-        if (!title || !date) return;
-        writeKinds({ ...readKinds(), [editingId]: editingKindRef.current });
+        if (title && date) writeKinds({ ...readKinds(), [editingId]: editingKindRef.current });
       }
     };
 
     sync();
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("submit", onSubmit, true);
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener(KIND_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const timer = window.setInterval(sync, 220);
     return () => {
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("submit", onSubmit, true);
       window.removeEventListener(STATE_SYNC_EVENT, sync);
       window.removeEventListener(KIND_SYNC_EVENT, sync);
@@ -379,89 +464,6 @@ export function MilestoneTimelineController() {
       window.clearInterval(timer);
     };
   }, [editingId]);
-
-  const today = localDateKey(new Date());
-  const visible = milestones.filter((milestone) => milestone.date >= today && !hiddenByColor(milestone.id, colors, hidden));
-  const groups: Array<{ key: string; items: Milestone[] }> = [];
-  visible.forEach((milestone) => {
-    const key = monthKey(milestone.date);
-    const current = groups[groups.length - 1];
-    if (!current || current.key !== key) groups.push({ key, items: [milestone] });
-    else current.items.push(milestone);
-  });
-
-  function openMilestone(id: string) {
-    preferredEditingIdRef.current = id;
-    const sorted = readMilestones();
-    const index = sorted.findIndex((milestone) => milestone.id === id);
-    const nativeList = findMilestoneView()?.querySelector<HTMLElement>(".df2-milestones");
-    const row = index >= 0 ? nativeList?.querySelectorAll<HTMLElement>(":scope > article")[index] : null;
-    row?.click();
-  }
-
-  const timelinePortal = host ? createPortal(
-    <div className="df2-milestone-timeline" aria-label="Milníky podle měsíců">
-      {visible.length === 0 ? (
-        <div className="df2-milestone-timeline-empty">Žádné nadcházející milníky.</div>
-      ) : (
-        <>
-          <div className="df2-milestone-today-anchor"><i /><span>Dnes</span><small>{longDate(today)}</small></div>
-          {groups.map((group, groupIndex) => {
-            const previousDate = groupIndex === 0 ? today : groups[groupIndex - 1].items.at(-1)?.date ?? today;
-            const leadDays = daysBetween(previousDate, group.items[0].date);
-            return (
-              <section key={group.key} className="df2-milestone-month-group" data-month={group.key}>
-                <DailyGap days={leadDays} />
-                <header className="df2-milestone-month-head">
-                  <h2>{monthLabel(group.items[0].date)}</h2>
-                  <span>{group.items.length} {group.items.length === 1 ? "milník" : group.items.length <= 4 ? "milníky" : "milníků"}</span>
-                </header>
-                <div className="df2-milestone-month-items">
-                  {group.items.map((milestone, index) => {
-                    const previous = index > 0 ? group.items[index - 1] : null;
-                    const gapDays = previous ? daysBetween(previous.date, milestone.date) : 0;
-                    const kind = kindFor(milestone.id, kinds);
-                    const color = colorFor(milestone.id, colors);
-                    const note = meaningfulNote(milestone.note);
-                    const remaining = daysBetween(today, milestone.date);
-                    const style = {
-                      "--df2-milestone-color": color,
-                      "--df2-milestone-tint": rgba(color, kind === "deadline" ? 0.075 : 0.035),
-                    } as CSSProperties;
-                    return (
-                      <div key={milestone.id} className="df2-milestone-timeline-entry">
-                        {previous && <DailyGap days={gapDays} />}
-                        <button
-                          type="button"
-                          className={`df2-milestone-timeline-item ${kind === "deadline" ? "is-deadline" : "is-option"}`}
-                          data-milestone-id={milestone.id}
-                          data-milestone-kind={kind}
-                          style={style}
-                          onClick={() => openMilestone(milestone.id)}
-                        >
-                          <span className="df2-milestone-axis-dot" aria-hidden="true" />
-                          <div className="df2-milestone-timeline-copy">
-                            <div className="df2-milestone-kind-line">
-                              <span className={`df2-milestone-kind-chip ${kind}`}>{kind === "deadline" ? "Deadline" : "Možnost"}</span>
-                              {note && <small>{note}</small>}
-                            </div>
-                            <strong>{milestone.title}</strong>
-                          </div>
-                          <div className="df2-milestone-timeline-remaining"><strong>{remaining}</strong><span>dní</span></div>
-                          <time>{longDate(milestone.date)}</time>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </>
-      )}
-    </div>,
-    host,
-  ) : null;
 
   const inlineKindPortal = inlineKindHost ? createPortal(
     <label className="df2-milestone-kind-create-control">
@@ -498,5 +500,5 @@ export function MilestoneTimelineController() {
     editKindHost,
   ) : null;
 
-  return <>{timelinePortal}{inlineKindPortal}{newModalPortal}{editModalPortal}</>;
+  return <>{inlineKindPortal}{newModalPortal}{editModalPortal}</>;
 }
