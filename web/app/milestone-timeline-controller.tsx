@@ -32,7 +32,7 @@ function readMilestones(): Milestone[] {
         && typeof (item as Milestone).id === "string"
         && typeof (item as Milestone).title === "string"
         && typeof (item as Milestone).date === "string"))
-      .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "cs"));
+      .sort((a, b) => a.date.localeCompare(b.date));
   } catch {
     return [];
   }
@@ -371,8 +371,10 @@ export function MilestoneTimelineController() {
     };
 
     const rememberMilestone = (target: EventTarget | null) => {
-      const row = target instanceof Element ? target.closest<HTMLElement>(".df2-milestones article[data-milestone-id]") : null;
-      if (row?.dataset.milestoneId) preferredEditingIdRef.current = row.dataset.milestoneId;
+      const element = target instanceof Element
+        ? target.closest<HTMLElement>(".df2-milestones article[data-milestone-id], .df2-month-milestone[data-milestone-id]")
+        : null;
+      if (element?.dataset.milestoneId) preferredEditingIdRef.current = element.dataset.milestoneId;
     };
     const onClick = (event: MouseEvent) => rememberMilestone(event.target);
     const onKeyDown = (event: KeyboardEvent) => {
