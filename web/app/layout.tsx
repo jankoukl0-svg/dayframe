@@ -10,6 +10,7 @@ import "./reading-metadata-controller.css";
 import "./reading-cover-sizing.css";
 import "./reading-library-controller.css";
 import "./reading-library-auto-lookup-controller.css";
+import "./reading-session-log-controller.css";
 import "./overview-title.css";
 import "./today-polish.css";
 import "./today-briefing-controller.css";
@@ -40,6 +41,7 @@ import { ReadingMetadataController } from "./reading-metadata-controller";
 import { ReadingCoverRecoveryController } from "./reading-cover-recovery-controller";
 import { ReadingLibraryController } from "./reading-library-controller";
 import { ReadingLibraryAutoLookupController } from "./reading-library-auto-lookup-controller";
+import { ReadingSessionLogController } from "./reading-session-log-controller";
 import { HistoryPeriodRolloverController } from "./history-period-rollover-controller";
 import { ExecutionTracker } from "./execution-tracker";
 import { ActiveCompletionSafetyController } from "./active-completion-safety-controller";
@@ -71,5 +73,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><TodayBriefingController /><JarvisFutureContextController /><LateReadingController /><NotificationController /></body></html>;
+  return <html lang="cs"><body>{children}<MilestoneFeaturedController /><RoutineGroupsController /><ActivityTimeController /><HistoryController /><ReadingOverviewController /><OverviewReadingOrderController /><ReadingMetadataController /><ReadingCoverRecoveryController /><ReadingLibraryController /><ReadingLibraryAutoLookupController /><ReadingSessionLogController /><HistoryPeriodRolloverController /><ExecutionTracker /><ActiveCompletionSafetyController /><FocusManualStartController /><WeekCapacityController /><LabelColorsController /><EditCategoryPreserverController /><MilestoneColorsController /><MonthCalendarController /><CalendarObservancesController /><GoogleCalendarController /><MonthCalendarCountdownController /><FocusWeekSyncController /><HistoryEditController /><RetroactiveWeekController /><WeekCrossDayController /><WeekDragSafetyController /><TodayTomorrowSafetyController /><PersonalBlockController /><TodayBriefingController /><JarvisFutureContextController /><LateReadingController /><NotificationController /></body></html>;
 }
