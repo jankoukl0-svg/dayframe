@@ -22,7 +22,9 @@ type CompletionEvent = {
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
+const PENDING_COMPLETION_KEY = "dayframe-completion-pending-v1";
 const CELEBRATION_MS = 2400;
+const PENDING_MAX_AGE_MS = 15_000;
 
 function readTasks() {
   try {
@@ -36,6 +38,51 @@ function readTasks() {
 
 function snapshot(tasks: StoredTask[]) {
   return new Map(tasks.map((task) => [task.id, Boolean(task.completed)]));
+}
+
+function completionRank(task: StoredTask) {
+  return task.priority === "high" ? 0 : task.priority === "normal" ? 1 : 2;
+}
+
+function completionEvent(task: StoredTask): CompletionEvent {
+  return {
+    id: task.id,
+    title: task.title,
+    priority: task.priority === "high" || task.priority === "low" ? task.priority : "normal",
+  };
+}
+
+function newlyCompletedTask(tasks: StoredTask[], previous: Map<string, boolean>) {
+  return tasks
+    .filter((task) => Boolean(task.completed) && previous.get(task.id) === false)
+    .sort((left, right) => completionRank(left) - completionRank(right))[0] ?? null;
+}
+
+function rememberPendingCompletion(task: StoredTask) {
+  try {
+    window.sessionStorage.setItem(PENDING_COMPLETION_KEY, JSON.stringify({
+      id: task.id,
+      completedAt: Date.now(),
+    }));
+  } catch {
+    // The normal in-page feedback path still works when sessionStorage is unavailable.
+  }
+}
+
+function consumePendingCompletion(tasks: StoredTask[]) {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_COMPLETION_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(PENDING_COMPLETION_KEY);
+    const pending = JSON.parse(raw) as { id?: string; completedAt?: number };
+    if (!pending.id || !Number.isFinite(pending.completedAt)) return null;
+    const age = Date.now() - Number(pending.completedAt);
+    if (age < 0 || age > PENDING_MAX_AGE_MS) return null;
+    const task = tasks.find((item) => item.id === pending.id && item.completed);
+    return task ? completionEvent(task) : null;
+  } catch {
+    return null;
+  }
 }
 
 function decorateCompletionActions() {
@@ -59,41 +106,41 @@ function accentCompletedTask(title: string, attempt = 0) {
   });
 }
 
-function completionRank(task: StoredTask) {
-  return task.priority === "high" ? 0 : task.priority === "normal" ? 1 : 2;
-}
-
 export function CompletionExperienceController() {
   const [completion, setCompletion] = useState<CompletionEvent | null>(null);
   const previousRef = useRef<Map<string, boolean> | null>(null);
   const clearTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const present = (event: CompletionEvent) => {
+      setCompletion(event);
+      accentCompletedTask(event.title);
+      if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = window.setTimeout(() => setCompletion(null), CELEBRATION_MS);
+    };
+
     const sync = () => {
       const tasks = readTasks();
       const next = snapshot(tasks);
       const previous = previousRef.current;
 
       if (previous) {
-        const newlyCompleted = tasks
-          .filter((task) => Boolean(task.completed) && previous.get(task.id) === false)
-          .sort((left, right) => completionRank(left) - completionRank(right));
-        const task = newlyCompleted[0];
-        if (task) {
-          const event = {
-            id: task.id,
-            title: task.title,
-            priority: task.priority === "high" || task.priority === "low" ? task.priority : "normal",
-          } satisfies CompletionEvent;
-          setCompletion(event);
-          accentCompletedTask(task.title);
-          if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current);
-          clearTimerRef.current = window.setTimeout(() => setCompletion(null), CELEBRATION_MS);
-        }
+        const task = newlyCompletedTask(tasks, previous);
+        if (task) present(completionEvent(task));
+      } else {
+        const pending = consumePendingCompletion(tasks);
+        if (pending) present(pending);
       }
 
       previousRef.current = next;
       decorateCompletionActions();
+    };
+
+    const captureBeforeReload = () => {
+      const previous = previousRef.current;
+      if (!previous) return;
+      const task = newlyCompletedTask(readTasks(), previous);
+      if (task) rememberPendingCompletion(task);
     };
 
     sync();
@@ -102,12 +149,14 @@ export function CompletionExperienceController() {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
+    window.addEventListener("beforeunload", captureBeforeReload);
 
     return () => {
       window.clearInterval(interval);
       observer.disconnect();
       window.removeEventListener(STATE_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
+      window.removeEventListener("beforeunload", captureBeforeReload);
       if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current);
     };
   }, []);
