@@ -32,20 +32,12 @@ function readMilestones() {
   }
 }
 
-function daysAgo(dateKey: string, todayKey: string) {
-  const target = new Date(`${dateKey}T12:00:00`);
-  const today = new Date(`${todayKey}T12:00:00`);
-  if (Number.isNaN(target.getTime()) || Number.isNaN(today.getTime())) return 0;
-  return Math.max(0, Math.round((today.getTime() - target.getTime()) / 86_400_000));
-}
-
-function agoLabel(days: number) {
-  return days === 1 ? "před 1 dnem" : `před ${days} dny`;
-}
-
-function syncMilestoneList(milestones: Milestone[], today: string) {
+function syncMilestoneList() {
   const list = document.querySelector<HTMLElement>(".df2-milestones");
   if (!list) return;
+
+  const milestones = readMilestones();
+  const today = localDateKey(new Date());
   const articles = [...list.querySelectorAll<HTMLElement>(":scope > article")];
 
   articles.forEach((article, index) => {
@@ -66,37 +58,11 @@ function syncMilestoneList(milestones: Milestone[], today: string) {
   });
 }
 
-function syncCalendar(milestones: Milestone[], today: string) {
-  const byId = new Map(milestones.map((milestone) => [milestone.id, milestone]));
-  document.querySelectorAll<HTMLElement>(".df2-month-milestone[data-milestone-id]").forEach((button) => {
-    const milestone = byId.get(button.dataset.milestoneId || "");
-    const existing = button.querySelector<HTMLElement>(".df2-month-milestone-past-label");
-
-    if (!milestone || milestone.date >= today) {
-      existing?.remove();
-      button.classList.remove("is-past");
-      return;
-    }
-
-    const wanted = agoLabel(daysAgo(milestone.date, today));
-    const label = existing ?? document.createElement("span");
-    label.className = "df2-month-milestone-past-label";
-    if (label.textContent !== wanted) label.textContent = wanted;
-    if (!existing) button.appendChild(label);
-    button.classList.add("is-past");
-  });
-}
-
 export function MilestoneHistoryController() {
   useEffect(() => {
-    const sync = () => {
-      const milestones = readMilestones();
-      const today = localDateKey(new Date());
-      syncMilestoneList(milestones, today);
-      syncCalendar(milestones, today);
-    };
-
+    const sync = () => syncMilestoneList();
     sync();
+
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true });
     const timer = window.setInterval(sync, 30_000);
