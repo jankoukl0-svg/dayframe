@@ -7,12 +7,6 @@ function planningDateKeyInBrowser() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function addDaysKeyInBrowser(key, days) {
-  const date = new Date(`${key}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 async function openFreshToday(page) {
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.route("https://api.open-meteo.com/**", async (route) => {
