@@ -1,0 +1,357 @@
+.df2-milestone-timeline-enhanced > .df2-milestones {
+  display: none;
+}
+
+.df2-milestone-kind-form {
+  grid-template-columns: minmax(0, 1fr) 170px 132px auto;
+  align-items: end;
+}
+
+.df2-milestone-kind-form > button {
+  grid-column: 4;
+}
+
+.df2-milestone-kind-create-host {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.df2-milestone-kind-create-control {
+  display: grid;
+  gap: 5px;
+}
+
+.df2-milestone-kind-create-control > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-kind-create-control select,
+.df2-milestone-kind-modal-control select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.df2-milestone-kind-modal-host {
+  margin-top: 2px;
+}
+
+.df2-milestone-kind-modal-control {
+  display: grid;
+  gap: 7px;
+}
+
+.df2-milestone-kind-modal-control > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.df2-milestone-timeline-host {
+  margin-top: 6px;
+}
+
+.df2-milestone-timeline {
+  --axis-left: 28px;
+  position: relative;
+}
+
+.df2-milestone-timeline-empty {
+  padding: 28px 0;
+  border-block: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.df2-milestone-today-anchor {
+  position: relative;
+  display: grid;
+  grid-template-columns: 46px auto 1fr;
+  align-items: center;
+  min-height: 34px;
+  color: var(--muted);
+}
+
+.df2-milestone-today-anchor::after {
+  content: "";
+  position: absolute;
+  left: var(--axis-left);
+  top: 21px;
+  bottom: -1px;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.df2-milestone-today-anchor i {
+  position: absolute;
+  left: calc(var(--axis-left) - 3px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.df2-milestone-today-anchor span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-today-anchor small {
+  justify-self: end;
+  font: 10px/1.2 "Cascadia Mono", monospace;
+}
+
+.df2-milestone-month-group {
+  position: relative;
+}
+
+.df2-milestone-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 50px;
+  margin-left: 46px;
+  padding: 13px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-milestone-month-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.df2-milestone-month-head span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-milestone-month-items {
+  position: relative;
+}
+
+.df2-milestone-timeline-entry {
+  position: relative;
+}
+
+.df2-milestone-day-gap {
+  position: relative;
+  min-height: 0;
+  margin-left: 0;
+}
+
+.df2-milestone-day-ruler {
+  position: relative;
+  margin-left: var(--axis-left);
+  width: 19px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.df2-milestone-day-ruler span {
+  display: block;
+  width: 8px;
+  height: 3px;
+  border-top: 1px solid rgba(115, 113, 106, .16);
+}
+
+.df2-milestone-day-ruler span.week {
+  width: 17px;
+  border-top-color: rgba(92, 90, 84, .35);
+}
+
+.df2-milestone-day-gap > small {
+  position: absolute;
+  left: 54px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #a4a29a;
+  font: 9px/1 "Cascadia Mono", monospace;
+}
+
+.df2-milestone-timeline-item {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px 150px;
+  align-items: center;
+  gap: 22px;
+  min-height: 82px;
+  padding: 13px 6px 13px 58px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--df2-milestone-tint), transparent 38%);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s ease, padding .12s ease;
+}
+
+.df2-milestone-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: var(--axis-left);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.df2-milestone-timeline-item::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--df2-milestone-color);
+}
+
+.df2-milestone-timeline-item:hover {
+  padding-right: 12px;
+  background: linear-gradient(90deg, var(--df2-milestone-tint), var(--paper) 42%);
+}
+
+.df2-milestone-timeline-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.df2-milestone-axis-dot {
+  position: absolute;
+  left: calc(var(--axis-left) - 4px);
+  top: 50%;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  transform: translateY(-50%);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--df2-milestone-color);
+  box-shadow: 0 0 0 1px var(--df2-milestone-color);
+}
+
+.df2-milestone-timeline-item.is-option .df2-milestone-axis-dot {
+  background: var(--surface);
+}
+
+.df2-milestone-timeline-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.df2-milestone-kind-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.df2-milestone-kind-line > small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-milestone-kind-chip {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-kind-chip.deadline {
+  background: var(--df2-milestone-color);
+  color: white;
+}
+
+.df2-milestone-kind-chip.option {
+  border: 1px solid color-mix(in srgb, var(--df2-milestone-color) 45%, transparent);
+  background: transparent;
+  color: var(--df2-milestone-color);
+}
+
+.df2-milestone-timeline-copy > strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-milestone-timeline-remaining {
+  display: grid;
+  justify-items: start;
+  gap: 1px;
+}
+
+.df2-milestone-timeline-remaining strong {
+  font-size: 31px;
+  font-weight: 620;
+  letter-spacing: -.05em;
+  line-height: .95;
+}
+
+.df2-milestone-timeline-remaining span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.df2-milestone-timeline-item time {
+  justify-self: end;
+  color: var(--muted);
+  font: 10px/1.35 "Cascadia Mono", monospace;
+  text-align: right;
+}
+
+@media (max-width: 850px) {
+  .df2-milestone-kind-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .df2-milestone-kind-form > input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .df2-milestone-kind-create-host,
+  .df2-milestone-kind-form > button {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .df2-milestone-timeline-item {
+    grid-template-columns: minmax(0, 1fr) 58px;
+    gap: 12px;
+    padding-left: 50px;
+  }
+
+  .df2-milestone-timeline-item time {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding-left: 0;
+  }
+
+  .df2-milestone-timeline-remaining strong {
+    font-size: 24px;
+  }
+}
