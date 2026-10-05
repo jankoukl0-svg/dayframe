@@ -165,3 +165,71 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
 
   await expect(briefing.locator("[data-jarvis-advisor]")).toHaveCount(0);
 });
+
+test("Jarvis challenges a weak seven-day plan without becoming a productivity score", async ({ page }) => {
+  await openFreshToday(page);
+  const today = await page.evaluate(planningDateKeyInBrowser);
+  const dates = await page.evaluate(({ key }) => {
+    const make = (offset) => {
+      const date = new Date(`${key}T12:00:00`);
+      date.setDate(date.getDate() + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    return {
+      prep: make(2),
+      crowded: make(3),
+      milestone: make(12),
+    };
+  }, { key: today });
+
+  await page.evaluate(({ dates }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const createdAt = new Date().toISOString();
+    const task = (id, title, date, duration, category) => ({
+      id,
+      title,
+      date,
+      duration,
+      start: "10:00",
+      end: "11:00",
+      requestedStart: "10:00",
+      deadlineTime: "22:30",
+      priority: "normal",
+      category,
+      mode: "flexible",
+      completed: false,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: false,
+      createdAt,
+    });
+    state.routines = [];
+    state.backlog = [];
+    state.milestones = [
+      { id: "plan-c1", title: "Cambridge C1 test", date: dates.milestone, note: "" },
+    ];
+    state.plans = {
+      [dates.prep]: [task("english-prep", "Angličtina C1", dates.prep, 120, "Angličtina")],
+      [dates.crowded]: [
+        task("valuation", "Valuation model", dates.crowded, 150, "Finance"),
+        task("excel", "CFI Excel", dates.crowded, 100, "Finance"),
+        task("economics", "Ekonomie", dates.crowded, 80, "Ekonomie"),
+      ],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.localStorage.setItem("dayframe-birthdays-v1", "[]");
+  }, { dates });
+
+  await page.reload({ waitUntil: "networkidle" });
+  const briefing = await openBriefing(page);
+  const advisor = briefing.locator("[data-jarvis-advisor]");
+
+  await expect(advisor).toBeVisible();
+  await expect(advisor).toContainText("Přípravy na Cambridge C1 test je zatím málo");
+  await expect(advisor).toContainText("2 h související přípravy");
+  await expect(advisor).toContainText("Zvaž ještě jeden soustředěný blok");
+  await expect(advisor).toContainText("Valuation model by měl lepší místo jinde");
+  await expect(advisor).toContainText("5 h 30 min v plánu");
+  await expect(advisor).not.toContainText("score");
+  await expect(briefing.locator("[data-jarvis-advice]")).toHaveCount(2);
+});
