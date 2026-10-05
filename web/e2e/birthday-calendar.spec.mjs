@@ -6,6 +6,10 @@ function keyFor(year, monthIndex, day) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function isLeapYear(year) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
 test("birthdays recur yearly with age and stay separate from milestones", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
@@ -74,4 +78,40 @@ test("birthdays recur yearly with age and stay separate from milestones", async 
     const birthdays = JSON.parse(window.localStorage.getItem("dayframe-birthdays-v1") || "[]");
     return birthdays[0]?.name;
   })).toBe("Anna Nováková");
+});
+
+test("February 29 birthdays appear on February 28 in non-leap years", async ({ page }) => {
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  const seeded = await page.evaluate(() => {
+    const leap = (year) => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const now = new Date();
+    let targetYear = now.getFullYear() + 1;
+    while (leap(targetYear)) targetYear += 1;
+    window.localStorage.setItem("dayframe-birthdays-v1", JSON.stringify([
+      { id: "birthday-leap", name: "Lea", day: 29, month: 2, birthYear: 2000 },
+    ]));
+    return {
+      currentYear: now.getFullYear(),
+      currentMonth: now.getMonth(),
+      targetYear,
+    };
+  });
+
+  expect(isLeapYear(seeded.targetYear)).toBe(false);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".df2-month-calendar-nav-button").click();
+
+  const monthOffset = (seeded.targetYear - seeded.currentYear) * 12 + (1 - seeded.currentMonth);
+  for (let index = 0; index < monthOffset; index += 1) {
+    await page.getByRole("button", { name: "Další měsíc" }).click();
+  }
+
+  const fallbackKey = keyFor(seeded.targetYear, 1, 28);
+  const fallbackCell = page.locator(`.df2-month-day[data-date="${fallbackKey}"]`);
+  await expect(fallbackCell).toBeVisible();
+  const birthday = fallbackCell.locator('.df2-month-birthday[data-birthday-id="birthday-leap"]');
+  await expect(birthday).toContainText("Lea");
+  await expect(birthday).toContainText(`${seeded.targetYear - 2000}. narozeniny`);
 });
