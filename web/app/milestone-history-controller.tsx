@@ -51,10 +51,15 @@ function syncMilestoneList(milestones: Milestone[], today: string) {
   articles.forEach((article, index) => {
     const milestone = milestones[index];
     const shouldHide = Boolean(milestone && milestone.date < today);
-    if (shouldHide) {
+    const hiddenByHistory = article.dataset.milestoneHistoryHidden === "true";
+
+    if (shouldHide && !hiddenByHistory) {
       article.dataset.milestoneHistoryHidden = "true";
       article.hidden = true;
-    } else {
+      return;
+    }
+
+    if (!shouldHide && hiddenByHistory) {
       delete article.dataset.milestoneHistoryHidden;
       article.hidden = false;
     }
@@ -73,9 +78,10 @@ function syncCalendar(milestones: Milestone[], today: string) {
       return;
     }
 
+    const wanted = agoLabel(daysAgo(milestone.date, today));
     const label = existing ?? document.createElement("span");
     label.className = "df2-month-milestone-past-label";
-    label.textContent = agoLabel(daysAgo(milestone.date, today));
+    if (label.textContent !== wanted) label.textContent = wanted;
     if (!existing) button.appendChild(label);
     button.classList.add("is-past");
   });
