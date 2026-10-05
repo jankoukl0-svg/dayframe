@@ -17,6 +17,7 @@ const STATE_SYNC_EVENT = "dayframe-state-sync";
 const BIRTHDAYS_SYNC_EVENT = "dayframe-birthdays-sync";
 const SIGNATURE_KEY = "jarvisAdvisorSignature";
 const DAY_MS = 86_400_000;
+const PLAN_HORIZON_DAYS = 7;
 
 type Birthday = {
   id: string;
@@ -129,7 +130,7 @@ function weekdayLabel(key: string) {
 function lightestUpcomingDay(state: DayframeState, now: Date, milestoneDate: string) {
   const today = planningDateKey(now);
   const options: Array<{ key: string; minutes: number }> = [];
-  for (let offset = 1; offset <= 7; offset += 1) {
+  for (let offset = 1; offset <= PLAN_HORIZON_DAYS; offset += 1) {
     const key = addDaysKey(today, offset);
     if (key > milestoneDate) break;
     options.push({ key, minutes: plannedMinutes(getTasksForDate(state, key)) });
@@ -167,6 +168,82 @@ function milestoneAdvice(state: DayframeState, now: Date): Advice | null {
       title: `Příprava na ${milestone.title}`,
       body: `${milestone.title} ${timing} a v plánu nemáš žádný související blok.${slot}`,
       tone: days <= 7 ? "warning" : "normal",
+    };
+  }
+
+  return null;
+}
+
+function preparationTarget(days: number) {
+  if (days <= 3) return 90;
+  if (days <= 7) return 120;
+  return 180;
+}
+
+function underpreparedMilestoneAdvice(state: DayframeState, now: Date): Advice | null {
+  const today = planningDateKey(now);
+  const horizon = addDaysKey(today, PLAN_HORIZON_DAYS);
+  const milestones = [...state.milestones]
+    .filter((item) => item.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  for (const milestone of milestones) {
+    const days = daysUntilDate(milestone.date, now);
+    if (days < 1) continue;
+    if (days > 14) break;
+    if (!milestoneNeedsPreparation(milestone.title, milestone.note)) continue;
+
+    const prepEnd = milestone.date < horizon ? milestone.date : horizon;
+    const relatedPlanned = Object.entries(state.plans)
+      .filter(([date]) => date >= today && date <= prepEnd)
+      .flatMap(([, tasks]) => tasks)
+      .filter((task) => !task.completed && taskMatchesMilestone(task, milestone.title, milestone.note));
+    if (!relatedPlanned.length) continue;
+
+    const prepMinutes = relatedPlanned.reduce((sum, task) => sum + Math.max(0, task.duration || 0), 0);
+    if (prepMinutes >= preparationTarget(days)) continue;
+
+    const lightest = lightestUpcomingDay(state, now, prepEnd);
+    const slot = lightest
+      ? ` ${weekdayLabel(lightest.key)} má jen ${formatDuration(lightest.minutes)} v plánu.`
+      : "";
+    return {
+      id: `underprepared-${milestone.id}`,
+      label: "Plán",
+      title: `Přípravy na ${milestone.title} je zatím málo`,
+      body: `Do milníku zbývá ${days} ${days === 1 ? "den" : days >= 2 && days <= 4 ? "dny" : "dní"} a v příštích ${Math.min(days, PLAN_HORIZON_DAYS)} dnech máš ${formatDuration(prepMinutes)} související přípravy.${slot} Zvaž ještě jeden soustředěný blok.`,
+      tone: days <= 7 ? "warning" : "normal",
+    };
+  }
+
+  return null;
+}
+
+function betterDayAdvice(state: DayframeState, now: Date): Advice | null {
+  const today = planningDateKey(now);
+  const days = Array.from({ length: PLAN_HORIZON_DAYS }, (_, index) => {
+    const key = addDaysKey(today, index + 1);
+    const tasks = getTasksForDate(state, key).filter((task) => !task.completed);
+    return { key, tasks, minutes: plannedMinutes(tasks) };
+  });
+
+  for (const crowded of days.filter((day) => day.minutes >= 300).sort((a, b) => b.minutes - a.minutes)) {
+    const demanding = crowded.tasks
+      .filter((task) => Math.max(0, task.duration || 0) >= 90 && normalize(task.category ?? "") !== "osobni")
+      .sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
+    if (!demanding) continue;
+
+    const lighter = days
+      .filter((day) => day.key !== crowded.key && day.minutes <= 180 && crowded.minutes - day.minutes >= 150)
+      .sort((a, b) => a.minutes - b.minutes || a.key.localeCompare(b.key))[0];
+    if (!lighter) continue;
+
+    return {
+      id: `better-day-${demanding.id}`,
+      label: "Plán",
+      title: `${demanding.title} by měl lepší místo jinde`,
+      body: `${weekdayLabel(crowded.key)} máš ${formatDuration(crowded.minutes)} v plánu, zatímco ${weekdayLabel(lighter.key)} jen ${formatDuration(lighter.minutes)}. Pokud je blok přesunutelný, zvaž přesun ${demanding.title} na volnější den.`,
+      tone: "normal",
     };
   }
 
@@ -250,9 +327,11 @@ function tomorrowAdvice(state: DayframeState, now: Date): Advice | null {
 }
 
 function buildAdvice(state: DayframeState, birthdays: Birthday[], now: Date) {
+  const preparation = milestoneAdvice(state, now) ?? underpreparedMilestoneAdvice(state, now);
   return [
-    milestoneAdvice(state, now),
+    preparation,
     birthdayAdvice(birthdays, now),
+    betterDayAdvice(state, now),
     tomorrowAdvice(state, now),
   ].filter((item): item is Advice => Boolean(item)).slice(0, 3);
 }
