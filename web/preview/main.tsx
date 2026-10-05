@@ -38,6 +38,7 @@ import { NotificationController } from "../app/notification-controller";
 import { TodayBriefingController } from "../app/today-briefing-controller";
 import { JarvisFutureContextController } from "../app/jarvis-future-context-controller";
 import { JarvisAdvisorController } from "../app/jarvis-advisor-controller";
+import { CompletionExperienceController } from "../app/completion-experience-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
@@ -79,6 +80,7 @@ import "../app/visual-harmony-state-fixes.css";
 import "../app/week-category-tints.css";
 import "../app/retroactive-week-controller.css";
 import "../app/personal-block-controller.css";
+import "../app/completion-experience-controller.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");
@@ -124,5 +126,6 @@ createRoot(root).render(
     <JarvisAdvisorController />
     <LateReadingController />
     <NotificationController />
+    <CompletionExperienceController />
   </>,
 );
