@@ -261,7 +261,8 @@ function renderAdvisor(host: HTMLElement, advice: Advice[]) {
   title.textContent = "Advisor";
   const meta = document.createElement("small");
   meta.textContent = advice.length === 1 ? "1 relevantní doporučení" : `${advice.length} relevantní doporučení`;
-  head.append(title, meta);
+  head.appendChild(title);
+  head.appendChild(meta);
   card.appendChild(head);
 
   const list = document.createElement("div");
@@ -277,15 +278,17 @@ function renderAdvisor(host: HTMLElement, advice: Advice[]) {
     heading.textContent = item.title;
     const body = document.createElement("p");
     body.textContent = item.body;
-    copy.append(heading, body);
-    row.append(label, copy);
+    copy.appendChild(heading);
+    copy.appendChild(body);
+    row.appendChild(label);
+    row.appendChild(copy);
     list.appendChild(row);
   });
   card.appendChild(list);
 
   const primary = host.querySelector(".df2-jarvis-primary-grid");
   if (primary) primary.insertAdjacentElement("afterend", card);
-  else host.prepend(card);
+  else host.insertBefore(card, host.firstChild);
 }
 
 function syncAdvisor() {
