@@ -1,0 +1,152 @@
+.df2-inline-form .df2-milestone-add-kind,
+.df2-milestone-kind-editor select {
+  min-height: 42px;
+  border: 1px solid rgba(38, 34, 30, 0.12);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #27231f;
+  padding: 0 12px;
+  font: inherit;
+  outline: none;
+}
+
+.df2-inline-form .df2-milestone-add-kind:focus,
+.df2-milestone-kind-editor select:focus {
+  border-color: rgba(196, 91, 50, 0.45);
+  box-shadow: 0 0 0 3px rgba(196, 91, 50, 0.08);
+}
+
+.df2-milestones > .df2-milestone-month-divider {
+  min-height: 48px;
+  margin-top: 22px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(38, 34, 30, 0.09);
+  border-radius: 16px;
+  background: rgba(246, 242, 236, 0.76);
+  color: #29251f;
+}
+
+.df2-milestones > .df2-milestone-month-divider:first-child {
+  margin-top: 0;
+}
+
+.df2-milestone-month-divider strong {
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.df2-milestone-month-divider span {
+  color: #8a837a;
+  font-size: 11px;
+}
+
+.df2-milestones > .df2-milestone-day-gap {
+  --df2-day-step: 6px;
+  position: relative;
+  height: calc(var(--df2-gap-days) * var(--df2-day-step));
+  min-height: 6px;
+  max-height: 186px;
+  margin: 0 16px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--df2-day-step) - 1px),
+    rgba(44, 38, 32, 0.075) calc(var(--df2-day-step) - 1px),
+    rgba(44, 38, 32, 0.075) var(--df2-day-step)
+  );
+}
+
+.df2-milestones > .df2-milestone-day-gap::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(200, 91, 50, 0.16);
+}
+
+.df2-milestones > .df2-milestone-day-gap span {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(248, 245, 240, 0.96);
+  color: #989087;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.df2-milestones > article > div:first-child {
+  min-width: 0;
+}
+
+.df2-milestone-kind-badge {
+  display: inline-flex;
+  width: max-content;
+  margin-bottom: 5px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.df2-milestone-kind-badge.deadline {
+  color: #9b3f1d;
+  background: rgba(200, 91, 50, 0.11);
+}
+
+.df2-milestone-kind-badge.option {
+  color: #5f6974;
+  background: rgba(123, 135, 148, 0.13);
+}
+
+.df2-milestones > article.df2-milestone-option {
+  opacity: 0.86;
+}
+
+.df2-milestones > article.df2-milestone-option:hover,
+.df2-milestones > article.df2-milestone-option:focus-visible {
+  opacity: 1;
+}
+
+.df2-milestone-kind-editor-host {
+  display: block;
+}
+
+.df2-milestone-kind-editor {
+  display: grid;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.df2-milestone-kind-editor > span {
+  color: #746d65;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+@media (min-width: 760px) {
+  .df2-inline-form:has(.df2-milestone-add-kind) {
+    grid-template-columns: minmax(220px, 1fr) 180px 160px auto;
+  }
+}
+
+@media (max-width: 759px) {
+  .df2-inline-form .df2-milestone-add-kind {
+    width: 100%;
+  }
+
+  .df2-milestones > .df2-milestone-month-divider {
+    margin-top: 16px;
+  }
+}

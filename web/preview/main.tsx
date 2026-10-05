@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { DayframeV2 } from "../app/dayframe-v2";
 import { MilestoneFeaturedController } from "../app/milestone-featured-controller";
 import { MilestoneHistoryController } from "../app/milestone-history-controller";
+import { MilestoneMonthGroupsController } from "../app/milestone-month-groups-controller";
 import { BirthdayCalendarController } from "../app/birthday-calendar-controller";
 import { RoutineGroupsController } from "../app/routine-groups-controller";
 import { ActivityTimeController } from "../app/activity-time-controller";
@@ -43,6 +44,7 @@ import "../app/milestone-alignment.css";
 import "../app/week-calendar-polish.css";
 import "../app/milestone-featured-controller.css";
 import "../app/milestone-history-controller.css";
+import "../app/milestone-month-groups-controller.css";
 import "../app/birthday-calendar-controller.css";
 import "../app/routine-groups-controller.css";
 import "../app/activity-time-controller.css";
@@ -83,6 +85,7 @@ createRoot(root).render(
     <DayframeV2 />
     <MilestoneFeaturedController />
     <MilestoneHistoryController />
+    <MilestoneMonthGroupsController />
     <BirthdayCalendarController />
     <RoutineGroupsController />
     <ActivityTimeController />
