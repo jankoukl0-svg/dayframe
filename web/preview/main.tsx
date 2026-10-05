@@ -37,6 +37,7 @@ import { HistoryEditController } from "../app/history-edit-controller";
 import { NotificationController } from "../app/notification-controller";
 import { TodayBriefingController } from "../app/today-briefing-controller";
 import { JarvisFutureContextController } from "../app/jarvis-future-context-controller";
+import { JarvisAdvisorController } from "../app/jarvis-advisor-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
@@ -61,6 +62,7 @@ import "../app/today-polish.css";
 import "../app/today-briefing-controller.css";
 import "../app/jarvis-compact.css";
 import "../app/jarvis-future-context-controller.css";
+import "../app/jarvis-advisor-controller.css";
 import "../app/plan-actual.css";
 import "../app/week-capacity.css";
 import "../app/label-colors-controller.css";
@@ -119,6 +121,7 @@ createRoot(root).render(
     <PersonalBlockController />
     <TodayBriefingController />
     <JarvisFutureContextController />
+    <JarvisAdvisorController />
     <LateReadingController />
     <NotificationController />
   </>,
