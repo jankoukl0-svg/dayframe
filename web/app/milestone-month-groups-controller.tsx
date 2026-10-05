@@ -109,7 +109,7 @@ function ensureHost() {
     host = document.createElement("div");
     host.dataset.milestoneMonthHost = "true";
     host.className = "df2-milestone-month-host";
-    view.list.before(host);
+    view.list.parentNode?.insertBefore(host, view.list);
   }
   view.section.dataset.milestoneMonthGroups = "true";
   return host;
