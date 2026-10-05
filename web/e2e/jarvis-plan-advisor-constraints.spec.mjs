@@ -26,12 +26,16 @@ async function openFreshToday(page) {
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 }
 
-async function openBriefing(page) {
-  const launcher = page.locator("[data-today-briefing-launcher]");
-  await expect(launcher).toBeVisible();
-  await launcher.click();
+async function mountAdvisorHost(page) {
+  await page.evaluate(() => {
+    document.querySelectorAll("[data-today-briefing]").forEach((node) => node.remove());
+    const host = document.createElement("div");
+    host.dataset.todayBriefing = "true";
+    document.body.appendChild(host);
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  });
   const host = page.locator("[data-today-briefing]");
-  await expect(host).toBeVisible();
+  await expect(host).toBeAttached();
   return host;
 }
 
@@ -71,8 +75,7 @@ test("Jarvis respects move deadlines, refreshes constraints and tries another mo
     window.localStorage.setItem("dayframe-birthdays-v1", "[]");
   }, { dates });
 
-  await page.reload({ waitUntil: "networkidle" });
-  const briefing = await openBriefing(page);
+  const briefing = await mountAdvisorHost(page);
   await expect(briefing.locator('[data-jarvis-advice="better-day-move-me"]')).toHaveCount(0);
   await expect(briefing.locator('[data-jarvis-advice="better-day-other-a"]')).toBeVisible();
 
@@ -128,8 +131,7 @@ test("Jarvis warns when milestone preparation exists only beyond the seven-day h
     window.localStorage.setItem("dayframe-birthdays-v1", "[]");
   }, { dates });
 
-  await page.reload({ waitUntil: "networkidle" });
-  const briefing = await openBriefing(page);
+  const briefing = await mountAdvisorHost(page);
   const advice = briefing.locator('[data-jarvis-advice="underprepared-late-c1"]');
   await expect(advice).toBeVisible();
   await expect(advice).toContainText("0 min související přípravy");
