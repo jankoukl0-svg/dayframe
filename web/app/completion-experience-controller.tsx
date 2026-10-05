@@ -6,6 +6,9 @@ import { createPortal } from "react-dom";
 type StoredTask = {
   id: string;
   title: string;
+  date?: string;
+  start?: string;
+  end?: string;
   completed?: boolean;
   priority?: "high" | "normal" | "low";
 };
@@ -17,6 +20,9 @@ type StoredState = {
 type CompletionEvent = {
   id: string;
   title: string;
+  date?: string;
+  start?: string;
+  end?: string;
   priority: "high" | "normal" | "low";
 };
 
@@ -48,6 +54,9 @@ function completionEvent(task: StoredTask): CompletionEvent {
   return {
     id: task.id,
     title: task.title,
+    date: task.date,
+    start: task.start,
+    end: task.end,
     priority: task.priority === "high" || task.priority === "low" ? task.priority : "normal",
   };
 }
@@ -93,12 +102,38 @@ function decorateCompletionActions() {
   });
 }
 
-function accentCompletedTask(title: string, attempt = 0) {
+function visibleWeekTask(event: CompletionEvent) {
+  if (!event.date || !event.start || !event.end) return null;
+  const date = new Date(`${event.date}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  const dayNumber = String(date.getDate());
+  const weekday = new Intl.DateTimeFormat("cs-CZ", { weekday: "short" })
+    .format(date)
+    .replace(".", "")
+    .toLocaleLowerCase("cs-CZ");
+
+  const day = [...document.querySelectorAll<HTMLElement>(".df2-week-day")].find((item) => {
+    const head = item.querySelector<HTMLElement>(".df2-week-day-head");
+    const renderedWeekday = head?.querySelector("span")?.textContent?.trim().toLocaleLowerCase("cs-CZ");
+    const renderedDay = head?.querySelector("strong")?.textContent?.trim();
+    return renderedDay === dayNumber && renderedWeekday === weekday;
+  });
+  if (!day) return null;
+
+  const time = `${event.start}–${event.end}`;
+  const target = [...day.querySelectorAll<HTMLElement>(".df2-week-task.done")].find((item) => (
+    item.querySelector("strong")?.textContent?.trim() === event.title
+    && item.querySelector("span")?.textContent?.trim() === time
+  ));
+  if (target) target.dataset.completionTaskId = event.id;
+  return target ?? null;
+}
+
+function accentCompletedTask(event: CompletionEvent, attempt = 0) {
   window.requestAnimationFrame(() => {
-    const matches = [...document.querySelectorAll<HTMLElement>(".df2-week-task.done")];
-    const target = matches.find((item) => item.querySelector("strong")?.textContent?.trim() === title);
+    const target = visibleWeekTask(event);
     if (!target) {
-      if (attempt < 4) window.setTimeout(() => accentCompletedTask(title, attempt + 1), 70);
+      if (attempt < 4) window.setTimeout(() => accentCompletedTask(event, attempt + 1), 70);
       return;
     }
     target.classList.add("df2-just-completed");
@@ -114,7 +149,7 @@ export function CompletionExperienceController() {
   useEffect(() => {
     const present = (event: CompletionEvent) => {
       setCompletion(event);
-      accentCompletedTask(event.title);
+      accentCompletedTask(event);
       if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = window.setTimeout(() => setCompletion(null), CELEBRATION_MS);
     };
