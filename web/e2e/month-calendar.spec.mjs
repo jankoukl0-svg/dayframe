@@ -23,7 +23,7 @@ test("monthly calendar shows, edits, colors, countdowns and creates milestones",
         : currentDays > 1
           ? `za ${currentDays} ${currentDays <= 4 ? "dny" : "dní"}`
           : currentDays === -1
-            ? "včera"
+            ? "před 1 dnem"
             : `před ${Math.abs(currentDays)} dny`;
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     state.milestones = [
