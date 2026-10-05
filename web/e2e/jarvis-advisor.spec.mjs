@@ -43,28 +43,31 @@ async function openBriefing(page) {
 test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant advice and stays quiet otherwise", async ({ page }) => {
   await openFreshToday(page);
   const today = await page.evaluate(planningDateKeyInBrowser);
-  const milestoneDate = await page.evaluate(({ key }) => {
-    const date = new Date(`${key}T12:00:00`);
-    date.setDate(date.getDate() + 7);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  }, { key: today });
-  const tomorrow = await page.evaluate(({ key }) => {
-    const date = new Date(`${key}T12:00:00`);
-    date.setDate(date.getDate() + 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  }, { key: today });
-  const birthdayDate = await page.evaluate(({ key }) => {
-    const date = new Date(`${key}T12:00:00`);
-    date.setDate(date.getDate() + 5);
-    return { month: date.getMonth() + 1, day: date.getDate() };
+  const dates = await page.evaluate(({ key }) => {
+    const make = (offset) => {
+      const date = new Date(`${key}T12:00:00`);
+      date.setDate(date.getDate() + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    const birthday = new Date(`${key}T12:00:00`);
+    birthday.setDate(birthday.getDate() + 5);
+    return {
+      admin: make(2),
+      milestone: make(7),
+      tomorrow: make(1),
+      birthday: { month: birthday.getMonth() + 1, day: birthday.getDate() },
+    };
   }, { key: today });
 
-  await page.evaluate(({ todayKey, tomorrowKey, milestoneKey, birthday }) => {
+  await page.evaluate(({ todayKey, dates }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const createdAt = new Date().toISOString();
     state.routines = [];
     state.backlog = [];
-    state.milestones = [{ id: "advisor-c1", title: "Cambridge C1 test", date: milestoneKey, note: "" }];
+    state.milestones = [
+      { id: "advisor-admin", title: "zápis", date: dates.admin, note: "" },
+      { id: "advisor-c1", title: "Cambridge C1 test", date: dates.milestone, note: "" },
+    ];
     state.plans = {
       [todayKey]: [
         {
@@ -86,11 +89,11 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
           createdAt,
         },
       ],
-      [tomorrowKey]: [
+      [dates.tomorrow]: [
         {
-          id: "advisor-tomorrow-1",
+          id: "advisor-tomorrow-early",
           title: "Ekonomie",
-          date: tomorrowKey,
+          date: dates.tomorrow,
           duration: 180,
           start: "08:00",
           end: "11:00",
@@ -106,16 +109,16 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
           createdAt,
         },
         {
-          id: "advisor-tomorrow-2",
-          title: "Projekt",
-          date: tomorrowKey,
-          duration: 180,
-          start: "13:00",
-          end: "16:00",
-          requestedStart: "13:00",
-          deadlineTime: "22:30",
+          id: "advisor-tomorrow-late",
+          title: "Pozdní čtení",
+          date: dates.tomorrow,
+          duration: 30,
+          start: "00:30",
+          end: "01:00",
+          requestedStart: "00:30",
+          deadlineTime: "01:30",
           priority: "normal",
-          category: "Studium",
+          category: "Čtení",
           mode: "flexible",
           completed: false,
           source: "user",
@@ -127,9 +130,9 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
     };
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     window.localStorage.setItem("dayframe-birthdays-v1", JSON.stringify([
-      { id: "advisor-birthday", name: "Tomáš", month: birthday.month, day: birthday.day, note: "koupit dárek" },
+      { id: "advisor-birthday", name: "Tomáš", month: dates.birthday.month, day: dates.birthday.day, note: "koupit dárek" },
     ]));
-  }, { todayKey: today, tomorrowKey: tomorrow, milestoneKey: milestoneDate, birthday: birthdayDate });
+  }, { todayKey: today, dates });
 
   await page.reload({ waitUntil: "networkidle" });
   const briefing = await openBriefing(page);
@@ -138,10 +141,13 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
   const advisor = briefing.locator("[data-jarvis-advisor]");
   await expect(advisor).toBeVisible();
   await expect(advisor).toContainText("Příprava na Cambridge C1 test");
+  await expect(advisor).not.toContainText("Příprava na zápis");
   await expect(advisor).toContainText("v plánu nemáš žádný související blok");
   await expect(advisor).toContainText("Tomáš · za 5 dní");
   await expect(advisor).toContainText("koupit dárek");
-  await expect(advisor).toContainText("Zítřek je výrazně plnější");
+  await expect(advisor).toContainText("Zítra začínáš brzy");
+  await expect(advisor).toContainText("08:00 · Ekonomie");
+  await expect(advisor).not.toContainText("První blok je v 00:30");
   await expect(briefing.locator("[data-jarvis-advice]")).toHaveCount(3);
 
   await page.evaluate(({ todayKey }) => {
