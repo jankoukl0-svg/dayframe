@@ -59,6 +59,7 @@ import "../app/reading-session-log-controller.css";
 import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/today-briefing-controller.css";
+import "../app/jarvis-compact.css";
 import "../app/jarvis-future-context-controller.css";
 import "../app/plan-actual.css";
 import "../app/week-capacity.css";
