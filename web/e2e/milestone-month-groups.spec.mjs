@@ -10,7 +10,7 @@ function atMonth(year, monthIndex, day) {
   return dateKey(new Date(year, monthIndex, day, 12));
 }
 
-test("milestones group by month, show day spacing, and distinguish deadline from option", async ({ page }) => {
+test("milestones group by month, show continuous day spacing, and distinguish deadline from option", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -20,10 +20,14 @@ test("milestones group by month, show day spacing, and distinguish deadline from
     const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 12);
     const followingMonth = new Date(now.getFullYear(), now.getMonth() + 2, 1, 12);
     const key = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    const first = key(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 3, 12));
-    const second = key(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 10, 12));
-    const third = key(new Date(followingMonth.getFullYear(), followingMonth.getMonth(), 5, 12));
+    const firstDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 3, 12);
+    const secondDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 10, 12);
+    const thirdDate = new Date(followingMonth.getFullYear(), followingMonth.getMonth(), 5, 12);
+    const first = key(firstDate);
+    const second = key(secondDate);
+    const third = key(thirdDate);
     const past = key(new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 2), 12));
+    const crossMonthGapDays = Math.round((Date.UTC(thirdDate.getFullYear(), thirdDate.getMonth(), thirdDate.getDate()) - Date.UTC(secondDate.getFullYear(), secondDate.getMonth(), secondDate.getDate())) / 86_400_000);
     state.milestones = [
       { id: "past-hidden", title: "Starý termín", date: past, note: "Vlastní termín" },
       { id: "month-deadline", title: "Deadline test", date: first, note: "Musím stihnout" },
@@ -39,6 +43,7 @@ test("milestones group by month, show day spacing, and distinguish deadline from
     return {
       nextMonthYear: nextMonth.getFullYear(),
       nextMonthIndex: nextMonth.getMonth(),
+      crossMonthGapDays,
     };
   });
 
@@ -57,9 +62,14 @@ test("milestones group by month, show day spacing, and distinguish deadline from
   await expect(deadline.locator(".df2-milestone-kind-badge")).toHaveText("Deadline");
   await expect(option.locator(".df2-milestone-kind-badge")).toHaveText("Možnost");
 
-  const gap = list.locator(':scope > .df2-milestone-day-gap[aria-label="7 dní mezi termíny"]');
-  await expect(gap).toHaveCount(1);
-  await expect(gap).toHaveAttribute("style", /--df2-gap-days: 7/);
+  const sameMonthGap = list.locator(':scope > .df2-milestone-day-gap[aria-label="7 dní mezi termíny"]');
+  await expect(sameMonthGap).toHaveCount(1);
+  await expect(sameMonthGap).toHaveAttribute("style", /--df2-gap-days: 7/);
+
+  const crossMonthGap = list.locator(`:scope > .df2-milestone-day-gap[aria-label="${seed.crossMonthGapDays} dní mezi termíny"]`);
+  await expect(crossMonthGap).toHaveCount(1);
+  await expect(crossMonthGap).toHaveAttribute("style", new RegExp(`--df2-gap-days: ${seed.crossMonthGapDays}`));
+  await expect(list.locator(":scope > .df2-milestone-day-gap")).toHaveCount(2);
 
   await option.click();
   const editModal = page.locator(".df2-modal", { has: page.getByRole("heading", { name: "Upravit milník" }) });
