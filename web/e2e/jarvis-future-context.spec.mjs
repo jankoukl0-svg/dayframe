@@ -62,29 +62,7 @@ async function openBriefing(page) {
   return briefing;
 }
 
-function makeTask(id, title, date, duration, start, end, category, completed = false) {
-  return {
-    id,
-    title,
-    date,
-    duration,
-    start,
-    end,
-    requestedStart: start,
-    deadlineTime: "22:30",
-    priority: "normal",
-    category,
-    mode: "flexible",
-    completed,
-    source: "user",
-    dateLocked: true,
-    autoScheduled: false,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 test("Jarvis shows what awaits tomorrow", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page);
   await openFresh(page);
   const today = await page.evaluate(planningDateKeyInBrowser);
