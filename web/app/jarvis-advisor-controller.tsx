@@ -229,12 +229,17 @@ function betterDayAdvice(state: DayframeState, now: Date): Advice | null {
 
   for (const crowded of days.filter((day) => day.minutes >= 300).sort((a, b) => b.minutes - a.minutes)) {
     const demanding = crowded.tasks
-      .filter((task) => Math.max(0, task.duration || 0) >= 90 && normalize(task.category ?? "") !== "osobni")
+      .filter((task) => task.mode === "flexible" && Math.max(0, task.duration || 0) >= 90 && normalize(task.category ?? "") !== "osobni")
       .sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
     if (!demanding) continue;
 
+    const demandingMinutes = Math.max(0, demanding.duration || 0);
     const lighter = days
-      .filter((day) => day.key !== crowded.key && day.minutes <= 180 && crowded.minutes - day.minutes >= 150)
+      .filter((day) => day.key !== crowded.key
+        && (!demanding.dueDate || day.key <= demanding.dueDate)
+        && day.minutes <= 180
+        && crowded.minutes - day.minutes >= 150
+        && day.minutes + demandingMinutes <= crowded.minutes - 90)
       .sort((a, b) => a.minutes - b.minutes || a.key.localeCompare(b.key))[0];
     if (!lighter) continue;
 
