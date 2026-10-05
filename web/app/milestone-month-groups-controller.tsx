@@ -141,13 +141,14 @@ function syncDecorations(milestones: Milestone[], types: TypeMap) {
     const previous = index > 0 ? visibleUpcoming[index - 1] : null;
     const currentMonth = monthKey(milestone.date);
     const previousMonth = previous ? monthKey(previous.milestone.date) : null;
-    if (currentMonth !== previousMonth) {
-      row.parentNode?.insertBefore(createMonthHeader(monthLabel(currentMonth), counts.get(currentMonth) ?? 1), row);
-      return;
-    }
+
     if (previous) {
       const gapDays = dateDistance(previous.milestone.date, milestone.date);
       if (gapDays > 0) row.parentNode?.insertBefore(createDayGap(gapDays), row);
+    }
+
+    if (currentMonth !== previousMonth) {
+      row.parentNode?.insertBefore(createMonthHeader(monthLabel(currentMonth), counts.get(currentMonth) ?? 1), row);
     }
   });
 }
