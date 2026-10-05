@@ -33,7 +33,7 @@ async function openBriefing(page) {
   return host;
 }
 
-test("Jarvis never suggests moving a task past its deadline and refreshes when move constraints change", async ({ page }) => {
+test("Jarvis respects move deadlines, refreshes constraints and tries another movable block", async ({ page }) => {
   await openFreshToday(page);
   const today = await page.evaluate(planningDateKeyInBrowser);
   const dates = await page.evaluate(({ key }) => {
@@ -72,6 +72,7 @@ test("Jarvis never suggests moving a task past its deadline and refreshes when m
   await page.reload({ waitUntil: "networkidle" });
   const briefing = await openBriefing(page);
   await expect(briefing.locator('[data-jarvis-advice="better-day-move-me"]')).toHaveCount(0);
+  await expect(briefing.locator('[data-jarvis-advice="better-day-other-a"]')).toBeVisible();
 
   await page.evaluate(({ dates }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -92,4 +93,43 @@ test("Jarvis never suggests moving a task past its deadline and refreshes when m
   }, { dates });
 
   await expect(briefing.locator('[data-jarvis-advice="better-day-move-me"]')).toHaveCount(0);
+  await expect(briefing.locator('[data-jarvis-advice="better-day-other-a"]')).toBeVisible();
+});
+
+test("Jarvis warns when milestone preparation exists only beyond the seven-day horizon", async ({ page }) => {
+  await openFreshToday(page);
+  const today = await page.evaluate(planningDateKeyInBrowser);
+  const dates = await page.evaluate(({ key }) => {
+    const make = (offset) => {
+      const date = new Date(`${key}T12:00:00`);
+      date.setDate(date.getDate() + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    return { latePrep: make(9), milestone: make(10) };
+  }, { key: today });
+
+  await page.evaluate(({ dates }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const createdAt = new Date().toISOString();
+    state.routines = [];
+    state.backlog = [];
+    state.milestones = [{ id: "late-c1", title: "Cambridge C1 test", date: dates.milestone, note: "" }];
+    state.plans = {
+      [dates.latePrep]: [{
+        id: "late-prep", title: "Angličtina C1", date: dates.latePrep, duration: 30,
+        start: "18:00", end: "18:30", requestedStart: "18:00", deadlineTime: "22:30",
+        priority: "normal", category: "Angličtina", mode: "flexible", completed: false,
+        source: "user", dateLocked: true, autoScheduled: false, createdAt,
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.localStorage.setItem("dayframe-birthdays-v1", "[]");
+  }, { dates });
+
+  await page.reload({ waitUntil: "networkidle" });
+  const briefing = await openBriefing(page);
+  const advice = briefing.locator('[data-jarvis-advice="underprepared-late-c1"]');
+  await expect(advice).toBeVisible();
+  await expect(advice).toContainText("0 min související přípravy");
+  await expect(advice).toContainText("Zvaž ještě jeden soustředěný blok");
 });
