@@ -1,0 +1,76 @@
+.df2-jarvis-advisor {
+  min-width: 0;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-wash) 36%, transparent), transparent 54%),
+    color-mix(in srgb, var(--paper) 95%, #fff);
+  box-shadow: 0 10px 28px rgba(35, 33, 29, .03);
+}
+
+.df2-jarvis-advisor .df2-jarvis-card-head {
+  margin-bottom: 10px;
+}
+
+.df2-jarvis-advisor-list {
+  display: grid;
+}
+
+.df2-jarvis-advice {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+}
+
+.df2-jarvis-advice:first-child {
+  padding-top: 3px;
+  border-top: 0;
+}
+
+.df2-jarvis-advice > span {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 70%, #fff);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.df2-jarvis-advice.warning > span {
+  background: var(--accent-wash);
+  color: color-mix(in srgb, var(--accent) 82%, var(--ink));
+}
+
+.df2-jarvis-advice > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.df2-jarvis-advice strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 670;
+  line-height: 1.3;
+}
+
+.df2-jarvis-advice p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .df2-jarvis-advice {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
