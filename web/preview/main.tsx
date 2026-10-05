@@ -32,6 +32,7 @@ import { FocusWeekSyncController } from "../app/focus-week-sync-controller";
 import { HistoryEditController } from "../app/history-edit-controller";
 import { NotificationController } from "../app/notification-controller";
 import { TodayBriefingController } from "../app/today-briefing-controller";
+import { JarvisFutureContextController } from "../app/jarvis-future-context-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
 import "../app/dayframe-countdowns.css";
@@ -50,6 +51,7 @@ import "../app/reading-library-auto-lookup-controller.css";
 import "../app/overview-title.css";
 import "../app/today-polish.css";
 import "../app/today-briefing-controller.css";
+import "../app/jarvis-future-context-controller.css";
 import "../app/plan-actual.css";
 import "../app/week-capacity.css";
 import "../app/label-colors-controller.css";
@@ -103,6 +105,7 @@ createRoot(root).render(
     <TodayTomorrowSafetyController />
     <PersonalBlockController />
     <TodayBriefingController />
+    <JarvisFutureContextController />
     <LateReadingController />
     <NotificationController />
   </>,

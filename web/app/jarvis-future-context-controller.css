@@ -1,0 +1,148 @@
+.df2-jarvis-milestone-prep {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.df2-jarvis-milestone-prep i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #aaa69d;
+}
+
+.df2-jarvis-milestone-prep.active i {
+  background: #7fa26f;
+}
+
+.df2-jarvis-milestone-prep.warning {
+  color: color-mix(in srgb, var(--accent) 72%, var(--ink));
+}
+
+.df2-jarvis-milestone-prep.warning i {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
+.df2-jarvis-tomorrow {
+  min-width: 0;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--paper) 94%, #fff);
+  box-shadow: 0 10px 28px rgba(35, 33, 29, .03);
+}
+
+.df2-jarvis-tomorrow .df2-jarvis-card-head {
+  margin-bottom: 13px;
+}
+
+.df2-jarvis-tomorrow-body {
+  display: grid;
+  grid-template-columns: minmax(220px, .62fr) minmax(0, 1.38fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.df2-jarvis-tomorrow-summary {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding-right: 26px;
+  border-right: 1px solid var(--line);
+}
+
+.df2-jarvis-tomorrow-summary > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-jarvis-tomorrow-summary > strong {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+
+.df2-jarvis-tomorrow-summary > small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-jarvis-tomorrow-list {
+  display: grid;
+}
+
+.df2-jarvis-tomorrow-list > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.df2-jarvis-tomorrow-list > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.df2-jarvis-tomorrow-list time {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.df2-jarvis-tomorrow-list > div > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.df2-jarvis-tomorrow-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-jarvis-tomorrow-list span,
+.df2-jarvis-tomorrow-list > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.df2-jarvis-tomorrow-list > p {
+  padding-top: 6px;
+}
+
+@media (max-width: 720px) {
+  .df2-jarvis-tomorrow-body {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .df2-jarvis-tomorrow-summary {
+    padding-right: 0;
+    padding-bottom: 15px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .df2-jarvis-tomorrow-summary > small {
+    white-space: normal;
+  }
+}
