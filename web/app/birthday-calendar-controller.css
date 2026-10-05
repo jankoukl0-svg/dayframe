@@ -1,0 +1,125 @@
+.df2-month-day > header {
+  justify-content: flex-start;
+}
+
+.df2-month-day > header > span {
+  margin-right: auto;
+}
+
+.df2-birthday-add-button {
+  margin-right: 2px;
+  font-size: 11px !important;
+  line-height: 1;
+  filter: grayscale(.12);
+}
+
+.df2-month-birthday {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid rgba(194, 104, 67, .15);
+  border-left: 3px solid rgba(194, 104, 67, .72);
+  border-radius: 3px;
+  background: rgba(194, 104, 67, .065);
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-month-birthday:hover {
+  border-top-color: rgba(194, 104, 67, .28);
+  border-right-color: rgba(194, 104, 67, .28);
+  border-bottom-color: rgba(194, 104, 67, .28);
+  background: rgba(194, 104, 67, .09);
+}
+
+.df2-month-birthday strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-month-birthday strong::before {
+  content: "🎂";
+  margin-right: 5px;
+  font-size: 10px;
+}
+
+.df2-month-birthday small {
+  min-width: 0;
+  overflow: hidden;
+  color: #8b6b5d;
+  font: 700 9px/1.25 "Cascadia Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-month-day.outside .df2-month-birthday {
+  opacity: .48;
+}
+
+.df2-birthday-modal header p {
+  margin: 0 0 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.df2-birthday-date-fields {
+  display: grid;
+  grid-template-columns: .65fr 1.25fr 1fr;
+  gap: 10px;
+}
+
+.df2-birthday-date-fields label span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.df2-birthday-modal textarea {
+  width: 100%;
+  min-height: 78px;
+  resize: vertical;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.45;
+}
+
+.df2-birthday-modal textarea:focus {
+  outline: none;
+  border-color: var(--line-strong);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.df2-birthday-repeat-note {
+  margin: -2px 0 2px;
+  padding: 9px 10px;
+  border: 1px solid rgba(194, 104, 67, .12);
+  border-radius: 3px;
+  background: rgba(194, 104, 67, .045);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .df2-birthday-date-fields {
+    grid-template-columns: 1fr 1.4fr;
+  }
+
+  .df2-birthday-date-fields label:last-child {
+    grid-column: 1 / -1;
+  }
+}
