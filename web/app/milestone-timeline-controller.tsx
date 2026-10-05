@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-type Milestone = {
-  id: string;
-  title: string;
-  date: string;
-  note?: string;
-};
-
+type Milestone = { id: string; title: string; date: string; note?: string };
 type MilestoneKind = "deadline" | "option";
 type HiddenFilters = { preset: string[]; custom: boolean };
 type PendingCreate = { ids: Set<string>; title: string; date: string; kind: MilestoneKind; startedAt: number };
@@ -34,13 +28,10 @@ function readMilestones(): Milestone[] {
     const parsed = JSON.parse(window.localStorage.getItem(STATE_KEY) || "{}") as { milestones?: unknown };
     if (!Array.isArray(parsed.milestones)) return [];
     return parsed.milestones
-      .filter((item): item is Milestone => Boolean(
-        item
-        && typeof item === "object"
+      .filter((item): item is Milestone => Boolean(item && typeof item === "object"
         && typeof (item as Milestone).id === "string"
         && typeof (item as Milestone).title === "string"
-        && typeof (item as Milestone).date === "string",
-      ))
+        && typeof (item as Milestone).date === "string"))
       .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "cs"));
   } catch {
     return [];
@@ -51,10 +42,8 @@ function readKinds(): Record<string, MilestoneKind> {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(KIND_KEY) || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .filter((entry): entry is [string, MilestoneKind] => entry[1] === "deadline" || entry[1] === "option"),
-    );
+    return Object.fromEntries(Object.entries(parsed)
+      .filter((entry): entry is [string, MilestoneKind] => entry[1] === "deadline" || entry[1] === "option"));
   } catch {
     return {};
   }
@@ -69,11 +58,9 @@ function readColors(): Record<string, string> {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(COLORS_KEY) || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .filter((entry): entry is [string, string] => typeof entry[1] === "string")
-        .map(([id, color]) => [id, normalizeHex(color)]),
-    );
+    return Object.fromEntries(Object.entries(parsed)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+      .map(([id, color]) => [id, normalizeHex(color)]));
   } catch {
     return {};
   }
@@ -83,10 +70,7 @@ function readHidden(): HiddenFilters {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || "{}");
     if (Array.isArray(parsed)) {
-      return {
-        preset: parsed.filter((item): item is string => typeof item === "string").map(normalizeHex),
-        custom: false,
-      };
+      return { preset: parsed.filter((item): item is string => typeof item === "string").map(normalizeHex), custom: false };
     }
     if (!parsed || typeof parsed !== "object") return { preset: [], custom: false };
     const stored = parsed as { preset?: unknown; custom?: unknown };
@@ -124,9 +108,7 @@ function daysBetween(from: string, to: string) {
   const left = parseDateKey(from);
   const right = parseDateKey(to);
   if (!left || !right) return 0;
-  const leftTime = Date.UTC(left.year, left.month - 1, left.day);
-  const rightTime = Date.UTC(right.year, right.month - 1, right.day);
-  return Math.max(0, Math.round((rightTime - leftTime) / DAY_MS));
+  return Math.max(0, Math.round((Date.UTC(right.year, right.month - 1, right.day) - Date.UTC(left.year, left.month - 1, left.day)) / DAY_MS));
 }
 
 function monthKey(dateKey: string) {
@@ -137,8 +119,7 @@ function monthLabel(dateKey: string) {
   const parsed = parseDateKey(dateKey);
   if (!parsed) return dateKey;
   return new Intl.DateTimeFormat("cs-CZ", { month: "long", year: "numeric" })
-    .format(new Date(parsed.year, parsed.month - 1, 1, 12))
-    .toLocaleUpperCase("cs-CZ");
+    .format(new Date(parsed.year, parsed.month - 1, 1, 12)).toLocaleUpperCase("cs-CZ");
 }
 
 function longDate(dateKey: string) {
@@ -161,8 +142,7 @@ function findMilestoneList() {
 }
 
 function ensureInlineKindHost() {
-  const view = findMilestoneView();
-  const form = view?.querySelector<HTMLFormElement>(".df2-inline-form");
+  const form = findMilestoneView()?.querySelector<HTMLFormElement>(".df2-inline-form");
   if (!form) return null;
   form.classList.add("df2-milestone-kind-form");
   let host = form.querySelector<HTMLElement>("[data-milestone-kind-create-host]");
@@ -190,8 +170,7 @@ function ensureModalKindHost(mode: "edit" | "new") {
     if (mode === "edit") host.dataset.milestoneKindEditHost = "true";
     else host.dataset.milestoneKindNewHost = "true";
     host.className = "df2-milestone-kind-modal-host";
-    const actions = modal.querySelector(".df2-modal-actions");
-    modal.insertBefore(host, actions ?? null);
+    modal.insertBefore(host, modal.querySelector(".df2-modal-actions"));
   }
   return host;
 }
@@ -210,7 +189,9 @@ function createTodayAnchor(today: string) {
   label.textContent = "Dnes";
   const date = document.createElement("small");
   date.textContent = longDate(today);
-  anchor.append(dot, label, date);
+  anchor.appendChild(dot);
+  anchor.appendChild(label);
+  anchor.appendChild(date);
   return anchor;
 }
 
@@ -223,7 +204,8 @@ function createMonthHeader(dateKey: string, count: number) {
   title.textContent = monthLabel(dateKey);
   const meta = document.createElement("span");
   meta.textContent = `${count} ${count === 1 ? "milník" : count <= 4 ? "milníky" : "milníků"}`;
-  header.append(title, meta);
+  header.appendChild(title);
+  header.appendChild(meta);
   return header;
 }
 
@@ -266,16 +248,10 @@ function ensureKindBadge(article: HTMLElement, kind: MilestoneKind) {
   badge.textContent = kind === "deadline" ? "Deadline" : "Možnost";
 }
 
-function decorateNativeTimeline(
-  list: HTMLElement,
-  milestones: Milestone[],
-  kinds: Record<string, MilestoneKind>,
-  colors: Record<string, string>,
-  hidden: HiddenFilters,
-  today: string,
-) {
+function decorateNativeTimeline(list: HTMLElement, milestones: Milestone[], kinds: Record<string, MilestoneKind>, colors: Record<string, string>, hidden: HiddenFilters, today: string) {
   list.querySelectorAll<HTMLElement>(":scope > [data-milestone-timeline-decoration]").forEach((node) => node.remove());
   const rows = [...list.querySelectorAll<HTMLElement>(":scope > article")];
+  const rowById = new Map<string, HTMLElement>();
 
   rows.forEach((row, index) => {
     const milestone = milestones[index];
@@ -286,20 +262,19 @@ function decorateNativeTimeline(
     row.classList.toggle("is-deadline", kind === "deadline");
     row.classList.toggle("is-option", kind === "option");
     ensureKindBadge(row, kind);
+    rowById.set(milestone.id, row);
   });
 
   const visible = milestones.filter((milestone) => milestone.date >= today && !hiddenByColor(milestone.id, colors, hidden));
   if (visible.length === 0) return;
-
   const counts = new Map<string, number>();
   visible.forEach((milestone) => counts.set(monthKey(milestone.date), (counts.get(monthKey(milestone.date)) ?? 0) + 1));
 
   let previousDate = today;
   let previousMonth = "";
   let insertedAnchor = false;
-
   visible.forEach((milestone) => {
-    const row = rows[milestones.findIndex((item) => item.id === milestone.id)];
+    const row = rowById.get(milestone.id);
     if (!row) return;
     if (!insertedAnchor) {
       list.insertBefore(createTodayAnchor(today), row);
@@ -363,13 +338,8 @@ export function MilestoneTimelineController() {
         const modal = editHost.closest<HTMLFormElement>("form");
         const title = modal?.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
         const date = modal?.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
-        const preferred = preferredEditingIdRef.current
-          ? milestones.find((milestone) => milestone.id === preferredEditingIdRef.current) ?? null
-          : null;
-        const match = preferred
-          ?? milestones.find((milestone) => milestone.title === title && milestone.date === date)
-          ?? milestones.find((milestone) => milestone.title === title)
-          ?? null;
+        const preferred = preferredEditingIdRef.current ? milestones.find((milestone) => milestone.id === preferredEditingIdRef.current) ?? null : null;
+        const match = preferred ?? milestones.find((milestone) => milestone.title === title && milestone.date === date) ?? milestones.find((milestone) => milestone.title === title) ?? null;
         const nextId = match?.id ?? null;
         if (nextId !== editingId) {
           setEditingId(nextId);
@@ -387,11 +357,8 @@ export function MilestoneTimelineController() {
 
       const pending = pendingCreateRef.current;
       if (pending) {
-        const created = milestones.find((milestone) => (
-          !pending.ids.has(milestone.id)
-          && milestone.title === pending.title
-          && milestone.date === pending.date
-        )) ?? milestones.find((milestone) => !pending.ids.has(milestone.id));
+        const created = milestones.find((milestone) => !pending.ids.has(milestone.id) && milestone.title === pending.title && milestone.date === pending.date)
+          ?? milestones.find((milestone) => !pending.ids.has(milestone.id));
         if (created) {
           writeKinds({ ...kinds, [created.id]: pending.kind });
           pendingCreateRef.current = null;
@@ -405,40 +372,23 @@ export function MilestoneTimelineController() {
 
     const rememberMilestone = (target: EventTarget | null) => {
       const row = target instanceof Element ? target.closest<HTMLElement>(".df2-milestones article[data-milestone-id]") : null;
-      if (!row?.dataset.milestoneId) return;
-      preferredEditingIdRef.current = row.dataset.milestoneId;
+      if (row?.dataset.milestoneId) preferredEditingIdRef.current = row.dataset.milestoneId;
     };
-
     const onClick = (event: MouseEvent) => rememberMilestone(event.target);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Enter" || event.key === " ") rememberMilestone(event.target);
     };
-
     const onSubmit = (event: SubmitEvent) => {
       const form = event.target instanceof HTMLFormElement ? event.target : null;
       if (!form) return;
       const isInline = form.classList.contains("df2-inline-form") && Boolean(form.querySelector("[data-milestone-kind-create-host]"));
       const isNewModal = Boolean(form.querySelector("[data-milestone-kind-new-host]"));
       const isEditModal = Boolean(form.querySelector("[data-milestone-kind-edit-host]"));
-
       if (isInline || isNewModal) {
-        const title = isInline
-          ? form.querySelector<HTMLInputElement>('input[placeholder="Nový milník"]')?.value.trim() ?? ""
-          : form.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
-        const date = isInline
-          ? form.querySelector<HTMLInputElement>('input[type="date"]')?.value ?? ""
-          : form.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
-        if (title && date) {
-          pendingCreateRef.current = {
-            ids: new Set(readMilestones().map((milestone) => milestone.id)),
-            title,
-            date,
-            kind: draftKindRef.current,
-            startedAt: Date.now(),
-          };
-        }
+        const title = isInline ? form.querySelector<HTMLInputElement>('input[placeholder="Nový milník"]')?.value.trim() ?? "" : form.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
+        const date = isInline ? form.querySelector<HTMLInputElement>('input[type="date"]')?.value ?? "" : form.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
+        if (title && date) pendingCreateRef.current = { ids: new Set(readMilestones().map((milestone) => milestone.id)), title, date, kind: draftKindRef.current, startedAt: Date.now() };
       }
-
       if (isEditModal && editingId) {
         const title = form.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim() ?? "";
         const date = form.querySelector<HTMLInputElement>('input[name="date"]')?.value ?? "";
@@ -466,38 +416,13 @@ export function MilestoneTimelineController() {
   }, [editingId]);
 
   const inlineKindPortal = inlineKindHost ? createPortal(
-    <label className="df2-milestone-kind-create-control">
-      <span>Typ</span>
-      <select aria-label="Typ nového milníku" value={draftKind} onChange={(event) => setDraftKind(event.target.value as MilestoneKind)}>
-        <option value="deadline">Deadline</option>
-        <option value="option">Možnost</option>
-      </select>
-    </label>,
-    inlineKindHost,
+    <label className="df2-milestone-kind-create-control"><span>Typ</span><select aria-label="Typ nového milníku" value={draftKind} onChange={(event) => setDraftKind(event.target.value as MilestoneKind)}><option value="deadline">Deadline</option><option value="option">Možnost</option></select></label>, inlineKindHost,
   ) : null;
-
   const newModalPortal = newKindHost ? createPortal(
-    <label className="df2-milestone-kind-modal-control">
-      Typ milníku
-      <select aria-label="Typ nového milníku" value={draftKind} onChange={(event) => setDraftKind(event.target.value as MilestoneKind)}>
-        <option value="deadline">Deadline</option>
-        <option value="option">Možnost</option>
-      </select>
-      <small>Deadline = jeden závazný termín. Možnost = termín, ze kterého si můžeš vybrat.</small>
-    </label>,
-    newKindHost,
+    <label className="df2-milestone-kind-modal-control">Typ milníku<select aria-label="Typ nového milníku" value={draftKind} onChange={(event) => setDraftKind(event.target.value as MilestoneKind)}><option value="deadline">Deadline</option><option value="option">Možnost</option></select><small>Deadline = jeden závazný termín. Možnost = termín, ze kterého si můžeš vybrat.</small></label>, newKindHost,
   ) : null;
-
   const editModalPortal = editKindHost && editingId ? createPortal(
-    <label className="df2-milestone-kind-modal-control">
-      Typ milníku
-      <select aria-label="Typ milníku" value={editingKind} onChange={(event) => setEditingKind(event.target.value as MilestoneKind)}>
-        <option value="deadline">Deadline</option>
-        <option value="option">Možnost</option>
-      </select>
-      <small>Deadline = jeden závazný termín. Možnost = termín, ze kterého si můžeš vybrat.</small>
-    </label>,
-    editKindHost,
+    <label className="df2-milestone-kind-modal-control">Typ milníku<select aria-label="Typ milníku" value={editingKind} onChange={(event) => setEditingKind(event.target.value as MilestoneKind)}><option value="deadline">Deadline</option><option value="option">Možnost</option></select><small>Deadline = jeden závazný termín. Možnost = termín, ze kterého si můžeš vybrat.</small></label>, editKindHost,
   ) : null;
 
   return <>{inlineKindPortal}{newModalPortal}{editModalPortal}</>;
