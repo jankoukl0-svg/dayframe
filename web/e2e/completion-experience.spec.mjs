@@ -111,3 +111,55 @@ test("normal task completion gets a compact Hotovo acknowledgement", async ({ pa
   await expect(feedback).toContainText("Projít poznámky");
   await expect(feedback).not.toContainText("Hlavní priorita splněna");
 });
+
+test("completion acknowledgement survives an immediate synchronous reload", async ({ page }) => {
+  await openFresh(page);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [date]: [{
+        id: "reload-completion",
+        title: "Dokončit valuation",
+        date,
+        duration: 60,
+        start: "19:00",
+        end: "20:00",
+        requestedStart: "19:00",
+        deadlineTime: "22:30",
+        priority: "high",
+        category: "Finance",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: now.toISOString(),
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(350);
+
+  const navigation = page.waitForNavigation({ waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = Object.values(state.plans || {}).flat().find((item) => item.id === "reload-completion");
+    task.completed = true;
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.setTimeout(() => window.location.reload(), 0);
+  });
+  await navigation;
+
+  const feedback = page.locator('[data-completion-experience="true"]');
+  await expect(feedback).toBeVisible();
+  await expect(feedback).toContainText("Hlavní priorita splněna");
+  await expect(feedback).toContainText("Dokončit valuation");
+  await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("dayframe-completion-pending-v1"))).toBe(null);
+});
