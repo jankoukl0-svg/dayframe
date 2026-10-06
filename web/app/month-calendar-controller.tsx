@@ -205,15 +205,6 @@ function writeCalendarEvents(nextEvents: CalendarEvent[]) {
   return sorted;
 }
 
-function writeCalendarSnapshot(nextMilestones: Milestone[], nextEvents: CalendarEvent[]) {
-  const current = readState();
-  const nextState = { ...current, milestones: [...nextMilestones].sort((a, b) => a.date.localeCompare(b.date)) };
-  const sortedEvents = [...nextEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time || "99:99").localeCompare(b.time || "99:99") || a.title.localeCompare(b.title, "cs"));
-  window.localStorage.setItem(DAYFRAME_STORAGE_KEY, JSON.stringify(nextState));
-  window.localStorage.setItem(CALENDAR_EVENTS_STORAGE_KEY, JSON.stringify(sortedEvents));
-  window.dispatchEvent(new Event(STATE_SYNC_EVENT));
-  return { nextState, sortedEvents };
-}
 
 export function MonthCalendarController() {
   const [open, setOpen] = useState(false);
@@ -338,35 +329,21 @@ export function MonthCalendarController() {
     const time = String(form.get("time") || "");
     if (!title || !date) return;
 
-    const current = readState();
-    let nextMilestones = [...(current.milestones ?? [])];
-    let nextEvents = readCalendarEvents();
-
-    if (editing.kind === "milestone") nextMilestones = nextMilestones.filter((milestone) => milestone.id !== editing.item.id);
-    else nextEvents = nextEvents.filter((item) => item.id !== editing.item.id);
-
-    if (editingKind === "milestone") {
-      nextMilestones.push({
-        id: editing.item.id,
-        title,
-        date,
-        note: note || "Vlastní termín",
-      });
+    if (editing.kind === "milestone") {
+      const current = readState();
+      const next = writeMilestones((current.milestones ?? []).map((milestone) => milestone.id === editing.item.id
+        ? { ...milestone, title, date, note: note || "Vlastní termín" }
+        : milestone));
+      rawStateRef.current = JSON.stringify(next);
+      setState(next);
     } else {
-      nextEvents.push({
-        id: editing.item.id,
-        title,
-        date,
-        time,
-        note,
-      });
+      const nextEvents = writeCalendarEvents(readCalendarEvents().map((item) => item.id === editing.item.id
+        ? { ...item, title, date, time, note }
+        : item));
+      rawEventsRef.current = JSON.stringify(nextEvents);
+      setCalendarEvents(nextEvents);
     }
 
-    const { nextState, sortedEvents } = writeCalendarSnapshot(nextMilestones, nextEvents);
-    rawEventsRef.current = JSON.stringify(sortedEvents);
-    rawStateRef.current = JSON.stringify(nextState);
-    setCalendarEvents(sortedEvents);
-    setState(nextState);
     setEditing(null);
     setEditingKind("event");
   };
@@ -526,18 +503,16 @@ export function MonthCalendarController() {
 
       {editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
-          <form className={`df2-modal df2-month-milestone-modal ${editingKind === "event" ? "is-calendar-event" : ""}`} onSubmit={saveEdit}>
+          <form className={`df2-modal df2-month-milestone-modal ${editing.kind === "event" ? "is-calendar-event" : ""}`} onSubmit={saveEdit}>
             <header>
-              <div><h2>{editingKind === "milestone" ? "Upravit milník" : "Upravit událost"}</h2></div>
+              <div><h2>{editing.kind === "milestone" ? "Upravit milník" : "Upravit událost"}</h2></div>
               <button type="button" onClick={() => setEditing(null)}>×</button>
             </header>
-            <div className="df2-calendar-item-type" role="group" aria-label="Typ položky">
-              <button type="button" aria-pressed={editingKind === "event"} onClick={() => setEditingKind("event")}>Událost</button>
-              <button type="button" aria-pressed={editingKind === "milestone"} onClick={() => setEditingKind("milestone")}>Milník</button>
-            </div>
             <label key="title">Název<input name="title" autoFocus defaultValue={editing.item.title} /></label>
             <label key="date">Datum<input name="date" type="date" defaultValue={editing.item.date} /></label>
-            <label key="time" hidden={editingKind !== "event"}>Čas <span className="df2-calendar-optional">(volitelně)</span><input name="time" type="time" defaultValue={editing.kind === "event" ? editing.item.time ?? "" : ""} /></label>
+            {editing.kind === "event" && (
+              <label key="time">Čas <span className="df2-calendar-optional">(volitelně)</span><input name="time" type="time" defaultValue={editing.item.time ?? ""} /></label>
+            )}
             <label key="note">Popisek<textarea name="note" rows={4} defaultValue={editing.kind === "milestone" ? meaningfulNote(editing.item.note) : editing.item.note ?? ""} placeholder="Co se v ten den děje…" /></label>
             <div className="df2-modal-actions">
               <button className="df2-primary">Uložit změny</button>

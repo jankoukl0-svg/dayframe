@@ -98,29 +98,21 @@ test("monthly calendar shows, edits, colors, countdowns and creates milestones",
 });
 
 
-test("calendar additions default to regular events and existing milestones can be converted to events", async ({ page }) => {
+test("calendar additions default to regular events and stay out of milestones", async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
-  const seeded = await page.evaluate(() => {
+  const eventKey = await page.evaluate(() => {
     const pad = (value) => String(value).padStart(2, "0");
     const now = new Date();
-    const eventKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-18`;
-    const convertKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-19`;
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    state.milestones = [
-      { id: "convert-me", title: "Doučování VŠE matika", date: convertKey, note: "16:00" },
-    ];
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    window.localStorage.setItem("dayframe-calendar-events-v1", "[]");
-    return { eventKey, convertKey };
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-18`;
   });
 
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".df2-month-calendar-nav-button").click();
 
-  const eventCell = page.locator(`.df2-month-day[data-date="${seeded.eventKey}"]`);
-  await eventCell.getByRole("button", { name: `Přidat do kalendáře ${seeded.eventKey}` }).click();
+  const eventCell = page.locator(`.df2-month-day[data-date="${eventKey}"]`);
+  await eventCell.getByRole("button", { name: `Přidat do kalendáře ${eventKey}` }).click();
 
   const createModal = page.locator(".df2-month-milestone-modal");
   await expect(page.getByRole("heading", { name: "Přidat do kalendáře" })).toBeVisible();
@@ -128,16 +120,19 @@ test("calendar additions default to regular events and existing milestones can b
   await createModal.locator('input[name="title"]').fill("Konzultace matiky");
   await createModal.locator('input[name="time"]').fill("15:30");
   await createModal.locator('textarea[name="note"]').fill("Jen běžná položka v kalendáři.");
+
   await createModal.getByRole("button", { name: "Milník", exact: true }).click();
   await createModal.getByRole("button", { name: "Událost", exact: true }).click();
   await expect(createModal.locator('input[name="time"]')).toHaveValue("15:30");
   await expect(createModal.locator('textarea[name="note"]')).toHaveValue("Jen běžná položka v kalendáři.");
+
   await createModal.getByRole("button", { name: "Přidat událost", exact: true }).click();
 
   const regularEvent = eventCell.locator(".df2-month-calendar-event").filter({ hasText: "Konzultace matiky" });
   await expect(regularEvent).toBeVisible();
   await expect(regularEvent).toContainText("15:30");
   await expect(regularEvent.locator(".df2-month-countdown")).toHaveCount(0);
+
   await expect.poll(() => page.evaluate(() => {
     const events = JSON.parse(window.localStorage.getItem("dayframe-calendar-events-v1") || "[]");
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -147,35 +142,7 @@ test("calendar additions default to regular events and existing milestones can b
     };
   })).toEqual({ eventSaved: true, leakedToMilestones: false });
 
-  const convertCell = page.locator(`.df2-month-day[data-date="${seeded.convertKey}"]`);
-  const milestone = convertCell.locator('.df2-month-milestone[data-milestone-id="convert-me"]');
-  await expect(milestone).toBeVisible();
-  await expect(milestone.locator(".df2-month-countdown")).toBeVisible();
-  await milestone.click();
-
-  const editModal = page.locator(".df2-month-milestone-modal");
-  await expect(page.getByRole("heading", { name: "Upravit milník" })).toBeVisible();
-  await editModal.getByRole("button", { name: "Událost", exact: true }).click();
+  await regularEvent.click();
   await expect(page.getByRole("heading", { name: "Upravit událost" })).toBeVisible();
-  await editModal.locator('input[name="time"]').fill("16:00");
-  await editModal.getByRole("button", { name: "Milník", exact: true }).click();
-  await editModal.getByRole("button", { name: "Událost", exact: true }).click();
-  await expect(editModal.locator('input[name="time"]')).toHaveValue("16:00");
-  await editModal.getByRole("button", { name: "Uložit změny", exact: true }).click();
-
-  await expect.poll(() => page.evaluate(() => {
-    const events = JSON.parse(window.localStorage.getItem("dayframe-calendar-events-v1") || "[]");
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    return {
-      eventSaved: events.some((item) => item.id === "convert-me" && item.title === "Doučování VŠE matika" && item.time === "16:00"),
-      milestoneStillExists: (state.milestones || []).some((item) => item.id === "convert-me"),
-    };
-  })).toEqual({ eventSaved: true, milestoneStillExists: false });
-
-  const convertedEvent = convertCell.locator('.df2-month-calendar-event[data-calendar-event-id="convert-me"]');
-  await expect(convertedEvent).toBeVisible();
-  await expect(convertedEvent).toContainText("16:00");
-  await expect(convertedEvent.locator(".df2-month-countdown")).toHaveCount(0);
-  await expect(convertCell.locator('.df2-month-milestone[data-milestone-id="convert-me"]')).toHaveCount(0);
-
+  await expect(page.locator(".df2-month-milestone-modal").getByRole("button", { name: "Milník", exact: true })).toHaveCount(0);
 });
