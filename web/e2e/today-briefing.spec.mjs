@@ -68,9 +68,6 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const now = new Date().toISOString();
     state.routines = [];
-    const previous = new Date(`${date}T12:00:00`);
-    previous.setDate(previous.getDate() - 1);
-    const previousKey = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}-${String(previous.getDate()).padStart(2, "0")}`;
     state.plans = {
       [date]: [
         {
@@ -110,24 +107,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
           createdAt: now,
         },
       ],
-      [previousKey]: [{
-        id: "briefing-overdue",
-        title: "Starý rest",
-        date: previousKey,
-        duration: 45,
-        start: "16:00",
-        end: "16:45",
-        requestedStart: "16:00",
-        deadlineTime: "22:30",
-        priority: "normal",
-        category: "Studium",
-        mode: "flexible",
-        completed: false,
-        source: "user",
-        dateLocked: true,
-        autoScheduled: false,
-        createdAt: now,
-      }],
+
     };
     state.backlog = [];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
@@ -145,7 +125,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(briefing).not.toContainText("Hlavní blok je");
   await expect(briefing).toContainText("Cambridge essay");
   await expect(briefing).toContainText("2 h 30 min");
-  await expect(briefing).toContainText("0/2");
+  await expect(briefing).toContainText("0/3");
 
   const weather = briefing.locator(".df2-jarvis-weather");
   await expect(weather).toContainText("Moje poloha");
@@ -169,7 +149,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
     window.dispatchEvent(new Event("dayframe-state-sync"));
   });
 
-  await expect(briefing).toContainText("1/2");
+  await expect(briefing).toContainText("1/3");
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Matematika");
   await expect(briefing).toContainText("1 h");
 
@@ -241,6 +221,24 @@ test("Today briefing treats a manually running Focus session as the source of tr
           source: "user",
           dateLocked: true,
           autoScheduled: true,
+          createdAt: now,
+        },
+        {
+          id: "briefing-overdue",
+          title: "Starý rest",
+          date,
+          duration: 0,
+          start: "14:00",
+          end: "14:00",
+          requestedStart: "14:00",
+          deadlineTime: "14:00",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
           createdAt: now,
         },
       ],
