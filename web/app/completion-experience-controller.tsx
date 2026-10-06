@@ -99,6 +99,16 @@ function decorateCompletionActions() {
     const label = button.textContent?.trim() ?? "";
     const completesTask = label === "Hotovo" || label === "Označit hotovo";
     button.classList.toggle("df2-completion-action", completesTask);
+
+    if (completesTask) {
+      if (!button.hasAttribute("aria-label")) {
+        button.setAttribute("aria-label", label);
+        button.dataset.completionAriaLabel = "true";
+      }
+    } else if (button.dataset.completionAriaLabel === "true") {
+      button.removeAttribute("aria-label");
+      delete button.dataset.completionAriaLabel;
+    }
   });
 }
 
@@ -143,12 +153,14 @@ function accentCompletedTask(event: CompletionEvent, attempt = 0) {
 
 export function CompletionExperienceController() {
   const [completion, setCompletion] = useState<CompletionEvent | null>(null);
+  const [presentationKey, setPresentationKey] = useState(0);
   const previousRef = useRef<Map<string, boolean> | null>(null);
   const clearTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const present = (event: CompletionEvent) => {
       setCompletion(event);
+      setPresentationKey((current) => current + 1);
       accentCompletedTask(event);
       if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = window.setTimeout(() => setCompletion(null), CELEBRATION_MS);
@@ -201,6 +213,7 @@ export function CompletionExperienceController() {
 
   return createPortal(
     <div
+      key={`${completion.id}-${presentationKey}`}
       className={`df2-completion-experience${important ? " important" : ""}`}
       data-completion-experience="true"
       data-completion-task-id={completion.id}
