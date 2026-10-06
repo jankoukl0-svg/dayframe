@@ -36,6 +36,7 @@ import {
 } from "@/lib/dayframe-calendar";
 import { daysUntilDate, getDayCountdown } from "@/lib/dayframe-countdown";
 import { parseSmartTaskInput } from "@/lib/dayframe-smart-input";
+import { DailyChecklist } from "./daily-checklist";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -678,6 +679,7 @@ function TodayView({
         <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
         {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.duration} min</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Volno</h2></div>}
       </section>
+      <DailyChecklist />
       {missed.length > 0 && <section className="df2-missed"><header><strong>Nedokončeno · {missed.length}</strong></header>{missed.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>do {task.end}</small></div><div><button onClick={() => onDone(task.id)}>Hotovo</button><button onClick={() => onTomorrow(task.id)}>Na zítra</button><button onClick={() => onDelete(task.id)}>Zrušit</button></div></article>)}</section>}
       <section className="df2-next"><div className="df2-section-head"><h2>Co následuje</h2><span>{completed}/{tasks.length} hotovo{unscheduled ? ` · ${unscheduled} bez času` : ""}</span></div>{nextTasks.length ? nextTasks.map((task) => <button key={task.id} onClick={() => onEdit(task)}><time>{task.start}</time><span><strong>{task.title}</strong><small>{task.duration} min</small></span></button>) : <div className="df2-empty">Volno</div>}</section>
     </section>

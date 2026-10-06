@@ -1,0 +1,204 @@
+.df2-daily-checklist {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-checklist-head {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.df2-checklist-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.df2-checklist-head h2 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -.02em;
+}
+
+.df2-checklist-head span {
+  color: var(--muted);
+  font: 600 11px/1 "Cascadia Mono", monospace;
+}
+
+.df2-checklist-head > button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.df2-checklist-head > button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.df2-checklist-list {
+  display: grid;
+}
+
+.df2-checklist-list article {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  transition: background .12s ease, opacity .12s ease;
+}
+
+.df2-checklist-list article:hover {
+  background: var(--paper);
+}
+
+.df2-checklist-list article.done {
+  opacity: .58;
+}
+
+.df2-checklist-check {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.df2-checklist-check[aria-pressed="true"] {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+}
+
+.df2-checklist-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-checklist-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-checklist-list article.done .df2-checklist-copy strong {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.df2-checklist-copy small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.df2-checklist-drag {
+  color: #b0ada5;
+  font-size: 15px;
+  letter-spacing: -4px;
+  cursor: grab;
+  user-select: none;
+}
+
+.df2-checklist-list article:active .df2-checklist-drag {
+  cursor: grabbing;
+}
+
+.df2-checklist-empty {
+  padding: 14px 0 18px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.df2-checklist-error {
+  margin: 8px 0 12px;
+  color: #a6322c;
+  font-size: 11px;
+}
+
+.df2-checklist-modal {
+  width: min(520px, 100%);
+}
+
+.df2-checklist-modal > label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.df2-checklist-modal > label input {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.df2-checklist-repeat,
+.df2-checklist-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.df2-checklist-repeat button,
+.df2-checklist-days button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.df2-checklist-repeat button[aria-pressed="true"],
+.df2-checklist-days button[aria-pressed="true"] {
+  border-color: #caa18f;
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+}
+
+.df2-checklist-days button {
+  min-width: 42px;
+}
+
+@media (max-width: 720px) {
+  .df2-checklist-head {
+    align-items: flex-start;
+    padding: 12px 0;
+  }
+
+  .df2-checklist-head > div {
+    display: grid;
+    gap: 4px;
+  }
+
+  .df2-checklist-list article {
+    grid-template-columns: 28px minmax(0, 1fr) 18px;
+  }
+}
