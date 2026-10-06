@@ -48,7 +48,7 @@ test("completing a high-priority task feels rewarding without adding progress or
   await task.click();
 
   const modal = page.locator(".df2-modal").filter({ has: page.getByRole("heading", { name: "Upravit" }) });
-  const complete = modal.getByRole("button", { name: "Označit hotovo" });
+  const complete = modal.getByRole("button", { name: "Označit hotovo", exact: true });
   await expect(complete).toHaveClass(/df2-completion-action/);
   await complete.click();
 
@@ -110,6 +110,59 @@ test("normal task completion gets a compact Hotovo acknowledgement", async ({ pa
   await expect(feedback).toContainText("Hotovo");
   await expect(feedback).toContainText("Projít poznámky");
   await expect(feedback).not.toContainText("Hlavní priorita splněna");
+});
+
+test("a second quick completion remounts the acknowledgement and restarts its animation", async ({ page }) => {
+  await openFresh(page);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const make = (id, title, start, end) => ({
+      id, title, date, duration: 30, start, end, requestedStart: start,
+      deadlineTime: "22:30", priority: "normal", category: "Studium", mode: "flexible",
+      completed: false, source: "user", dateLocked: true, autoScheduled: false,
+      createdAt: now.toISOString(),
+    });
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      [date]: [
+        make("rapid-one", "První hotový úkol", "14:00", "14:30"),
+        make("rapid-two", "Druhý hotový úkol", "15:00", "15:30"),
+      ],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(300);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = Object.values(state.plans || {}).flat().find((item) => item.id === "rapid-one");
+    task.completed = true;
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  });
+  const feedback = page.locator('[data-completion-experience="true"]');
+  await expect(feedback).toContainText("První hotový úkol");
+  await page.evaluate(() => {
+    document.querySelector('[data-completion-experience="true"]').dataset.firstToastNode = "true";
+  });
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = Object.values(state.plans || {}).flat().find((item) => item.id === "rapid-two");
+    task.completed = true;
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  });
+  await expect(feedback).toContainText("Druhý hotový úkol");
+  await expect.poll(() => page.evaluate(() => (
+    document.querySelector('[data-completion-experience="true"]')?.dataset.firstToastNode ?? null
+  ))).toBe(null);
 });
 
 test("completion acknowledgement survives an immediate synchronous reload", async ({ page }) => {
