@@ -71,11 +71,16 @@ test("monthly calendar shows, edits, colors, countdowns and creates milestones",
 
   await page.getByRole("button", { name: "Tento měsíc" }).click();
   const addCell = page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`);
-  await addCell.getByRole("button", { name: `Přidat milník ${seeded.addKey}` }).click();
-  await expect(page.getByRole("heading", { name: "Nový milník" })).toBeVisible();
+  await addCell.getByRole("button", { name: `Přidat do kalendáře ${seeded.addKey}` }).click();
+  await expect(page.getByRole("heading", { name: "Přidat do kalendáře" })).toBeVisible();
   const createModal = page.locator(".df2-month-milestone-modal");
+  await createModal.getByRole("button", { name: "Milník", exact: true }).click();
   await createModal.locator('input[name="title"]').fill("Cambridge C1");
   await createModal.locator('textarea[name="note"]').fill("Digital test v Praze.");
+  await createModal.getByRole("button", { name: "Událost", exact: true }).click();
+  await expect(createModal.locator('textarea[name="note"]')).toHaveValue("Digital test v Praze.");
+  await createModal.getByRole("button", { name: "Milník", exact: true }).click();
+  await expect(createModal.locator('textarea[name="note"]')).toHaveValue("Digital test v Praze.");
   await createModal.getByRole("button", { name: "Přidat milník", exact: true }).click();
   await expect(addCell).toContainText("Cambridge C1");
   await expect(addCell).toContainText("Digital test v Praze.");
@@ -90,4 +95,54 @@ test("monthly calendar shows, edits, colors, countdowns and creates milestones",
   const reloadedAddCell = page.locator(`.df2-month-day[data-date="${seeded.addKey}"]`);
   await expect(reloadedAddCell).toContainText("Cambridge C1");
   await expect(reloadedAddCell.locator(".df2-month-countdown")).toBeVisible();
+});
+
+
+test("calendar additions default to regular events and stay out of milestones", async ({ page }) => {
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  const eventKey = await page.evaluate(() => {
+    const pad = (value) => String(value).padStart(2, "0");
+    const now = new Date();
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-18`;
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".df2-month-calendar-nav-button").click();
+
+  const eventCell = page.locator(`.df2-month-day[data-date="${eventKey}"]`);
+  await eventCell.getByRole("button", { name: `Přidat do kalendáře ${eventKey}` }).click();
+
+  const createModal = page.locator(".df2-month-milestone-modal");
+  await expect(page.getByRole("heading", { name: "Přidat do kalendáře" })).toBeVisible();
+  await expect(createModal.getByRole("button", { name: "Událost", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await createModal.locator('input[name="title"]').fill("Konzultace matiky");
+  await createModal.locator('input[name="time"]').fill("15:30");
+  await createModal.locator('textarea[name="note"]').fill("Jen běžná položka v kalendáři.");
+
+  await createModal.getByRole("button", { name: "Milník", exact: true }).click();
+  await createModal.getByRole("button", { name: "Událost", exact: true }).click();
+  await expect(createModal.locator('input[name="time"]')).toHaveValue("15:30");
+  await expect(createModal.locator('textarea[name="note"]')).toHaveValue("Jen běžná položka v kalendáři.");
+
+  await createModal.getByRole("button", { name: "Přidat událost", exact: true }).click();
+
+  const regularEvent = eventCell.locator(".df2-month-calendar-event").filter({ hasText: "Konzultace matiky" });
+  await expect(regularEvent).toBeVisible();
+  await expect(regularEvent).toContainText("15:30");
+  await expect(regularEvent.locator(".df2-month-countdown")).toHaveCount(0);
+
+  await expect.poll(() => page.evaluate(() => {
+    const events = JSON.parse(window.localStorage.getItem("dayframe-calendar-events-v1") || "[]");
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return {
+      eventSaved: events.some((item) => item.title === "Konzultace matiky" && item.time === "15:30"),
+      leakedToMilestones: (state.milestones || []).some((item) => item.title === "Konzultace matiky"),
+    };
+  })).toEqual({ eventSaved: true, leakedToMilestones: false });
+
+  await regularEvent.click();
+  await expect(page.getByRole("heading", { name: "Upravit událost" })).toBeVisible();
+  await expect(page.locator(".df2-month-milestone-modal").getByRole("button", { name: "Milník", exact: true })).toHaveCount(0);
 });

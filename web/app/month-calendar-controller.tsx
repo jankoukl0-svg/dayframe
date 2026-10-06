@@ -10,6 +10,20 @@ type Milestone = {
   note: string;
 };
 
+type CalendarEvent = {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  note?: string;
+};
+
+type EditingItem =
+  | { kind: "milestone"; item: Milestone }
+  | { kind: "event"; item: CalendarEvent };
+
+type ItemKind = "event" | "milestone";
+
 type StoredState = {
   milestones?: Milestone[];
   [key: string]: unknown;
@@ -21,6 +35,7 @@ type HiddenFilters = {
 };
 
 const DAYFRAME_STORAGE_KEY = "dayframe-v1";
+const CALENDAR_EVENTS_STORAGE_KEY = "dayframe-calendar-events-v1";
 const COLORS_STORAGE_KEY = "dayframe-milestone-colors-v1";
 const HIDDEN_COLORS_STORAGE_KEY = "dayframe-milestone-hidden-colors-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -51,6 +66,30 @@ function readState(): StoredState {
     return parsed && typeof parsed === "object" ? parsed as StoredState : {};
   } catch {
     return {};
+  }
+}
+
+function readCalendarEvents(): CalendarEvent[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(CALENDAR_EVENTS_STORAGE_KEY) || "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is CalendarEvent => Boolean(
+        item && typeof item === "object"
+        && typeof (item as CalendarEvent).id === "string"
+        && typeof (item as CalendarEvent).title === "string"
+        && typeof (item as CalendarEvent).date === "string",
+      ))
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        date: item.date,
+        time: typeof item.time === "string" ? item.time : "",
+        note: typeof item.note === "string" ? item.note : "",
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "99:99").localeCompare(b.time || "99:99") || a.title.localeCompare(b.title, "cs"));
+  } catch {
+    return [];
   }
 }
 
@@ -159,17 +198,29 @@ function writeMilestones(nextMilestones: Milestone[]) {
   return next;
 }
 
+function writeCalendarEvents(nextEvents: CalendarEvent[]) {
+  const sorted = [...nextEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time || "99:99").localeCompare(b.time || "99:99") || a.title.localeCompare(b.title, "cs"));
+  window.localStorage.setItem(CALENDAR_EVENTS_STORAGE_KEY, JSON.stringify(sorted));
+  window.dispatchEvent(new Event(STATE_SYNC_EVENT));
+  return sorted;
+}
+
+
 export function MonthCalendarController() {
   const [open, setOpen] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
   const [state, setState] = useState<StoredState>({});
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [colors, setColors] = useState<Record<string, string>>({});
   const [hidden, setHidden] = useState<HiddenFilters>({ preset: [], custom: false });
   const [navHost, setNavHost] = useState<HTMLElement | null>(null);
   const [viewHost, setViewHost] = useState<HTMLElement | null>(null);
-  const [editing, setEditing] = useState<Milestone | null>(null);
+  const [editing, setEditing] = useState<EditingItem | null>(null);
+  const [editingKind, setEditingKind] = useState<ItemKind>("event");
   const [creatingDate, setCreatingDate] = useState<string | null>(null);
+  const [creatingKind, setCreatingKind] = useState<ItemKind>("event");
   const rawStateRef = useRef("");
+  const rawEventsRef = useRef("");
   const rawColorsRef = useRef("");
   const rawHiddenRef = useRef("");
 
@@ -191,6 +242,11 @@ export function MonthCalendarController() {
         rawStateRef.current = rawState;
         setState(readState());
       }
+      const rawEvents = window.localStorage.getItem(CALENDAR_EVENTS_STORAGE_KEY) || "";
+      if (rawEvents !== rawEventsRef.current) {
+        rawEventsRef.current = rawEvents;
+        setCalendarEvents(readCalendarEvents());
+      }
       const rawColors = window.localStorage.getItem(COLORS_STORAGE_KEY) || "";
       if (rawColors !== rawColorsRef.current) {
         rawColorsRef.current = rawColors;
@@ -208,7 +264,9 @@ export function MonthCalendarController() {
       if (!target || target.classList.contains("df2-month-calendar-nav-button")) return;
       setOpen(false);
       setEditing(null);
+      setEditingKind("event");
       setCreatingDate(null);
+      setCreatingKind("event");
     };
 
     const keyboard = (event: KeyboardEvent) => {
@@ -256,7 +314,9 @@ export function MonthCalendarController() {
     findButton("Dnes")?.click();
     setOpen(true);
     setEditing(null);
+    setEditingKind("event");
     setCreatingDate(null);
+    setCreatingKind("event");
   };
 
   const saveEdit = (event: FormEvent<HTMLFormElement>) => {
@@ -266,15 +326,26 @@ export function MonthCalendarController() {
     const title = String(form.get("title") || "").trim();
     const date = String(form.get("date") || "");
     const note = String(form.get("note") || "").trim();
+    const time = String(form.get("time") || "");
     if (!title || !date) return;
-    const current = readState();
-    const nextMilestones = (current.milestones ?? []).map((milestone) => milestone.id === editing.id
-      ? { ...milestone, title, date, note: note || "Vlastní termín" }
-      : milestone);
-    const next = writeMilestones(nextMilestones);
-    rawStateRef.current = JSON.stringify(next);
-    setState(next);
+
+    if (editing.kind === "milestone") {
+      const current = readState();
+      const next = writeMilestones((current.milestones ?? []).map((milestone) => milestone.id === editing.item.id
+        ? { ...milestone, title, date, note: note || "Vlastní termín" }
+        : milestone));
+      rawStateRef.current = JSON.stringify(next);
+      setState(next);
+    } else {
+      const nextEvents = writeCalendarEvents(readCalendarEvents().map((item) => item.id === editing.item.id
+        ? { ...item, title, date, time, note }
+        : item));
+      rawEventsRef.current = JSON.stringify(nextEvents);
+      setCalendarEvents(nextEvents);
+    }
+
     setEditing(null);
+    setEditingKind("event");
   };
 
   const saveNew = (event: FormEvent<HTMLFormElement>) => {
@@ -284,26 +355,51 @@ export function MonthCalendarController() {
     const title = String(form.get("title") || "").trim();
     const date = String(form.get("date") || creatingDate);
     const note = String(form.get("note") || "").trim();
+    const time = String(form.get("time") || "");
     if (!title || !date) return;
-    const current = readState();
-    const milestone: Milestone = {
-      id: `milestone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title,
-      date,
-      note: note || "Vlastní termín",
-    };
-    const next = writeMilestones([...(current.milestones ?? []), milestone]);
-    rawStateRef.current = JSON.stringify(next);
-    setState(next);
+
+    if (creatingKind === "milestone") {
+      const current = readState();
+      const milestone: Milestone = {
+        id: `milestone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        date,
+        note: note || "Vlastní termín",
+      };
+      const next = writeMilestones([...(current.milestones ?? []), milestone]);
+      rawStateRef.current = JSON.stringify(next);
+      setState(next);
+    } else {
+      const calendarEvent: CalendarEvent = {
+        id: `calendar-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        date,
+        time,
+        note,
+      };
+      const nextEvents = writeCalendarEvents([...readCalendarEvents(), calendarEvent]);
+      rawEventsRef.current = JSON.stringify(nextEvents);
+      setCalendarEvents(nextEvents);
+    }
+
     setCreatingDate(null);
+    setCreatingKind("event");
   };
 
-  const removeMilestone = (id: string) => {
-    const current = readState();
-    const next = writeMilestones((current.milestones ?? []).filter((milestone) => milestone.id !== id));
-    rawStateRef.current = JSON.stringify(next);
-    setState(next);
+  const removeEditing = () => {
+    if (!editing) return;
+    if (editing.kind === "milestone") {
+      const current = readState();
+      const next = writeMilestones((current.milestones ?? []).filter((milestone) => milestone.id !== editing.item.id));
+      rawStateRef.current = JSON.stringify(next);
+      setState(next);
+    } else {
+      const nextEvents = writeCalendarEvents(readCalendarEvents().filter((item) => item.id !== editing.item.id));
+      rawEventsRef.current = JSON.stringify(nextEvents);
+      setCalendarEvents(nextEvents);
+    }
     setEditing(null);
+    setEditingKind("event");
   };
 
   const navPortal = navHost ? createPortal(
@@ -315,9 +411,9 @@ export function MonthCalendarController() {
 
   const calendarPortal = viewHost && open ? createPortal(
     <>
-      <section className="df2-month-calendar" aria-label="Měsíční kalendář milníků">
+      <section className="df2-month-calendar" aria-label="Měsíční kalendář">
         <header className="df2-page-head df2-month-calendar-head">
-          <div><p>Měsíční přehled milníků</p><h1>Kalendář</h1></div>
+          <div><p>Měsíční přehled</p><h1>Kalendář</h1></div>
           <div className="df2-month-calendar-controls">
             <button type="button" aria-label="Předchozí měsíc" onClick={() => setMonthOffset((value) => value - 1)}>←</button>
             <button type="button" onClick={() => setMonthOffset(0)}>Tento měsíc</button>
@@ -334,13 +430,43 @@ export function MonthCalendarController() {
               const dayMilestones = milestones
                 .filter((milestone) => milestone.date === key)
                 .filter((milestone) => !isHidden(colorFor(milestone.id, colors), hidden));
+              const dayCalendarEvents = calendarEvents
+                .filter((item) => item.date === key)
+                .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99") || a.title.localeCompare(b.title, "cs"));
               return (
                 <article key={key} className={`df2-month-day ${isCurrentMonth ? "" : "outside"} ${key === today ? "today" : ""}`} data-date={key}>
                   <header>
                     <span>{day.getDate()}</span>
-                    <button type="button" aria-label={`Přidat milník ${key}`} onClick={() => setCreatingDate(key)}>+</button>
+                    <button
+                      type="button"
+                      aria-label={`Přidat do kalendáře ${key}`}
+                      onClick={() => {
+                        setCreatingDate(key);
+                        setCreatingKind("event");
+                      }}
+                    >+</button>
                   </header>
                   <div className="df2-month-events">
+                    {dayCalendarEvents.map((calendarEvent) => {
+                      const note = calendarEvent.note?.trim() ?? "";
+                      return (
+                        <button
+                          type="button"
+                          key={calendarEvent.id}
+                          className="df2-month-calendar-event"
+                          data-calendar-event-id={calendarEvent.id}
+                          onClick={() => {
+                            setEditing({ kind: "event", item: calendarEvent });
+                            setEditingKind("event");
+                          }}
+                          title={note ? `${calendarEvent.title} — ${note}` : calendarEvent.title}
+                        >
+                          <strong>{calendarEvent.title}</strong>
+                          {calendarEvent.time && <small className="df2-month-event-time">{calendarEvent.time}</small>}
+                          {note && <small>{note}</small>}
+                        </button>
+                      );
+                    })}
                     {dayMilestones.map((milestone) => {
                       const color = colorFor(milestone.id, colors);
                       const note = meaningfulNote(milestone.note);
@@ -356,7 +482,10 @@ export function MonthCalendarController() {
                           className="df2-month-milestone"
                           data-milestone-id={milestone.id}
                           style={style}
-                          onClick={() => setEditing(milestone)}
+                          onClick={() => {
+                            setEditing({ kind: "milestone", item: milestone });
+                            setEditingKind("milestone");
+                          }}
                           title={note ? `${milestone.title} — ${note}` : milestone.title}
                         >
                           <strong>{milestone.title}</strong>
@@ -374,27 +503,44 @@ export function MonthCalendarController() {
 
       {editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
-          <form className="df2-modal df2-month-milestone-modal" onSubmit={saveEdit}>
-            <header><div><h2>Upravit milník</h2></div><button type="button" onClick={() => setEditing(null)}>×</button></header>
-            <label>Název<input name="title" autoFocus defaultValue={editing.title} /></label>
-            <label>Datum<input name="date" type="date" defaultValue={editing.date} /></label>
-            <label>Popisek<textarea name="note" rows={4} defaultValue={meaningfulNote(editing.note)} placeholder="Co se v ten den děje…" /></label>
-            <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button type="button" className="danger" onClick={() => removeMilestone(editing.id)}>Smazat milník</button></div>
+          <form className={`df2-modal df2-month-milestone-modal ${editing.kind === "event" ? "is-calendar-event" : ""}`} onSubmit={saveEdit}>
+            <header>
+              <div><h2>{editing.kind === "milestone" ? "Upravit milník" : "Upravit událost"}</h2></div>
+              <button type="button" onClick={() => setEditing(null)}>×</button>
+            </header>
+            <label key="title">Název<input name="title" autoFocus defaultValue={editing.item.title} /></label>
+            <label key="date">Datum<input name="date" type="date" defaultValue={editing.item.date} /></label>
+            {editing.kind === "event" && (
+              <label key="time">Čas <span className="df2-calendar-optional">(volitelně)</span><input name="time" type="time" defaultValue={editing.item.time ?? ""} /></label>
+            )}
+            <label key="note">Popisek<textarea name="note" rows={4} defaultValue={editing.kind === "milestone" ? meaningfulNote(editing.item.note) : editing.item.note ?? ""} placeholder="Co se v ten den děje…" /></label>
+            <div className="df2-modal-actions">
+              <button className="df2-primary">Uložit změny</button>
+              <button type="button" className="danger" onClick={removeEditing}>{editing.kind === "milestone" ? "Smazat milník" : "Smazat událost"}</button>
+            </div>
           </form>
         </div>
       )}
 
       {creatingDate && !editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingDate(null); }}>
-          <form className="df2-modal df2-month-milestone-modal" onSubmit={saveNew}>
-            <header><div><h2>Nový milník</h2></div><button type="button" onClick={() => setCreatingDate(null)}>×</button></header>
-            <label>Název<input name="title" autoFocus placeholder="Např. SCIO test" /></label>
-            <label>Datum<input name="date" type="date" defaultValue={creatingDate} /></label>
-            <label>Popisek<textarea name="note" rows={4} placeholder="Co se v ten den děje…" /></label>
-            <div className="df2-modal-actions"><button className="df2-primary">Přidat milník</button></div>
+          <form className={`df2-modal df2-month-milestone-modal ${creatingKind === "event" ? "is-calendar-event" : ""}`} onSubmit={saveNew}>
+            <header><div><h2>Přidat do kalendáře</h2></div><button type="button" onClick={() => setCreatingDate(null)}>×</button></header>
+            <div className="df2-calendar-item-type" role="group" aria-label="Typ položky">
+              <button type="button" aria-pressed={creatingKind === "event"} onClick={() => setCreatingKind("event")}>Událost</button>
+              <button type="button" aria-pressed={creatingKind === "milestone"} onClick={() => setCreatingKind("milestone")}>Milník</button>
+            </div>
+            <label key="title">Název<input name="title" autoFocus placeholder={creatingKind === "event" ? "Např. Doučování VŠE matika" : "Např. SCIO test"} /></label>
+            <label key="date">Datum<input name="date" type="date" defaultValue={creatingDate} /></label>
+            <label key="time" hidden={creatingKind !== "event"}>Čas <span className="df2-calendar-optional">(volitelně)</span><input name="time" type="time" /></label>
+            <label key="note">Popisek<textarea name="note" rows={4} placeholder="Co se v ten den děje…" /></label>
+            <div className="df2-modal-actions">
+              <button className="df2-primary">{creatingKind === "milestone" ? "Přidat milník" : "Přidat událost"}</button>
+            </div>
           </form>
         </div>
       )}
+
     </>,
     viewHost,
   ) : null;

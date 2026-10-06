@@ -112,8 +112,8 @@ function syncCalendarDom() {
     if (!parsed) return;
 
     const header = cell.querySelector<HTMLElement>(":scope > header");
-    const milestoneAdd = header?.querySelector<HTMLButtonElement>('button[aria-label^="Přidat milník "]');
-    if (header && milestoneAdd && !header.querySelector("[data-birthday-add-date]")) {
+    const calendarAdd = header?.querySelector<HTMLButtonElement>('button[aria-label^="Přidat do kalendáře "], button[aria-label^="Přidat milník "]');
+    if (header && calendarAdd && !header.querySelector("[data-birthday-add-date]")) {
       const add = document.createElement("button");
       add.type = "button";
       add.className = "df2-birthday-add-button";
@@ -121,7 +121,7 @@ function syncCalendarDom() {
       add.setAttribute("aria-label", `Přidat narozeniny ${key}`);
       add.title = "Přidat narozeniny";
       add.textContent = "🎂";
-      header.insertBefore(add, milestoneAdd);
+      header.insertBefore(add, calendarAdd);
     }
 
     const events = cell.querySelector<HTMLElement>(".df2-month-events");
