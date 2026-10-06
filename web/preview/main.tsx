@@ -40,6 +40,7 @@ import { JarvisFutureContextController } from "../app/jarvis-future-context-cont
 import { JarvisAdvisorController } from "../app/jarvis-advisor-controller";
 import "../app/globals.css";
 import "../app/dayframe-v2.css";
+import "../app/daily-checklist.css";
 import "../app/dayframe-countdowns.css";
 import "../app/milestone-alignment.css";
 import "../app/week-calendar-polish.css";
