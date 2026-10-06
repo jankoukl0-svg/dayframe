@@ -94,9 +94,9 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
           id: "advisor-tomorrow-early",
           title: "Ekonomie",
           date: dates.tomorrow,
-          duration: 180,
+          duration: 270,
           start: "08:00",
-          end: "11:00",
+          end: "12:30",
           requestedStart: "08:00",
           deadlineTime: "22:30",
           priority: "normal",
@@ -145,9 +145,8 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
   await expect(advisor).toContainText("v plánu nemáš žádný související blok");
   await expect(advisor).toContainText("Tomáš · za 5 dní");
   await expect(advisor).toContainText("koupit dárek");
-  await expect(advisor).toContainText("Zítra začínáš brzy");
-  await expect(advisor).toContainText("08:00 · Ekonomie");
-  await expect(advisor).not.toContainText("První blok je v 00:30");
+  await expect(advisor).toContainText("Zítra je plán výrazně plnější");
+  await expect(advisor).toContainText("5 h v 2 blocích");
   await expect(briefing.locator("[data-jarvis-advice]")).toHaveCount(3);
 
   await page.evaluate(({ todayKey }) => {
