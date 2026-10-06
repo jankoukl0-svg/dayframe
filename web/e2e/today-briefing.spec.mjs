@@ -106,6 +106,24 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
           autoScheduled: false,
           createdAt: now,
         },
+        {
+          id: "briefing-overdue",
+          title: "Starý rest",
+          date,
+          duration: 0,
+          start: "14:00",
+          end: "14:00",
+          requestedStart: "14:00",
+          deadlineTime: "14:00",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt: now,
+        },
       ],
 
     };
@@ -137,7 +155,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(weather).toContainText("18:40");
 
   await expect(briefing.locator(".df2-jarvis-sequence")).toContainText("Matematika");
-  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Systém je klidný");
+  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Pozornost: 1 rest");
 
   await page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -221,24 +239,6 @@ test("Today briefing treats a manually running Focus session as the source of tr
           source: "user",
           dateLocked: true,
           autoScheduled: true,
-          createdAt: now,
-        },
-        {
-          id: "briefing-overdue",
-          title: "Starý rest",
-          date,
-          duration: 0,
-          start: "14:00",
-          end: "14:00",
-          requestedStart: "14:00",
-          deadlineTime: "14:00",
-          priority: "normal",
-          category: "Studium",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: false,
           createdAt: now,
         },
       ],
