@@ -106,7 +106,26 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
           autoScheduled: false,
           createdAt: now,
         },
+        {
+          id: "briefing-overdue",
+          title: "Starý rest",
+          date,
+          duration: 0,
+          start: "14:00",
+          end: "14:00",
+          requestedStart: "14:00",
+          deadlineTime: "14:00",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt: now,
+        },
       ],
+
     };
     state.backlog = [];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
@@ -119,9 +138,12 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(page.locator("[data-today-briefing-launcher]")).toContainText("Jarvis briefing");
   const briefing = await openBriefing(page);
   await expect(briefing).toContainText("JARVIS · LIVE");
+  await expect(briefing).toContainText("Z dřívějška zůstává 1 rest.");
+  await expect(briefing).not.toContainText("Na dnešek je naplánováno");
+  await expect(briefing).not.toContainText("Hlavní blok je");
   await expect(briefing).toContainText("Cambridge essay");
   await expect(briefing).toContainText("2 h 30 min");
-  await expect(briefing).toContainText("0/2");
+  await expect(briefing).toContainText("0/3");
 
   const weather = briefing.locator(".df2-jarvis-weather");
   await expect(weather).toContainText("Moje poloha");
@@ -133,7 +155,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(weather).toContainText("18:40");
 
   await expect(briefing.locator(".df2-jarvis-sequence")).toContainText("Matematika");
-  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Systém je klidný");
+  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Pozornost: 1 rest");
 
   await page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
@@ -145,7 +167,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
     window.dispatchEvent(new Event("dayframe-state-sync"));
   });
 
-  await expect(briefing).toContainText("1/2");
+  await expect(briefing).toContainText("1/3");
   await expect(briefing.locator(".df2-briefing-priority")).toContainText("Matematika");
   await expect(briefing).toContainText("1 h");
 
@@ -170,6 +192,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(page.locator("[data-today-briefing-launcher]")).toBeVisible();
   await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
 });
+
 
 test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
