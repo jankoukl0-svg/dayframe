@@ -202,15 +202,14 @@ export function DailyChecklist() {
     const cleanTitle = title.trim();
     if (!cleanTitle || !draftDays.length) return;
 
-    if (editingId) {
-      persist({
+    const saved = editingId
+      ? persist({
         ...store,
         items: store.items.map((item) => item.id === editingId
           ? { ...item, title: cleanTitle, days: [...draftDays] }
           : item),
-      });
-    } else {
-      persist({
+      })
+      : persist({
         ...store,
         items: [
           ...store.items,
@@ -221,8 +220,7 @@ export function DailyChecklist() {
           },
         ],
       });
-    }
-    setModalOpen(false);
+    if (saved) setModalOpen(false);
   };
 
   const removeItem = () => {
@@ -252,8 +250,7 @@ export function DailyChecklist() {
     if (from < 0 || target < 0) return;
     const items = [...store.items];
     const moved = items.splice(from, 1)[0];
-    const adjustedTarget = from < target ? target - 1 : target;
-    items.splice(adjustedTarget, 0, moved);
+    items.splice(target, 0, moved);
     persist({ ...store, items });
   };
 
