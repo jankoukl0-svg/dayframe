@@ -355,3 +355,7 @@
   font-size: 10px;
   font-weight: 500;
 }
+
+.df2-month-milestone-modal label[hidden] {
+  display: none !important;
+}
