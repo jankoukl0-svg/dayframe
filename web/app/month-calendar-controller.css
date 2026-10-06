@@ -111,7 +111,8 @@
 }
 
 .df2-month-day.outside > header > span,
-.df2-month-day.outside .df2-month-milestone {
+.df2-month-day.outside .df2-month-milestone,
+.df2-month-day.outside .df2-month-calendar-event {
   opacity: .48;
 }
 
@@ -260,4 +261,97 @@
   .df2-month-calendar-controls button:nth-child(2) {
     flex: 1;
   }
+}
+
+
+.df2-month-calendar-event {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid rgba(0, 0, 0, .075);
+  border-left: 3px solid #a5a49d;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .48);
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-month-calendar-event:hover {
+  border-top-color: var(--line-strong);
+  border-right-color: var(--line-strong);
+  border-bottom-color: var(--line-strong);
+  background: rgba(255, 255, 255, .7);
+}
+
+.df2-month-calendar-event strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-month-calendar-event strong::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #8e8d86;
+  vertical-align: 1px;
+}
+
+.df2-month-calendar-event small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.df2-month-calendar-event .df2-month-event-time {
+  padding-left: 11px;
+  font-family: "Cascadia Mono", monospace;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.df2-calendar-item-type {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.df2-calendar-item-type button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.df2-calendar-item-type button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(35, 33, 29, .08);
+}
+
+.df2-calendar-optional {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
 }
