@@ -205,6 +205,16 @@ function writeCalendarEvents(nextEvents: CalendarEvent[]) {
   return sorted;
 }
 
+function writeCalendarSnapshot(nextMilestones: Milestone[], nextEvents: CalendarEvent[]) {
+  const current = readState();
+  const nextState = { ...current, milestones: [...nextMilestones].sort((a, b) => a.date.localeCompare(b.date)) };
+  const sortedEvents = [...nextEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time || "99:99").localeCompare(b.time || "99:99") || a.title.localeCompare(b.title, "cs"));
+  window.localStorage.setItem(DAYFRAME_STORAGE_KEY, JSON.stringify(nextState));
+  window.localStorage.setItem(CALENDAR_EVENTS_STORAGE_KEY, JSON.stringify(sortedEvents));
+  window.dispatchEvent(new Event(STATE_SYNC_EVENT));
+  return { nextState, sortedEvents };
+}
+
 export function MonthCalendarController() {
   const [open, setOpen] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -352,13 +362,10 @@ export function MonthCalendarController() {
       });
     }
 
-    // Persist calendar events first so Milník → Událost conversion never renders
-    // an intermediate state where the milestone is gone but the event is not yet available.
-    const storedEvents = writeCalendarEvents(nextEvents);
-    const nextState = writeMilestones(nextMilestones);
-    rawEventsRef.current = JSON.stringify(storedEvents);
+    const { nextState, sortedEvents } = writeCalendarSnapshot(nextMilestones, nextEvents);
+    rawEventsRef.current = JSON.stringify(sortedEvents);
     rawStateRef.current = JSON.stringify(nextState);
-    setCalendarEvents(storedEvents);
+    setCalendarEvents(sortedEvents);
     setState(nextState);
     setEditing(null);
     setEditingKind("event");
