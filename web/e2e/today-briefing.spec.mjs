@@ -68,6 +68,9 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const now = new Date().toISOString();
     state.routines = [];
+    const previous = new Date(`${date}T12:00:00`);
+    previous.setDate(previous.getDate() - 1);
+    const previousKey = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}-${String(previous.getDate()).padStart(2, "0")}`;
     state.plans = {
       [date]: [
         {
@@ -107,6 +110,24 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
           createdAt: now,
         },
       ],
+      [previousKey]: [{
+        id: "briefing-overdue",
+        title: "Starý rest",
+        date: previousKey,
+        duration: 45,
+        start: "16:00",
+        end: "16:45",
+        requestedStart: "16:00",
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Studium",
+        mode: "flexible",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: now,
+      }],
     };
     state.backlog = [];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
@@ -119,6 +140,9 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(page.locator("[data-today-briefing-launcher]")).toContainText("Jarvis briefing");
   const briefing = await openBriefing(page);
   await expect(briefing).toContainText("JARVIS · LIVE");
+  await expect(briefing).toContainText("Z dřívějška zůstává 1 rest.");
+  await expect(briefing).not.toContainText("Na dnešek je naplánováno");
+  await expect(briefing).not.toContainText("Hlavní blok je");
   await expect(briefing).toContainText("Cambridge essay");
   await expect(briefing).toContainText("2 h 30 min");
   await expect(briefing).toContainText("0/2");
@@ -170,6 +194,7 @@ test("Today Jarvis briefing combines the plan, live weather and useful context i
   await expect(page.locator("[data-today-briefing-launcher]")).toBeVisible();
   await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
 });
+
 
 test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);

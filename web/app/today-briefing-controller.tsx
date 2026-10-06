@@ -40,7 +40,7 @@ type WeatherSnapshot = {
 
 type BriefingModel = {
   greeting: string;
-  summary: string;
+  overdueSummary: string | null;
   priority: string;
   plan: string;
   remainingPlan: string;
@@ -104,21 +104,9 @@ function byStart(a: CalendarTask, b: CalendarTask) {
   return aMinute - bMinute;
 }
 
-function taskSummary(tasks: CalendarTask[], mainTask: CalendarTask | null, missedCount: number, plannedMinutes: number) {
-  if (!tasks.length) return "Dnešek je zatím otevřený. Nemáte naplánovaný žádný blok.";
-  const completed = tasks.filter((task) => task.completed).length;
-  if (completed === tasks.length) return `Dnešní plán je hotový. Dokončeno ${completed} z ${tasks.length} bloků.`;
-
-  const planCopy = plannedMinutes > 0
-    ? `Na dnešek je naplánováno ${formatDuration(plannedMinutes)}.`
-    : `Na dnešek máte ${tasks.length} ${tasks.length === 1 ? "úkol" : "úkolů"}.`;
-  const mainCopy = mainTask
-    ? ` Hlavní blok je ${mainTask.title}${mainTask.start ? ` v ${mainTask.start}` : ""}.`
-    : "";
-  const missedCopy = missedCount > 0
-    ? ` Z dřívějška ${missedCount === 1 ? "zůstává 1 rest" : `zůstávají ${missedCount} resty`}.`
-    : "";
-  return `${planCopy}${mainCopy}${missedCopy}`;
+function overdueSummary(missedCount: number) {
+  if (missedCount <= 0) return null;
+  return `Z dřívějška ${missedCount === 1 ? "zůstává 1 rest" : `zůstávají ${missedCount} resty`}.`;
 }
 
 function runningFocusTask(tasks: BriefingTask[]) {
@@ -225,7 +213,7 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
 
   return {
     greeting: greetingFor(now),
-    summary: taskSummary(tasks, mainTask, missed.length, plannedMinutes),
+    overdueSummary: overdueSummary(missed.length),
     priority: mainTask?.title ?? "Bez hlavní priority",
     plan: formatDuration(plannedMinutes),
     remainingPlan: formatDuration(remainingMinutes),
@@ -330,7 +318,7 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
   addText(eyebrow, "strong", "JARVIS · LIVE");
   copy.appendChild(eyebrow);
   addText(copy, "h2", model.greeting);
-  addText(copy, "p", model.summary);
+  if (model.overdueSummary) addText(copy, "p", model.overdueSummary);
   hero.appendChild(copy);
 
   const clock = document.createElement("div");
