@@ -23,13 +23,15 @@ concurrency:
 jobs:
   build-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: web
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -40,9 +42,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
@@ -53,41 +57,44 @@ jobs:
       - name: Build static preview
         run: pnpm preview:build
 
-      - name: Install isolated Playwright runtime
+      - name: Select targeted browser tests
+        id: targeted
+        shell: bash
         run: |
-          rm -rf /tmp/dayframe-e2e
-          mkdir -p /tmp/dayframe-e2e
-          cp e2e/*.spec.mjs /tmp/dayframe-e2e/
-          cd /tmp/dayframe-e2e
-          npm init -y >/dev/null
-          timeout 180s npm install --no-package-lock --ignore-scripts @playwright/test@1.55.0
-          google-chrome --version
-          cat > playwright.config.mjs <<'EOF'
-          export default {
-            use: { channel: "chrome" },
-          };
-          EOF
-
-      - name: Test built preview at the GitHub Pages subpath
-        env:
-          DAYFRAME_BASE_URL: http://127.0.0.1:4173/dayframe/
-        run: |
-          mkdir -p /tmp/dayframe-static/dayframe
-          cp -a preview-dist/. /tmp/dayframe-static/dayframe/
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory /tmp/dayframe-static > /tmp/dayframe-preview.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
-          READY=0
-          for i in {1..30}; do
-            if curl -fsS "$DAYFRAME_BASE_URL" >/dev/null; then READY=1; break; fi
-            sleep 1
-          done
-          if [ "$READY" -ne 1 ]; then
-            cat /tmp/dayframe-preview.log
-            exit 1
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="${{ github.event.before }}"
+          else
+            BASE_SHA="$(git rev-parse HEAD^)"
           fi
-          cd /tmp/dayframe-e2e
-          timeout 600s npx playwright test --config=playwright.config.mjs --workers=1 --reporter=line
+          TESTS="$(node scripts/select-e2e-tests.mjs "$BASE_SHA" "${{ github.sha }}")"
+          echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
+          echo "Targeted E2E: $TESTS"
+
+      - name: Run targeted browser tests first
+        env:
+          DAYFRAME_E2E_TIMEOUT: 300
+        run: ./scripts/run-static-e2e.sh ${{ steps.targeted.outputs.tests }}
+
+      - name: Upload targeted failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-e2e-failure-${{ github.sha }}
+          path: |
+            /tmp/dayframe-e2e/test-results
+            /tmp/dayframe-preview.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload preview for parallel regression
+        uses: actions/upload-artifact@v4
+        with:
+          name: dayframe-preview-${{ github.sha }}
+          path: web/preview-dist
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Upload verified Pages build
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -95,9 +102,62 @@ jobs:
         with:
           path: web/preview-dist
 
+  full-e2e:
+    name: full-e2e (${{ matrix.shard }})
+    needs: build-preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - "1/4"
+          - "2/4"
+          - "3/4"
+          - "4/4"
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Download verified preview
+        uses: actions/download-artifact@v4
+        with:
+          name: dayframe-preview-${{ github.sha }}
+          path: web/preview-dist
+
+      - name: Run regression shard
+        env:
+          DAYFRAME_E2E_TIMEOUT: 420
+        run: ./scripts/run-static-e2e.sh --shard=${{ matrix.shard }}
+
+      - name: Upload shard failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-${{ strategy.job-index }}-${{ github.sha }}
+          path: |
+            /tmp/dayframe-e2e/test-results
+            /tmp/dayframe-preview.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+  regression-gate:
+    name: full regression gate
+    needs: full-e2e
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every E2E shard to pass
+        run: test "${{ needs.full-e2e.result }}" = "success"
+
   deploy-pages:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: build-preview
+    needs:
+      - build-preview
+      - regression-gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
