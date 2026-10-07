@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("core Dayframe views share the softer Přehled visual language without changing navigation", async ({ page }) => {
+test("core Dayframe views share the softer Přehled visual language", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -58,7 +58,5 @@ test("core Dayframe views share the softer Přehled visual language without chan
   await expect(modal).toHaveCSS("border-radius", "22px");
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: /Soustředění/ }).click();
-  await expect(page.locator(".df2-root")).toHaveClass(/df2-focus-mode/);
-  await expect(page.locator(".df2-focus-actions button").first()).toHaveCSS("border-radius", "10px");
+  await expect(page.getByRole("button", { name: /Soustředění/ })).toHaveCount(0);
 });

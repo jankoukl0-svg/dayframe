@@ -553,7 +553,6 @@ export function DayframeV2() {
           <nav>
             <NavButton active={view === "today"} onClick={() => setView("today")} label="Dnes" shortcut="1" />
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
-            <NavButton active={view === "focus"} onClick={() => setView("focus")} label="Soustředění" shortcut="3" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
