@@ -64,8 +64,8 @@ test("daily checklist stays separate from tasks and resets on the next planning 
   await page.clock.setFixedTime(new Date("2026-10-10T12:00:00"));
   await page.reload({ waitUntil: "networkidle" });
   await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/1");
-  await expect(checklist.getByRole("button", { name: /^Vitamíny\b/ })).toBeVisible();
-  await expect(checklist.getByRole("button", { name: /^Angličtina\b/ })).toHaveCount(0);
+  await expect(checklist.getByRole("button", { name: "Vitamíny Každý den", exact: true })).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "Angličtina Po–Pá", exact: true })).toHaveCount(0);
 });
 
 test("daily checklist items can be renamed, reordered and deleted", async ({ page }) => {
@@ -85,11 +85,23 @@ test("daily checklist items can be renamed, reordered and deleted", async ({ pag
   await page.reload({ waitUntil: "networkidle" });
 
   const checklist = page.locator("[data-daily-checklist]");
-  await checklist.getByRole("button", { name: /^Čtení\b/ }).click();
+  await checklist.getByRole("button", { name: "Čtení Každý den", exact: true }).click();
   const modal = page.locator(".df2-checklist-modal");
   await modal.locator('input[name="title"]').fill("20 min čtení");
   await modal.getByRole("button", { name: "Uložit změny", exact: true }).click();
-  await expect(checklist.getByRole("button", { name: /^20 min čtení\b/ })).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "20 min čtení Každý den", exact: true })).toBeVisible();
+
+  await checklist.getByRole("button", { name: "Přesunout Vitamíny", exact: true }).press("ArrowDown");
+  await expect.poll(() => page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("dayframe-daily-checklist-v1") || "{}");
+    return (stored.items || []).map((item) => item.id).join(",");
+  })).toBe("b,a,c");
+
+  await checklist.getByRole("button", { name: "Přesunout Vitamíny", exact: true }).press("ArrowUp");
+  await expect.poll(() => page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("dayframe-daily-checklist-v1") || "{}");
+    return (stored.items || []).map((item) => item.id).join(",");
+  })).toBe("a,b,c");
 
   const first = checklist.locator('[data-checklist-id="a"]');
   const third = checklist.locator('[data-checklist-id="c"]');
@@ -99,7 +111,7 @@ test("daily checklist items can be renamed, reordered and deleted", async ({ pag
     return (stored.items || []).map((item) => item.id).join(",");
   })).toBe("b,c,a");
 
-  await checklist.getByRole("button", { name: /^Protáhnout se\b/ }).click();
+  await checklist.getByRole("button", { name: "Protáhnout se Každý den", exact: true }).click();
   await modal.getByRole("button", { name: "Smazat položku", exact: true }).click();
-  await expect(checklist.getByRole("button", { name: /^Protáhnout se\b/ })).toHaveCount(0);
+  await expect(checklist.getByRole("button", { name: "Protáhnout se Každý den", exact: true })).toHaveCount(0);
 });
