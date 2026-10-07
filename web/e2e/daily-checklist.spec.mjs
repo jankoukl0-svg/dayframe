@@ -115,3 +115,35 @@ test("daily checklist items can be renamed, reordered and deleted", async ({ pag
   await modal.getByRole("button", { name: "Smazat položku", exact: true }).click();
   await expect(checklist.getByRole("button", { name: "Protáhnout se Každý den", exact: true })).toHaveCount(0);
 });
+
+test("keyboard reorder moves relative to visible recurring items", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-10T12:00:00"));
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    window.localStorage.setItem("dayframe-daily-checklist-v1", JSON.stringify({
+      version: 1,
+      items: [
+        { id: "a", title: "Denní A", days: [1, 2, 3, 4, 5, 6, 0] },
+        { id: "b", title: "Pracovní B", days: [1, 2, 3, 4, 5] },
+        { id: "c", title: "Denní C", days: [1, 2, 3, 4, 5, 6, 0] },
+      ],
+      completedByDate: {},
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.getByRole("button", { name: "Pracovní B Po–Pá", exact: true })).toHaveCount(0);
+
+  await checklist.getByRole("button", { name: "Přesunout Denní A", exact: true }).press("ArrowDown");
+  await expect.poll(() => page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("dayframe-daily-checklist-v1") || "{}");
+    return (stored.items || []).map((item) => item.id).join(",");
+  })).toBe("b,c,a");
+
+  await checklist.getByRole("button", { name: "Přesunout Denní A", exact: true }).press("ArrowUp");
+  await expect.poll(() => page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("dayframe-daily-checklist-v1") || "{}");
+    return (stored.items || []).map((item) => item.id).join(",");
+  })).toBe("b,a,c");
+});

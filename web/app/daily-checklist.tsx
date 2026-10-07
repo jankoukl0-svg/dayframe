@@ -255,10 +255,10 @@ export function DailyChecklist() {
   };
 
   const moveBy = (id: string, direction: -1 | 1) => {
-    const from = store.items.findIndex((item) => item.id === id);
+    const from = visibleItems.findIndex((item) => item.id === id);
     const target = from + direction;
-    if (from < 0 || target < 0 || target >= store.items.length) return;
-    reorder(id, store.items[target].id);
+    if (from < 0 || target < 0 || target >= visibleItems.length) return;
+    reorder(id, visibleItems[target].id);
   };
 
   const onDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
