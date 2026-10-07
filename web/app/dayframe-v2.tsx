@@ -239,7 +239,6 @@ export function DayframeV2() {
       if (event.key === "1") setView("today");
       if (event.key.toLowerCase() === "w") setView("week");
       if (event.key === "2") openAdd();
-      if (event.key === "3") setView("focus");
       if (event.key === "4") setView("milestones");
       if (event.key === "5") setView("settings");
     };
@@ -553,7 +552,6 @@ export function DayframeV2() {
           <nav>
             <NavButton active={view === "today"} onClick={() => setView("today")} label="Dnes" shortcut="1" />
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
-            <NavButton active={view === "focus"} onClick={() => setView("focus")} label="Soustředění" shortcut="3" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
