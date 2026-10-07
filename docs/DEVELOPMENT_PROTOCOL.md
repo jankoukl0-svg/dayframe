@@ -41,7 +41,7 @@ The PR workflow is intentionally layered.
 
 Runs first:
 
-- dependency install with pnpm cache;
+- frozen dependency install;
 - TypeScript typecheck;
 - deterministic planning/unit regressions;
 - static preview build;
