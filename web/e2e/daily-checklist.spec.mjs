@@ -160,3 +160,21 @@ test("corrupt checklist storage is never overwritten by an empty fallback", asyn
   await expect(checklist.getByRole("button", { name: "+ Přidat položku" })).toBeDisabled();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dayframe-daily-checklist-v1"))).toBe("{broken-json");
 });
+
+test("object-shaped invalid checklist storage is also write-blocked", async ({ page }) => {
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  const damaged = JSON.stringify({
+    version: 1,
+    items: "damaged",
+    completedByDate: {},
+  });
+  await page.evaluate((value) => {
+    window.localStorage.setItem("dayframe-daily-checklist-v1", value);
+  }, damaged);
+  await page.reload({ waitUntil: "networkidle" });
+
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.getByText("Checklist má poškozená uložená data. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "+ Přidat položku" })).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dayframe-daily-checklist-v1"))).toBe(damaged);
+});

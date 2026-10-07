@@ -54,24 +54,51 @@ function readStore(): { store: ChecklistStore; blocked: boolean } {
     }
 
     const candidate = parsed as Partial<ChecklistStore>;
-    const items = Array.isArray(candidate.items)
-      ? candidate.items
-        .filter((item): item is ChecklistItem => Boolean(
-          item
-          && typeof item === "object"
-          && typeof (item as ChecklistItem).id === "string"
-          && typeof (item as ChecklistItem).title === "string",
-        ))
-        .map((item) => ({ id: item.id, title: item.title.trim(), days: normalizeDays(item.days) }))
-        .filter((item) => item.title)
-      : [];
+    if (
+      candidate.version !== 1
+      || !Array.isArray(candidate.items)
+      || !candidate.completedByDate
+      || typeof candidate.completedByDate !== "object"
+      || Array.isArray(candidate.completedByDate)
+    ) {
+      return { store: emptyStore(), blocked: true };
+    }
+
+    const items: ChecklistItem[] = [];
+    const seenIds = new Set<string>();
+    for (const item of candidate.items) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return { store: emptyStore(), blocked: true };
+      }
+      const value = item as Partial<ChecklistItem>;
+      const cleanTitle = typeof value.title === "string" ? value.title.trim() : "";
+      const days = value.days;
+      if (
+        typeof value.id !== "string"
+        || !value.id
+        || seenIds.has(value.id)
+        || !cleanTitle
+        || !Array.isArray(days)
+        || !days.length
+        || days.some((day) => !Number.isInteger(day) || !ALL_DAYS.includes(day))
+        || new Set(days).size !== days.length
+      ) {
+        return { store: emptyStore(), blocked: true };
+      }
+      seenIds.add(value.id);
+      items.push({
+        id: value.id,
+        title: cleanTitle,
+        days: ALL_DAYS.filter((day) => days.includes(day)),
+      });
+    }
 
     const completedByDate: Record<string, string[]> = {};
-    if (candidate.completedByDate && typeof candidate.completedByDate === "object" && !Array.isArray(candidate.completedByDate)) {
-      Object.entries(candidate.completedByDate).forEach(([date, ids]) => {
-        if (!Array.isArray(ids)) return;
-        completedByDate[date] = ids.filter((id): id is string => typeof id === "string");
-      });
+    for (const [date, ids] of Object.entries(candidate.completedByDate)) {
+      if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
+        return { store: emptyStore(), blocked: true };
+      }
+      completedByDate[date] = [...new Set(ids)];
     }
 
     return { store: { version: 1, items, completedByDate }, blocked: false };
