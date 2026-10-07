@@ -259,3 +259,16 @@ test("ordinary Today tasks stay visible during the completion hold", async ({ pa
 
   await expect(laterRow).toBeHidden({ timeout: 2000 });
 });
+
+
+test("blocked checklist storage never announces the whole day as complete", async ({ page }) => {
+  await openAtNoon(page);
+  await seedSingleTask(page, true);
+  await page.evaluate(() => {
+    window.localStorage.setItem("dayframe-daily-checklist-v1", "{broken-json");
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  await expect(page.locator("[data-daily-checklist]")).toContainText("Checklist data nelze bezpečně načíst");
+  await expect(page.locator(".df2-day-complete")).toHaveCount(0);
+});

@@ -40,6 +40,7 @@ type CompletionChoice = {
   taskId: string;
   taskTitle: string;
   originalTask: StoredTask;
+  completedTask: StoredTask;
   finishMinute: number;
   savedMinutes: number;
   nextTaskId: string | null;
@@ -262,6 +263,9 @@ export function ActiveCompletionSafetyController() {
       const focus = Boolean(button.closest(".df2-focus-view"));
 
       if (!finishImmediately(state, found.date, found.task, finishMinute, now)) return;
+      const completedState = readState();
+      const completedTask = completedState?.plans?.[found.date]?.find((item) => item.id === found.task.id);
+      if (!completedTask) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -270,6 +274,7 @@ export function ActiveCompletionSafetyController() {
         taskId: found.task.id,
         taskTitle: originalTask.title,
         originalTask: { ...originalTask },
+        completedTask: { ...completedTask },
         finishMinute,
         savedMinutes,
         nextTaskId: next?.id ?? null,
@@ -296,9 +301,32 @@ export function ActiveCompletionSafetyController() {
     const state = readState();
     const tasks = state?.plans?.[completion?.date ?? ""];
     if (!state || !tasks || !completion) return;
+
+    const completionFields: Array<keyof StoredTask> = [
+      "completed",
+      "end",
+      "duration",
+      "plannedStart",
+      "plannedEnd",
+      "plannedDuration",
+      "actualEndedAt",
+      "actualAccumulatedSeconds",
+      "actualRunningSince",
+      "actualMinutes",
+    ];
+
     state.plans = {
       ...state.plans,
-      [completion.date]: tasks.map((task) => task.id === completion.taskId ? { ...completion.originalTask } : task),
+      [completion.date]: tasks.map((task) => {
+        if (task.id !== completion.taskId) return task;
+        const restored = { ...task };
+        for (const key of completionFields) {
+          if (Object.is(task[key], completion.completedTask[key])) {
+            (restored as Record<string, unknown>)[key] = completion.originalTask[key];
+          }
+        }
+        return restored;
+      }),
     };
     writeState(state);
     setCompletion(null);

@@ -21,6 +21,7 @@ type DailyChecklistSummary = {
   completed: number;
   total: number;
   hydrated: boolean;
+  blocked: boolean;
 };
 
 const STORAGE_KEY = "dayframe-daily-checklist-v1";
@@ -193,8 +194,8 @@ export function DailyChecklist({ onSummaryChange }: { onSummaryChange?: (summary
   }, []);
 
   useEffect(() => {
-    onSummaryChange?.({ completed: completedCount, total: visibleItems.length, hydrated });
-  }, [completedCount, visibleItems.length, hydrated, onSummaryChange]);
+    onSummaryChange?.({ completed: completedCount, total: visibleItems.length, hydrated, blocked: storageBlocked });
+  }, [completedCount, visibleItems.length, hydrated, storageBlocked, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
