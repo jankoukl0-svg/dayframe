@@ -798,6 +798,7 @@ function TodayView({
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
   const taskProgress = tasks.length ? (completed / tasks.length) * 100 : 0;
   const checklistDone = checklistSummary.total === 0 || checklistSummary.completed === checklistSummary.total;
+  const today = planningDateKey(now);
   const dayComplete = checklistSummary.hydrated
     && !checklistSummary.blocked
     && completingTaskIds.size === 0
@@ -806,7 +807,6 @@ function TodayView({
     && completed === tasks.length
     && checklistDone;
   const countdown = getDayCountdown(now);
-  const today = planningDateKey(now);
   const nextMilestone = [...milestones]
     .filter((milestone) => milestone.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
@@ -889,7 +889,7 @@ function TodayView({
         )}
       </section>
 
-      <DailyChecklist onSummaryChange={setChecklistSummary} />
+      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} />
       {missed.length > 0 && (
         <section className="df2-missed">
           <header><strong>Nedokončeno · {missed.length}</strong></header>
