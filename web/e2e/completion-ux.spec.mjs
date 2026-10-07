@@ -46,7 +46,8 @@ test("task completion confirms, holds briefly and can be undone", async ({ page 
   await seedSingleTask(page, false);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: /Dokončit UX návrh/ }).click();
+  await expect(page.locator(".df2-now-card")).toContainText("Dokončit UX návrh");
+  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
   const modal = page.locator(".df2-modal").filter({ hasText: "Dokončit UX návrh" });
   await modal.getByRole("button", { name: "Označit hotovo", exact: true }).click();
 
