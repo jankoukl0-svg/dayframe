@@ -87,12 +87,10 @@
 
 @media (max-width: 720px) {
   .df2-today-view .df2-now-card {
-    grid-template-columns: 74px minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .df2-today-view .df2-now-actions {
-    grid-column: 2;
-    justify-self: start;
-    flex-wrap: wrap;
+    width: 100%;
   }
 }
