@@ -581,7 +581,7 @@ export function ActivityTimeController() {
       ) : (
         <>
           <button type="button" className="df2-time-done" onClick={() => completeEarly(activeTarget.taskId)}>Hotovo</button>
-          <button type="button" onClick={() => extend(activeTarget.taskId)}>Pokračovat +15 min</button>
+          <button type="button" className="df2-time-extend" aria-label="Pokračovat o 15 minut" onClick={() => extend(activeTarget.taskId)}>+15 min</button>
           {error && <small className="df2-time-adjust-error">{error}</small>}
         </>
       ),

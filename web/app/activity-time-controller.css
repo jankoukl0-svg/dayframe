@@ -4,6 +4,10 @@
   gap: 7px;
 }
 
+.df2-now-actions > .df2-time-adjust-host {
+  display: contents;
+}
+
 .df2-time-adjust-host > button,
 .df2-time-adjust-finish > button,
 .df2-time-adjust-focus-controls > button,
@@ -237,4 +241,39 @@
   .df2-controller-focus-clock {
     font-size: 70px;
   }
+}
+
+
+/* Current-task action panel: primary completion first, utilities below. */
+.df2-now-actions .df2-time-adjust-host > .df2-time-done {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: 100%;
+  min-height: 44px;
+  justify-self: stretch;
+  border-radius: 9px;
+  font-size: 12px;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.df2-now-actions .df2-time-adjust-host > .df2-time-extend {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  min-height: 36px;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.df2-now-actions .df2-time-adjust-host > .df2-time-extend:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.df2-now-actions .df2-time-adjust-error {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  max-width: none;
 }

@@ -833,17 +833,30 @@ function TodayView({
       </div>
 
       <section className={`df2-now-card ${activeTask && completingTaskIds.has(activeTask.id) ? "is-completing" : ""}`}>
-        <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
-        {activeTask ? (
-          <>
-            <div><h2>{activeTask.title}</h2><p>{activeTask.duration} min</p></div>
-            <div className="df2-now-actions">
-              {completingTaskIds.has(activeTask.id)
-                ? <span className="df2-now-completing">✓ Hotovo</span>
-                : <button className="df2-now-edit" onClick={() => onEdit(activeTask)}>Upravit</button>}
+        <div className="df2-now-main">
+          <div className="df2-now-label">
+            <span>Teď</span>
+            <small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small>
+          </div>
+          {activeTask ? (
+            <div className="df2-now-copy">
+              <h2>{activeTask.title}</h2>
+              <p>{activeTask.duration} min</p>
             </div>
-          </>
-        ) : <div><h2>Volno</h2></div>}
+          ) : (
+            <div className="df2-now-copy">
+              <h2>Volno</h2>
+              <p>Žádný aktivní blok</p>
+            </div>
+          )}
+        </div>
+        {activeTask && (
+          <div className="df2-now-actions">
+            {completingTaskIds.has(activeTask.id)
+              ? <span className="df2-now-completing">✓ Hotovo</span>
+              : <button className="df2-now-edit" onClick={() => onEdit(activeTask)}>Upravit</button>}
+          </div>
+        )}
       </section>
       <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} />
 

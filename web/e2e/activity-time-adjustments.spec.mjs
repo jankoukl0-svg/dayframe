@@ -176,7 +176,7 @@ test("continuing an activity adds fifteen minutes", async ({ page }) => {
   if (seeded.maxExtensions < 1) return;
   await page.reload({ waitUntil: "networkidle" });
 
-  const continueButton = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Pokračovat +15 min" });
+  const continueButton = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Pokračovat o 15 minut" });
   await expect(continueButton).toBeVisible();
   await Promise.all([
     page.waitForNavigation({ waitUntil: "networkidle" }),
