@@ -336,8 +336,14 @@ export function HistoryController() {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
-      if (event.key.toLowerCase() === "h") setActive(true);
-      if (event.key === "Escape") setActive(false);
+      const key = event.key.toLowerCase();
+      if (key === "h") {
+        setActive(true);
+        return;
+      }
+      if (event.key === "Escape" || ["1", "3", "4", "5", "w"].includes(key)) {
+        setActive(false);
+      }
     };
     sidebar?.addEventListener("click", onSidebarClick);
     window.addEventListener("keydown", onKey);
