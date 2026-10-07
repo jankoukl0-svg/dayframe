@@ -219,14 +219,14 @@
 .df2-now-actions .df2-now-edit {
   grid-column: 2;
   grid-row: 2;
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--line);
+  background: var(--paper);
   color: var(--ink);
 }
 
 .df2-now-actions .df2-now-edit:hover {
-  border-color: var(--line);
-  background: var(--surface);
+  border-color: var(--line-strong);
+  background: #fff;
   color: var(--ink);
 }
 
