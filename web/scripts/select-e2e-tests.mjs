@@ -60,7 +60,31 @@ for (const file of changed) {
     }
   }
 
-  if (lower.includes("daily-checklist")) add("daily-checklist.spec.mjs");
+  if (lower.includes("daily-checklist")) {
+    add("daily-checklist.spec.mjs");
+    add("completion-ux.spec.mjs");
+  }
+
+  if (
+    lower.includes("active-completion-safety")
+    || lower.includes("completion-ux")
+    || file === "web/app/dayframe-v2.tsx"
+    || file === "web/app/dayframe-v2.css"
+  ) {
+    add("completion-ux.spec.mjs");
+  }
+
+  if (file === "web/app/execution-tracker.tsx") {
+    add("active-completion-safety.spec.mjs");
+    add("execution-tracking.spec.mjs");
+    add("completion-ux.spec.mjs");
+  }
+
+  if (file === "web/app/activity-time-controller.tsx") {
+    add("active-completion-safety.spec.mjs");
+    add("activity-time-adjustments.spec.mjs");
+    add("completion-ux.spec.mjs");
+  }
 
   if (lower.includes("reading")) {
     addPrefix("reading-");

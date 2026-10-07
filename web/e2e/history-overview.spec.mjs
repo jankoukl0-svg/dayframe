@@ -116,7 +116,7 @@ test("history overview stays minimal, stacks activity by category, keeps categor
 
   await page.getByRole("button", { name: /Dnes/ }).click();
   await expect(history).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Dnes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dnes", level: 1 })).toBeVisible();
 });
 
 test("overview returns to the light theme when opened from focus", async ({ page }) => {

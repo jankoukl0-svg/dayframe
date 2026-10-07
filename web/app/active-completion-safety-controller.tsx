@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { calendarBounds, minutesToTime, planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-calendar";
 
@@ -33,9 +33,14 @@ type StoredState = {
   [key: string]: unknown;
 };
 
+const BEFORE_COMPLETION_EVENT = "dayframe-before-task-completion";
+
 type CompletionChoice = {
   date: string;
   taskId: string;
+  taskTitle: string;
+  originalTask: StoredTask;
+  completedTask: StoredTask;
   finishMinute: number;
   savedMinutes: number;
   nextTaskId: string | null;
@@ -191,8 +196,41 @@ function startFreedTimeTask(choice: CompletionChoice, taskId: string | null) {
 
 export function ActiveCompletionSafetyController() {
   const [completion, setCompletion] = useState<CompletionChoice | null>(null);
+  const [undoError, setUndoError] = useState("");
+  const preClickTaskRef = useRef<{ date: string; task: StoredTask; capturedAt: number } | null>(null);
 
   useEffect(() => {
+    const captureOriginalTask = (target: EventTarget | null) => {
+      const button = target instanceof Element
+        ? target.closest<HTMLButtonElement>("button.df2-time-done")
+        : null;
+      if (!button) return;
+      const state = readState();
+      if (!state) return;
+      const found = findClickedTask(button, state, new Date());
+      if (!found) return;
+      preClickTaskRef.current = {
+        date: found.date,
+        task: { ...found.task },
+        capturedAt: Date.now(),
+      };
+    };
+
+    const onPointerDown = (event: PointerEvent) => captureOriginalTask(event.target);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") captureOriginalTask(event.target);
+    };
+
+    const onBeforeCompletion = (event: Event) => {
+      const detail = (event as CustomEvent<{ date?: string; task?: StoredTask }>).detail;
+      if (!detail?.date || !detail.task?.id) return;
+      preClickTaskRef.current = {
+        date: detail.date,
+        task: { ...detail.task },
+        capturedAt: Date.now(),
+      };
+    };
+
     const onClick = (event: MouseEvent) => {
       const button = event.target instanceof Element
         ? event.target.closest<HTMLButtonElement>("button.df2-time-done")
@@ -210,6 +248,15 @@ export function ActiveCompletionSafetyController() {
       const originalEnd = timeToMinutes(found.task.end);
       if (!Number.isFinite(start) || !Number.isFinite(originalEnd) || finishMinute < start || finishMinute >= originalEnd) return;
 
+      const originalSnapshot = preClickTaskRef.current;
+      const originalTask = originalSnapshot
+        && originalSnapshot.date === found.date
+        && originalSnapshot.task.id === found.task.id
+        && Date.now() - originalSnapshot.capturedAt < 5000
+        ? originalSnapshot.task
+        : { ...found.task };
+      preClickTaskRef.current = null;
+
       const tasks = state.plans?.[found.date] ?? [];
       const savedMinutes = originalEnd - finishMinute;
       const next = nextTask(tasks, found.task.id, finishMinute);
@@ -217,12 +264,19 @@ export function ActiveCompletionSafetyController() {
       const focus = Boolean(button.closest(".df2-focus-view"));
 
       if (!finishImmediately(state, found.date, found.task, finishMinute, now)) return;
+      const completedState = readState();
+      const completedTask = completedState?.plans?.[found.date]?.find((item) => item.id === found.task.id);
+      if (!completedTask) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
+      setUndoError("");
       setCompletion({
         date: found.date,
         taskId: found.task.id,
+        taskTitle: originalTask.title,
+        originalTask: { ...originalTask },
+        completedTask: { ...completedTask },
         finishMinute,
         savedMinutes,
         nextTaskId: next?.id ?? null,
@@ -233,38 +287,126 @@ export function ActiveCompletionSafetyController() {
       });
     };
 
+    window.addEventListener(BEFORE_COMPLETION_EVENT, onBeforeCompletion);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("click", onClick, true);
-    return () => document.removeEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener(BEFORE_COMPLETION_EVENT, onBeforeCompletion);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("click", onClick, true);
+    };
   }, []);
+
+  const undoCompletion = () => {
+    const state = readState();
+    if (!state || !completion) return;
+
+    const located = Object.entries(state.plans ?? {}).find(([, tasks]) =>
+      tasks.some((task) => task.id === completion.taskId),
+    );
+    if (!located) return;
+
+    const [currentDate, tasks] = located;
+    const currentTask = tasks.find((task) => task.id === completion.taskId);
+    if (!currentTask) return;
+
+    const scheduleChangedAfterCompletion = (
+      !Object.is(currentTask.start, completion.completedTask.start)
+      || !Object.is(currentTask.end, completion.completedTask.end)
+      || !Object.is(currentTask.duration, completion.completedTask.duration)
+    );
+
+    const originalStart = timeToMinutes(completion.originalTask.start);
+    const originalEnd = timeToMinutes(completion.originalTask.end);
+    const originalIntervalAvailable = Number.isFinite(originalStart)
+      && Number.isFinite(originalEnd)
+      && originalEnd > originalStart
+      && !tasks.some((task) => {
+        if (task.id === completion.taskId || !task.start || !task.end) return false;
+        const occupiedStart = timeToMinutes(task.start);
+        const occupiedEnd = timeToMinutes(task.end);
+        return Number.isFinite(occupiedStart)
+          && Number.isFinite(occupiedEnd)
+          && originalStart < occupiedEnd
+          && originalEnd > occupiedStart;
+      });
+
+    if (!scheduleChangedAfterCompletion && !originalIntervalAvailable) {
+      setUndoError("Vrácení by se překrývalo s jiným blokem. Uvolni původní čas nebo zvol Volno.");
+      return;
+    }
+
+    const undoMinute = planningMinute(new Date());
+    const canResumeOriginalExecution = currentDate === completion.date
+      && !scheduleChangedAfterCompletion
+      && originalIntervalAvailable
+      && undoMinute >= originalStart
+      && undoMinute < originalEnd;
+
+    const completionFields: Array<keyof StoredTask> = [
+      "completed",
+      "plannedStart",
+      "plannedEnd",
+      "plannedDuration",
+      "actualEndedAt",
+      "actualAccumulatedSeconds",
+      "actualMinutes",
+    ];
+
+    state.plans = {
+      ...state.plans,
+      [currentDate]: tasks.map((task) => {
+        if (task.id !== completion.taskId) return task;
+        const restored = { ...task };
+
+        if (!scheduleChangedAfterCompletion && originalIntervalAvailable) {
+          restored.start = completion.originalTask.start;
+          restored.end = completion.originalTask.end;
+          restored.duration = completion.originalTask.duration;
+        }
+
+        for (const key of completionFields) {
+          if (Object.is(task[key], completion.completedTask[key])) {
+            (restored as Record<string, unknown>)[key] = completion.originalTask[key];
+          }
+        }
+
+        if (Object.is(task.actualRunningSince, completion.completedTask.actualRunningSince)) {
+          restored.actualRunningSince = canResumeOriginalExecution
+            ? completion.originalTask.actualRunningSince
+            : undefined;
+        }
+
+        return restored;
+      }),
+    };
+    writeState(state);
+    setUndoError("");
+    setCompletion(null);
+  };
 
   if (!completion) return null;
 
   return createPortal(
-    <div
-      className="df2-active-completion-floating"
-      style={{
-        position: "fixed",
-        right: 24,
-        bottom: 24,
-        zIndex: 10000,
-        maxWidth: "min(620px, calc(100vw - 48px))",
-        padding: "12px 14px",
-        border: completion.focus ? "1px solid rgba(255, 255, 255, 0.18)" : "1px solid var(--line-strong)",
-        borderRadius: 12,
-        background: completion.focus ? "#171717" : "var(--paper)",
-        boxShadow: "0 12px 36px rgba(0, 0, 0, 0.12)",
-      }}
-      aria-live="polite"
-    >
+    <div className={`df2-active-completion-floating ${completion.focus ? "is-focus" : ""}`} aria-live="polite">
+      <span className="df2-completion-mark" aria-hidden="true">✓</span>
+      <div className="df2-active-completion-copy">
+        <strong>Úkol dokončen</strong>
+        <small>{completion.taskTitle}</small>
+      </div>
       <div className={completion.focus ? "df2-time-adjust-focus-completion" : "df2-time-adjust-finish"}>
-        <strong>Hotovo · +{completion.savedMinutes} min volných</strong>
+        <strong>+{completion.savedMinutes} min volných</strong>
         {completion.nextTaskId && (
           <button type="button" onClick={() => startFreedTimeTask(completion, completion.nextTaskId)}>Začít další</button>
         )}
         {completion.shortTaskId && (
           <button type="button" onClick={() => startFreedTimeTask(completion, completion.shortTaskId)}>Krátký úkol · {completion.shortTaskTitle}</button>
         )}
-        <button type="button" onClick={() => { setCompletion(null); window.location.reload(); }}>Volno</button>
+        <button type="button" onClick={() => { setUndoError(""); setCompletion(null); window.location.reload(); }}>Volno</button>
+        <button type="button" className="df2-completion-undo" onClick={undoCompletion}>Vrátit</button>
+        {undoError && <small className="df2-time-adjust-error">{undoError}</small>}
       </div>
     </div>,
     document.body,

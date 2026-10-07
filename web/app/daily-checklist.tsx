@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { planningDateKey } from "@/lib/dayframe-calendar";
 
 type ChecklistItem = {
@@ -16,6 +16,14 @@ type ChecklistStore = {
 };
 
 type RepeatMode = "daily" | "weekdays" | "custom";
+
+type DailyChecklistSummary = {
+  planningKey: string;
+  completed: number;
+  total: number;
+  hydrated: boolean;
+  blocked: boolean;
+};
 
 const STORAGE_KEY = "dayframe-daily-checklist-v1";
 const SYNC_EVENT = "dayframe-daily-checklist-sync";
@@ -138,7 +146,13 @@ function weekdayForPlanningDate(key: string) {
   return new Date(key + "T12:00:00").getDay();
 }
 
-export function DailyChecklist() {
+export function DailyChecklist({
+  onSummaryChange,
+  planningKey: externalPlanningKey,
+}: {
+  onSummaryChange?: (summary: DailyChecklistSummary) => void;
+  planningKey?: string;
+} = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -151,8 +165,10 @@ export function DailyChecklist() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [storageError, setStorageError] = useState("");
   const [storageBlocked, setStorageBlocked] = useState(false);
+  const [recentlyCompletedId, setRecentlyCompletedId] = useState<string | null>(null);
+  const completionFeedbackTimer = useRef<number | null>(null);
 
-  const planningKey = planningDateKey(now);
+  const planningKey = externalPlanningKey ?? planningDateKey(now);
   const weekday = weekdayForPlanningDate(planningKey);
   const visibleItems = useMemo(
     () => store.items.filter((item) => item.days.includes(weekday)),
@@ -160,6 +176,8 @@ export function DailyChecklist() {
   );
   const completedIds = new Set(store.completedByDate[planningKey] ?? []);
   const completedCount = visibleItems.filter((item) => completedIds.has(item.id)).length;
+  const allDone = visibleItems.length > 0 && completedCount === visibleItems.length;
+  const progressPercent = visibleItems.length ? (completedCount / visibleItems.length) * 100 : 0;
 
   useEffect(() => {
     const sync = () => {
@@ -178,8 +196,17 @@ export function DailyChecklist() {
   }, []);
 
   useEffect(() => {
+    if (externalPlanningKey) return;
     const timer = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(timer);
+  }, [externalPlanningKey]);
+
+  useEffect(() => {
+    onSummaryChange?.({ planningKey, completed: completedCount, total: visibleItems.length, hydrated, blocked: storageBlocked });
+  }, [planningKey, completedCount, visibleItems.length, hydrated, storageBlocked, onSummaryChange]);
+
+  useEffect(() => () => {
+    if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
   }, []);
 
   useEffect(() => {
@@ -283,11 +310,22 @@ export function DailyChecklist() {
 
   const toggleComplete = (id: string) => {
     const current = store.completedByDate[planningKey] ?? [];
-    const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
-    persist({
+    const wasDone = current.includes(id);
+    const next = wasDone ? current.filter((item) => item !== id) : [...current, id];
+    const saved = persist({
       ...store,
       completedByDate: { ...store.completedByDate, [planningKey]: next },
     });
+
+    if (!saved) return;
+    if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
+    if (wasDone) {
+      setRecentlyCompletedId(null);
+      return;
+    }
+
+    setRecentlyCompletedId(id);
+    completionFeedbackTimer.current = window.setTimeout(() => setRecentlyCompletedId(null), 900);
   };
 
   const reorder = (draggedId: string, targetId: string) => {
@@ -323,7 +361,7 @@ export function DailyChecklist() {
 
   return (
     <>
-      <section className="df2-daily-checklist" data-daily-checklist aria-label="Denní checklist">
+      <section className={`df2-daily-checklist ${allDone ? "is-complete" : ""}`} data-daily-checklist aria-label="Denní checklist">
         <header className="df2-checklist-head">
           <div>
             <h2>Denní checklist</h2>
@@ -342,6 +380,17 @@ export function DailyChecklist() {
           <button type="button" onClick={openNew} disabled={!hydrated || storageBlocked}>+ Přidat položku</button>
         </header>
 
+        <div
+          className="df2-checklist-progress-track"
+          role="progressbar"
+          aria-label="Dokončené položky checklistu"
+          aria-valuemin={0}
+          aria-valuemax={visibleItems.length}
+          aria-valuenow={completedCount}
+        >
+          <span style={{ width: `${progressPercent}%` }} />
+        </div>
+
         {visibleItems.length ? (
           <div className="df2-checklist-list">
             {visibleItems.map((item) => {
@@ -350,7 +399,7 @@ export function DailyChecklist() {
                 <article
                   key={item.id}
                   data-checklist-id={item.id}
-                  className={done ? "done" : ""}
+                  className={`${done ? "done" : ""} ${recentlyCompletedId === item.id ? "just-completed" : ""}`.trim()}
                   draggable
                   onDragStart={() => setDraggingId(item.id)}
                   onDragEnd={() => setDraggingId(null)}
@@ -364,7 +413,7 @@ export function DailyChecklist() {
                     aria-pressed={done}
                     onClick={() => toggleComplete(item.id)}
                   >
-                    <span aria-hidden="true">{done ? "✓" : ""}</span>
+                    <span className="df2-checkmark" aria-hidden="true">{done ? "✓" : ""}</span>
                   </button>
                   <button type="button" className="df2-checklist-copy" onClick={() => openEdit(item)}>
                     <strong>{item.title}</strong>
@@ -398,6 +447,7 @@ export function DailyChecklist() {
             {store.items.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
+        {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}
         {(storageBlocked || storageError) && (
           <p className="df2-checklist-error">{storageBlocked ? STORAGE_READ_ERROR : storageError}</p>
         )}

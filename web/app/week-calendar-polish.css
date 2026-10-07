@@ -408,3 +408,37 @@
     font-size: 11px;
   }
 }
+
+
+/* Completed blocks use the same quiet green confirmation as Today/checklist. */
+.df2-week-task.done {
+  opacity: .64;
+  border-left-color: var(--success);
+  background: #f3f5f0;
+  animation: df2-week-task-complete .48s ease-out;
+}
+
+.df2-week-task.done::after {
+  content: "✓";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: var(--success);
+  font: 800 10px/1 "Cascadia Mono", monospace;
+}
+
+.df2-week-task.done strong {
+  color: #667066;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+@keyframes df2-week-task-complete {
+  0% { transform: scale(.985); box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 18%, transparent); }
+  55% { transform: scale(1.01); box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 6%, transparent); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df2-week-task.done { animation: none; }
+}

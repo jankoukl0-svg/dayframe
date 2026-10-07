@@ -480,3 +480,355 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, .45), 0 -1px 0 rgba(107, 112, 120, .09);
   pointer-events: none;
 }
+
+
+/* Unified Dayframe completion language. */
+.df2-completion-mark {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--success);
+  color: white;
+  font: 800 14px/1 "Cascadia Mono", monospace;
+  animation: df2-completion-pop .44s cubic-bezier(.2, .85, .25, 1);
+}
+
+.df2-completion-mark::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 1px solid color-mix(in srgb, var(--success) 48%, transparent);
+  border-radius: 50%;
+  animation: df2-completion-ring .62s ease-out;
+}
+
+.df2-completion-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10020;
+  width: min(390px, calc(100vw - 48px));
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  border: 1px solid #bdc8bd;
+  border-radius: 12px;
+  background: #fbfcf8;
+  box-shadow: 0 14px 38px rgba(28, 31, 28, .13);
+  animation: df2-completion-toast-in .26s ease-out;
+}
+
+.df2-completion-toast > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.df2-completion-toast strong {
+  font-size: 12px;
+}
+
+.df2-completion-toast small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-completion-toast > button,
+.df2-completion-undo {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.df2-focus-mode .df2-completion-toast {
+  border-color: rgba(255,255,255,.18);
+  background: #202320;
+  color: var(--focus-text);
+}
+
+.df2-focus-mode .df2-completion-toast small,
+.df2-focus-mode .df2-completion-toast > button {
+  color: #b7bbb4;
+}
+
+.df2-day-complete {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 4px;
+  padding: 15px 17px;
+  border: 1px solid #c5cec1;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fafcf8, #f3f7f1);
+  animation: df2-day-complete-in .5s ease-out;
+}
+
+.df2-day-complete::after {
+  content: "";
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--success) 52%, transparent), transparent);
+  animation: df2-day-complete-line .9s ease-out;
+}
+
+.df2-day-complete > div {
+  display: grid;
+  gap: 3px;
+}
+
+.df2-day-complete strong {
+  color: #385f49;
+  font-size: 14px;
+}
+
+.df2-day-complete small {
+  color: var(--muted);
+  font: 10px/1.2 "Cascadia Mono", monospace;
+}
+
+.df2-today-view.is-complete .df2-page-head h1 {
+  color: #304c3a;
+  transition: color .3s ease;
+}
+
+.df2-today-plan .df2-section-head > div {
+  min-width: min(420px, 62%);
+  display: grid;
+  gap: 8px;
+}
+
+.df2-section-progress {
+  width: 100%;
+  max-width: 360px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(170, 167, 158, .22);
+}
+
+.df2-section-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width .3s cubic-bezier(.22, .75, .28, 1);
+}
+
+.df2-next > button.is-completing,
+.df2-missed article.is-completing {
+  pointer-events: none;
+  animation: df2-completion-row .68s ease forwards;
+}
+
+.df2-missed article.is-completing strong,
+.df2-completion-action.is-completing {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.df2-missed-complete.is-completing,
+.df2-completion-action.is-completing {
+  border-color: #a9bba9;
+  background: #edf3eb;
+  color: var(--success);
+}
+
+.df2-active-completion-floating {
+  position: fixed;
+  left: 24px;
+  right: auto;
+  bottom: 24px;
+  z-index: 10030;
+  max-width: min(720px, calc(100vw - 462px));
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 1px solid #bdc8bd;
+  border-radius: 12px;
+  background: #fbfcf8;
+  box-shadow: 0 14px 38px rgba(28, 31, 28, .13);
+  animation: df2-completion-toast-in .26s ease-out;
+}
+
+.df2-active-completion-copy {
+  min-width: 120px;
+  display: grid;
+  gap: 2px;
+}
+
+.df2-active-completion-copy > strong {
+  font-size: 12px;
+}
+
+.df2-active-completion-copy > small {
+  overflow: hidden;
+  max-width: 200px;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-active-completion-floating.is-focus {
+  border-color: rgba(255, 255, 255, .18);
+  background: #202320;
+  color: var(--focus-text);
+}
+
+.df2-active-completion-floating.is-focus .df2-active-completion-copy > small {
+  color: #a9ada6;
+}
+
+@keyframes df2-completion-pop {
+  0% { transform: scale(.72); opacity: .2; }
+  58% { transform: scale(1.16); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes df2-completion-ring {
+  0% { opacity: .5; transform: scale(.72); }
+  100% { opacity: 0; transform: scale(1.55); }
+}
+
+@keyframes df2-completion-toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes df2-completion-row {
+  0% { opacity: 1; transform: scale(1); background: transparent; }
+  42% { opacity: .7; transform: scale(1.008); background: #f1f5ef; }
+  100% { opacity: 0; transform: scale(.985); }
+}
+
+@keyframes df2-day-complete-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes df2-day-complete-line {
+  from { transform: translateX(-45%); opacity: 0; }
+  45% { opacity: 1; }
+  to { transform: translateX(45%); opacity: 0; }
+}
+
+@media (max-width: 720px) {
+  .df2-completion-toast {
+    right: 14px;
+    bottom: 14px;
+    width: calc(100vw - 28px);
+  }
+
+  .df2-active-completion-floating {
+    top: 14px;
+    right: 14px;
+    bottom: auto;
+    left: 14px;
+    max-width: none;
+    flex-wrap: wrap;
+  }
+
+  .df2-today-plan .df2-section-head > div {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df2-completion-mark,
+  .df2-completion-mark::after,
+  .df2-completion-toast,
+  .df2-day-complete,
+  .df2-day-complete::after,
+  .df2-next > button.is-completing,
+  .df2-missed article.is-completing,
+  .df2-active-completion-floating,
+  .df2-section-progress > span {
+    animation: none;
+    transition: none;
+  }
+}
+
+
+/* Multiple recent completions keep independent undo windows instead of replacing one another. */
+.df2-completion-toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10020;
+  width: min(390px, calc(100vw - 48px));
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.df2-completion-toast-stack .df2-completion-toast {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .df2-completion-toast-stack {
+    right: 14px;
+    bottom: 14px;
+    width: calc(100vw - 28px);
+  }
+
+  .df2-completion-toast-stack .df2-completion-toast {
+    right: auto;
+    bottom: auto;
+    width: 100%;
+  }
+}
+
+
+/* The 680ms task hold is visible on every Today surface, including the Now card. */
+.df2-now-card.is-completing {
+  pointer-events: none;
+  animation: df2-completion-row .68s ease forwards;
+}
+
+.df2-now-card.is-completing h2 {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.df2-now-completing {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid #a9bba9;
+  border-radius: 8px;
+  background: #edf3eb;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df2-now-card.is-completing { animation: none; }
+}
