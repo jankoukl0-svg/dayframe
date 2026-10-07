@@ -192,7 +192,7 @@ test("focus mode uses the real block time and keeps only execution controls", as
   const seeded = await seedActiveTask(page);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   await expect(page.locator(".df2-focus-view")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Testovací aktivita" })).toBeVisible();
 
