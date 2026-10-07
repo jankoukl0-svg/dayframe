@@ -338,6 +338,10 @@ export function ActiveCompletionSafetyController() {
       return;
     }
 
+    const canResumeOriginalExecution = currentDate === completion.date
+      && !scheduleChangedAfterCompletion
+      && originalIntervalAvailable;
+
     const completionFields: Array<keyof StoredTask> = [
       "completed",
       "plannedStart",
@@ -345,7 +349,6 @@ export function ActiveCompletionSafetyController() {
       "plannedDuration",
       "actualEndedAt",
       "actualAccumulatedSeconds",
-      "actualRunningSince",
       "actualMinutes",
     ];
 
@@ -365,6 +368,12 @@ export function ActiveCompletionSafetyController() {
           if (Object.is(task[key], completion.completedTask[key])) {
             (restored as Record<string, unknown>)[key] = completion.originalTask[key];
           }
+        }
+
+        if (Object.is(task.actualRunningSince, completion.completedTask.actualRunningSince)) {
+          restored.actualRunningSince = canResumeOriginalExecution
+            ? completion.originalTask.actualRunningSince
+            : undefined;
         }
 
         return restored;
