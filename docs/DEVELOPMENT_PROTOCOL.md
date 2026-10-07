@@ -120,3 +120,17 @@ User-facing outcomes should normally be one of:
 - Avoid unrelated cleanup inside feature PRs.
 - Do not trigger redundant deployments.
 - GitHub event-driven CI is the fast path; periodic external watchers are only a safety net, not the primary release engine.
+
+## 9. Stuck pipeline watchdog
+
+Pending is not automatically healthy.
+
+- Treat a CI/review/deployment as healthy waiting only while it shows recent progress.
+- If a latest-head CI run has no jobs, no status movement, or no updated activity for roughly 10 minutes, classify it as `CI_STUCK` instead of silently waiting.
+- Inspect competing runs in the same concurrency group; newer commits can cancel or starve older runs.
+- Attempt one safe automatic recovery using the native rerun/retry mechanism when available.
+- Never create a chain of retry-only commits. If a retry commit is the only available trigger, allow at most one, then surface the external blocker.
+- Batch all known fixes from one diagnosis into one commit whenever possible so a logical repair creates one CI run, not several competing runs.
+- Apply the same stale-progress rule to review and deployment stages.
+- A watcher must never use an unconditional rule equivalent to “pending => do nothing forever”.
+
