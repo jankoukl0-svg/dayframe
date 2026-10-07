@@ -22,7 +22,7 @@ async function addItem(page, title, repeat = "Každý den") {
 }
 
 test("daily checklist stays separate from tasks and resets on the next planning day", async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-10-06T12:00:00Z"));
+  await page.clock.setFixedTime(new Date("2026-10-06T12:00:00"));
   await openFresh(page);
 
   const checklist = page.locator("[data-daily-checklist]");
@@ -56,12 +56,12 @@ test("daily checklist stays separate from tasks and resets on the next planning 
   await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/2");
   await expect(checklist.getByRole("button", { name: "Vrátit Vitamíny jako nesplněné" })).toBeVisible();
 
-  await page.clock.setFixedTime(new Date("2026-10-07T12:00:00Z"));
+  await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
   await page.reload({ waitUntil: "networkidle" });
   await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/2");
   await expect(checklist.getByRole("button", { name: "Označit Vitamíny jako hotovo" })).toBeVisible();
 
-  await page.clock.setFixedTime(new Date("2026-10-10T12:00:00Z"));
+  await page.clock.setFixedTime(new Date("2026-10-10T12:00:00"));
   await page.reload({ waitUntil: "networkidle" });
   await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/1");
   await expect(checklist.getByRole("button", { name: "Vitamíny", exact: true })).toBeVisible();
