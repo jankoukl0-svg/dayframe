@@ -192,3 +192,70 @@ test("rapid completions keep an independent undo action for each task", async ({
     ["second-completion", true],
   ]);
 });
+
+
+test("ordinary Today tasks stay visible during the completion hold", async ({ page }) => {
+  await openAtNoon(page);
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const date = "2026-10-06";
+    state.routines = [];
+    state.plans = {
+      ...state.plans,
+      [date]: [
+        {
+          id: "now-task",
+          title: "Teď dokončit",
+          date,
+          duration: 30,
+          start: "14:00",
+          end: "14:30",
+          requestedStart: "14:00",
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt: "2026-10-06T10:00:00.000Z",
+        },
+        {
+          id: "later-task",
+          title: "Později dokončit",
+          date,
+          duration: 30,
+          start: "15:00",
+          end: "15:30",
+          requestedStart: "15:00",
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt: "2026-10-06T10:01:00.000Z",
+        },
+      ],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const laterRow = page.locator(".df2-today-plan > button", { hasText: "Později dokončit" });
+  await laterRow.click();
+  const modal = page.locator(".df2-modal").first();
+  await modal.getByRole("button", { name: "Označit hotovo", exact: true }).click();
+
+  await expect(laterRow).toBeVisible();
+  await expect(laterRow).toHaveClass(/is-completing/);
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return state.plans["2026-10-06"].find((task) => task.id === "later-task")?.completed;
+  })).toBe(true);
+
+  await expect(laterRow).toBeHidden({ timeout: 2000 });
+});

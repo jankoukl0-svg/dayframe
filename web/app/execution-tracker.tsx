@@ -25,6 +25,7 @@ type TrackedTask = {
 type StoredState = { plans?: Record<string, TrackedTask[]>; [key: string]: unknown };
 
 const STORAGE_KEY = "dayframe-v1";
+const BEFORE_COMPLETION_EVENT = "dayframe-before-task-completion";
 
 function readState(): StoredState | null {
   try {
@@ -121,6 +122,15 @@ function resumeExecution(taskId: string) {
   }));
 }
 
+function announceBeforeCompletion(task: TrackedTask) {
+  window.dispatchEvent(new CustomEvent(BEFORE_COMPLETION_EVENT, {
+    detail: {
+      date: task.date,
+      task: { ...task },
+    },
+  }));
+}
+
 function completeExecution(taskId: string) {
   const now = new Date();
   updateTask(taskId, (task) => {
@@ -160,12 +170,16 @@ export function ExecutionTracker() {
         if (text === "Start") startExecution(task.id);
         else if (text === "Pauza") pauseExecution(task.id);
         else if (text === "Pokračovat") resumeExecution(task.id);
-        else if (text === "Hotovo") completeExecution(task.id);
+        else if (text === "Hotovo") {
+          announceBeforeCompletion(task);
+          completeExecution(task.id);
+        }
         else if (text.includes("+15 min")) preservePlan(task.id);
         return;
       }
 
       if (button.classList.contains("df2-time-done")) {
+        announceBeforeCompletion(task);
         completeExecution(task.id);
         return;
       }

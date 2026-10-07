@@ -134,7 +134,7 @@ test("undoing a live completion restores the running execution snapshot", async 
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
   await expect(done).toBeVisible();
-  await done.click();
+  await done.evaluate((button) => button.click());
 
   const completion = page.locator(".df2-active-completion-floating");
   await expect(completion).toContainText("Úkol dokončen");

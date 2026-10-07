@@ -801,3 +801,32 @@
     width: 100%;
   }
 }
+
+
+/* The 680ms task hold is visible on every Today surface, including the Now card. */
+.df2-now-card.is-completing {
+  pointer-events: none;
+  animation: df2-completion-row .68s ease forwards;
+}
+
+.df2-now-card.is-completing h2 {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.df2-now-completing {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid #a9bba9;
+  border-radius: 8px;
+  background: #edf3eb;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df2-now-card.is-completing { animation: none; }
+}

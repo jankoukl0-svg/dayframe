@@ -33,6 +33,8 @@ type StoredState = {
   [key: string]: unknown;
 };
 
+const BEFORE_COMPLETION_EVENT = "dayframe-before-task-completion";
+
 type CompletionChoice = {
   date: string;
   taskId: string;
@@ -217,6 +219,16 @@ export function ActiveCompletionSafetyController() {
       if (event.key === "Enter" || event.key === " ") captureOriginalTask(event.target);
     };
 
+    const onBeforeCompletion = (event: Event) => {
+      const detail = (event as CustomEvent<{ date?: string; task?: StoredTask }>).detail;
+      if (!detail?.date || !detail.task?.id) return;
+      preClickTaskRef.current = {
+        date: detail.date,
+        task: { ...detail.task },
+        capturedAt: Date.now(),
+      };
+    };
+
     const onClick = (event: MouseEvent) => {
       const button = event.target instanceof Element
         ? event.target.closest<HTMLButtonElement>("button.df2-time-done")
@@ -268,10 +280,12 @@ export function ActiveCompletionSafetyController() {
       });
     };
 
+    window.addEventListener(BEFORE_COMPLETION_EVENT, onBeforeCompletion);
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("click", onClick, true);
     return () => {
+      window.removeEventListener(BEFORE_COMPLETION_EVENT, onBeforeCompletion);
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("click", onClick, true);

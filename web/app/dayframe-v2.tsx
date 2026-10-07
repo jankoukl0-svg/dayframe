@@ -248,15 +248,19 @@ export function DayframeV2() {
   }, []);
 
   const todayTasks = useMemo(() => getTasksForDate(data, todayKey), [data, todayKey]);
-  const scheduledToday = todayTasks.filter((task) => task.start && task.end && !task.completed);
+  const visualTodayTasks = useMemo(
+    () => todayTasks.map((task) => completingTaskSnapshots.get(task.id) ?? task),
+    [todayTasks, completingTaskSnapshots],
+  );
+  const scheduledToday = visualTodayTasks.filter((task) => task.start && task.end && !task.completed);
   const currentMinute = planningMinute(now);
   const activeTask = scheduledToday.find((task) => timeToMinutes(task.start) <= currentMinute && timeToMinutes(task.end) > currentMinute)
     ?? scheduledToday.find((task) => timeToMinutes(task.start) > currentMinute)
-    ?? todayTasks.find((task) => !task.completed)
+    ?? visualTodayTasks.find((task) => !task.completed)
     ?? null;
-  const missed = overdueTasks(data, now);
+  const missed = visualTodayTasks.filter((task) => !task.completed && task.end && timeToMinutes(task.end) <= currentMinute);
   const missedIds = new Set(missed.map((task) => task.id));
-  const afterActive = todayTasks
+  const afterActive = visualTodayTasks
     .filter((task) => !task.completed && task.id !== activeTask?.id && !missedIds.has(task.id))
     .sort((left, right) => {
       if (left.start && right.start) return timeToMinutes(left.start) - timeToMinutes(right.start);
@@ -569,7 +573,6 @@ export function DayframeV2() {
               onEdit={setEditing}
               onDone={requestTaskCompletion}
               completingTaskIds={completingTaskIds}
-              completingTaskSnapshots={completingTaskSnapshots}
               onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
               onDelete={(id) => setData((current) => deleteTask(current, id))}
               onFocus={startFocus}
@@ -773,7 +776,7 @@ function NavButton({ active, onClick, label, shortcut }: { active: boolean; onCl
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds, completingTaskSnapshots,
+  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds,
 }: {
   now: Date;
   tasks: CalendarTask[];
@@ -789,17 +792,12 @@ function TodayView({
   onFocus: (task: CalendarTask | null) => void;
   onMilestones: () => void;
   completingTaskIds: ReadonlySet<string>;
-  completingTaskSnapshots: ReadonlyMap<string, CalendarTask>;
 }) {
   const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0, hydrated: false });
   const completed = tasks.filter((task) => task.completed).length;
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
   const taskProgress = tasks.length ? (completed / tasks.length) * 100 : 0;
   const checklistDone = checklistSummary.total === 0 || checklistSummary.completed === checklistSummary.total;
-  const currentPlanningMinute = planningMinute(now);
-  const completionGhostMissed = [...completingTaskSnapshots.values()]
-    .filter((task) => task.end && timeToMinutes(task.end) <= currentPlanningMinute && !missed.some((item) => item.id === task.id));
-  const displayMissed = [...missed, ...completionGhostMissed];
   const dayComplete = checklistSummary.hydrated
     && completingTaskIds.size === 0
     && missed.length === 0
@@ -833,9 +831,18 @@ function TodayView({
         </button>
       </div>
 
-      <section className="df2-now-card">
+      <section className={`df2-now-card ${activeTask && completingTaskIds.has(activeTask.id) ? "is-completing" : ""}`}>
         <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
-        {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.duration} min</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Volno</h2></div>}
+        {activeTask ? (
+          <>
+            <div><h2>{activeTask.title}</h2><p>{activeTask.duration} min</p></div>
+            <div className="df2-now-actions">
+              {completingTaskIds.has(activeTask.id)
+                ? <span className="df2-now-completing">✓ Hotovo</span>
+                : <><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></>}
+            </div>
+          </>
+        ) : <div><h2>Volno</h2></div>}
       </section>
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">
@@ -882,10 +889,10 @@ function TodayView({
       </section>
 
       <DailyChecklist onSummaryChange={setChecklistSummary} />
-      {displayMissed.length > 0 && (
+      {missed.length > 0 && (
         <section className="df2-missed">
-          <header><strong>Nedokončeno · {displayMissed.length}</strong></header>
-          {displayMissed.map((task) => (
+          <header><strong>Nedokončeno · {missed.length}</strong></header>
+          {missed.map((task) => (
             <article key={task.id} className={completingTaskIds.has(task.id) ? "is-completing" : ""}>
               <div><strong>{task.title}</strong><small>do {task.end}</small></div>
               <div>
