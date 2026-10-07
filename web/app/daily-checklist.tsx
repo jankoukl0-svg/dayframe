@@ -254,6 +254,13 @@ export function DailyChecklist() {
     persist({ ...store, items });
   };
 
+  const moveBy = (id: string, direction: -1 | 1) => {
+    const from = store.items.findIndex((item) => item.id === id);
+    const target = from + direction;
+    if (from < 0 || target < 0 || target >= store.items.length) return;
+    reorder(id, store.items[target].id);
+  };
+
   const onDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     event.preventDefault();
     if (draggingId) reorder(draggingId, targetId);
@@ -301,7 +308,25 @@ export function DailyChecklist() {
                     <strong>{item.title}</strong>
                     <small>{cadenceLabel(item.days)}</small>
                   </button>
-                  <span className="df2-checklist-drag" title="Přetáhnout pro změnu pořadí" aria-hidden="true">⋮⋮</span>
+                  <button
+                    type="button"
+                    className="df2-checklist-drag"
+                    aria-label={"Přesunout " + item.title}
+                    aria-keyshortcuts="ArrowUp ArrowDown"
+                    title="Přetáhnout nebo použít šipky nahoru/dolů"
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        moveBy(item.id, -1);
+                      }
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        moveBy(item.id, 1);
+                      }
+                    }}
+                  >
+                    ⋮⋮
+                  </button>
                 </article>
               );
             })}
