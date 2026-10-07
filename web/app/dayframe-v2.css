@@ -655,10 +655,11 @@
 
 .df2-active-completion-floating {
   position: fixed;
-  right: 24px;
+  left: 24px;
+  right: auto;
   bottom: 24px;
   z-index: 10030;
-  max-width: min(720px, calc(100vw - 48px));
+  max-width: min(720px, calc(100vw - 462px));
   display: flex;
   align-items: center;
   gap: 11px;
@@ -740,8 +741,9 @@
   }
 
   .df2-active-completion-floating {
+    top: 14px;
     right: 14px;
-    bottom: 14px;
+    bottom: auto;
     left: 14px;
     max-width: none;
     flex-wrap: wrap;
