@@ -156,7 +156,7 @@ test("corrupt checklist storage is never overwritten by an empty fallback", asyn
   await page.reload({ waitUntil: "networkidle" });
 
   const checklist = page.locator("[data-daily-checklist]");
-  await expect(checklist.getByText("Checklist má poškozená uložená data. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
+  await expect(checklist.getByText("Checklist data nelze bezpečně načíst. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
   await expect(checklist.getByRole("button", { name: "+ Přidat položku" })).toBeDisabled();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dayframe-daily-checklist-v1"))).toBe("{broken-json");
 });
@@ -174,7 +174,53 @@ test("object-shaped invalid checklist storage is also write-blocked", async ({ p
   await page.reload({ waitUntil: "networkidle" });
 
   const checklist = page.locator("[data-daily-checklist]");
-  await expect(checklist.getByText("Checklist má poškozená uložená data. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
+  await expect(checklist.getByText("Checklist data nelze bezpečně načíst. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
   await expect(checklist.getByRole("button", { name: "+ Přidat položku" })).toBeDisabled();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dayframe-daily-checklist-v1"))).toBe(damaged);
+});
+
+test("storage access failures surface safely instead of leaving checklist hydration stuck", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalGetItem = Storage.prototype.getItem;
+    Storage.prototype.getItem = function (key) {
+      if (key === "dayframe-daily-checklist-v1") throw new Error("storage blocked");
+      return originalGetItem.call(this, key);
+    };
+  });
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.getByText("Checklist data nelze bezpečně načíst. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "+ Přidat položku" })).toBeDisabled();
+});
+
+test("off-day recurring items stay editable through checklist management", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-10T12:00:00"));
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    window.localStorage.setItem("dayframe-daily-checklist-v1", JSON.stringify({
+      version: 1,
+      items: [
+        { id: "a", title: "Denní A", days: [1, 2, 3, 4, 5, 6, 0] },
+        { id: "b", title: "Pracovní B", days: [1, 2, 3, 4, 5] },
+      ],
+      completedByDate: {},
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.getByRole("button", { name: "Pracovní B Po–Pá", exact: true })).toHaveCount(0);
+
+  await checklist.getByRole("button", { name: "Spravovat", exact: true }).click();
+  const manage = page.locator(".df2-checklist-manage-modal");
+  await expect(manage.getByRole("button", { name: "Pracovní B Po–Pá", exact: true })).toBeVisible();
+
+  await manage.getByRole("button", { name: "Pracovní B Po–Pá", exact: true }).click();
+  const modal = page.locator(".df2-checklist-modal");
+  await modal.locator('input[name="title"]').fill("Pracovní B upraveno");
+  await modal.getByRole("button", { name: "Uložit změny", exact: true }).click();
+
+  await checklist.getByRole("button", { name: "Spravovat", exact: true }).click();
+  await expect(page.locator(".df2-checklist-manage-modal").getByRole("button", { name: "Pracovní B upraveno Po–Pá", exact: true })).toBeVisible();
 });

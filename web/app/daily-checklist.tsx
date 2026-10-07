@@ -19,7 +19,7 @@ type RepeatMode = "daily" | "weekdays" | "custom";
 
 const STORAGE_KEY = "dayframe-daily-checklist-v1";
 const SYNC_EVENT = "dayframe-daily-checklist-sync";
-const CORRUPT_STORAGE_ERROR = "Checklist má poškozená uložená data. Ukládání je pro ochranu původních dat vypnuté.";
+const STORAGE_READ_ERROR = "Checklist data nelze bezpečně načíst. Ukládání je pro ochranu původních dat vypnuté.";
 const ALL_DAYS = [1, 2, 3, 4, 5, 6, 0];
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const DAY_LABELS: Record<number, string> = {
@@ -44,10 +44,9 @@ function normalizeDays(value: unknown) {
 }
 
 function readStore(): { store: ChecklistStore; blocked: boolean } {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw === null) return { store: emptyStore(), blocked: false };
-
   try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return { store: emptyStore(), blocked: false };
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return { store: emptyStore(), blocked: true };
@@ -145,6 +144,7 @@ export function DailyChecklist() {
   const [now, setNow] = useState(() => new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("daily");
   const [draftDays, setDraftDays] = useState<number[]>([...ALL_DAYS]);
@@ -183,17 +183,19 @@ export function DailyChecklist() {
   }, []);
 
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!modalOpen && !manageOpen) return;
     const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setModalOpen(false);
+      if (event.key !== "Escape") return;
+      if (modalOpen) setModalOpen(false);
+      else setManageOpen(false);
     };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
-  }, [modalOpen]);
+  }, [modalOpen, manageOpen]);
 
   const persist = (nextStore: ChecklistStore) => {
     if (storageBlocked) {
-      setStorageError(CORRUPT_STORAGE_ERROR);
+      setStorageError(STORAGE_READ_ERROR);
       return false;
     }
     const compact = compactStore(nextStore);
@@ -306,6 +308,13 @@ export function DailyChecklist() {
     reorder(id, visibleItems[target].id);
   };
 
+  const moveStoredBy = (id: string, direction: -1 | 1) => {
+    const from = store.items.findIndex((item) => item.id === id);
+    const target = from + direction;
+    if (from < 0 || target < 0 || target >= store.items.length) return;
+    reorder(id, store.items[target].id);
+  };
+
   const onDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     event.preventDefault();
     if (draggingId) reorder(draggingId, targetId);
@@ -322,6 +331,14 @@ export function DailyChecklist() {
               {completedCount}/{visibleItems.length}
             </span>
           </div>
+          <button
+            type="button"
+            className="df2-checklist-manage"
+            onClick={() => setManageOpen(true)}
+            disabled={!hydrated || storageBlocked || !store.items.length}
+          >
+            Spravovat
+          </button>
           <button type="button" onClick={openNew} disabled={!hydrated || storageBlocked}>+ Přidat položku</button>
         </header>
 
@@ -382,9 +399,59 @@ export function DailyChecklist() {
           </div>
         )}
         {(storageBlocked || storageError) && (
-          <p className="df2-checklist-error">{storageBlocked ? CORRUPT_STORAGE_ERROR : storageError}</p>
+          <p className="df2-checklist-error">{storageBlocked ? STORAGE_READ_ERROR : storageError}</p>
         )}
       </section>
+
+      {manageOpen && (
+        <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setManageOpen(false); }}>
+          <section
+            className="df2-modal df2-checklist-manage-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="df2-checklist-manage-title"
+          >
+            <header>
+              <div><h2 id="df2-checklist-manage-title">Správa checklistu</h2></div>
+              <button type="button" aria-label="Zavřít správu checklistu" onClick={() => setManageOpen(false)}>×</button>
+            </header>
+
+            <div className="df2-checklist-manage-list">
+              {store.items.map((item, index) => (
+                <div className="df2-checklist-manage-row" key={item.id}>
+                  <button
+                    type="button"
+                    className="df2-checklist-manage-copy"
+                    onClick={() => {
+                      setManageOpen(false);
+                      openEdit(item);
+                    }}
+                  >
+                    <strong>{item.title}</strong>
+                    <small>{cadenceLabel(item.days)}</small>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={"Posunout " + item.title + " nahoru"}
+                    disabled={index === 0}
+                    onClick={() => moveStoredBy(item.id, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={"Posunout " + item.title + " dolů"}
+                    disabled={index === store.items.length - 1}
+                    onClick={() => moveStoredBy(item.id, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
       {modalOpen && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>

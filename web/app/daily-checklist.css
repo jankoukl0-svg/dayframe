@@ -8,7 +8,7 @@
   min-height: 58px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
 }
 
@@ -35,6 +35,11 @@
   color: var(--accent-dark);
   font-size: 11px;
   font-weight: 700;
+}
+
+.df2-checklist-head > .df2-checklist-manage {
+  margin-left: auto;
+  color: var(--muted);
 }
 
 .df2-checklist-head > button:disabled {
@@ -212,4 +217,59 @@
   .df2-checklist-list article {
     grid-template-columns: 28px minmax(0, 1fr) 18px;
   }
+}
+
+
+.df2-checklist-manage-modal {
+  width: min(560px, 100%);
+}
+
+.df2-checklist-manage-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.df2-checklist-manage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--line);
+}
+
+.df2-checklist-manage-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.df2-checklist-manage-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.df2-checklist-manage-copy small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.df2-checklist-manage-row > button:not(.df2-checklist-manage-copy) {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.df2-checklist-manage-row > button:disabled {
+  opacity: .35;
 }
