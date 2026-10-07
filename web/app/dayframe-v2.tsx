@@ -144,13 +144,13 @@ export function DayframeV2() {
   const [focusRunning, setFocusRunning] = useState(false);
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(() => new Set());
   const [completingTaskSnapshots, setCompletingTaskSnapshots] = useState<Map<string, CalendarTask>>(() => new Map());
-  const [completionToast, setCompletionToast] = useState<TaskCompletionToast | null>(null);
+  const [completionToasts, setCompletionToasts] = useState<TaskCompletionToast[]>([]);
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
-  const completionToastTimer = useRef<number | null>(null);
+  const completionToastTimers = useRef<Map<string, number>>(new Map());
   const todayKey = planningDateKey(now);
 
   useEffect(() => {
@@ -160,7 +160,7 @@ export function DayframeV2() {
 
   useEffect(() => () => {
     completionTimers.current.forEach((timer) => window.clearTimeout(timer));
-    if (completionToastTimer.current) window.clearTimeout(completionToastTimer.current);
+    completionToastTimers.current.forEach((timer) => window.clearTimeout(timer));
   }, []);
 
   useEffect(() => {
@@ -313,9 +313,14 @@ export function DayframeV2() {
       return currentTask && !currentTask.completed ? toggleTask(current, id) : current;
     });
 
-    setCompletionToast({ id, title: task.title });
-    if (completionToastTimer.current) window.clearTimeout(completionToastTimer.current);
-    completionToastTimer.current = window.setTimeout(() => setCompletionToast(null), COMPLETION_TOAST_MS);
+    const oldToastTimer = completionToastTimers.current.get(id);
+    if (oldToastTimer) window.clearTimeout(oldToastTimer);
+    setCompletionToasts((current) => [...current.filter((item) => item.id !== id), { id, title: task.title }]);
+    const toastTimer = window.setTimeout(() => {
+      setCompletionToasts((current) => current.filter((item) => item.id !== id));
+      completionToastTimers.current.delete(id);
+    }, COMPLETION_TOAST_MS);
+    completionToastTimers.current.set(id, toastTimer);
 
     const timer = window.setTimeout(() => {
       setCompletingTaskIds((current) => {
@@ -357,10 +362,11 @@ export function DayframeV2() {
       next.delete(id);
       return next;
     });
-    setCompletionToast((current) => current?.id === id ? null : current);
-    if (completionToastTimer.current) {
-      window.clearTimeout(completionToastTimer.current);
-      completionToastTimer.current = null;
+    setCompletionToasts((current) => current.filter((item) => item.id !== id));
+    const toastTimer = completionToastTimers.current.get(id);
+    if (toastTimer) {
+      window.clearTimeout(toastTimer);
+      completionToastTimers.current.delete(id);
     }
   }
 
@@ -743,14 +749,18 @@ export function DayframeV2() {
           </form>
         </div>
       )}
-      {completionToast && (
-        <div className="df2-completion-toast" role="status" aria-live="polite">
-          <span className="df2-completion-mark" aria-hidden="true">✓</span>
-          <div>
-            <strong>Úkol dokončen</strong>
-            <small>{completionToast.title}</small>
-          </div>
-          <button type="button" onClick={() => undoTaskCompletion(completionToast.id)}>Vrátit</button>
+      {completionToasts.length > 0 && (
+        <div className="df2-completion-toast-stack" aria-label="Nedávno dokončené úkoly">
+          {completionToasts.map((toast) => (
+            <div className="df2-completion-toast" role="status" aria-live="polite" key={toast.id}>
+              <span className="df2-completion-mark" aria-hidden="true">✓</span>
+              <div>
+                <strong>Úkol dokončen</strong>
+                <small>{toast.title}</small>
+              </div>
+              <button type="button" onClick={() => undoTaskCompletion(toast.id)}>Vrátit</button>
+            </div>
+          ))}
         </div>
       )}
 

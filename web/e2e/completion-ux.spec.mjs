@@ -117,3 +117,78 @@ test("completion is persisted before the visual hold can be interrupted", async 
     return state.plans["2026-10-06"].find((task) => task.id === "completion-ux-task")?.completed;
   })).toBe(true);
 });
+
+
+test("rapid completions keep an independent undo action for each task", async ({ page }) => {
+  await openAtNoon(page);
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const date = "2026-10-06";
+    state.routines = [];
+    state.plans = {
+      ...state.plans,
+      [date]: [
+        {
+          id: "first-completion",
+          title: "První dokončení",
+          date,
+          duration: 30,
+          start: "14:00",
+          end: "14:30",
+          requestedStart: "14:00",
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt: "2026-10-06T10:00:00.000Z",
+        },
+        {
+          id: "second-completion",
+          title: "Druhé dokončení",
+          date,
+          duration: 30,
+          start: "15:00",
+          end: "15:30",
+          requestedStart: "15:00",
+          deadlineTime: "22:30",
+          priority: "normal",
+          category: "Studium",
+          mode: "flexible",
+          completed: false,
+          source: "user",
+          dateLocked: true,
+          autoScheduled: false,
+          createdAt: "2026-10-06T10:01:00.000Z",
+        },
+      ],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  await page.locator(".df2-modal").first().getByRole("button", { name: "Označit hotovo", exact: true }).click();
+  await expect(page.locator(".df2-completion-toast", { hasText: "První dokončení" })).toBeVisible();
+
+  await page.waitForTimeout(750);
+  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  await page.locator(".df2-modal").first().getByRole("button", { name: "Označit hotovo", exact: true }).click();
+
+  const firstToast = page.locator(".df2-completion-toast", { hasText: "První dokončení" });
+  const secondToast = page.locator(".df2-completion-toast", { hasText: "Druhé dokončení" });
+  await expect(firstToast).toBeVisible();
+  await expect(secondToast).toBeVisible();
+
+  await firstToast.getByRole("button", { name: "Vrátit", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans["2026-10-06"];
+    return tasks.map((task) => [task.id, task.completed]);
+  })).toEqual([
+    ["first-completion", false],
+    ["second-completion", true],
+  ]);
+});

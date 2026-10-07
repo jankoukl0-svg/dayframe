@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { calendarBounds, minutesToTime, planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-calendar";
 
@@ -193,8 +193,30 @@ function startFreedTimeTask(choice: CompletionChoice, taskId: string | null) {
 
 export function ActiveCompletionSafetyController() {
   const [completion, setCompletion] = useState<CompletionChoice | null>(null);
+  const preClickTaskRef = useRef<{ date: string; task: StoredTask; capturedAt: number } | null>(null);
 
   useEffect(() => {
+    const captureOriginalTask = (target: EventTarget | null) => {
+      const button = target instanceof Element
+        ? target.closest<HTMLButtonElement>("button.df2-time-done")
+        : null;
+      if (!button) return;
+      const state = readState();
+      if (!state) return;
+      const found = findClickedTask(button, state, new Date());
+      if (!found) return;
+      preClickTaskRef.current = {
+        date: found.date,
+        task: { ...found.task },
+        capturedAt: Date.now(),
+      };
+    };
+
+    const onPointerDown = (event: PointerEvent) => captureOriginalTask(event.target);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") captureOriginalTask(event.target);
+    };
+
     const onClick = (event: MouseEvent) => {
       const button = event.target instanceof Element
         ? event.target.closest<HTMLButtonElement>("button.df2-time-done")
@@ -212,6 +234,15 @@ export function ActiveCompletionSafetyController() {
       const originalEnd = timeToMinutes(found.task.end);
       if (!Number.isFinite(start) || !Number.isFinite(originalEnd) || finishMinute < start || finishMinute >= originalEnd) return;
 
+      const originalSnapshot = preClickTaskRef.current;
+      const originalTask = originalSnapshot
+        && originalSnapshot.date === found.date
+        && originalSnapshot.task.id === found.task.id
+        && Date.now() - originalSnapshot.capturedAt < 5000
+        ? originalSnapshot.task
+        : { ...found.task };
+      preClickTaskRef.current = null;
+
       const tasks = state.plans?.[found.date] ?? [];
       const savedMinutes = originalEnd - finishMinute;
       const next = nextTask(tasks, found.task.id, finishMinute);
@@ -225,8 +256,8 @@ export function ActiveCompletionSafetyController() {
       setCompletion({
         date: found.date,
         taskId: found.task.id,
-        taskTitle: found.task.title,
-        originalTask: { ...found.task },
+        taskTitle: originalTask.title,
+        originalTask: { ...originalTask },
         finishMinute,
         savedMinutes,
         nextTaskId: next?.id ?? null,
@@ -237,8 +268,14 @@ export function ActiveCompletionSafetyController() {
       });
     };
 
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("click", onClick, true);
-    return () => document.removeEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("click", onClick, true);
+    };
   }, []);
 
   const undoCompletion = () => {

@@ -766,3 +766,38 @@
     transition: none;
   }
 }
+
+
+/* Multiple recent completions keep independent undo windows instead of replacing one another. */
+.df2-completion-toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10020;
+  width: min(390px, calc(100vw - 48px));
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.df2-completion-toast-stack .df2-completion-toast {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .df2-completion-toast-stack {
+    right: 14px;
+    bottom: 14px;
+    width: calc(100vw - 28px);
+  }
+
+  .df2-completion-toast-stack .df2-completion-toast {
+    right: auto;
+    bottom: auto;
+    width: 100%;
+  }
+}

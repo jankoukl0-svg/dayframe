@@ -80,3 +80,81 @@ test("Hotovo during a live block commits it even when the freed-time choice is i
   await expect(weekTask).toHaveClass(/done/);
   await expect(weekTask).toContainText(`${stored.start}–${stored.end}`);
 });
+
+
+test("undoing a live completion restores the running execution snapshot", async ({ page }) => {
+  const seeded = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const clockMinute = now.getHours() * 60 + now.getMinutes();
+    const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
+    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
+
+    const planningDate = new Date(now);
+    if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
+    const date = `${planningDate.getFullYear()}-${String(planningDate.getMonth() + 1).padStart(2, "0")}-${String(planningDate.getDate()).padStart(2, "0")}`;
+    const startMinute = planningMinute - 10;
+    const endMinute = planningMinute + 10;
+    const toTime = (value) => {
+      const clock = ((value % (24 * 60)) + 24 * 60) % (24 * 60);
+      return `${String(Math.floor(clock / 60)).padStart(2, "0")}:${String(clock % 60).padStart(2, "0")}`;
+    };
+    const actualStartedAt = new Date(now.getTime() - 7 * 60 * 1000).toISOString();
+    const actualRunningSince = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+
+    state.routines = [];
+    state.plans[date] = [{
+      id: "undo-running-test",
+      title: "Živý blok",
+      date,
+      duration: 20,
+      start: toTime(startMinute),
+      end: toTime(endMinute),
+      requestedStart: toTime(startMinute),
+      dueDate: date,
+      deadlineTime: "23:59",
+      priority: "normal",
+      category: "Matika",
+      mode: "flexible",
+      completed: false,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: false,
+      createdAt: now.toISOString(),
+      actualStartedAt,
+      actualAccumulatedSeconds: 90,
+      actualRunningSince,
+    }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    return { date, actualStartedAt, actualRunningSince };
+  });
+
+  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
+  await page.reload({ waitUntil: "networkidle" });
+
+  const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
+  await expect(done).toBeVisible();
+  await done.click();
+
+  const completion = page.locator(".df2-active-completion-floating");
+  await expect(completion).toContainText("Úkol dokončen");
+  await completion.getByRole("button", { name: "Vrátit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(({ date }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
+      .find((item) => item.id === "undo-running-test");
+    return task ? {
+      completed: task.completed,
+      actualStartedAt: task.actualStartedAt,
+      actualAccumulatedSeconds: task.actualAccumulatedSeconds,
+      actualRunningSince: task.actualRunningSince,
+      actualEndedAt: task.actualEndedAt ?? null,
+    } : null;
+  }, seeded)).toEqual({
+    completed: false,
+    actualStartedAt: seeded.actualStartedAt,
+    actualAccumulatedSeconds: 90,
+    actualRunningSince: seeded.actualRunningSince,
+    actualEndedAt: null,
+  });
+});
