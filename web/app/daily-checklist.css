@@ -113,11 +113,22 @@
 }
 
 .df2-checklist-drag {
+  width: 20px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #b0ada5;
   font-size: 15px;
   letter-spacing: -4px;
   cursor: grab;
   user-select: none;
+}
+
+.df2-checklist-drag:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .df2-checklist-list article:active .df2-checklist-drag {
