@@ -196,6 +196,7 @@ function startFreedTimeTask(choice: CompletionChoice, taskId: string | null) {
 
 export function ActiveCompletionSafetyController() {
   const [completion, setCompletion] = useState<CompletionChoice | null>(null);
+  const [undoError, setUndoError] = useState("");
   const preClickTaskRef = useRef<{ date: string; task: StoredTask; capturedAt: number } | null>(null);
 
   useEffect(() => {
@@ -269,6 +270,7 @@ export function ActiveCompletionSafetyController() {
 
       event.preventDefault();
       event.stopImmediatePropagation();
+      setUndoError("");
       setCompletion({
         date: found.date,
         taskId: found.task.id,
@@ -331,6 +333,11 @@ export function ActiveCompletionSafetyController() {
           && originalEnd > occupiedStart;
       });
 
+    if (!scheduleChangedAfterCompletion && !originalIntervalAvailable) {
+      setUndoError("Vrácení by se překrývalo s jiným blokem. Uvolni původní čas nebo zvol Volno.");
+      return;
+    }
+
     const completionFields: Array<keyof StoredTask> = [
       "completed",
       "plannedStart",
@@ -364,6 +371,7 @@ export function ActiveCompletionSafetyController() {
       }),
     };
     writeState(state);
+    setUndoError("");
     setCompletion(null);
   };
 
@@ -384,8 +392,9 @@ export function ActiveCompletionSafetyController() {
         {completion.shortTaskId && (
           <button type="button" onClick={() => startFreedTimeTask(completion, completion.shortTaskId)}>Krátký úkol · {completion.shortTaskTitle}</button>
         )}
-        <button type="button" onClick={() => { setCompletion(null); window.location.reload(); }}>Volno</button>
+        <button type="button" onClick={() => { setUndoError(""); setCompletion(null); window.location.reload(); }}>Volno</button>
         <button type="button" className="df2-completion-undo" onClick={undoCompletion}>Vrátit</button>
+        {undoError && <small className="df2-time-adjust-error">{undoError}</small>}
       </div>
     </div>,
     document.body,
