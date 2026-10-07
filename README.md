@@ -1,6 +1,6 @@
 # Dayframe — společný projekt
 
-**Začni v [HANDOFF.md](HANDOFF.md)**: kontext, aktuální funkce, známá omezení a postup mezi chaty.
+**Začni v [HANDOFF.md](HANDOFF.md)**: kontext, aktuální funkce, známá omezení a postup mezi chaty. Pro implementaci, testování a release používej také [Development Protocol](docs/DEVELOPMENT_PROTOCOL.md).
 
 - **[web/](web/)** — aktuální webové rozhraní a plánovací logika, import Sites verze 8. Další UX vývoj patří sem.
 - **ui/ a src-tauri/** — původní Windows aplikace, zachovaná beze změn; zatím nepoužívá nové webové rozhraní.

@@ -1,5 +1,7 @@
 # Dayframe — začni tady
 
+> Vývojový a release standard: [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md). Instrukce pro coding agenty: [AGENTS.md](AGENTS.md).
+
 Aktualizováno: 18. 9. 2026.
 
 ## Kontext
