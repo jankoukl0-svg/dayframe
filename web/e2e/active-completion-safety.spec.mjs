@@ -273,7 +273,7 @@ test("active completion undo follows a task moved to another planning day", asyn
       autoScheduled: false,
       createdAt: now.toISOString(),
     }];
-    state.plans[movedDate] = state.plans[movedDate] || [];
+    state.plans[movedDate] = [];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { originalDate, movedDate };
   });
