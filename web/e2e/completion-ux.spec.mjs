@@ -272,3 +272,73 @@ test("blocked checklist storage never announces the whole day as complete", asyn
   await expect(page.locator("[data-daily-checklist]")).toContainText("Checklist data nelze bezpečně načíst");
   await expect(page.locator(".df2-day-complete")).toHaveCount(0);
 });
+
+
+test("planning-day rollover updates checklist immediately with the parent day", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-07T01:59:59"));
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload({ waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.plans = {
+      ...state.plans,
+      "2026-10-06": [{
+        id: "old-day-done",
+        title: "Starý den",
+        date: "2026-10-06",
+        duration: 30,
+        start: "20:00",
+        end: "20:30",
+        requestedStart: "20:00",
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Studium",
+        mode: "flexible",
+        completed: true,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: "2026-10-06T10:00:00.000Z",
+      }],
+      "2026-10-07": [{
+        id: "new-day-done",
+        title: "Nový den",
+        date: "2026-10-07",
+        duration: 30,
+        start: "08:00",
+        end: "08:30",
+        requestedStart: "08:00",
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Studium",
+        mode: "flexible",
+        completed: true,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: "2026-10-07T00:00:00.000Z",
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.localStorage.setItem("dayframe-daily-checklist-v1", JSON.stringify({
+      version: 1,
+      items: [{ id: "daily", title: "Denní položka", days: [1, 2, 3, 4, 5, 6, 0] }],
+      completedByDate: { "2026-10-06": ["daily"] },
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/1");
+  await expect(page.locator(".df2-day-complete")).toBeVisible();
+
+  await page.clock.setFixedTime(new Date("2026-10-07T02:00:01"));
+  await page.waitForTimeout(1300);
+
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/1");
+  await expect(page.locator(".df2-day-complete")).toHaveCount(0);
+});
