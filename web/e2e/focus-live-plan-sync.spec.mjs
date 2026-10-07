@@ -72,7 +72,7 @@ test("focus copy follows edits to the current plan instead of keeping a stale ta
   const seeded = await setupPlan(page);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const focus = page.locator(".df2-focus-view");
   await expect(focus).toBeVisible();
   await expect(focus.locator("h1")).toHaveText("Původní blok");
@@ -94,7 +94,7 @@ test("focus switches to the block that is current in the updated day plan when n
   const seeded = await setupPlan(page);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const focus = page.locator(".df2-focus-view");
   await expect(focus.locator("h1")).toHaveText("Původní blok");
 
@@ -136,7 +136,7 @@ test("a running focus session stays attached to its task while plan times change
   const seeded = await setupPlan(page);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const controls = page.locator(".df2-time-adjust-focus-controls");
   await controls.getByRole("button", { name: "Start", exact: true }).click();
   await expect(controls.getByRole("button", { name: "Pauza", exact: true })).toBeVisible();
