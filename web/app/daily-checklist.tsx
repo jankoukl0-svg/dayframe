@@ -145,7 +145,13 @@ function weekdayForPlanningDate(key: string) {
   return new Date(key + "T12:00:00").getDay();
 }
 
-export function DailyChecklist({ onSummaryChange }: { onSummaryChange?: (summary: DailyChecklistSummary) => void } = {}) {
+export function DailyChecklist({
+  onSummaryChange,
+  planningKey: externalPlanningKey,
+}: {
+  onSummaryChange?: (summary: DailyChecklistSummary) => void;
+  planningKey?: string;
+} = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -161,7 +167,7 @@ export function DailyChecklist({ onSummaryChange }: { onSummaryChange?: (summary
   const [recentlyCompletedId, setRecentlyCompletedId] = useState<string | null>(null);
   const completionFeedbackTimer = useRef<number | null>(null);
 
-  const planningKey = planningDateKey(now);
+  const planningKey = externalPlanningKey ?? planningDateKey(now);
   const weekday = weekdayForPlanningDate(planningKey);
   const visibleItems = useMemo(
     () => store.items.filter((item) => item.days.includes(weekday)),
@@ -189,9 +195,10 @@ export function DailyChecklist({ onSummaryChange }: { onSummaryChange?: (summary
   }, []);
 
   useEffect(() => {
+    if (externalPlanningKey) return;
     const timer = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [externalPlanningKey]);
 
   useEffect(() => {
     onSummaryChange?.({ completed: completedCount, total: visibleItems.length, hydrated, blocked: storageBlocked });
