@@ -20,6 +20,7 @@ type RepeatMode = "daily" | "weekdays" | "custom";
 type DailyChecklistSummary = {
   completed: number;
   total: number;
+  hydrated: boolean;
 };
 
 const STORAGE_KEY = "dayframe-daily-checklist-v1";
@@ -192,8 +193,8 @@ export function DailyChecklist({ onSummaryChange }: { onSummaryChange?: (summary
   }, []);
 
   useEffect(() => {
-    onSummaryChange?.({ completed: completedCount, total: visibleItems.length });
-  }, [completedCount, visibleItems.length, onSummaryChange]);
+    onSummaryChange?.({ completed: completedCount, total: visibleItems.length, hydrated });
+  }, [completedCount, visibleItems.length, hydrated, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);

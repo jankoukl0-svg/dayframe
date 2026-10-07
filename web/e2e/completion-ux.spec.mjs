@@ -48,7 +48,8 @@ test("task completion confirms, holds briefly and can be undone", async ({ page 
 
   await expect(page.locator(".df2-now-card")).toContainText("Dokončit UX návrh");
   await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
-  const modal = page.locator(".df2-modal").filter({ hasText: "Dokončit UX návrh" });
+  const modal = page.locator(".df2-modal").first();
+  await expect(modal.locator('input[name="title"]')).toHaveValue("Dokončit UX návrh");
   await modal.getByRole("button", { name: "Označit hotovo", exact: true }).click();
 
   const toast = page.locator(".df2-completion-toast");
@@ -93,4 +94,26 @@ test("task progress and checklist progress stay separate and unlock a quiet day-
   await expect(dayComplete).toBeVisible();
   await expect(dayComplete).toContainText("Dnešek hotový");
   await expect(dayComplete).toContainText("1 úkolů · checklist 1/1");
+});
+
+
+test("completion is persisted before the visual hold can be interrupted", async ({ page }) => {
+  await openAtNoon(page);
+  await seedSingleTask(page, false);
+  await page.reload({ waitUntil: "networkidle" });
+
+  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  const modal = page.locator(".df2-modal").first();
+  await modal.getByRole("button", { name: "Označit hotovo", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return state.plans["2026-10-06"].find((task) => task.id === "completion-ux-task")?.completed;
+  })).toBe(true);
+
+  await page.reload({ waitUntil: "networkidle" });
+  expect(await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return state.plans["2026-10-06"].find((task) => task.id === "completion-ux-task")?.completed;
+  })).toBe(true);
 });

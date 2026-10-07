@@ -143,6 +143,7 @@ export function DayframeV2() {
   const [focusSeconds, setFocusSeconds] = useState(50 * 60);
   const [focusRunning, setFocusRunning] = useState(false);
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(() => new Set());
+  const [completingTaskSnapshots, setCompletingTaskSnapshots] = useState<Map<string, CalendarTask>>(() => new Map());
   const [completionToast, setCompletionToast] = useState<TaskCompletionToast | null>(null);
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
@@ -299,18 +300,31 @@ export function DayframeV2() {
       next.add(id);
       return next;
     });
-    setCompletionToast({ id, title: task.title });
+    setCompletingTaskSnapshots((current) => {
+      const next = new Map(current);
+      next.set(id, { ...task });
+      return next;
+    });
 
+    // Persist the completion immediately. The visual hold below only keeps a
+    // temporary ghost/modal on screen; it must never be responsible for data durability.
+    setData((current) => {
+      const currentTask = taskById(current, id);
+      return currentTask && !currentTask.completed ? toggleTask(current, id) : current;
+    });
+
+    setCompletionToast({ id, title: task.title });
     if (completionToastTimer.current) window.clearTimeout(completionToastTimer.current);
     completionToastTimer.current = window.setTimeout(() => setCompletionToast(null), COMPLETION_TOAST_MS);
 
     const timer = window.setTimeout(() => {
-      setData((current) => {
-        const currentTask = taskById(current, id);
-        return currentTask && !currentTask.completed ? toggleTask(current, id) : current;
-      });
       setCompletingTaskIds((current) => {
         const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      setCompletingTaskSnapshots((current) => {
+        const next = new Map(current);
         next.delete(id);
         return next;
       });
@@ -326,15 +340,20 @@ export function DayframeV2() {
     if (pending) {
       window.clearTimeout(pending);
       completionTimers.current.delete(id);
-    } else {
-      setData((current) => {
-        const task = taskById(current, id);
-        return task?.completed ? toggleTask(current, id) : current;
-      });
     }
+
+    setData((current) => {
+      const task = taskById(current, id);
+      return task?.completed ? toggleTask(current, id) : current;
+    });
 
     setCompletingTaskIds((current) => {
       const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setCompletingTaskSnapshots((current) => {
+      const next = new Map(current);
       next.delete(id);
       return next;
     });
@@ -544,6 +563,7 @@ export function DayframeV2() {
               onEdit={setEditing}
               onDone={requestTaskCompletion}
               completingTaskIds={completingTaskIds}
+              completingTaskSnapshots={completingTaskSnapshots}
               onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
               onDelete={(id) => setData((current) => deleteTask(current, id))}
               onFocus={startFocus}
@@ -743,7 +763,7 @@ function NavButton({ active, onClick, label, shortcut }: { active: boolean; onCl
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds,
+  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds, completingTaskSnapshots,
 }: {
   now: Date;
   tasks: CalendarTask[];
@@ -759,13 +779,20 @@ function TodayView({
   onFocus: (task: CalendarTask | null) => void;
   onMilestones: () => void;
   completingTaskIds: ReadonlySet<string>;
+  completingTaskSnapshots: ReadonlyMap<string, CalendarTask>;
 }) {
-  const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0 });
+  const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0, hydrated: false });
   const completed = tasks.filter((task) => task.completed).length;
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
   const taskProgress = tasks.length ? (completed / tasks.length) * 100 : 0;
   const checklistDone = checklistSummary.total === 0 || checklistSummary.completed === checklistSummary.total;
-  const dayComplete = missed.length === 0
+  const currentPlanningMinute = planningMinute(now);
+  const completionGhostMissed = [...completingTaskSnapshots.values()]
+    .filter((task) => task.end && timeToMinutes(task.end) <= currentPlanningMinute && !missed.some((item) => item.id === task.id));
+  const displayMissed = [...missed, ...completionGhostMissed];
+  const dayComplete = checklistSummary.hydrated
+    && completingTaskIds.size === 0
+    && missed.length === 0
     && (tasks.length > 0 || checklistSummary.total > 0)
     && completed === tasks.length
     && checklistDone;
@@ -845,10 +872,10 @@ function TodayView({
       </section>
 
       <DailyChecklist onSummaryChange={setChecklistSummary} />
-      {missed.length > 0 && (
+      {displayMissed.length > 0 && (
         <section className="df2-missed">
-          <header><strong>Nedokončeno · {missed.length}</strong></header>
-          {missed.map((task) => (
+          <header><strong>Nedokončeno · {displayMissed.length}</strong></header>
+          {displayMissed.map((task) => (
             <article key={task.id} className={completingTaskIds.has(task.id) ? "is-completing" : ""}>
               <div><strong>{task.title}</strong><small>do {task.end}</small></div>
               <div>
