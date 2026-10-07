@@ -1,11 +1,14 @@
 import { test, expect } from "@playwright/test";
 
+const FIXED_NOW = new Date("2026-10-07T12:00:00");
+
 function timeToMinutes(value) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours < 8 ? hours * 60 + minutes + 24 * 60 : hours * 60 + minutes;
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
@@ -18,7 +21,6 @@ test("Hotovo during a live block commits it even when the freed-time choice is i
     const now = new Date();
     const clockMinute = now.getHours() * 60 + now.getMinutes();
     const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
-    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
 
     const planningDate = new Date(now);
     if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
@@ -53,8 +55,6 @@ test("Hotovo during a live block commits it even when the freed-time choice is i
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { date, originalEnd: toTime(endMinute), originalDuration: 20 };
   });
-
-  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
   await page.reload({ waitUntil: "networkidle" });
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
@@ -88,7 +88,6 @@ test("undoing a live completion restores the running execution snapshot", async 
     const now = new Date();
     const clockMinute = now.getHours() * 60 + now.getMinutes();
     const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
-    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
 
     const planningDate = new Date(now);
     if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
@@ -128,8 +127,6 @@ test("undoing a live completion restores the running execution snapshot", async 
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { date, actualStartedAt, actualRunningSince };
   });
-
-  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
   await page.reload({ waitUntil: "networkidle" });
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
@@ -166,7 +163,6 @@ test("active completion undo preserves edits made after completion", async ({ pa
     const now = new Date();
     const clockMinute = now.getHours() * 60 + now.getMinutes();
     const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
-    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
 
     const planningDate = new Date(now);
     if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
@@ -201,8 +197,6 @@ test("active completion undo preserves edits made after completion", async ({ pa
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { date };
   });
-
-  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
   await page.reload({ waitUntil: "networkidle" });
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
@@ -239,7 +233,6 @@ test("active completion undo follows a task moved to another planning day", asyn
     const now = new Date();
     const clockMinute = now.getHours() * 60 + now.getMinutes();
     const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
-    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
 
     const planningDate = new Date(now);
     if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
@@ -277,8 +270,6 @@ test("active completion undo follows a task moved to another planning day", asyn
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { originalDate, movedDate };
   });
-
-  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
   await page.reload({ waitUntil: "networkidle" });
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
@@ -314,7 +305,6 @@ test("active completion undo preserves an edited schedule as one atomic group", 
     const now = new Date();
     const clockMinute = now.getHours() * 60 + now.getMinutes();
     const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
-    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
 
     const planningDate = new Date(now);
     if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
@@ -348,8 +338,6 @@ test("active completion undo preserves an edited schedule as one atomic group", 
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { date };
   });
-
-  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
   await page.reload({ waitUntil: "networkidle" });
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
@@ -393,7 +381,6 @@ test("active completion undo stays completed when the original interval is occup
     const now = new Date();
     const clockMinute = now.getHours() * 60 + now.getMinutes();
     const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
-    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 35) return null;
 
     const planningDate = new Date(now);
     if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
@@ -427,8 +414,6 @@ test("active completion undo stays completed when the original interval is occup
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { date, blockerEnd: toTime(endMinute) };
   });
-
-  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
   await page.reload({ waitUntil: "networkidle" });
 
   const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
