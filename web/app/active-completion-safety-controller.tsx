@@ -316,6 +316,21 @@ export function ActiveCompletionSafetyController() {
       || !Object.is(currentTask.duration, completion.completedTask.duration)
     );
 
+    const originalStart = timeToMinutes(completion.originalTask.start);
+    const originalEnd = timeToMinutes(completion.originalTask.end);
+    const originalIntervalAvailable = Number.isFinite(originalStart)
+      && Number.isFinite(originalEnd)
+      && originalEnd > originalStart
+      && !tasks.some((task) => {
+        if (task.id === completion.taskId || !task.start || !task.end) return false;
+        const occupiedStart = timeToMinutes(task.start);
+        const occupiedEnd = timeToMinutes(task.end);
+        return Number.isFinite(occupiedStart)
+          && Number.isFinite(occupiedEnd)
+          && originalStart < occupiedEnd
+          && originalEnd > occupiedStart;
+      });
+
     const completionFields: Array<keyof StoredTask> = [
       "completed",
       "plannedStart",
@@ -333,7 +348,7 @@ export function ActiveCompletionSafetyController() {
         if (task.id !== completion.taskId) return task;
         const restored = { ...task };
 
-        if (!scheduleChangedAfterCompletion) {
+        if (!scheduleChangedAfterCompletion && originalIntervalAvailable) {
           restored.start = completion.originalTask.start;
           restored.end = completion.originalTask.end;
           restored.duration = completion.originalTask.duration;
