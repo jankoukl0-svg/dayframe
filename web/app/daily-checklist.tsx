@@ -19,6 +19,7 @@ type RepeatMode = "daily" | "weekdays" | "custom";
 
 const STORAGE_KEY = "dayframe-daily-checklist-v1";
 const SYNC_EVENT = "dayframe-daily-checklist-sync";
+const CORRUPT_STORAGE_ERROR = "Checklist má poškozená uložená data. Ukládání je pro ochranu původních dat vypnuté.";
 const ALL_DAYS = [1, 2, 3, 4, 5, 6, 0];
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const DAY_LABELS: Record<number, string> = {
@@ -42,11 +43,19 @@ function normalizeDays(value: unknown) {
   return sorted.length ? sorted : [...ALL_DAYS];
 }
 
-function readStore(): ChecklistStore {
+function readStore(): { store: ChecklistStore; blocked: boolean } {
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (raw === null) return { store: emptyStore(), blocked: false };
+
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") as Partial<ChecklistStore>;
-    const items = Array.isArray(parsed.items)
-      ? parsed.items
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { store: emptyStore(), blocked: true };
+    }
+
+    const candidate = parsed as Partial<ChecklistStore>;
+    const items = Array.isArray(candidate.items)
+      ? candidate.items
         .filter((item): item is ChecklistItem => Boolean(
           item
           && typeof item === "object"
@@ -58,16 +67,16 @@ function readStore(): ChecklistStore {
       : [];
 
     const completedByDate: Record<string, string[]> = {};
-    if (parsed.completedByDate && typeof parsed.completedByDate === "object" && !Array.isArray(parsed.completedByDate)) {
-      Object.entries(parsed.completedByDate).forEach(([date, ids]) => {
+    if (candidate.completedByDate && typeof candidate.completedByDate === "object" && !Array.isArray(candidate.completedByDate)) {
+      Object.entries(candidate.completedByDate).forEach(([date, ids]) => {
         if (!Array.isArray(ids)) return;
         completedByDate[date] = ids.filter((id): id is string => typeof id === "string");
       });
     }
 
-    return { version: 1, items, completedByDate };
+    return { store: { version: 1, items, completedByDate }, blocked: false };
   } catch {
-    return emptyStore();
+    return { store: emptyStore(), blocked: true };
   }
 }
 
@@ -114,6 +123,7 @@ export function DailyChecklist() {
   const [draftDays, setDraftDays] = useState<number[]>([...ALL_DAYS]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [storageError, setStorageError] = useState("");
+  const [storageBlocked, setStorageBlocked] = useState(false);
 
   const planningKey = planningDateKey(now);
   const weekday = weekdayForPlanningDate(planningKey);
@@ -125,9 +135,13 @@ export function DailyChecklist() {
   const completedCount = visibleItems.filter((item) => completedIds.has(item.id)).length;
 
   useEffect(() => {
-    setStore(readStore());
+    const sync = () => {
+      const result = readStore();
+      setStore(result.store);
+      setStorageBlocked(result.blocked);
+    };
+    sync();
     setHydrated(true);
-    const sync = () => setStore(readStore());
     window.addEventListener("storage", sync);
     window.addEventListener(SYNC_EVENT, sync);
     return () => {
@@ -151,6 +165,10 @@ export function DailyChecklist() {
   }, [modalOpen]);
 
   const persist = (nextStore: ChecklistStore) => {
+    if (storageBlocked) {
+      setStorageError(CORRUPT_STORAGE_ERROR);
+      return false;
+    }
     const compact = compactStore(nextStore);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compact));
@@ -277,7 +295,7 @@ export function DailyChecklist() {
               {completedCount}/{visibleItems.length}
             </span>
           </div>
-          <button type="button" onClick={openNew} disabled={!hydrated}>+ Přidat položku</button>
+          <button type="button" onClick={openNew} disabled={!hydrated || storageBlocked}>+ Přidat položku</button>
         </header>
 
         {visibleItems.length ? (
@@ -336,7 +354,9 @@ export function DailyChecklist() {
             {store.items.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
-        {storageError && <p className="df2-checklist-error">{storageError}</p>}
+        {(storageBlocked || storageError) && (
+          <p className="df2-checklist-error">{storageBlocked ? CORRUPT_STORAGE_ERROR : storageError}</p>
+        )}
       </section>
 
       {modalOpen && (

@@ -147,3 +147,16 @@ test("keyboard reorder moves relative to visible recurring items", async ({ page
     return (stored.items || []).map((item) => item.id).join(",");
   })).toBe("b,a,c");
 });
+
+test("corrupt checklist storage is never overwritten by an empty fallback", async ({ page }) => {
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    window.localStorage.setItem("dayframe-daily-checklist-v1", "{broken-json");
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.getByText("Checklist má poškozená uložená data. Ukládání je pro ochranu původních dat vypnuté.")).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "+ Přidat položku" })).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dayframe-daily-checklist-v1"))).toBe("{broken-json");
+});
