@@ -387,7 +387,7 @@ test("active completion undo preserves an edited schedule as one atomic group", 
 });
 
 
-test("active completion undo never restores an interval over a newly occupied slot", async ({ page }) => {
+test("active completion undo stays completed when the original interval is occupied", async ({ page }) => {
   const seeded = await page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const now = new Date();
@@ -425,7 +425,7 @@ test("active completion undo never restores an interval over a newly occupied sl
       createdAt: now.toISOString(),
     }];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    return { date, originalEnd: toTime(endMinute), blockerEnd: toTime(endMinute) };
+    return { date, blockerEnd: toTime(endMinute) };
   });
 
   test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
@@ -465,6 +465,9 @@ test("active completion undo never restores an interval over a newly occupied sl
 
   await completion.getByRole("button", { name: "Vrátit", exact: true }).click();
 
+  await expect(completion).toContainText("Vrácení by se překrývalo s jiným blokem");
+  await expect(completion).toBeVisible();
+
   await expect.poll(() => page.evaluate(({ date }) => {
     const tasks = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date];
     const task = tasks.find((item) => item.id === "undo-conflict-test");
@@ -475,7 +478,7 @@ test("active completion undo never restores an interval over a newly occupied sl
       blockerStart: blocker.start,
     } : null;
   }, seeded)).toEqual({
-    completed: false,
+    completed: true,
     end: shortenedEnd,
     blockerStart: shortenedEnd,
   });
