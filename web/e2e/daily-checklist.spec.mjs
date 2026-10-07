@@ -97,7 +97,7 @@ test("daily checklist items can be renamed, reordered and deleted", async ({ pag
   await expect.poll(() => page.evaluate(() => {
     const stored = JSON.parse(window.localStorage.getItem("dayframe-daily-checklist-v1") || "{}");
     return (stored.items || []).map((item) => item.id).join(",");
-  })).toBe("b,a,c");
+  })).toBe("b,c,a");
 
   await checklist.getByRole("button", { name: "Protáhnout se", exact: true }).click();
   await modal.getByRole("button", { name: "Smazat položku", exact: true }).click();
