@@ -75,7 +75,7 @@ jobs:
       - name: Run targeted browser tests first
         env:
           DAYFRAME_E2E_TIMEOUT: 300
-        run: ./scripts/run-static-e2e.sh ${{ steps.targeted.outputs.tests }}
+        run: bash scripts/run-static-e2e.sh ${{ steps.targeted.outputs.tests }}
 
       - name: Upload targeted failure diagnostics
         if: failure()
@@ -131,7 +131,7 @@ jobs:
       - name: Run regression shard
         env:
           DAYFRAME_E2E_TIMEOUT: 420
-        run: ./scripts/run-static-e2e.sh --shard=${{ matrix.shard }}
+        run: bash scripts/run-static-e2e.sh --shard=${{ matrix.shard }}
 
       - name: Upload shard failure diagnostics
         if: failure()
