@@ -129,7 +129,7 @@ test("overview returns to the light theme when opened from focus", async ({ page
   const lightMainBackground = await main.evaluate((element) => getComputedStyle(element).backgroundColor);
   const lightSidebarBackground = await sidebar.evaluate((element) => getComputedStyle(element).backgroundColor);
 
-  await page.getByRole("button", { name: /Soustředění/ }).click();
+  await page.keyboard.press("3");
   await expect(root).toHaveClass(/df2-focus-mode/);
   const focusMainBackground = await main.evaluate((element) => getComputedStyle(element).backgroundColor);
   expect(focusMainBackground).not.toBe(lightMainBackground);

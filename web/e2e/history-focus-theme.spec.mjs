@@ -7,7 +7,6 @@ test("Focus → Přehled → Focus keeps the overview light and restores dark fo
   const root = page.locator(".df2-root");
   const main = page.locator(".df2-main");
   const sidebar = page.locator(".df2-sidebar");
-  const focus = page.getByRole("button", { name: /Soustředění/ });
   const overview = page.getByRole("button", { name: /Přehled/ });
   const today = page.getByRole("button", { name: /Dnes/ });
 
@@ -23,7 +22,7 @@ test("Focus → Přehled → Focus keeps the overview light and restores dark fo
     };
   });
 
-  await focus.click();
+  await page.keyboard.press("3");
   await expect(root).toHaveClass(/df2-focus-mode/);
   const focusMainBackground = await main.evaluate((element) => getComputedStyle(element).backgroundColor);
   expect(focusMainBackground).not.toBe(lightMainBackground);
@@ -44,15 +43,6 @@ test("Focus → Přehled → Focus keeps the overview light and restores dark fo
       color: style.color,
     };
   });
-  const focusVisualStyle = await focus.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      backgroundColor: style.backgroundColor,
-      borderColor: style.borderColor,
-      boxShadow: style.boxShadow,
-      color: style.color,
-    };
-  });
   const overviewActiveStyle = await overview.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
@@ -62,14 +52,14 @@ test("Focus → Přehled → Focus keeps the overview light and restores dark fo
       color: style.color,
     };
   });
-  expect(focusVisualStyle).toEqual(inactiveStyle);
+  expect(inactiveStyle).not.toEqual(overviewActiveStyle);
   expect(overviewActiveStyle).toEqual(normalActiveStyle);
 
-  await focus.click();
+  await page.keyboard.press("3");
   await expect(root).toHaveClass(/df2-focus-mode/);
   await expect(root).not.toHaveClass(/df2-history-active/);
   await expect(page.locator(".df2-history-view")).toBeHidden();
-  await expect(focus).toHaveClass(/active/);
+  await expect(page.getByRole("button", { name: /Soustředění/ })).toHaveCount(0);
   await expect.poll(() => main.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(focusMainBackground);
 });
 
@@ -78,15 +68,14 @@ test("overview keeps the normal mobile top active indicator after focus", async 
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
-  const focus = page.getByRole("button", { name: /Soustředění/ });
   const overview = page.getByRole("button", { name: /Přehled/ });
   const today = page.getByRole("button", { name: /Dnes/ });
   const normalMobileShadow = await today.evaluate((element) => getComputedStyle(element).boxShadow);
 
-  await focus.click();
+  await page.keyboard.press("3");
   await overview.click();
   await expect(page.locator(".df2-history-view")).toBeVisible();
   await expect(overview).toHaveClass(/active/);
   await expect.poll(() => overview.evaluate((element) => getComputedStyle(element).boxShadow)).toBe(normalMobileShadow);
-  await expect.poll(() => focus.evaluate((element) => getComputedStyle(element).boxShadow)).toBe("none");
+  await expect(page.getByRole("button", { name: /Soustředění/ })).toHaveCount(0);
 });

@@ -239,6 +239,7 @@ export function DayframeV2() {
       if (event.key === "1") setView("today");
       if (event.key.toLowerCase() === "w") setView("week");
       if (event.key === "2") openAdd();
+      if (event.key === "3") setView("focus");
       if (event.key === "4") setView("milestones");
       if (event.key === "5") setView("settings");
     };
