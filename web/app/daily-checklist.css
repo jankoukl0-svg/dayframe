@@ -273,3 +273,111 @@
 .df2-checklist-manage-row > button:disabled {
   opacity: .35;
 }
+
+
+/* Completion UX: checklist stays lightweight but shares the same completion language as tasks. */
+.df2-checklist-progress-track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(170, 167, 158, .22);
+}
+
+.df2-checklist-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .28s cubic-bezier(.22, .75, .28, 1), background .2s ease;
+}
+
+.df2-daily-checklist.is-complete .df2-checklist-progress-track > span {
+  background: var(--success);
+}
+
+.df2-checklist-check {
+  position: relative;
+  border-radius: 50%;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+.df2-checklist-check::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 1px solid color-mix(in srgb, var(--success) 55%, transparent);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(.72);
+  pointer-events: none;
+}
+
+.df2-checklist-check[aria-pressed="true"] {
+  border-color: var(--success);
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.df2-checklist-list article.just-completed {
+  animation: df2-checklist-row-complete .72s cubic-bezier(.2, .75, .25, 1);
+}
+
+.df2-checklist-list article.just-completed .df2-checklist-check {
+  animation: df2-checklist-check-pop .46s cubic-bezier(.2, .85, .25, 1);
+}
+
+.df2-checklist-list article.just-completed .df2-checklist-check::after {
+  animation: df2-checklist-ring .6s ease-out;
+}
+
+.df2-checklist-copy strong {
+  transition: color .18s ease, opacity .18s ease, text-decoration-color .18s ease;
+}
+
+.df2-checklist-list article.done .df2-checklist-copy strong {
+  color: var(--muted);
+  text-decoration-color: color-mix(in srgb, var(--muted) 65%, transparent);
+}
+
+.df2-checklist-complete-note {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  padding-top: 9px;
+  color: var(--success);
+  font: 700 10px/1.2 "Cascadia Mono", monospace;
+  animation: df2-checklist-note-in .42s ease-out;
+}
+
+@keyframes df2-checklist-check-pop {
+  0% { transform: scale(.76); }
+  55% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+
+@keyframes df2-checklist-ring {
+  0% { opacity: .55; transform: scale(.72); }
+  100% { opacity: 0; transform: scale(1.55); }
+}
+
+@keyframes df2-checklist-row-complete {
+  0%, 100% { background: transparent; }
+  35% { background: color-mix(in srgb, var(--success) 7%, var(--paper)); }
+}
+
+@keyframes df2-checklist-note-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df2-checklist-progress-track > span,
+  .df2-checklist-check,
+  .df2-checklist-list article.just-completed,
+  .df2-checklist-list article.just-completed .df2-checklist-check,
+  .df2-checklist-list article.just-completed .df2-checklist-check::after,
+  .df2-checklist-complete-note {
+    animation: none;
+    transition: none;
+  }
+}

@@ -42,6 +42,8 @@ const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
 const MINUTE_HEIGHT = 0.72;
 const DROP_MAGNET_RANGE = 60;
+const COMPLETION_HOLD_MS = 680;
+const COMPLETION_TOAST_MS = 5000;
 
 type View = "today" | "week" | "focus" | "milestones" | "settings";
 
@@ -69,6 +71,11 @@ type DropPreview = {
   start: string;
   duration: number;
   valid: boolean;
+};
+
+type TaskCompletionToast = {
+  id: string;
+  title: string;
 };
 
 const emptyDraft = (): Draft => ({
@@ -101,6 +108,14 @@ function totalMinutes(items: CalendarTask[]) {
   return items.filter((task) => task.start && task.end).reduce((sum, task) => sum + task.duration, 0);
 }
 
+function taskById(state: DayframeState, id: string) {
+  for (const tasks of Object.values(state.plans)) {
+    const task = tasks.find((item) => item.id === id);
+    if (task) return task;
+  }
+  return null;
+}
+
 function cleanSmartTitle(value: string) {
   return parseSmartTaskInput(value).title || value.trim();
 }
@@ -127,15 +142,24 @@ export function DayframeV2() {
   const [focusTask, setFocusTask] = useState<CalendarTask | null>(null);
   const [focusSeconds, setFocusSeconds] = useState(50 * 60);
   const [focusRunning, setFocusRunning] = useState(false);
+  const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(() => new Set());
+  const [completionToast, setCompletionToast] = useState<TaskCompletionToast | null>(null);
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const focusTimer = useRef<number | null>(null);
+  const completionTimers = useRef<Map<string, number>>(new Map());
+  const completionToastTimer = useRef<number | null>(null);
   const todayKey = planningDateKey(now);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(clock);
+  }, []);
+
+  useEffect(() => () => {
+    completionTimers.current.forEach((timer) => window.clearTimeout(timer));
+    if (completionToastTimer.current) window.clearTimeout(completionToastTimer.current);
   }, []);
 
   useEffect(() => {
@@ -229,10 +253,16 @@ export function DayframeV2() {
     ?? scheduledToday.find((task) => timeToMinutes(task.start) > currentMinute)
     ?? todayTasks.find((task) => !task.completed)
     ?? null;
-  const afterActive = activeTask
-    ? scheduledToday.filter((task) => task.id !== activeTask.id && timeToMinutes(task.start) >= timeToMinutes(activeTask.end)).slice(0, 3)
-    : scheduledToday.slice(0, 3);
   const missed = overdueTasks(data, now);
+  const missedIds = new Set(missed.map((task) => task.id));
+  const afterActive = todayTasks
+    .filter((task) => !task.completed && task.id !== activeTask?.id && !missedIds.has(task.id))
+    .sort((left, right) => {
+      if (left.start && right.start) return timeToMinutes(left.start) - timeToMinutes(right.start);
+      if (left.start) return -1;
+      if (right.start) return 1;
+      return left.title.localeCompare(right.title, "cs");
+    });
 
   const monday = useMemo(() => addDays(startOfWeek(dateFromKey(todayKey)), weekOffset * 7), [weekOffset, todayKey]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(monday, index)), [monday]);
@@ -249,6 +279,70 @@ export function DayframeV2() {
     setAddingTask(false);
     setDraft(emptyDraft());
     setError("");
+  }
+
+  function requestTaskCompletion(id: string) {
+    const task = taskById(data, id);
+    if (!task) return;
+
+    if (task.completed) {
+      setData((current) => toggleTask(current, id));
+      setEditing(null);
+      return;
+    }
+
+    const existing = completionTimers.current.get(id);
+    if (existing) window.clearTimeout(existing);
+
+    setCompletingTaskIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+    setCompletionToast({ id, title: task.title });
+
+    if (completionToastTimer.current) window.clearTimeout(completionToastTimer.current);
+    completionToastTimer.current = window.setTimeout(() => setCompletionToast(null), COMPLETION_TOAST_MS);
+
+    const timer = window.setTimeout(() => {
+      setData((current) => {
+        const currentTask = taskById(current, id);
+        return currentTask && !currentTask.completed ? toggleTask(current, id) : current;
+      });
+      setCompletingTaskIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      completionTimers.current.delete(id);
+      setEditing((current) => current?.id === id ? null : current);
+    }, COMPLETION_HOLD_MS);
+
+    completionTimers.current.set(id, timer);
+  }
+
+  function undoTaskCompletion(id: string) {
+    const pending = completionTimers.current.get(id);
+    if (pending) {
+      window.clearTimeout(pending);
+      completionTimers.current.delete(id);
+    } else {
+      setData((current) => {
+        const task = taskById(current, id);
+        return task?.completed ? toggleTask(current, id) : current;
+      });
+    }
+
+    setCompletingTaskIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setCompletionToast((current) => current?.id === id ? null : current);
+    if (completionToastTimer.current) {
+      window.clearTimeout(completionToastTimer.current);
+      completionToastTimer.current = null;
+    }
   }
 
   function submitDraft(event: React.FormEvent) {
@@ -448,7 +542,8 @@ export function DayframeV2() {
               milestones={data.milestones}
               onAdd={() => openAdd(todayKey)}
               onEdit={setEditing}
-              onDone={(id) => setData((current) => toggleTask(current, id))}
+              onDone={requestTaskCompletion}
+              completingTaskIds={completingTaskIds}
               onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
               onDelete={(id) => setData((current) => deleteTask(current, id))}
               onFocus={startFocus}
@@ -617,10 +712,28 @@ export function DayframeV2() {
             <div className="df2-form-grid"><label>Priorita<select name="priority" defaultValue={editing.priority}><option value="high">Vysoká</option><option value="normal">Běžná</option><option value="low">Nízká</option></select></label><label>Oblast<select name="category" defaultValue={editing.category}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
             <div className="df2-form-grid"><label>Dokončit do<input name="dueDate" type="date" defaultValue={editing.dueDate ?? ""} /></label><label>Nejpozději v<input name="deadlineTime" type="time" defaultValue={editing.deadlineTime ?? "22:30"} /></label></div>
             {error && <p className="df2-error">{error}</p>}
-            <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button type="button" onClick={() => setData((current) => toggleTask(current, editing.id))}>{editing.completed ? "Vrátit jako nesplněné" : "Označit hotovo"}</button><button type="button" className="danger" onClick={() => { setData((current) => deleteTask(current, editing.id)); setEditing(null); }}>Smazat</button></div>
+            <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button
+                type="button"
+                className={`df2-completion-action ${completingTaskIds.has(editing.id) ? "is-completing" : ""}`}
+                disabled={completingTaskIds.has(editing.id)}
+                onClick={() => requestTaskCompletion(editing.id)}
+              >
+                {editing.completed ? "Vrátit jako nesplněné" : completingTaskIds.has(editing.id) ? "✓ Hotovo" : "Označit hotovo"}
+              </button><button type="button" className="danger" onClick={() => { setData((current) => deleteTask(current, editing.id)); setEditing(null); }}>Smazat</button></div>
           </form>
         </div>
       )}
+      {completionToast && (
+        <div className="df2-completion-toast" role="status" aria-live="polite">
+          <span className="df2-completion-mark" aria-hidden="true">✓</span>
+          <div>
+            <strong>Úkol dokončen</strong>
+            <small>{completionToast.title}</small>
+          </div>
+          <button type="button" onClick={() => undoTaskCompletion(completionToast.id)}>Vrátit</button>
+        </div>
+      )}
+
     </main>
   );
 }
@@ -630,7 +743,7 @@ function NavButton({ active, onClick, label, shortcut }: { active: boolean; onCl
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones,
+  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds,
 }: {
   now: Date;
   tasks: CalendarTask[];
@@ -645,9 +758,17 @@ function TodayView({
   onDelete: (id: string) => void;
   onFocus: (task: CalendarTask | null) => void;
   onMilestones: () => void;
+  completingTaskIds: ReadonlySet<string>;
 }) {
+  const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0 });
   const completed = tasks.filter((task) => task.completed).length;
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
+  const taskProgress = tasks.length ? (completed / tasks.length) * 100 : 0;
+  const checklistDone = checklistSummary.total === 0 || checklistSummary.completed === checklistSummary.total;
+  const dayComplete = missed.length === 0
+    && (tasks.length > 0 || checklistSummary.total > 0)
+    && completed === tasks.length
+    && checklistDone;
   const countdown = getDayCountdown(now);
   const today = planningDateKey(now);
   const nextMilestone = [...milestones]
@@ -656,7 +777,7 @@ function TodayView({
   const countdownText = `${String(countdown.hours).padStart(2, "0")}:${String(countdown.minutes).padStart(2, "0")}`;
 
   return (
-    <section className="df2-today-view">
+    <section className={`df2-today-view ${dayComplete ? "is-complete" : ""}`}>
       <header className="df2-page-head"><div><p>{formatDay(dateFromKey(today))}</p><h1>Dnes</h1></div><button className="df2-accent-button" onClick={onAdd}>+ Nový úkol</button></header>
 
       <div className="df2-motivation-grid">
@@ -679,9 +800,72 @@ function TodayView({
         <div className="df2-now-label"><span>Teď</span><small>{activeTask?.start && activeTask.end ? `${activeTask.start}–${activeTask.end}` : "volno"}</small></div>
         {activeTask ? <><div><h2>{activeTask.title}</h2><p>{activeTask.duration} min</p></div><div className="df2-now-actions"><button onClick={() => onFocus(activeTask)}>Zahájit blok</button><button onClick={() => onEdit(activeTask)}>Upravit</button></div></> : <div><h2>Volno</h2></div>}
       </section>
-      <DailyChecklist />
-      {missed.length > 0 && <section className="df2-missed"><header><strong>Nedokončeno · {missed.length}</strong></header>{missed.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>do {task.end}</small></div><div><button onClick={() => onDone(task.id)}>Hotovo</button><button onClick={() => onTomorrow(task.id)}>Na zítra</button><button onClick={() => onDelete(task.id)}>Zrušit</button></div></article>)}</section>}
-      <section className="df2-next"><div className="df2-section-head"><h2>Co následuje</h2><span>{completed}/{tasks.length} hotovo{unscheduled ? ` · ${unscheduled} bez času` : ""}</span></div>{nextTasks.length ? nextTasks.map((task) => <button key={task.id} onClick={() => onEdit(task)}><time>{task.start}</time><span><strong>{task.title}</strong><small>{task.duration} min</small></span></button>) : <div className="df2-empty">Volno</div>}</section>
+      {dayComplete && (
+        <section className="df2-day-complete" aria-live="polite">
+          <span className="df2-completion-mark" aria-hidden="true">✓</span>
+          <div>
+            <strong>Dnešek hotový</strong>
+            <small>{completed} úkolů · checklist {checklistSummary.completed}/{checklistSummary.total}</small>
+          </div>
+        </section>
+      )}
+
+      <section className="df2-next df2-today-plan">
+        <div className="df2-section-head">
+          <div>
+            <h2>Dnes</h2>
+            <div
+              className="df2-section-progress"
+              role="progressbar"
+              aria-label="Dokončené dnešní úkoly"
+              aria-valuemin={0}
+              aria-valuemax={tasks.length}
+              aria-valuenow={completed}
+            >
+              <span style={{ width: `${taskProgress}%` }} />
+            </div>
+          </div>
+          <span>{completed}/{tasks.length} úkolů{unscheduled ? ` · ${unscheduled} bez času` : ""}</span>
+        </div>
+        {nextTasks.length ? nextTasks.map((task) => (
+          <button
+            key={task.id}
+            className={completingTaskIds.has(task.id) ? "is-completing" : ""}
+            onClick={() => onEdit(task)}
+          >
+            <time>{task.start ?? "—"}</time>
+            <span>
+              <strong>{task.title}</strong>
+              <small>{task.duration} min{task.start ? "" : " · bez času"}</small>
+            </span>
+          </button>
+        )) : (
+          <div className="df2-empty">{completed === tasks.length && tasks.length ? "Všechny dnešní úkoly jsou hotové." : "Další úkoly nejsou."}</div>
+        )}
+      </section>
+
+      <DailyChecklist onSummaryChange={setChecklistSummary} />
+      {missed.length > 0 && (
+        <section className="df2-missed">
+          <header><strong>Nedokončeno · {missed.length}</strong></header>
+          {missed.map((task) => (
+            <article key={task.id} className={completingTaskIds.has(task.id) ? "is-completing" : ""}>
+              <div><strong>{task.title}</strong><small>do {task.end}</small></div>
+              <div>
+                <button
+                  className={`df2-missed-complete ${completingTaskIds.has(task.id) ? "is-completing" : ""}`}
+                  disabled={completingTaskIds.has(task.id)}
+                  onClick={() => onDone(task.id)}
+                >
+                  {completingTaskIds.has(task.id) ? "✓ Hotovo" : "Hotovo"}
+                </button>
+                <button onClick={() => onTomorrow(task.id)}>Na zítra</button>
+                <button onClick={() => onDelete(task.id)}>Zrušit</button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </section>
   );
 }

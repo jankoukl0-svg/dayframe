@@ -36,6 +36,8 @@ type StoredState = {
 type CompletionChoice = {
   date: string;
   taskId: string;
+  taskTitle: string;
+  originalTask: StoredTask;
   finishMinute: number;
   savedMinutes: number;
   nextTaskId: string | null;
@@ -223,6 +225,8 @@ export function ActiveCompletionSafetyController() {
       setCompletion({
         date: found.date,
         taskId: found.task.id,
+        taskTitle: found.task.title,
+        originalTask: { ...found.task },
         finishMinute,
         savedMinutes,
         nextTaskId: next?.id ?? null,
@@ -237,27 +241,29 @@ export function ActiveCompletionSafetyController() {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
+  const undoCompletion = () => {
+    const state = readState();
+    const tasks = state?.plans?.[completion?.date ?? ""];
+    if (!state || !tasks || !completion) return;
+    state.plans = {
+      ...state.plans,
+      [completion.date]: tasks.map((task) => task.id === completion.taskId ? { ...completion.originalTask } : task),
+    };
+    writeState(state);
+    setCompletion(null);
+  };
+
   if (!completion) return null;
 
   return createPortal(
-    <div
-      className="df2-active-completion-floating"
-      style={{
-        position: "fixed",
-        right: 24,
-        bottom: 24,
-        zIndex: 10000,
-        maxWidth: "min(620px, calc(100vw - 48px))",
-        padding: "12px 14px",
-        border: completion.focus ? "1px solid rgba(255, 255, 255, 0.18)" : "1px solid var(--line-strong)",
-        borderRadius: 12,
-        background: completion.focus ? "#171717" : "var(--paper)",
-        boxShadow: "0 12px 36px rgba(0, 0, 0, 0.12)",
-      }}
-      aria-live="polite"
-    >
+    <div className={`df2-active-completion-floating ${completion.focus ? "is-focus" : ""}`} aria-live="polite">
+      <span className="df2-completion-mark" aria-hidden="true">✓</span>
+      <div className="df2-active-completion-copy">
+        <strong>Úkol dokončen</strong>
+        <small>{completion.taskTitle}</small>
+      </div>
       <div className={completion.focus ? "df2-time-adjust-focus-completion" : "df2-time-adjust-finish"}>
-        <strong>Hotovo · +{completion.savedMinutes} min volných</strong>
+        <strong>+{completion.savedMinutes} min volných</strong>
         {completion.nextTaskId && (
           <button type="button" onClick={() => startFreedTimeTask(completion, completion.nextTaskId)}>Začít další</button>
         )}
@@ -265,6 +271,7 @@ export function ActiveCompletionSafetyController() {
           <button type="button" onClick={() => startFreedTimeTask(completion, completion.shortTaskId)}>Krátký úkol · {completion.shortTaskTitle}</button>
         )}
         <button type="button" onClick={() => { setCompletion(null); window.location.reload(); }}>Volno</button>
+        <button type="button" className="df2-completion-undo" onClick={undoCompletion}>Vrátit</button>
       </div>
     </div>,
     document.body,
