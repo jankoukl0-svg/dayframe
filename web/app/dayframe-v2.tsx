@@ -846,6 +846,8 @@ function TodayView({
           </>
         ) : <div><h2>Volno</h2></div>}
       </section>
+      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} />
+
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">
           <span className="df2-completion-mark" aria-hidden="true">✓</span>
@@ -890,7 +892,6 @@ function TodayView({
         )}
       </section>
 
-      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} />
       {missed.length > 0 && (
         <section className="df2-missed">
           <header><strong>Nedokončeno · {missed.length}</strong></header>
