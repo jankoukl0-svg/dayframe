@@ -44,6 +44,21 @@ for (const file of changed) {
   }
 
   const lower = file.toLowerCase();
+  const ext = path.extname(lower);
+  const stem = path.basename(lower, ext);
+  const derivedStems = new Set([
+    stem,
+    stem.replace(/-controller$/, ""),
+    stem.replace(/-view$/, ""),
+    stem.replace(/-model$/, ""),
+  ]);
+
+  if (file.startsWith("web/app/") || file.startsWith("web/lib/")) {
+    for (const derivedStem of derivedStems) {
+      add(`${derivedStem}.spec.mjs`);
+      addPrefix(`${derivedStem}-`);
+    }
+  }
 
   if (lower.includes("daily-checklist")) add("daily-checklist.spec.mjs");
 
