@@ -221,7 +221,7 @@
   grid-row: 2;
   border-color: transparent;
   background: transparent;
-  color: var(--muted);
+  color: var(--ink);
 }
 
 .df2-now-actions .df2-now-edit:hover {
