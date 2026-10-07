@@ -80,6 +80,12 @@ for (const file of changed) {
     add("completion-ux.spec.mjs");
   }
 
+  if (file === "web/app/activity-time-controller.tsx") {
+    add("active-completion-safety.spec.mjs");
+    add("activity-time-adjustments.spec.mjs");
+    add("completion-ux.spec.mjs");
+  }
+
   if (lower.includes("reading")) {
     addPrefix("reading-");
     add("overview-reading-order.spec.mjs");
