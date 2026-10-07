@@ -18,6 +18,7 @@ type ChecklistStore = {
 type RepeatMode = "daily" | "weekdays" | "custom";
 
 type DailyChecklistSummary = {
+  planningKey: string;
   completed: number;
   total: number;
   hydrated: boolean;
@@ -201,8 +202,8 @@ export function DailyChecklist({
   }, [externalPlanningKey]);
 
   useEffect(() => {
-    onSummaryChange?.({ completed: completedCount, total: visibleItems.length, hydrated, blocked: storageBlocked });
-  }, [completedCount, visibleItems.length, hydrated, storageBlocked, onSummaryChange]);
+    onSummaryChange?.({ planningKey, completed: completedCount, total: visibleItems.length, hydrated, blocked: storageBlocked });
+  }, [planningKey, completedCount, visibleItems.length, hydrated, storageBlocked, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);

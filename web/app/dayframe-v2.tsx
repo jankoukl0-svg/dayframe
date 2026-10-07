@@ -793,13 +793,14 @@ function TodayView({
   onMilestones: () => void;
   completingTaskIds: ReadonlySet<string>;
 }) {
-  const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0, hydrated: false, blocked: false });
+  const [checklistSummary, setChecklistSummary] = useState({ planningKey: "", completed: 0, total: 0, hydrated: false, blocked: false });
   const completed = tasks.filter((task) => task.completed).length;
   const unscheduled = tasks.filter((task) => !task.start && !task.completed).length;
   const taskProgress = tasks.length ? (completed / tasks.length) * 100 : 0;
   const checklistDone = checklistSummary.total === 0 || checklistSummary.completed === checklistSummary.total;
   const today = planningDateKey(now);
   const dayComplete = checklistSummary.hydrated
+    && checklistSummary.planningKey === today
     && !checklistSummary.blocked
     && completingTaskIds.size === 0
     && missed.length === 0

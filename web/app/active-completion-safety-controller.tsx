@@ -338,9 +338,12 @@ export function ActiveCompletionSafetyController() {
       return;
     }
 
+    const undoMinute = planningMinute(new Date());
     const canResumeOriginalExecution = currentDate === completion.date
       && !scheduleChangedAfterCompletion
-      && originalIntervalAvailable;
+      && originalIntervalAvailable
+      && undoMinute >= originalStart
+      && undoMinute < originalEnd;
 
     const completionFields: Array<keyof StoredTask> = [
       "completed",
