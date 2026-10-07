@@ -67,7 +67,7 @@ async function trackedTask(page, date) {
 test("focus waits for Start before counting down or recording execution", async ({ page }) => {
   const seeded = await setup(page);
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const focus = page.locator(".df2-focus-view");
   await expect(focus).toBeVisible();
 
@@ -101,7 +101,7 @@ test("focus waits for Start before counting down or recording execution", async 
 test("running focus derives countdown from persisted time after a background gap", async ({ page }) => {
   const seeded = await setup(page);
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const controls = page.locator(".df2-time-adjust-focus-controls");
   const clock = page.locator(".df2-controller-focus-clock");
   await controls.getByRole("button", { name: "Start", exact: true }).click();
@@ -124,7 +124,7 @@ test("running focus derives countdown from persisted time after a background gap
 test("started focus keeps running after leaving the focus screen until Pause is clicked", async ({ page }) => {
   const seeded = await setup(page);
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const controls = page.locator(".df2-time-adjust-focus-controls");
   const clock = page.locator(".df2-controller-focus-clock");
   await controls.getByRole("button", { name: "Start", exact: true }).click();
@@ -161,7 +161,7 @@ test("started focus keeps running after leaving the focus screen until Pause is 
 test("an explicit pause stays paused after leaving and reopening focus", async ({ page }) => {
   await setup(page);
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const controls = page.locator(".df2-time-adjust-focus-controls");
   const clock = page.locator(".df2-controller-focus-clock");
   await controls.getByRole("button", { name: "Start", exact: true }).click();

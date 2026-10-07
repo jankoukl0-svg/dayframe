@@ -42,7 +42,7 @@ test("focus preserves the original plan and records actual work", async ({ page 
   });
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const focus = page.locator(".df2-focus-view");
   await expect(focus).toBeVisible();
   const controls = page.locator(".df2-time-adjust-focus-controls");

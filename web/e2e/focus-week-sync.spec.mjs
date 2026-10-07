@@ -59,7 +59,7 @@ test("focus +15 immediately extends the same block in week view", async ({ page 
   if (!seeded.supported) test.skip();
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.getByRole("button", { name: "Zahájit blok" }).click();
+  await page.keyboard.press("3");
   const focusControls = page.locator(".df2-time-adjust-focus-controls");
   await expect(focusControls).toBeVisible();
   await focusControls.getByRole("button", { name: "+15 min", exact: true }).click();

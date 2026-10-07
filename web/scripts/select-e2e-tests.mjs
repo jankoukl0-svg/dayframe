@@ -130,6 +130,7 @@ for (const file of changed) {
     file === "web/app/page.tsx"
   ) {
     add("dayframe-calendar.spec.mjs");
+    add("activity-time-adjustments.spec.mjs");
     add("visual-harmony.spec.mjs");
     add("today-briefing.spec.mjs");
   }
