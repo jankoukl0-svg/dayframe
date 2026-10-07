@@ -840,7 +840,7 @@ function TodayView({
             <div className="df2-now-actions">
               {completingTaskIds.has(activeTask.id)
                 ? <span className="df2-now-completing">✓ Hotovo</span>
-                : <button onClick={() => onEdit(activeTask)}>Upravit</button>}
+                : <button className="df2-now-edit" onClick={() => onEdit(activeTask)}>Upravit</button>}
             </div>
           </>
         ) : <div><h2>Volno</h2></div>}

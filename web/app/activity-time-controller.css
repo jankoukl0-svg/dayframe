@@ -19,7 +19,42 @@
   font-weight: 650;
 }
 
-.df2-time-adjust-host > .df2-time-done,
+.df2-time-adjust-host > .df2-time-done {
+  position: relative;
+  padding-left: 30px;
+  border-color: color-mix(in srgb, var(--success) 72%, #2f5b40);
+  background: var(--success);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .06);
+}
+
+.df2-time-adjust-host > .df2-time-done::before {
+  content: "✓";
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-52%);
+  font: 800 12px/1 "Cascadia Mono", monospace;
+}
+
+.df2-time-adjust-host > .df2-time-done:hover {
+  border-color: color-mix(in srgb, var(--success) 84%, #244a34);
+  background: color-mix(in srgb, var(--success) 88%, #244a34);
+  transform: translateY(-1px);
+}
+
+.df2-time-adjust-host > button:not(.df2-time-done) {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+
+.df2-time-adjust-host > button:not(.df2-time-done):hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .df2-time-adjust-focus-controls > .df2-time-done {
   border-color: var(--accent-dark);
   background: var(--accent);
