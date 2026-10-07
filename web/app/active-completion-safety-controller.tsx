@@ -299,13 +299,25 @@ export function ActiveCompletionSafetyController() {
 
   const undoCompletion = () => {
     const state = readState();
-    const tasks = state?.plans?.[completion?.date ?? ""];
-    if (!state || !tasks || !completion) return;
+    if (!state || !completion) return;
+
+    const located = Object.entries(state.plans ?? {}).find(([, tasks]) =>
+      tasks.some((task) => task.id === completion.taskId),
+    );
+    if (!located) return;
+
+    const [currentDate, tasks] = located;
+    const currentTask = tasks.find((task) => task.id === completion.taskId);
+    if (!currentTask) return;
+
+    const scheduleChangedAfterCompletion = (
+      !Object.is(currentTask.start, completion.completedTask.start)
+      || !Object.is(currentTask.end, completion.completedTask.end)
+      || !Object.is(currentTask.duration, completion.completedTask.duration)
+    );
 
     const completionFields: Array<keyof StoredTask> = [
       "completed",
-      "end",
-      "duration",
       "plannedStart",
       "plannedEnd",
       "plannedDuration",
@@ -317,14 +329,22 @@ export function ActiveCompletionSafetyController() {
 
     state.plans = {
       ...state.plans,
-      [completion.date]: tasks.map((task) => {
+      [currentDate]: tasks.map((task) => {
         if (task.id !== completion.taskId) return task;
         const restored = { ...task };
+
+        if (!scheduleChangedAfterCompletion) {
+          restored.start = completion.originalTask.start;
+          restored.end = completion.originalTask.end;
+          restored.duration = completion.originalTask.duration;
+        }
+
         for (const key of completionFields) {
           if (Object.is(task[key], completion.completedTask[key])) {
             (restored as Record<string, unknown>)[key] = completion.originalTask[key];
           }
         }
+
         return restored;
       }),
     };

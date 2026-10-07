@@ -231,3 +231,157 @@ test("active completion undo preserves edits made after completion", async ({ pa
     category: "Finance",
   });
 });
+
+
+test("active completion undo follows a task moved to another planning day", async ({ page }) => {
+  const seeded = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const clockMinute = now.getHours() * 60 + now.getMinutes();
+    const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
+    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
+
+    const planningDate = new Date(now);
+    if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
+    const originalDate = `${planningDate.getFullYear()}-${String(planningDate.getMonth() + 1).padStart(2, "0")}-${String(planningDate.getDate()).padStart(2, "0")}`;
+    const moved = new Date(planningDate);
+    moved.setDate(moved.getDate() + 1);
+    const movedDate = `${moved.getFullYear()}-${String(moved.getMonth() + 1).padStart(2, "0")}-${String(moved.getDate()).padStart(2, "0")}`;
+    const startMinute = planningMinute - 10;
+    const endMinute = planningMinute + 10;
+    const toTime = (value) => {
+      const clock = ((value % (24 * 60)) + 24 * 60) % (24 * 60);
+      return `${String(Math.floor(clock / 60)).padStart(2, "0")}:${String(clock % 60).padStart(2, "0")}`;
+    };
+
+    state.routines = [];
+    state.plans[originalDate] = [{
+      id: "undo-moved-test",
+      title: "Přesunutý blok",
+      date: originalDate,
+      duration: 20,
+      start: toTime(startMinute),
+      end: toTime(endMinute),
+      requestedStart: toTime(startMinute),
+      deadlineTime: "23:59",
+      priority: "normal",
+      category: "Matika",
+      mode: "flexible",
+      completed: false,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: false,
+      createdAt: now.toISOString(),
+    }];
+    state.plans[movedDate] = state.plans[movedDate] || [];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    return { originalDate, movedDate };
+  });
+
+  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
+  await page.reload({ waitUntil: "networkidle" });
+
+  const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
+  await expect(done).toBeVisible();
+  await done.click();
+
+  const completion = page.locator(".df2-active-completion-floating");
+  await expect(completion).toBeVisible();
+
+  await page.evaluate(({ originalDate, movedDate }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = state.plans[originalDate].find((item) => item.id === "undo-moved-test");
+    state.plans[originalDate] = state.plans[originalDate].filter((item) => item.id !== "undo-moved-test");
+    state.plans[movedDate] = [...(state.plans[movedDate] || []), { ...task, date: movedDate }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, seeded);
+
+  await completion.getByRole("button", { name: "Vrátit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(({ movedDate }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[movedDate]
+      .find((item) => item.id === "undo-moved-test");
+    return task ? { completed: task.completed, date: task.date } : null;
+  }, seeded)).toEqual({
+    completed: false,
+    date: seeded.movedDate,
+  });
+});
+
+test("active completion undo preserves an edited schedule as one atomic group", async ({ page }) => {
+  const seeded = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const now = new Date();
+    const clockMinute = now.getHours() * 60 + now.getMinutes();
+    const planningMinute = clockMinute < 2 * 60 ? clockMinute + 24 * 60 : clockMinute;
+    if (planningMinute < 8 * 60 + 2 || planningMinute > 25 * 60 + 40) return null;
+
+    const planningDate = new Date(now);
+    if (clockMinute < 2 * 60) planningDate.setDate(planningDate.getDate() - 1);
+    const date = `${planningDate.getFullYear()}-${String(planningDate.getMonth() + 1).padStart(2, "0")}-${String(planningDate.getDate()).padStart(2, "0")}`;
+    const startMinute = planningMinute - 10;
+    const endMinute = planningMinute + 10;
+    const toTime = (value) => {
+      const clock = ((value % (24 * 60)) + 24 * 60) % (24 * 60);
+      return `${String(Math.floor(clock / 60)).padStart(2, "0")}:${String(clock % 60).padStart(2, "0")}`;
+    };
+
+    state.routines = [];
+    state.plans[date] = [{
+      id: "undo-schedule-test",
+      title: "Upravený čas",
+      date,
+      duration: 20,
+      start: toTime(startMinute),
+      end: toTime(endMinute),
+      requestedStart: toTime(startMinute),
+      deadlineTime: "23:59",
+      priority: "normal",
+      category: "Matika",
+      mode: "flexible",
+      completed: false,
+      source: "user",
+      dateLocked: true,
+      autoScheduled: false,
+      createdAt: now.toISOString(),
+    }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    return { date };
+  });
+
+  test.skip(!seeded, "Current clock is outside the Dayframe planning window.");
+  await page.reload({ waitUntil: "networkidle" });
+
+  const done = page.locator(".df2-time-adjust-host").getByRole("button", { name: "Hotovo" });
+  await expect(done).toBeVisible();
+  await done.click();
+
+  const completion = page.locator(".df2-active-completion-floating");
+  await expect(completion).toBeVisible();
+
+  const edited = await page.evaluate(({ date }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = state.plans[date].find((item) => item.id === "undo-schedule-test");
+    const [hours, minutes] = task.start.split(":").map(Number);
+    const startMinute = hours * 60 + minutes + 30;
+    const toTime = (value) => `${String(Math.floor((value % (24 * 60)) / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+    task.start = toTime(startMinute);
+    task.duration = 35;
+    task.end = toTime(startMinute + task.duration);
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    return { start: task.start, end: task.end, duration: task.duration };
+  }, seeded);
+
+  await completion.getByRole("button", { name: "Vrátit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(({ date }) => {
+    const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
+      .find((item) => item.id === "undo-schedule-test");
+    return task ? { completed: task.completed, start: task.start, end: task.end, duration: task.duration } : null;
+  }, seeded)).toEqual({
+    completed: false,
+    start: edited.start,
+    end: edited.end,
+    duration: edited.duration,
+  });
+});
