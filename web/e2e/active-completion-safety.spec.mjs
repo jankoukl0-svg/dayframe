@@ -265,6 +265,9 @@ test("active completion undo follows a task moved to another planning day", asyn
       dateLocked: true,
       autoScheduled: false,
       createdAt: now.toISOString(),
+      actualStartedAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString(),
+      actualAccumulatedSeconds: 90,
+      actualRunningSince: new Date(now.getTime() - 2 * 60 * 1000).toISOString(),
     }];
     state.plans[movedDate] = [];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
@@ -292,10 +295,15 @@ test("active completion undo follows a task moved to another planning day", asyn
   await expect.poll(() => page.evaluate(({ movedDate }) => {
     const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[movedDate]
       .find((item) => item.id === "undo-moved-test");
-    return task ? { completed: task.completed, date: task.date } : null;
+    return task ? {
+      completed: task.completed,
+      date: task.date,
+      actualRunningSince: task.actualRunningSince ?? null,
+    } : null;
   }, seeded)).toEqual({
     completed: false,
     date: seeded.movedDate,
+    actualRunningSince: null,
   });
 });
 
@@ -334,6 +342,9 @@ test("active completion undo preserves an edited schedule as one atomic group", 
       dateLocked: true,
       autoScheduled: false,
       createdAt: now.toISOString(),
+      actualStartedAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString(),
+      actualAccumulatedSeconds: 90,
+      actualRunningSince: new Date(now.getTime() - 2 * 60 * 1000).toISOString(),
     }];
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     return { date };
@@ -365,12 +376,19 @@ test("active completion undo preserves an edited schedule as one atomic group", 
   await expect.poll(() => page.evaluate(({ date }) => {
     const task = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}").plans[date]
       .find((item) => item.id === "undo-schedule-test");
-    return task ? { completed: task.completed, start: task.start, end: task.end, duration: task.duration } : null;
+    return task ? {
+      completed: task.completed,
+      start: task.start,
+      end: task.end,
+      duration: task.duration,
+      actualRunningSince: task.actualRunningSince ?? null,
+    } : null;
   }, seeded)).toEqual({
     completed: false,
     start: edited.start,
     end: edited.end,
     duration: edited.duration,
+    actualRunningSince: null,
   });
 });
 
