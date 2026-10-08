@@ -304,9 +304,15 @@ export function HygienePage({
   const calendarDates = useMemo(() => monthDays(monthKey), [monthKey]);
 
   const updateTask = (routineId: string, taskId: string, nextStatus: "done" | "skipped") => {
-    const current = store.records[planningKey]?.[routineId]?.states[taskId];
+    const latest = loadHygieneStore(planningKey);
+    if (latest.blocked) {
+      setBlocked(true);
+      setError("Data Hygieny nelze bezpečně načíst. Ukládání je vypnuté, aby se původní data nepřepsala.");
+      return;
+    }
+    const current = latest.store.records[planningKey]?.[routineId]?.states[taskId];
     const next = current === nextStatus ? null : nextStatus;
-    persist(setHygieneTaskStatus(store, planningKey, routineId, taskId, next));
+    persist(setHygieneTaskStatus(latest.store, planningKey, routineId, taskId, next));
   };
 
   const saveRoutineDraft = () => {
