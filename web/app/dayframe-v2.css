@@ -219,15 +219,15 @@
 .df2-now-actions .df2-now-edit {
   grid-column: 2;
   grid-row: 2;
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--ink);
+  border-color: var(--accent-dark);
+  background: var(--accent);
+  color: #fff;
 }
 
 .df2-now-actions .df2-now-edit:hover {
-  border-color: var(--line-strong);
-  background: #fff;
-  color: var(--ink);
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+  color: #fff;
 }
 
 .df2-missed {
