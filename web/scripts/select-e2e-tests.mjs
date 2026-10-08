@@ -110,6 +110,11 @@ for (const file of changed) {
   if (lower.includes("routine")) addPrefix("routine-");
   if (lower.includes("label")) addPrefix("label-");
   if (lower.includes("notification")) add("notifications.spec.mjs");
+  if (lower.includes("hygiene")) {
+    add("hygiene.spec.mjs");
+    add("daily-checklist.spec.mjs");
+    add("completion-ux.spec.mjs");
+  }
   if (lower.includes("google-calendar")) addPrefix("google-calendar");
 
   if (

@@ -28,14 +28,14 @@ test("daily checklist stays separate from tasks and resets on the next planning 
   const checklist = page.locator("[data-daily-checklist]");
   await expect(checklist).toBeVisible();
   await expect(checklist.getByRole("heading", { name: "Denní checklist" })).toBeVisible();
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/0");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/4");
 
   await addItem(page, "Vitamíny");
   await addItem(page, "Angličtina", "Po–Pá");
 
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/2");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/4");
   await checklist.getByRole("button", { name: "Označit Vitamíny jako hotovo" }).click();
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/2");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/4");
 
   await expect.poll(() => page.evaluate(() => {
     const checklistStore = JSON.parse(window.localStorage.getItem("dayframe-daily-checklist-v1") || "{}");
@@ -53,17 +53,17 @@ test("daily checklist stays separate from tasks and resets on the next planning 
   });
 
   await page.reload({ waitUntil: "networkidle" });
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/2");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/4");
   await expect(checklist.getByRole("button", { name: "Vrátit Vitamíny jako nesplněné" })).toBeVisible();
 
   await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
   await page.reload({ waitUntil: "networkidle" });
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/2");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/4");
   await expect(checklist.getByRole("button", { name: "Označit Vitamíny jako hotovo" })).toBeVisible();
 
   await page.clock.setFixedTime(new Date("2026-10-10T12:00:00"));
   await page.reload({ waitUntil: "networkidle" });
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/1");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/3");
   await expect(checklist.getByRole("button", { name: "Vitamíny Každý den", exact: true })).toBeVisible();
   await expect(checklist.getByRole("button", { name: "Angličtina Po–Pá", exact: true })).toHaveCount(0);
 });
