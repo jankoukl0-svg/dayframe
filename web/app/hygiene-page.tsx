@@ -119,11 +119,13 @@ function ScheduleEditor({
   onChange,
   planningKey,
   allowManual = true,
+  showTypeSelect = true,
 }: {
   value: HygieneSchedule;
   onChange: (value: HygieneSchedule) => void;
   planningKey: string;
   allowManual?: boolean;
+  showTypeSelect?: boolean;
 }) {
   const choices: { value: HygieneSchedule["type"]; label: string }[] = [
     { value: "daily", label: "Každý den" },
@@ -137,15 +139,17 @@ function ScheduleEditor({
 
   return (
     <div className="df2-hygiene-schedule-editor">
-      <label>
-        Frekvence
-        <select
-          value={value.type}
-          onChange={(event) => onChange(scheduleFromType(event.target.value as HygieneSchedule["type"], planningKey))}
-        >
-          {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-        </select>
-      </label>
+      {showTypeSelect && (
+        <label>
+          Frekvence
+          <select
+            value={value.type}
+            onChange={(event) => onChange(scheduleFromType(event.target.value as HygieneSchedule["type"], planningKey))}
+          >
+            {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+          </select>
+        </label>
+      )}
 
       {value.type === "days" && (
         <div className="df2-hygiene-weekdays" role="group" aria-label="Dny opakování">
@@ -691,6 +695,7 @@ export function HygienePage({
                 value={taskDraft.task.schedule}
                 planningKey={planningKey}
                 allowManual={false}
+                showTypeSelect={false}
                 onChange={(schedule) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, schedule } })}
               />
             )}
