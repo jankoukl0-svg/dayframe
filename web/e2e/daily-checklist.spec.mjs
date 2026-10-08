@@ -28,7 +28,9 @@ test("daily checklist stays separate from tasks and resets on the next planning 
   const checklist = page.locator("[data-daily-checklist]");
   await expect(checklist).toBeVisible();
   await expect(checklist.getByRole("heading", { name: "Denní checklist" })).toBeVisible();
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/4");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/2");
+  await expect(checklist.getByRole("button", { name: "Otevřít Ranní rutina v Hygieně" })).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "Otevřít Večerní rutina v Hygieně" })).toBeVisible();
 
   await addItem(page, "Vitamíny");
   await addItem(page, "Angličtina", "Po–Pá");
