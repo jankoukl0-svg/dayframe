@@ -216,3 +216,37 @@ test("manual routine can be removed from today without leaving a missed history 
   card = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Manuální péče" });
   await expect(card.getByRole("button", { name: "Naplánovat dnes" })).toHaveCount(0);
 });
+
+
+test("optional-only routines never turn optional tasks into completion requirements", async ({ page }) => {
+  await openFresh(page);
+  await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    store.routines.push({
+      id: "optional-only",
+      title: "Volitelná péče",
+      active: true,
+      order: 99,
+      schedule: { type: "daily" },
+      tasks: [{
+        id: "optional-only-task",
+        title: "Bonus péče",
+        section: "Péče",
+        active: true,
+        optional: true,
+        allowSkip: true,
+      }],
+    });
+    window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+
+  await openSidebar(page, "Hygiena");
+  const routine = page.locator('[data-hygiene-routine="optional-only"]');
+  await expect(routine).toContainText("0/0");
+  await expect(routine).toContainText("Hotovo");
+
+  await openSidebar(page, "Dnes");
+  const aggregate = page.locator('[data-hygiene-checklist-routine="optional-only"]');
+  await expect(aggregate).toContainText("Hotovo");
+});

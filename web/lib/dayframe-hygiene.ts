@@ -539,8 +539,7 @@ export function saveHygieneStore(store: HygieneStore) {
 }
 
 function completionTasks(record: HygieneRoutineRecord) {
-  const required = record.scheduledTasks.filter((item) => !item.optional);
-  return required.length ? required : record.scheduledTasks;
+  return record.scheduledTasks.filter((item) => !item.optional);
 }
 
 export function routineSummary(
@@ -554,7 +553,7 @@ export function routineSummary(
   const skipped = record.scheduledTasks.filter((item) => record.states[item.id] === "skipped").length;
   const optionalDone = record.scheduledTasks.filter((item) => item.optional && record.states[item.id] === "done").length;
   const allSkipped = base.length > 0 && base.every((item) => record.states[item.id] === "skipped");
-  const complete = base.length > 0 && handled === base.length;
+  const complete = base.length === 0 || handled === base.length;
   const touched = Object.keys(record.states).length > 0;
 
   let status: HygieneRoutineStatus = "scheduled";
