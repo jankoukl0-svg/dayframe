@@ -60,11 +60,15 @@ async function seedNotificationTasks(page) {
     const overrunStart = new Date(overrunEnd.getTime() - 60_000);
 
     state.routines = [];
-    state.plans = {
-      lead: [make("notify-lead", "Příprava testu", leadStart, leadEnd)],
-      start: [make("notify-start", "Matematika", startedAt, startedEnd)],
-      overrun: [make("notify-overrun", "Excel", overrunStart, overrunEnd, overrunEnd)],
-    };
+    const seededTasks = [
+      make("notify-lead", "Příprava testu", leadStart, leadEnd),
+      make("notify-start", "Matematika", startedAt, startedEnd),
+      make("notify-overrun", "Excel", overrunStart, overrunEnd, overrunEnd),
+    ];
+    state.plans = {};
+    for (const task of seededTasks) {
+      state.plans[task.date] = [...(state.plans[task.date] || []), task];
+    }
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     window.localStorage.setItem("dayframe-notification-settings-v1", JSON.stringify({ enabled: true, leadMinutes: 10 }));
     window.localStorage.removeItem("dayframe-notification-fired-v1");
@@ -89,6 +93,7 @@ test("notification settings request permission and persist a 5 minute lead", asy
 });
 
 test("notifications fire once before, at start, and after an unfinished block ends", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-08T18:00:00"));
   await installNotificationMock(page, "granted");
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
