@@ -65,7 +65,17 @@
 }
 .df2-sidebar nav button:hover { background: #e2e0da; color: var(--ink); }
 .df2-sidebar nav button.active { border-color: var(--line-strong); background: var(--paper); color: var(--ink); box-shadow: inset 2px 0 0 var(--accent); }
-.df2-sidebar nav button span { font-size: 14px; }
+.df2-sidebar nav button span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.df2-sidebar nav button span svg {
+  flex: 0 0 auto;
+  opacity: .78;
+}
 .df2-sidebar kbd {
   min-width: 22px;
   padding: 2px 5px;
