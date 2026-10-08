@@ -821,6 +821,39 @@ function TodayView({
     .filter((milestone) => milestone.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
   const countdownText = `${String(countdown.hours).padStart(2, "0")}:${String(countdown.minutes).padStart(2, "0")}`;
+  const futureTaskText = nextPlannedTask?.start
+    ? `Další blok: ${dayLabel(nextPlannedTask.date, today)} v ${nextPlannedTask.start} · ${nextPlannedTask.title}`
+    : "";
+
+  const emptyState = activeTask
+    ? {
+        title: "Po tomto bloku máš volno.",
+        detail: futureTaskText || "Další naplánovaný blok dnes nemáš.",
+        kind: "free",
+      }
+    : missed.length > 0
+      ? {
+          title: "Další dnešní bloky nejsou.",
+          detail: `Nedokončené úkoly: ${missed.length}.`,
+          kind: "missed",
+        }
+      : tasks.length > 0 && completed === tasks.length
+        ? {
+            title: "Dnes máš hotovo.",
+            detail: futureTaskText || "Zbytek dne je volný.",
+            kind: "done",
+          }
+        : tasks.length === 0
+          ? {
+              title: "Dnes nemáš nic naplánováno.",
+              detail: futureTaskText || "Můžeš si nechat den volný nebo přidat nový úkol.",
+              kind: "free",
+            }
+          : {
+              title: "Zbytek dne je volný.",
+              detail: futureTaskText || "Další naplánovaný blok dnes nemáš.",
+              kind: "free",
+            };
 
   return (
     <section className={`df2-today-view ${dayComplete ? "is-complete" : ""}`}>
@@ -910,7 +943,10 @@ function TodayView({
             </span>
           </button>
         )) : (
-          <div className="df2-empty">{completed === tasks.length && tasks.length ? "Všechny dnešní úkoly jsou hotové." : "Další úkoly nejsou."}</div>
+          <div className={`df2-empty df2-empty-state is-${emptyState.kind}`} role="status">
+            <strong>{emptyState.title}</strong>
+            <span>{emptyState.detail}</span>
+          </div>
         )}
       </section>
 
