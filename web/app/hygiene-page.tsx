@@ -537,7 +537,7 @@ export function HygienePage({
                       <div><dt>Aktuální streak</dt><dd>{stats.currentStreak}</dd></div>
                       <div><dt>Nejdelší streak</dt><dd>{stats.longestStreak}</dd></div>
                     </dl>
-                    <small>{stats.skippedDays} přeskočeno · {stats.partialDays} částečně · {stats.missedDays} nesplněno</small>
+                    <small>{stats.skippedTasks}× „není potřeba“ · {stats.skippedDays} přeskočených dní · {stats.partialDays} částečně · {stats.missedDays} nesplněno</small>
                   </article>
                 );
               })}

@@ -74,6 +74,7 @@ export type HygieneRoutineStats = {
   plannedDays: number;
   completedDays: number;
   skippedDays: number;
+  skippedTasks: number;
   partialDays: number;
   missedDays: number;
   successRate: number;
@@ -643,12 +644,14 @@ export function routineStats(store: HygieneStore, routineId: string, today: stri
 
   let completedDays = 0;
   let skippedDays = 0;
+  let skippedTasks = 0;
   let partialDays = 0;
   let missedDays = 0;
   let longestStreak = 0;
   let running = 0;
 
   for (const item of entries) {
+    skippedTasks += item.skipped;
     if (item.status === "complete") {
       completedDays += 1;
       running += 1;
@@ -665,6 +668,7 @@ export function routineStats(store: HygieneStore, routineId: string, today: stri
   let currentStreak = 0;
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const item = entries[index];
+    if (item.record.date === today && item.status !== "complete" && item.status !== "skipped") continue;
     if (item.status === "skipped") continue;
     if (item.status !== "complete") break;
     currentStreak += 1;
@@ -675,6 +679,7 @@ export function routineStats(store: HygieneStore, routineId: string, today: stri
     plannedDays: entries.length,
     completedDays,
     skippedDays,
+    skippedTasks,
     partialDays,
     missedDays,
     successRate: counted ? Math.round((completedDays / counted) * 100) : 0,
