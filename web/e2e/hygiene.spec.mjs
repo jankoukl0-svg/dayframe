@@ -170,3 +170,49 @@ test("Hygiene remains usable on a narrow mobile viewport", async ({ page }) => {
   await expect(page.locator('[data-hygiene-routine="morning"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });
+
+
+test("manual routine can be removed from today without leaving a missed history record", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+
+  await page.getByRole("button", { name: "+ Vlastní rutina" }).click();
+  let modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Název").fill("Manuální péče");
+  await modal.getByLabel("Frekvence").selectOption("manual");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  let card = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Manuální péče" });
+  await card.getByRole("button", { name: "+ Přidat úkol" }).click();
+  modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Název").fill("Jednorázová péče");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  card = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Manuální péče" });
+  await card.getByRole("button", { name: "Naplánovat dnes" }).click();
+
+  const routineId = await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    return store.routines.find((routine) => routine.title === "Manuální péče")?.id;
+  });
+  expect(routineId).toBeTruthy();
+  await expect.poll(() => page.evaluate((id) => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    return Boolean(store.records?.["2026-10-06"]?.[id]);
+  }, routineId)).toBe(true);
+
+  await card.getByRole("button", { name: "Odebrat z dneška" }).click();
+  await expect.poll(() => page.evaluate((id) => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    return Boolean(store.records?.["2026-10-06"]?.[id]);
+  }, routineId)).toBe(false);
+
+  await card.getByRole("button", { name: "Upravit" }).click();
+  modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Aktivní").uncheck();
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  card = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Manuální péče" });
+  await expect(card.getByRole("button", { name: "Naplánovat dnes" })).toHaveCount(0);
+});
