@@ -126,7 +126,7 @@ test("editing a task changes today but does not rewrite yesterday's snapshot", a
   await page.getByRole("tab", { name: "Správa rutin" }).click();
 
   const morningManage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Ranní rutina" });
-  await morningManage.getByRole("button", { name: /Vyčistit zuby/ }).click();
+  await morningManage.getByRole("button", { name: "Vyčistit zuby Péče", exact: true }).click();
   const modal = page.locator(".df2-hygiene-modal").last();
   await modal.getByLabel("Název").fill("Vyčistit zuby 2 min");
   await modal.getByRole("button", { name: "Uložit", exact: true }).click();
