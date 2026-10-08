@@ -271,6 +271,42 @@
 .df2-next button > span small { color: var(--muted); font-size: 11px; }
 .df2-next em { color: var(--muted); font-size: 10px; font-style: normal; text-transform: uppercase; }
 .df2-empty { padding: 20px 0; color: var(--muted); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+.df2-empty-state {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 22px 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper) 84%, var(--surface));
+}
+
+.df2-empty-state strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.df2-empty-state span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.df2-empty-state.is-done {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--line));
+  background: color-mix(in srgb, var(--success) 4%, var(--paper));
+}
+
+.df2-empty-state.is-done strong {
+  color: color-mix(in srgb, var(--success) 82%, var(--ink));
+}
+
+.df2-empty-state.is-missed {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--accent) 3%, var(--paper));
+}
 .df2-today-status { display: flex; align-items: center; gap: 9px; margin-top: 28px; color: var(--muted); font-size: 12px; }
 .df2-today-status > span { width: 7px; height: 7px; border-radius: 50%; }
 .df2-today-status .ok { background: var(--success); }
