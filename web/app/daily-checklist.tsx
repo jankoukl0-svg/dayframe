@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { planningDateKey } from "@/lib/dayframe-calendar";
+import {
+  HYGIENE_STORAGE_KEY,
+  HYGIENE_SYNC_EVENT,
+  loadHygieneStore,
+  scheduledRoutineSummaries,
+} from "@/lib/dayframe-hygiene";
 
 type ChecklistItem = {
   id: string;
@@ -149,9 +155,11 @@ function weekdayForPlanningDate(key: string) {
 export function DailyChecklist({
   onSummaryChange,
   planningKey: externalPlanningKey,
+  onOpenHygiene,
 }: {
   onSummaryChange?: (summary: DailyChecklistSummary) => void;
   planningKey?: string;
+  onOpenHygiene?: (routineId: string) => void;
 } = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
@@ -166,6 +174,9 @@ export function DailyChecklist({
   const [storageError, setStorageError] = useState("");
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [recentlyCompletedId, setRecentlyCompletedId] = useState<string | null>(null);
+  const [hygieneItems, setHygieneItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
+  const [hygieneHydrated, setHygieneHydrated] = useState(false);
+  const [hygieneBlocked, setHygieneBlocked] = useState(false);
   const completionFeedbackTimer = useRef<number | null>(null);
 
   const planningKey = externalPlanningKey ?? planningDateKey(now);
@@ -176,8 +187,11 @@ export function DailyChecklist({
   );
   const completedIds = new Set(store.completedByDate[planningKey] ?? []);
   const completedCount = visibleItems.filter((item) => completedIds.has(item.id)).length;
-  const allDone = visibleItems.length > 0 && completedCount === visibleItems.length;
-  const progressPercent = visibleItems.length ? (completedCount / visibleItems.length) * 100 : 0;
+  const hygieneCompletedCount = hygieneItems.filter((item) => item.complete).length;
+  const totalVisibleCount = visibleItems.length + hygieneItems.length;
+  const totalCompletedCount = completedCount + hygieneCompletedCount;
+  const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
+  const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
   useEffect(() => {
     const sync = () => {
@@ -202,8 +216,40 @@ export function DailyChecklist({
   }, [externalPlanningKey]);
 
   useEffect(() => {
-    onSummaryChange?.({ planningKey, completed: completedCount, total: visibleItems.length, hydrated, blocked: storageBlocked });
-  }, [planningKey, completedCount, visibleItems.length, hydrated, storageBlocked, onSummaryChange]);
+    const syncHygiene = () => {
+      const result = loadHygieneStore(planningKey);
+      const summaries = result.blocked ? [] : scheduledRoutineSummaries(result.store, planningKey, planningKey);
+      setHygieneItems(summaries.map((summary) => ({
+        id: summary.routine.id,
+        title: summary.routine.title,
+        handled: summary.handled,
+        total: summary.total,
+        complete: summary.status === "complete" || summary.status === "skipped",
+      })));
+      setHygieneBlocked(result.blocked);
+      setHygieneHydrated(true);
+    };
+    syncHygiene();
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === HYGIENE_STORAGE_KEY) syncHygiene();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(HYGIENE_SYNC_EVENT, syncHygiene);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(HYGIENE_SYNC_EVENT, syncHygiene);
+    };
+  }, [planningKey]);
+
+  useEffect(() => {
+    onSummaryChange?.({
+      planningKey,
+      completed: totalCompletedCount,
+      total: totalVisibleCount,
+      hydrated: hydrated && hygieneHydrated,
+      blocked: storageBlocked || hygieneBlocked,
+    });
+  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
@@ -366,7 +412,7 @@ export function DailyChecklist({
           <div>
             <h2>Denní checklist</h2>
             <span data-checklist-progress aria-label={completedCount + " z " + visibleItems.length + " hotovo"}>
-              {completedCount}/{visibleItems.length}
+              {totalCompletedCount}/{totalVisibleCount}
             </span>
           </div>
           <button
@@ -385,14 +431,35 @@ export function DailyChecklist({
           role="progressbar"
           aria-label="Dokončené položky checklistu"
           aria-valuemin={0}
-          aria-valuemax={visibleItems.length}
-          aria-valuenow={completedCount}
+          aria-valuemax={totalVisibleCount}
+          aria-valuenow={totalCompletedCount}
         >
           <span style={{ width: `${progressPercent}%` }} />
         </div>
 
-        {visibleItems.length ? (
+        {totalVisibleCount ? (
           <div className="df2-checklist-list">
+            {hygieneItems.map((item) => (
+              <article
+                key={"hygiene-" + item.id}
+                data-hygiene-checklist-routine={item.id}
+                className={"df2-checklist-hygiene-row " + (item.complete ? "done" : "")}
+              >
+                <span className={"df2-checklist-hygiene-indicator " + (item.complete ? "is-done" : "")} aria-hidden="true">
+                  {item.complete ? "✓" : ""}
+                </span>
+                <button
+                  type="button"
+                  className="df2-checklist-copy df2-checklist-hygiene-copy"
+                  onClick={() => onOpenHygiene?.(item.id)}
+                  aria-label={"Otevřít " + item.title + " v Hygieně"}
+                >
+                  <strong>{item.title}</strong>
+                  <small>{item.complete ? "Hotovo" : item.handled + "/" + item.total + " · otevřít detail"}</small>
+                </button>
+                <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
+              </article>
+            ))}
             {visibleItems.map((item) => {
               const done = completedIds.has(item.id);
               return (
@@ -444,12 +511,14 @@ export function DailyChecklist({
           </div>
         ) : (
           <div className="df2-checklist-empty">
-            {store.items.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
+            {store.items.length || hygieneItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
         {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}
-        {(storageBlocked || storageError) && (
-          <p className="df2-checklist-error">{storageBlocked ? STORAGE_READ_ERROR : storageError}</p>
+        {(storageBlocked || storageError || hygieneBlocked) && (
+          <p className="df2-checklist-error">
+            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : storageError}
+          </p>
         )}
       </section>
 
