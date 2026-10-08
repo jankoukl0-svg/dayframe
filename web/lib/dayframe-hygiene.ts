@@ -424,12 +424,14 @@ function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
 
 export function materializeHygieneDate(store: HygieneStore, dateKey: string, refresh = false): HygieneStore {
   const dateRecords = { ...(store.records[dateKey] ?? {}) };
+  const scheduledRoutineIds = new Set<string>();
   let changed = false;
 
   for (const routine of store.routines) {
     if (!routineScheduledOnDate(store, routine, dateKey)) continue;
     const scheduledTasks = routine.tasks.filter((item) => taskScheduledOnDate(item, dateKey)).map(taskSnapshot);
     if (!scheduledTasks.length) continue;
+    scheduledRoutineIds.add(routine.id);
 
     const existing = dateRecords[routine.id];
     if (!existing) {
@@ -457,6 +459,14 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         dateRecords[routine.id] = next;
         changed = true;
       }
+    }
+  }
+
+  if (refresh) {
+    for (const routineId of Object.keys(dateRecords)) {
+      if (scheduledRoutineIds.has(routineId)) continue;
+      delete dateRecords[routineId];
+      changed = true;
     }
   }
 

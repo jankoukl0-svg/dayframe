@@ -581,7 +581,7 @@ export function HygienePage({
                       <span>{scheduleLabel(routine.schedule)} · {routine.tasks.filter((task) => task.active).length} aktivních úkolů</span>
                     </div>
                     <div>
-                      {routine.schedule.type === "manual" && (
+                      {routine.schedule.type === "manual" && routine.active && (
                         <button type="button" onClick={() => persist(toggleManualRoutine(store, planningKey, routine.id, !manualToday))}>
                           {manualToday ? "Odebrat z dneška" : "Naplánovat dnes"}
                         </button>
