@@ -150,3 +150,46 @@ test("adds a task from the week without leaking internal scheduling syntax", asy
   await expect(page.locator(".df2-milestones")).toContainText("Dokončit CFI Excel test");
   await expect(page.locator(".df2-milestones")).toContainText("Aktualizovaný termín");
 });
+
+
+test("Now shows Volno when the next task starts later", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2027-03-13T23:20:00"));
+  await page.addInitScript(() => window.localStorage.clear());
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const date = "2027-03-13";
+    state.routines = [];
+    state.plans = {
+      ...state.plans,
+      [date]: [{
+        id: "future-reading",
+        title: "Čtení knihy",
+        date,
+        duration: 80,
+        start: "00:40",
+        end: "02:00",
+        requestedStart: "00:40",
+        deadlineTime: "02:00",
+        priority: "normal",
+        category: "Čtení",
+        mode: "fixed",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: "2027-03-13T10:00:00.000Z",
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+
+  const nowCard = page.locator(".df2-now-card");
+  await expect(nowCard).toContainText("Volno");
+  await expect(nowCard).not.toContainText("Čtení knihy");
+  await expect(page.locator(".df2-today-plan")).toContainText("Čtení knihy");
+});
