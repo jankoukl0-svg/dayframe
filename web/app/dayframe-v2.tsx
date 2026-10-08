@@ -254,10 +254,9 @@ export function DayframeV2() {
   );
   const scheduledToday = visualTodayTasks.filter((task) => task.start && task.end && !task.completed);
   const currentMinute = planningMinute(now);
-  const activeTask = scheduledToday.find((task) => timeToMinutes(task.start) <= currentMinute && timeToMinutes(task.end) > currentMinute)
-    ?? scheduledToday.find((task) => timeToMinutes(task.start) > currentMinute)
-    ?? visualTodayTasks.find((task) => !task.completed)
-    ?? null;
+  const activeTask = scheduledToday.find((task) =>
+    timeToMinutes(task.start) <= currentMinute && timeToMinutes(task.end) > currentMinute,
+  ) ?? null;
   const missed = visualTodayTasks.filter((task) => !task.completed && task.end && timeToMinutes(task.end) <= currentMinute);
   const missedIds = new Set(missed.map((task) => task.id));
   const afterActive = visualTodayTasks
