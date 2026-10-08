@@ -268,6 +268,15 @@ export function DayframeV2() {
       return left.title.localeCompare(right.title, "cs");
     });
 
+  const nextPlannedTask = useMemo(() => Object.entries(data.plans)
+    .flatMap(([date, tasks]) => tasks
+      .filter((task) => !task.completed && task.start && date > todayKey)
+      .map((task) => ({ ...task, date })))
+    .sort((left, right) => {
+      const dateOrder = left.date.localeCompare(right.date);
+      return dateOrder || timeToMinutes(left.start) - timeToMinutes(right.start);
+    })[0] ?? null, [data.plans, todayKey]);
+
   const monday = useMemo(() => addDays(startOfWeek(dateFromKey(todayKey)), weekOffset * 7), [weekOffset, todayKey]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(monday, index)), [monday]);
   const weekLabel = `${new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short" }).format(days[0])} – ${new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric" }).format(days[6])}`;
@@ -565,6 +574,7 @@ export function DayframeV2() {
               tasks={todayTasks}
               activeTask={activeTask}
               nextTasks={afterActive}
+              nextPlannedTask={nextPlannedTask}
               missed={missed}
               milestones={data.milestones}
               onAdd={() => openAdd(todayKey)}
@@ -774,12 +784,13 @@ function NavButton({ active, onClick, label, shortcut }: { active: boolean; onCl
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds,
+  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds,
 }: {
   now: Date;
   tasks: CalendarTask[];
   activeTask: CalendarTask | null;
   nextTasks: CalendarTask[];
+  nextPlannedTask: CalendarTask | null;
   missed: CalendarTask[];
   milestones: DayframeState["milestones"];
   onAdd: () => void;
