@@ -46,8 +46,10 @@ test("task completion confirms, holds briefly and can be undone", async ({ page 
   await seedSingleTask(page, false);
   await page.reload({ waitUntil: "networkidle" });
 
-  await expect(page.locator(".df2-now-card")).toContainText("Dokončit UX návrh");
-  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  const taskRow = page.locator(".df2-today-plan > button", { hasText: "Dokončit UX návrh" });
+  await expect(page.locator(".df2-now-card")).toContainText("Volno");
+  await expect(taskRow).toBeVisible();
+  await taskRow.click();
   const modal = page.locator(".df2-modal").first();
   await expect(modal.locator('input[name="title"]')).toHaveValue("Dokončit UX návrh");
   await modal.getByRole("button", { name: "Označit hotovo", exact: true }).click();
@@ -102,7 +104,7 @@ test("completion is persisted before the visual hold can be interrupted", async 
   await seedSingleTask(page, false);
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  await page.locator(".df2-today-plan > button", { hasText: "Dokončit UX návrh" }).click();
   const modal = page.locator(".df2-modal").first();
   await modal.getByRole("button", { name: "Označit hotovo", exact: true }).click();
 
@@ -170,12 +172,12 @@ test("rapid completions keep an independent undo action for each task", async ({
   });
   await page.reload({ waitUntil: "networkidle" });
 
-  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  await page.locator(".df2-today-plan > button", { hasText: "První dokončení" }).click();
   await page.locator(".df2-modal").first().getByRole("button", { name: "Označit hotovo", exact: true }).click();
   await expect(page.locator(".df2-completion-toast", { hasText: "První dokončení" })).toBeVisible();
 
   await page.waitForTimeout(750);
-  await page.locator(".df2-now-card").getByRole("button", { name: "Upravit", exact: true }).click();
+  await page.locator(".df2-today-plan > button", { hasText: "Druhé dokončení" }).click();
   await page.locator(".df2-modal").first().getByRole("button", { name: "Označit hotovo", exact: true }).click();
 
   const firstToast = page.locator(".df2-completion-toast", { hasText: "První dokončení" });

@@ -162,8 +162,8 @@ test("Now shows Volno when the next task starts later", async ({ page }) => {
     const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
     const date = "2027-03-13";
     state.routines = [];
+    state.backlog = [];
     state.plans = {
-      ...state.plans,
       [date]: [{
         id: "future-reading",
         title: "Čtení knihy",
@@ -184,9 +184,8 @@ test("Now shows Volno when the next task starts later", async ({ page }) => {
       }],
     };
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
   });
-
-  await page.reload({ waitUntil: "networkidle" });
 
   const nowCard = page.locator(".df2-now-card");
   await expect(nowCard).toContainText("Volno");
