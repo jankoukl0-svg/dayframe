@@ -192,3 +192,81 @@ test("Now shows Volno when the next task starts later", async ({ page }) => {
   await expect(nowCard).not.toContainText("Čtení knihy");
   await expect(page.locator(".df2-today-plan")).toContainText("Čtení knihy");
 });
+
+
+test("Today empty state explains a completed day and points to tomorrow", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2027-03-14T18:00:00"));
+  await page.addInitScript(() => window.localStorage.clear());
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {
+      "2027-03-14": [{
+        id: "done-today",
+        title: "Hotový úkol",
+        date: "2027-03-14",
+        duration: 45,
+        start: "14:00",
+        end: "14:45",
+        requestedStart: "14:00",
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Studium",
+        mode: "fixed",
+        completed: true,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: "2027-03-14T10:00:00.000Z",
+      }],
+      "2027-03-15": [{
+        id: "tomorrow-task",
+        title: "Matematika",
+        date: "2027-03-15",
+        duration: 60,
+        start: "09:00",
+        end: "10:00",
+        requestedStart: "09:00",
+        deadlineTime: "22:30",
+        priority: "normal",
+        category: "Matika",
+        mode: "fixed",
+        completed: false,
+        source: "user",
+        dateLocked: true,
+        autoScheduled: false,
+        createdAt: "2027-03-14T10:01:00.000Z",
+      }],
+    };
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  });
+
+  const empty = page.locator(".df2-today-plan .df2-empty-state");
+  await expect(empty).toContainText("Dnes máš hotovo.");
+  await expect(empty).toContainText("Další blok: Zítra v 09:00 · Matematika");
+});
+
+test("Today empty state distinguishes a completely free day", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2027-03-14T18:00:00"));
+  await page.addInitScript(() => window.localStorage.clear());
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.backlog = [];
+    state.plans = {};
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  });
+
+  const empty = page.locator(".df2-today-plan .df2-empty-state");
+  await expect(empty).toContainText("Dnes nemáš nic naplánováno.");
+  await expect(empty).toContainText("Můžeš si nechat den volný nebo přidat nový úkol.");
+});
