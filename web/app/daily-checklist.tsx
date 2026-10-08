@@ -411,7 +411,7 @@ export function DailyChecklist({
         <header className="df2-checklist-head">
           <div>
             <h2>Denní checklist</h2>
-            <span data-checklist-progress aria-label={completedCount + " z " + visibleItems.length + " hotovo"}>
+            <span data-checklist-progress aria-label={totalCompletedCount + " z " + totalVisibleCount + " hotovo"}>
               {totalCompletedCount}/{totalVisibleCount}
             </span>
           </div>
