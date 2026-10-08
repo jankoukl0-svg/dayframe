@@ -93,6 +93,7 @@ function overallDateStatus(store: HygieneStore, dateKey: string, today: string) 
   const records = Object.values(store.records[dateKey] ?? {});
   if (!records.length) return "not-scheduled";
   const statuses = records.map((record) => historyStatusForDate(store, record.routineId, dateKey, today));
+  if (statuses.every((status) => status === "skipped")) return "skipped";
   if (statuses.every((status) => status === "complete" || status === "skipped")) return "complete";
   if (statuses.some((status) => status === "complete" || status === "partial" || status === "skipped")) return "partial";
   if (dateKey < today) return "missed";
@@ -508,10 +509,20 @@ export function HygienePage({
               <input type="month" value={monthKey} onChange={(event) => setMonthKey(event.target.value || monthKeyFromPlanningKey(planningKey))} />
             </div>
             <div className="df2-hygiene-month-grid">
-              {calendarDates.map((date) => {
+              {["Po", "Út", "St", "Čt", "Pá", "So", "Ne"].map((day) => (
+                <span className="df2-hygiene-month-weekday" key={day}>{day}</span>
+              ))}
+              {calendarDates.map((date, index) => {
                 const status = overallDateStatus(store, date, planningKey);
+                const mondayFirstColumn = ((dateFromKey(date).getDay() + 6) % 7) + 1;
                 return (
-                  <div className={"df2-hygiene-month-day is-" + status} title={statusLabel(status)} key={date}>
+                  <div
+                    className={"df2-hygiene-month-day is-" + status}
+                    title={statusLabel(status)}
+                    key={date}
+                    style={index === 0 ? { gridColumnStart: mondayFirstColumn } : undefined}
+                    data-calendar-date={date}
+                  >
                     <span>{dateFromKey(date).getDate()}</span>
                     <i aria-hidden="true" />
                   </div>

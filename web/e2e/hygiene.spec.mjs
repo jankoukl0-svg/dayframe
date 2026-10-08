@@ -250,3 +250,39 @@ test("optional-only routines never turn optional tasks into completion requireme
   const aggregate = page.locator('[data-hygiene-checklist-routine="optional-only"]');
   await expect(aggregate).toContainText("Hotovo");
 });
+
+
+test("history preserves skipped-only status and aligns month dates to weekdays", async ({ page }) => {
+  await openFresh(page, "2026-10-08T12:00:00");
+  await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    store.routines.push({
+      id: "skip-only",
+      title: "Přeskočitelná rutina",
+      active: true,
+      order: 90,
+      schedule: { type: "daily" },
+      tasks: [{
+        id: "skip-only-task",
+        title: "Podle potřeby",
+        section: "Péče",
+        active: true,
+        optional: false,
+        allowSkip: true,
+      }],
+    });
+    window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+
+  await openSidebar(page, "Hygiena");
+  const routine = page.locator('[data-hygiene-routine="skip-only"]');
+  await routine.getByRole("button", { name: "Není potřeba" }).click();
+
+  await page.getByRole("tab", { name: "Historie" }).click();
+  const today = page.locator(".df2-hygiene-history-day").filter({ hasText: "čt 8" });
+  await expect(today).toContainText("Přeskočeno");
+
+  const octoberFirst = page.locator('[data-calendar-date="2026-10-01"]');
+  await expect(octoberFirst).toHaveCSS("grid-column-start", "4");
+});
