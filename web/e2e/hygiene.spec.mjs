@@ -712,6 +712,18 @@ test("product replacements preserve order, checked actions and historical snapsh
   const history = await page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1")));
   const oldFace = history.records["2026-10-06"].morning.scheduledTasks.find((task) => task.id === "morning-face");
   expect(oldFace.products.map((product) => product.name)).toEqual(["Gel", "Krém"]);
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const saved = JSON.parse(localStorage.getItem(key));
+    saved.products.find((product) => product.id === "gel").instructions = "Později změněný návod";
+    localStorage.setItem(key, JSON.stringify(saved));
+    dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  await page.getByRole("tab", { name: "Historie" }).click();
+  await page.getByRole("button", { name: "Historický produkt Gel" }).click();
+  const historicalDetail = page.getByRole("dialog", { name: "Historický produkt Gel" });
+  await expect(historicalDetail).toContainText("Podle etikety");
+  await expect(historicalDetail).not.toContainText("Později změněný návod");
 });
 
 test("archiving unlinks active product without removing historical completion", async ({ page }) => {
