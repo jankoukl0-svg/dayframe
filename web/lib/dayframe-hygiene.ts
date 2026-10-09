@@ -637,7 +637,9 @@ export function scheduledRoutineSummaries(store: HygieneStore, dateKey: string, 
   return store.routines
     .filter((routine) => {
       const record = dateRecords[routine.id];
-      return Boolean(record) && !record.archived && routineHasScheduledWorkOnDate(store, routine, dateKey);
+      if (!record || record.archived) return false;
+      const hasHandledSnapshot = Object.keys(record.states).length > 0;
+      return routineHasScheduledWorkOnDate(store, routine, dateKey) || hasHandledSnapshot;
     })
     .sort((left, right) => left.order - right.order)
     .map((routine) => routineSummary(routine, dateRecords[routine.id], today));

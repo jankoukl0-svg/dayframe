@@ -486,3 +486,110 @@ test("moving a completed task into an unscheduled routine preserves today's snap
     .locator(".df2-hygiene-task").filter({ hasText: "Vyčistit zuby" })
     .getByRole("button", { name: "Vrátit Vyčistit zuby jako nesplněné" })).toBeVisible();
 });
+
+
+test("a sole completed moved task stays visible today when its destination is unscheduled", async ({ page }) => {
+  await openFresh(page);
+  await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    store.routines.push(
+      {
+        id: "single-source",
+        title: "Jedna dnešní věc",
+        active: true,
+        order: 80,
+        schedule: { type: "daily" },
+        tasks: [{
+          id: "single-source-task",
+          title: "Jediný hotový úkol",
+          section: "Péče",
+          active: true,
+          optional: false,
+          allowSkip: false,
+        }],
+      },
+      {
+        id: "single-sunday",
+        title: "Nedělní cíl",
+        active: true,
+        order: 81,
+        schedule: { type: "weekly", weekday: 0 },
+        tasks: [],
+      },
+    );
+    window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+
+  await openSidebar(page, "Hygiena");
+  const source = page.locator('[data-hygiene-routine="single-source"]');
+  await source.getByRole("button", { name: "Označit Jediný hotový úkol jako hotovo" }).click();
+  await expect(source).toContainText("1/1");
+
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const manage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Jedna dnešní věc" });
+  await manage.getByRole("button", { name: "Jediný hotový úkol Péče", exact: true }).click();
+  const modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Rutina", { exact: true }).selectOption("single-sunday");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  const preserved = page.locator('[data-hygiene-routine="single-source"]');
+  await expect(preserved).toBeVisible();
+  await expect(preserved).toContainText("1/1");
+  await expect(preserved).toContainText("Hotovo");
+  await expect(page.locator('[data-hygiene-routine="single-sunday"]')).toHaveCount(0);
+
+  await page.reload({ waitUntil: "networkidle" });
+  await openSidebar(page, "Hygiena");
+  await expect(page.locator('[data-hygiene-routine="single-source"]')).toContainText("1/1");
+});
+
+test("moving the sole completed task to a scheduled routine removes the empty source record", async ({ page }) => {
+  await openFresh(page);
+  await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    store.routines.push({
+      id: "single-transfer",
+      title: "Jedna přesouvaná věc",
+      active: true,
+      order: 82,
+      schedule: { type: "daily" },
+      tasks: [{
+        id: "single-transfer-task",
+        title: "Přesouvaný hotový úkol",
+        section: "Péče",
+        active: true,
+        optional: false,
+        allowSkip: false,
+      }],
+    });
+    window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+
+  await openSidebar(page, "Hygiena");
+  const source = page.locator('[data-hygiene-routine="single-transfer"]');
+  await source.getByRole("button", { name: "Označit Přesouvaný hotový úkol jako hotovo" }).click();
+
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const manage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Jedna přesouvaná věc" });
+  await manage.getByRole("button", { name: "Přesouvaný hotový úkol Péče", exact: true }).click();
+  const modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Rutina", { exact: true }).selectOption("evening");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    return {
+      sourceExists: Boolean(store.records?.["2026-10-06"]?.["single-transfer"]),
+      destinationState: store.records?.["2026-10-06"]?.evening?.states?.["single-transfer-task"] ?? null,
+    };
+  })).toEqual({ sourceExists: false, destinationState: "done" });
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  await expect(page.locator('[data-hygiene-routine="single-transfer"]')).toHaveCount(0);
+  await expect(page.locator('[data-hygiene-routine="evening"]')
+    .locator(".df2-hygiene-task").filter({ hasText: "Přesouvaný hotový úkol" })
+    .getByRole("button", { name: "Vrátit Přesouvaný hotový úkol jako nesplněné" })).toBeVisible();
+});

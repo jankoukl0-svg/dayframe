@@ -380,18 +380,22 @@ export function HygienePage({
         if (sourceRecord) {
           const sourceStates = { ...sourceRecord.states };
           delete sourceStates[cleanTask.id];
+          const sourceTasks = sourceRecord.scheduledTasks.filter((task) => task.id !== cleanTask.id);
+          const dateRecords = { ...nextStore.records[planningKey] };
+          if (sourceTasks.length === 0) {
+            delete dateRecords[taskDraft.sourceRoutineId];
+          } else {
+            dateRecords[taskDraft.sourceRoutineId] = {
+              ...sourceRecord,
+              scheduledTasks: sourceTasks,
+              states: sourceStates,
+            };
+          }
           nextStore = {
             ...nextStore,
             records: {
               ...nextStore.records,
-              [planningKey]: {
-                ...nextStore.records[planningKey],
-                [taskDraft.sourceRoutineId]: {
-                  ...sourceRecord,
-                  scheduledTasks: sourceRecord.scheduledTasks.filter((task) => task.id !== cleanTask.id),
-                  states: sourceStates,
-                },
-              },
+              [planningKey]: dateRecords,
             },
           };
         }
