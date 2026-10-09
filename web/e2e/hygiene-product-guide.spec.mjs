@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { extractGuideFromHtml, extractGuideFromCatalog } from "./dayframe-product-guide-extract.mjs";
+import { manufacturerGuideFor } from "./dayframe-manufacturer-guide.mjs";
 
 const ROOT = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
 
