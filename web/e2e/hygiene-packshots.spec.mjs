@@ -300,3 +300,37 @@ test("guide lookup from a previous edit session cannot restart automatic photo i
   await expect(reopened.getByRole("textbox", { name: "Návod k použití" })).toHaveValue("");
   expect(requestedPhotos).toBe(0);
 });
+
+
+test("dark opaque product on transparent background remains visible on white", async ({ page }) => {
+  const dialog = await start(page);
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 280; canvas.height = 320;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 280, 320);
+    ctx.fillStyle = "#111111";
+    ctx.fillRect(95, 52, 92, 245);
+    return canvas.toDataURL("image/png");
+  });
+  const transparent = Buffer.from(image.split(",")[1], "base64");
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("mode") === "photos") return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ candidates: [
+        { url: "https://example.org/transparent-dark.png", source: "Manufacturer", priority: 20 },
+      ] }),
+    });
+    if (params.get("mode") === "image") return route.fulfill({
+      status: 200, contentType: "image/png", body: transparent,
+    });
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await dialog.getByRole("textbox", { name: "Název produktu *" }).fill("Black Bottle");
+  await dialog.getByRole("button", { name: "Najít lepší fotku" }).click();
+  await expect(dialog.locator(".df2-packshot-notice")).toContainText("bílým nebo průhledným pozadím");
+  const preview = await inspectPreviewCorners(dialog);
+  expect(preview.corner.every(value => value >= 240)).toBe(true);
+  expect(preview.center.every(value => value <= 60)).toBe(true);
+});
