@@ -177,7 +177,9 @@ export async function findBestProductPackshot(candidates: PackshotCandidate[]): 
         if (!["image/jpeg", "image/png", "image/webp"].includes(blob.type)
           || blob.size < 30 || blob.size > MAX_BYTES) return null;
         try { return await inspect(candidate, blob); }
-        catch {
+        catch (error) {
+          // A decoded but empty white image must not return as a fallback.
+          if (error instanceof Error && error.message.includes("rozpoznatelný produkt")) return null;
           fallback ??= { blob, source: candidate.source };
           return null;
         }
