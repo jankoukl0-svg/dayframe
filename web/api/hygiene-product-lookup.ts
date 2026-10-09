@@ -486,6 +486,17 @@ async function photoCandidates(name: string, brand: string, original: string, or
   }
   for (const item of pages) {
     if (!productPageIsRelevant(item.name, name)) continue;
+    // A product called e.g. "Moisturizing Lotion" may exist for many brands.
+    // Refuse to borrow another brand's attractive white packshot.
+    const words = (value: string) => value.toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const claimed = words(brand);
+    const brandCompatible = (value: string) => Boolean(claimed)
+      && (" " + words(value) + " ").includes(" " + claimed + " ");
+    // Require a complete brand phrase, not arbitrary character fragments:
+    // brand "e.l.f." must never match "Self Hydrating Cream".
+    if (selectedBrand && ![item.brand, item.name, new URL(item.sourceUrl).hostname]
+      .some(brandCompatible)) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
   }
   if (html) {
