@@ -136,6 +136,9 @@ export function HygieneProducts({
   const [photoNotice, setPhotoNotice] = useState("");
   const photoPreferenceRef = useRef<"none" | "manual" | "automatic">("none");
   const activeEditorRef = useRef<string | null>(null);
+  // A saved product can be closed and reopened with the same ID while a photo
+  // request is pending. Distinguish editor *sessions*, not only product IDs.
+  const photoSessionRef = useRef(0);
 
 
   useEffect(() => {
@@ -191,7 +194,15 @@ export function HygieneProducts({
     routine.tasks.filter((task) => (task.productIds ?? []).includes(id))
       .map((task) => routine.title + " · " + task.title));
 
+  const closeProductEditor = () => {
+    photoSessionRef.current += 1;
+    activeEditorRef.current = null;
+    setPhotoBusy(false);
+    setDraft(null);
+  };
+
   const openEditor = (product: HygieneProduct) => {
+    photoSessionRef.current += 1;
     activeEditorRef.current = product.id;
     photoPreferenceRef.current = "none";
     setPhotoBusy(false);
@@ -247,6 +258,7 @@ export function HygieneProducts({
   const findProductPhoto = async (name: string, brand: string, sourceUrl: string,
     preferredImage = "", replaceExisting = false, photoOfId?: string) => {
     const id = photoOfId ?? draft?.id;
+    const editorSession = photoSessionRef.current;
     if (!id || photoBusy || (!replaceExisting && (photoPreferenceRef.current === "manual"
       || Boolean(file) || Boolean(draft?.photoKey)))) return;
     setPhotoBusy(true);
@@ -271,7 +283,7 @@ export function HygieneProducts({
       if (preferredImage && !candidates.some((item) => item.url === preferredImage))
         candidates.unshift({ url: preferredImage, source: "Vybraný produkt", priority: 20 });
       const selected = await findBestProductPackshot(candidates);
-      if (activeEditorRef.current !== id) return;
+      if (activeEditorRef.current !== id || photoSessionRef.current !== editorSession) return;
       if (!replaceExisting && photoPreferenceRef.current === "manual") return;
       if (!selected) {
         setPhotoNotice("Ověřitelnou fotografii tohoto produktu se nepodařilo stáhnout. Můžeš ji nahrát ručně.");
@@ -288,10 +300,10 @@ export function HygieneProducts({
           : "Vybral jsem nejčistší dostupnou fotografii · " + selected.source
             + ". Bílé pozadí nelze spolehlivě zaručit.");
     } catch {
-      if (activeEditorRef.current === id)
+      if (activeEditorRef.current === id && photoSessionRef.current === editorSession)
         setPhotoNotice("Fotografie se nepodařila zpracovat. Můžeš vybrat vlastní.");
     } finally {
-      if (activeEditorRef.current === id) setPhotoBusy(false);
+      if (activeEditorRef.current === id && photoSessionRef.current === editorSession) setPhotoBusy(false);
     }
   };
 
@@ -472,7 +484,7 @@ export function HygieneProducts({
       if (previousKey && previousKey !== nextProduct.photoKey && !stillInHistory) {
         void removeProductPhoto(previousKey).catch(() => {});
       }
-      setDraft(null);
+      closeProductEditor();
       setFile(null);
     } catch (cause) {
       if (uploadedKey) await removeProductPhoto(uploadedKey).catch(() => {});
@@ -692,10 +704,10 @@ export function HygieneProducts({
       )}
 
       {draft && (
-        <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setDraft(null); }}>
+        <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) closeProductEditor(); }}>
           <section role="dialog" aria-modal="true" aria-label="Editor produktu" className="df2-modal df2-product-dialog">
             <header><div><h2>{store.products.some((p) => p.id === draft.id) ? "Upravit produkt" : "Nový produkt"}</h2></div>
-              <button type="button" disabled={saving} aria-label="Zavřít editor produktu" onClick={() => setDraft(null)}>×</button>
+              <button type="button" disabled={saving} aria-label="Zavřít editor produktu" onClick={closeProductEditor}>×</button>
             </header>
             <div className="df2-product-autofill" aria-label="Automatické vyplnění produktu">
               <div className="df2-product-autofill-head">
@@ -832,7 +844,7 @@ export function HygieneProducts({
             {editError && <p className="df2-hygiene-error" role="alert">{editError}</p>}
             <div className="df2-modal-actions">
               <button type="button" className="df2-primary" disabled={saving || lookupImporting || photoBusy || !draft.name.trim()} onClick={() => void save()}>{saving ? "Ukládám…" : "Uložit produkt"}</button>
-              <button type="button" disabled={saving} onClick={() => setDraft(null)}>Zrušit</button>
+              <button type="button" disabled={saving} onClick={closeProductEditor}>Zrušit</button>
             </div>
           </section>
         </div>
