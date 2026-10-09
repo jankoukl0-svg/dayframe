@@ -88,7 +88,7 @@ test("selecting a catalog match enriches all six fields from a labelled guide wh
   await expect(editor.getByRole("textbox", { name: "Kdy používat" })).toHaveValue("Moje vlastní poznámka");
   await expect(editor.getByRole("textbox", { name: "Množství na jedno použití" })).toHaveValue("Množství velikosti mince");
   await expect(editor.getByRole("textbox", { name: "Jak dlouho používat / nechat působit" })).toHaveValue("Masírujte 30 sekund");
-  await expect(editor.getByRole("textbox", { name: "Upozornění a omezení" })).toContainText("Vyhněte se kontaktu");
+  await expect(editor.getByRole("textbox", { name: "Upozornění a omezení" })).toHaveValue(/Vyhněte se kontaktu/);
   await expect(editor.getByRole("textbox", { name: "Frekvence podle obalu / vlastní" })).toHaveValue("2× denně");
   await editor.getByRole("button", { name: "Uložit produkt" }).click();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
