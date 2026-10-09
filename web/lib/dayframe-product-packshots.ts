@@ -71,6 +71,19 @@ async function inspect(candidate: PackshotCandidate, blob: Blob): Promise<Inspec
     const uniformity = edges ? clean / edges : 0;
     const center = ((Math.floor(canvas.height / 2) * w) + Math.floor(w / 2)) * 4;
     const centerContrast = Math.sqrt(pixelDiff(pixels, center, avg));
+    // An empty white/transparent image can score better than a real packshot.
+    // Require a visible foreground occupying part of the interior, not only
+    // a contrasting pixel at the center.
+    let foreground = 0, inner = 0;
+    for (let y = Math.floor(canvas.height * .18); y < Math.ceil(canvas.height * .82); y++) {
+      for (let x = Math.floor(w * .18); x < Math.ceil(w * .82); x++) {
+        const index = (y * w + x) * 4;
+        inner++;
+        if (pixels[index + 3] > 25 && pixelDiff(pixels, index, avg) > 40 * 40) foreground++;
+      }
+    }
+    const foregroundShare = foreground / Math.max(1, inner);
+    if (foregroundShare < .012) throw new Error("Fotografie neobsahuje rozpoznatelný produkt.");
     const uniform = cornersUniform && uniformity > .77 && centerContrast > 48 && whiteness < .8;
     const resolution = Math.min(1, Math.min(bitmap.width, bitmap.height) / 650);
     const shape = bitmap.width / Math.max(1, bitmap.height);
