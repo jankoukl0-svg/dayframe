@@ -371,6 +371,10 @@ export function HygienePage({
     const movedState = taskDraft.sourceRoutineId !== taskDraft.targetRoutineId
       ? store.records[planningKey]?.[taskDraft.sourceRoutineId]?.states[cleanTask.id]
       : undefined;
+    const movedSnapshot = movedState === "done"
+      ? store.records[planningKey]?.[taskDraft.sourceRoutineId]?.scheduledTasks
+        .find((task) => task.id === cleanTask.id)
+      : undefined;
     const routines = store.routines.map((routine) => {
       if (routine.id === taskDraft.sourceRoutineId && taskDraft.targetRoutineId !== taskDraft.sourceRoutineId) {
         return { ...routine, tasks: routine.tasks.filter((task) => task.id !== cleanTask.id) };
@@ -439,6 +443,27 @@ export function HygienePage({
           cleanTask.id,
           movedState,
         );
+        // A moved, already completed task keeps the products recorded at completion.
+        // Re-snapshotting from the live catalog would rewrite its history.
+        if (movedSnapshot) {
+          const targetRecord = nextStore.records[planningKey]?.[taskDraft.targetRoutineId];
+          if (targetRecord) {
+            nextStore = {
+              ...nextStore,
+              records: {
+                ...nextStore.records,
+                [planningKey]: {
+                  ...nextStore.records[planningKey],
+                  [taskDraft.targetRoutineId]: {
+                    ...targetRecord,
+                    scheduledTasks: targetRecord.scheduledTasks.map((task) =>
+                      task.id === cleanTask.id ? { ...task, products: movedSnapshot.products ?? [] } : task),
+                  },
+                },
+              },
+            };
+          }
+        }
       }
     }
     if (persist(nextStore)) setTaskDraft(null);
