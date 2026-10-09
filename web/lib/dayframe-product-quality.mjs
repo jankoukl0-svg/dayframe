@@ -80,7 +80,6 @@ export function safeFdaLabel(label, name, brand = "") {
     ["Nepoužívejte, pokud", ["do_not_use"]],
     ["Před použitím se poraďte s lékařem", ["ask_doctor", "ask_doctor_or_pharmacist"]],
     ["Při používání", ["when_using"]],
-    ["Přestaňte používat a kontaktujte lékaře", ["stop_use"]],
     ["Těhotenství a kojení", ["pregnancy_or_breast_feeding"]],
     ["Uchovávejte mimo dosah dětí", ["keep_out_of_reach_of_children"]],
   ].map(([title, keys]) => {
