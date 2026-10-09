@@ -551,19 +551,21 @@ export function HygienePage({
                               {productsInStep.length > 0 && (
                                 <div className="df2-hygiene-used-products">
                                   {productsInStep.map((product) => (
-                                    store.products.some((item) => item.id === product.id) ? (
-                                      <button type="button" className="df2-hygiene-used-product" key={product.id}
-                                        aria-label={"Detail produktu " + product.name}
-                                        onClick={() => { setFocusProductId(product.id); setTab("products"); }}>
-                                        <ProductPhoto photoKey={product.photoKey} name={product.name} />
-                                        <span><b>{product.name}</b>{product.instructions && <small>{product.instructions}</small>}</span>
-                                      </button>
-                                    ) : (
-                                      <span className="df2-hygiene-used-product" key={product.id}>
-                                        <ProductPhoto photoKey={product.photoKey} name={product.name} />
-                                        <span><b>{product.name} · historický záznam</b>{product.instructions && <small>{product.instructions}</small>}</span>
-                                      </span>
-                                    )
+                                    <button type="button" className="df2-hygiene-used-product" key={product.id}
+                                      aria-label={(state === "done" ? "Historický produkt " : "Detail produktu ") + product.name}
+                                      onClick={() => {
+                                        if (state === "done") {
+                                          setHistoryProductDetail({
+                                            date: planningKey, routine: summary.routine.title, task: task.title, product,
+                                          });
+                                        } else {
+                                          setFocusProductId(product.id);
+                                          setTab("products");
+                                        }
+                                      }}>
+                                      <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                                      <span><b>{product.name}</b>{product.instructions && <small>{product.instructions}</small>}</span>
+                                    </button>
                                   ))}
                                 </div>
                               )}
