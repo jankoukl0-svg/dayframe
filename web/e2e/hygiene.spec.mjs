@@ -446,3 +446,43 @@ test("numeric Hygiene schedules are normalized before persistence", async ({ pag
   await expect(page.locator(".df2-hygiene-manage-list")).toContainText("Interval rutina");
   await expect(page.locator(".df2-hygiene-manage-list")).toContainText("Měsíční rutina");
 });
+
+
+test("moving a completed task into an unscheduled routine preserves today's snapshot", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  await morning.getByRole("button", { name: "Označit Vyčistit zuby jako hotovo" }).click();
+
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const morningManage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Ranní rutina" });
+  await morningManage.getByRole("button", { name: "Vyčistit zuby Péče", exact: true }).click();
+
+  const modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Rutina", { exact: true }).selectOption("hygiene-day");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    const source = store.records?.["2026-10-06"]?.morning;
+    const destination = store.records?.["2026-10-06"]?.["hygiene-day"];
+    return {
+      sourceState: source?.states?.["morning-teeth"] ?? null,
+      sourceHasSnapshot: Boolean(source?.scheduledTasks?.some((task) => task.id === "morning-teeth")),
+      destinationState: destination?.states?.["morning-teeth"] ?? null,
+    };
+  })).toEqual({ sourceState: "done", sourceHasSnapshot: true, destinationState: null });
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  await expect(page.locator('[data-hygiene-routine="morning"]')
+    .locator(".df2-hygiene-task").filter({ hasText: "Vyčistit zuby" })
+    .getByRole("button", { name: "Vrátit Vyčistit zuby jako nesplněné" })).toBeVisible();
+  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toHaveCount(0);
+
+  await page.reload({ waitUntil: "networkidle" });
+  await openSidebar(page, "Hygiena");
+  await expect(page.locator('[data-hygiene-routine="morning"]')
+    .locator(".df2-hygiene-task").filter({ hasText: "Vyčistit zuby" })
+    .getByRole("button", { name: "Vrátit Vyčistit zuby jako nesplněné" })).toBeVisible();
+});

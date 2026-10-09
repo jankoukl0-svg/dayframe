@@ -372,18 +372,37 @@ export function HygienePage({
       return routine;
     });
     let nextStore = refreshHygieneToday({ ...store, routines }, planningKey);
-    if (
-      movedState
-      && taskDraft.sourceRoutineId !== taskDraft.targetRoutineId
-      && nextStore.records[planningKey]?.[taskDraft.targetRoutineId]?.scheduledTasks.some((task) => task.id === cleanTask.id)
-    ) {
-      nextStore = setHygieneTaskStatus(
-        nextStore,
-        planningKey,
-        taskDraft.targetRoutineId,
-        cleanTask.id,
-        movedState,
-      );
+    if (movedState && taskDraft.sourceRoutineId !== taskDraft.targetRoutineId) {
+      const destinationHasTask = nextStore.records[planningKey]?.[taskDraft.targetRoutineId]?.scheduledTasks
+        .some((task) => task.id === cleanTask.id);
+      if (destinationHasTask) {
+        const sourceRecord = nextStore.records[planningKey]?.[taskDraft.sourceRoutineId];
+        if (sourceRecord) {
+          const sourceStates = { ...sourceRecord.states };
+          delete sourceStates[cleanTask.id];
+          nextStore = {
+            ...nextStore,
+            records: {
+              ...nextStore.records,
+              [planningKey]: {
+                ...nextStore.records[planningKey],
+                [taskDraft.sourceRoutineId]: {
+                  ...sourceRecord,
+                  scheduledTasks: sourceRecord.scheduledTasks.filter((task) => task.id !== cleanTask.id),
+                  states: sourceStates,
+                },
+              },
+            },
+          };
+        }
+        nextStore = setHygieneTaskStatus(
+          nextStore,
+          planningKey,
+          taskDraft.targetRoutineId,
+          cleanTask.id,
+          movedState,
+        );
+      }
     }
     if (persist(nextStore)) setTaskDraft(null);
   };

@@ -491,12 +491,17 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
     }
 
     if (refresh) {
-      const validTaskIds = new Set(scheduledTasks.map((item) => item.id));
+      const configuredTaskIds = new Set(scheduledTasks.map((item) => item.id));
+      const preservedHandledTasks = existing.scheduledTasks.filter(
+        (item) => !configuredTaskIds.has(item.id) && Boolean(existing.states[item.id]),
+      );
+      const nextScheduledTasks = [...scheduledTasks, ...preservedHandledTasks];
+      const validTaskIds = new Set(nextScheduledTasks.map((item) => item.id));
       const states = Object.fromEntries(Object.entries(existing.states).filter(([taskId]) => validTaskIds.has(taskId)));
       const next = {
         ...existing,
         routineTitle: routine.title,
-        scheduledTasks,
+        scheduledTasks: nextScheduledTasks,
         states,
         archived: undefined,
       };
