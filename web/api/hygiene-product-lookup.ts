@@ -486,8 +486,14 @@ async function photoCandidates(name: string, brand: string, original: string, or
   }
   for (const item of pages) {
     if (!productPageIsRelevant(item.name, name)) continue;
-    const b = item.brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
-    if (selectedBrand && b && !b.includes(selectedBrand) && !selectedBrand.includes(b)) continue;
+    const normalize = (value: string) => value.toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+    const b = normalize(item.brand);
+    const makerDomain = normalize(new URL(item.sourceUrl).hostname);
+    const title = normalize(item.name);
+    const confirmedBrand = b ? (b.includes(selectedBrand) || selectedBrand.includes(b))
+      : (makerDomain.includes(selectedBrand) || title.includes(selectedBrand));
+    if (selectedBrand && !confirmedBrand) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
   }
   if (html) {
