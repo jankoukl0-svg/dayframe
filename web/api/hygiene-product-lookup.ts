@@ -490,7 +490,8 @@ async function photoCandidates(name: string, brand: string, original: string, or
   }
   if (html) {
     const parsed = fromHtml(html, original);
-    if (parsed && productPageIsRelevant(parsed.name, name))
+    if (parsed && productPageIsRelevant(parsed.name, name)
+      && productBrandMatches(brand, parsed.brand, parsed.name, new URL(original).hostname))
       for (const img of imageSourcesFromHtml(html, original, name)) add(img);
   }
   const prioritized = results.map(candidate => ({
