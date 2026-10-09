@@ -8,7 +8,7 @@ import { isIP } from "node:net";
 import { extractGuideFromHtml, extractGuideFromCatalog } from "../lib/dayframe-product-guide-extract.mjs";
 import { manufacturerGuideFor } from "../lib/dayframe-manufacturer-guide.mjs";
 import { isCatalogBoilerplate, usefulDescription, safeFdaLabel } from "../lib/dayframe-product-quality.mjs";
-import { bingRssResults, duckDuckGoResults, productPageIsRelevant, rankProductLinks } from "../lib/dayframe-product-discovery.mjs";
+import { bingRssResults, duckDuckGoResults, productBrandMatches, productPageIsRelevant, rankProductLinks } from "../lib/dayframe-product-discovery.mjs";
 
 type Match = {
   name: string; brand: string; category: string; description: string;
@@ -480,25 +480,18 @@ async function photoCandidates(name: string, brand: string, original: string, or
   for (const item of catalog) {
     // Only the right product and concentration/variant may provide a packshot.
     if (!productPageIsRelevant(item.name, name)) continue;
-    const b = item.brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]/gu,"");
-    if (selectedBrand && b && !b.includes(selectedBrand) && !selectedBrand.includes(b)) continue;
+    if (selectedBrand && !productBrandMatches(brand, item.brand, item.name, new URL(item.sourceUrl).hostname)) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 14});
   }
   for (const item of pages) {
     if (!productPageIsRelevant(item.name, name)) continue;
-    const normalize = (value: string) => value.toLowerCase().normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]/gu,"");
-    const b = normalize(item.brand);
-    const makerDomain = normalize(new URL(item.sourceUrl).hostname);
-    const title = normalize(item.name);
-    const confirmedBrand = b ? (b.includes(selectedBrand) || selectedBrand.includes(b))
-      : (makerDomain.includes(selectedBrand) || title.includes(selectedBrand));
-    if (selectedBrand && !confirmedBrand) continue;
+    if (selectedBrand && !productBrandMatches(brand, item.brand, item.name, new URL(item.sourceUrl).hostname)) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
   }
   if (html) {
     const parsed = fromHtml(html, original);
-    if (parsed && productPageIsRelevant(parsed.name, name))
+    if (parsed && productPageIsRelevant(parsed.name, name)
+      && productBrandMatches(brand, parsed.brand, parsed.name, new URL(original).hostname))
       for (const img of imageSourcesFromHtml(html, original, name)) add(img);
   }
   const prioritized = results.map(candidate => ({
