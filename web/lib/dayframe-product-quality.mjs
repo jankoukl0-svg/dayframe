@@ -50,7 +50,6 @@ export function safeFdaLabel(label, name, brand = "") {
   if (!label || typeof label !== "object") return null;
   const obj = label;
   const openfda = obj.openfda || {};
-  const input = (name + " " + brand).toLowerCase();
   const tokenized = (v) => String(v).toLowerCase().normalize("NFKD")
     .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
   const labelName = tokenized([...openfda.brand_name || [], ...openfda.generic_name || [],
