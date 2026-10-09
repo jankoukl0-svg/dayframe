@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
+import { HygieneProducts, ProductPhoto } from "./hygiene-products";
 import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
@@ -25,7 +26,7 @@ import {
   type HygieneTaskDefinition,
 } from "@/lib/dayframe-hygiene";
 
-type HygieneTab = "today" | "history" | "manage";
+type HygieneTab = "today" | "history" | "manage" | "products";
 
 const WEEKDAYS = [
   { value: 1, label: "Po" },
@@ -260,6 +261,7 @@ export function HygienePage({
   const [monthKey, setMonthKey] = useState(() => monthKeyFromPlanningKey(planningKey));
   const [routineDraft, setRoutineDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [taskDraft, setTaskDraft] = useState<{ sourceRoutineId: string; targetRoutineId: string; task: HygieneTaskDefinition } | null>(null);
+  const [focusProductId, setFocusProductId] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -472,6 +474,7 @@ export function HygienePage({
         <button type="button" role="tab" aria-selected={tab === "today"} onClick={() => setTab("today")}>Dnes</button>
         <button type="button" role="tab" aria-selected={tab === "history"} onClick={() => setTab("history")}>Historie</button>
         <button type="button" role="tab" aria-selected={tab === "manage"} onClick={() => setTab("manage")}>Správa rutin</button>
+        <button type="button" role="tab" aria-selected={tab === "products"} onClick={() => { setTab("products"); setFocusProductId(null); }}>Moje produkty</button>
       </div>
 
       {(blocked || error) && <p className="df2-hygiene-error">{blocked ? "Data Hygieny nelze bezpečně načíst. Ukládání je vypnuté." : error}</p>}
@@ -523,6 +526,25 @@ export function HygienePage({
                             </button>
                             <div>
                               <strong>{task.title}</strong>
+                              {(task.products ?? []).length > 0 && (
+                                <div className="df2-hygiene-used-products">
+                                  {task.products?.map((product) => (
+                                    store.products.some((item) => item.id === product.id) ? (
+                                      <button type="button" className="df2-hygiene-used-product" key={product.id}
+                                        aria-label={"Detail produktu " + product.name}
+                                        onClick={() => { setFocusProductId(product.id); setTab("products"); }}>
+                                        <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                                        <span><b>{product.name}</b>{product.instructions && <small>{product.instructions}</small>}</span>
+                                      </button>
+                                    ) : (
+                                      <span className="df2-hygiene-used-product" key={product.id}>
+                                        <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                                        <span><b>{product.name} · historický záznam</b>{product.instructions && <small>{product.instructions}</small>}</span>
+                                      </span>
+                                    )
+                                  ))}
+                                </div>
+                              )}
                               {task.optional && <small>Volitelné · nezablokuje dokončení</small>}
                               {state === "skipped" && <small>Není potřeba</small>}
                             </div>
@@ -551,6 +573,11 @@ export function HygienePage({
             </div>
           )}
         </div>
+      )}
+
+      {tab === "products" && (
+        <HygieneProducts store={store} onSave={persist} focusProductId={focusProductId}
+          onFocusHandled={() => setFocusProductId(null)} />
       )}
 
       {tab === "history" && (
@@ -785,6 +812,49 @@ export function HygienePage({
                 onChange={(schedule) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, schedule } })}
               />
             )}
+            <div className="df2-hygiene-task-products">
+              <strong>Produkty používané v tomto kroku</strong>
+              {(taskDraft.task.productIds ?? []).map((id, index) => {
+                const product = store.products.find((item) => item.id === id);
+                if (!product) return null;
+                const ids = taskDraft.task.productIds ?? [];
+                return (
+                  <div className="df2-hygiene-task-product-editor" key={id}>
+                    <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                    <select aria-label={"Nahradit produkt " + product.name} value={id} onChange={(event) => {
+                      const nextIds = [...ids];
+                      const replacement = event.target.value;
+                      if (ids.includes(replacement)) nextIds.splice(index, 1);
+                      else nextIds[index] = replacement;
+                      setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: nextIds } });
+                    }}>
+                      <option value={id}>{product.name}</option>
+                      {store.products.filter((item) => !item.archived && !ids.includes(item.id))
+                        .map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+                    </select>
+                    <button type="button" aria-label={"Posunout produkt " + product.name + " nahoru"} disabled={index === 0}
+                      onClick={() => { const next = [...ids]; [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: next } }); }}>↑</button>
+                    <button type="button" aria-label={"Posunout produkt " + product.name + " dolů"} disabled={index === ids.length - 1}
+                      onClick={() => { const next = [...ids]; [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                        setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: next } }); }}>↓</button>
+                    <button type="button" aria-label={"Odebrat produkt " + product.name} onClick={() =>
+                      setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: ids.filter((item) => item !== id) } })}>×</button>
+                  </div>
+                );
+              })}
+              <select aria-label="Přidat produkt k úkolu" value="" onChange={(event) => {
+                if (!event.target.value) return;
+                setTaskDraft({ ...taskDraft, task: {
+                  ...taskDraft.task,
+                  productIds: [...(taskDraft.task.productIds ?? []), event.target.value],
+                } });
+              }}>
+                <option value="">+ Přiřadit produkt z knihovny</option>
+                {store.products.filter((item) => !item.archived && !(taskDraft.task.productIds ?? []).includes(item.id))
+                  .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
             <div className="df2-hygiene-task-options">
               <label><input type="checkbox" checked={taskDraft.task.active} onChange={(event) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, active: event.target.checked } })} /> Aktivní</label>
               <label><input type="checkbox" checked={taskDraft.task.optional} onChange={(event) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, optional: event.target.checked } })} /> Volitelné</label>
