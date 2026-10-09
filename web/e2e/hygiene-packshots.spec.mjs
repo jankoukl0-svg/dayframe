@@ -74,6 +74,7 @@ test("new product chooses a white studio packshot over a dark image from the sam
   expect(preview.corner.every(value => value >= 240)).toBe(true);
   expect(preview.center[2]).toBeGreaterThan(preview.center[0] * 1.5);
   await dialog.getByRole("button", { name: "Uložit produkt" }).click();
+  await expect(dialog).toHaveCount(0);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
   expect(saved.photoKey).toBeTruthy();
 });
@@ -110,6 +111,7 @@ test("existing uploaded photo is not replaced silently, explicit refresh replace
   });
   await expect(dialog.locator(".df2-packshot-notice")).toContainText("nahraná fotografie");
   await dialog.getByRole("button", { name: "Uložit produkt" }).click();
+  await expect(dialog).toHaveCount(0);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
   await page.locator(".df2-product-card").filter({ hasText: "Special Hand Lotion" }).click();
   await page.getByRole("dialog", { name: /Detail produktu/ }).getByRole("button", { name: "Upravit" }).click();
@@ -129,6 +131,7 @@ test("existing uploaded photo is not replaced silently, explicit refresh replace
   const stillSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
   expect(stillSaved.photoKey).toBe(saved.photoKey);
   await edit.getByRole("button", { name: "Uložit produkt" }).click();
+  await expect(edit).toHaveCount(0);
   const newSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
   expect(newSaved.photoKey).not.toBe(saved.photoKey);
 });
