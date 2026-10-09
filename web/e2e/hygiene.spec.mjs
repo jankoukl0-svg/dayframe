@@ -746,3 +746,33 @@ test("archiving unlinks active product without removing historical completion", 
   expect(saved.records["2026-10-06"].morning.states["morning-spf"]).toBe("done");
   expect(saved.records["2026-10-06"].morning.scheduledTasks.find((t) => t.id === "morning-spf").products[0].name).toBe("Starý krém");
 });
+
+
+test("scheduled days do not duplicate product instructions; completed steps retain historical details", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const store = JSON.parse(localStorage.getItem(key));
+    store.products = [{
+      id: "long-instructions", name: "Testovací gel", brand: "", category: "Pleť",
+      description: "", instructions: "N".repeat(3000), frequency: "", openedOn: "",
+      expiresOn: "", paoMonths: null, amount: "", stockStatus: "ok",
+      shopUrl: "", archived: false,
+    }];
+    store.routines.find((r) => r.id === "morning").tasks.find((t) => t.id === "morning-face").productIds = ["long-instructions"];
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  const face = page.locator('[data-hygiene-routine="morning"] .df2-hygiene-task').filter({ hasText: "Očistit obličej" });
+  await expect(face).toContainText("Testovací gel");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1"))
+    .records["2026-10-06"].morning.scheduledTasks.find((t) => t.id === "morning-face").products?.length ?? 0)).toBe(0);
+  await face.getByRole("button", { name: "Označit Očistit obličej jako hotovo" }).click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1"))
+    .records["2026-10-06"].morning.scheduledTasks.find((t) => t.id === "morning-face").products[0].instructions.length)).toBe(3000);
+  await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  const data = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(data.records["2026-10-07"].morning.scheduledTasks.find((t) => t.id === "morning-face").products?.length ?? 0).toBe(0);
+});
