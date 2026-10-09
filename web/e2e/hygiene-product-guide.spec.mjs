@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { extractGuideFromHtml, extractGuideFromCatalog } from "./dayframe-product-guide-extract.mjs";
+import { manufacturerGuideFor } from "./dayframe-manufacturer-guide.mjs";
 
 const ROOT = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
 
@@ -99,5 +100,70 @@ test("selecting a catalog match enriches all six fields from a labelled guide wh
     usageDuration: "Masírujte 30 sekund",
     precautions: "Vyhněte se kontaktu s očima.",
     frequency: "2× denně",
+  });
+});
+
+
+test("sparse catalog CeraVe SA Smoothing Cleanser uses verified manufacturer guide", () => {
+  for (const name of ["SA Smoothing Cleanser", "Cleansers SA Smoothing Cleanser", "CeraVe SA Smoothing Cleanser 236 ml"]) {
+    const match = manufacturerGuideFor("CeraVe", name, "3337875795456");
+    expect(match).not.toBeNull();
+    expect(match.description).toMatch(/čisticí gel/i);
+    expect(match.instructions).toContain("Navlhčete pokožku");
+    expect(match.instructions).toContain("Opláchněte");
+    expect(match.usageAmount).toMatch(/mince/i);
+    expect(match.usageDuration).toContain("Několik sekund");
+    expect(match.precautions).toContain("specifická opatření");
+    expect(match.sourceUrls).toContain("https://www.cerave.cz/pece-o-plet/hydratacni-pripravky/zjemnujici-cistici-gel");
+  }
+  expect(manufacturerGuideFor("Other brand", "SA Smoothing Cleanser")).toBeNull();
+  expect(manufacturerGuideFor("CeraVe", "SA Smoothing Cream")).toBeNull();
+  expect(manufacturerGuideFor("CeraVe", "Renewing SA Cleanser")).toBeNull();
+  expect(manufacturerGuideFor("CeraVe", "Foaming Cleanser")).toBeNull();
+});
+
+test("real sparse catalog result now fills description and guide after selecting the correct product", async ({ page }) => {
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const official = manufacturerGuideFor("CeraVe", "SA Smoothing Cleanser", "3337875795456");
+    if (params.get("mode") === "guide") {
+      return route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ guide: official, description: official.description, sourceUrl: official.sourceUrl, sourceUrls: official.sourceUrls }) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ matches: [{
+        name: "SA Smoothing Cleanser", brand: "CeraVe", category: "Pleť",
+        description: official.description, instructions: official.instructions,
+        usageWhen: official.usageWhen, usageAmount: official.usageAmount,
+        usageDuration: official.usageDuration, precautions: official.precautions,
+        frequency: official.frequency, amount: "236 ml", imageUrl: "",
+        sourceUrl: "https://world.openbeautyfacts.org/product/3337875795456",
+        sourceLabel: "Open Beauty Facts", guideSourceUrl: official.sourceUrl,
+        guideSourceUrls: official.sourceUrls, priceCzk: null,
+      }], notice: "Výsledky z Open Beauty Facts." }) });
+  });
+  await page.clock.setFixedTime(new Date("2026-10-09T12:00:00"));
+  await page.goto(ROOT, { waitUntil: "networkidle" });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Hygiena" }).click();
+  await page.getByRole("tab", { name: "Moje produkty" }).click();
+  await page.getByRole("button", { name: "+ Přidat produkt" }).click();
+  const editor = page.getByRole("dialog", { name: "Editor produktu" });
+  await editor.getByRole("textbox", { name: "Název nebo odkaz na produkt" }).fill("Cleansers SA Smoothing Cleanser");
+  await editor.getByRole("button", { name: "Vyhledat a doplnit" }).click();
+  await editor.getByRole("button", { name: "Použít tento produkt" }).click();
+  await expect(editor.getByRole("textbox", { name: "Popis a účel" })).toHaveValue(/čisticí gel/);
+  await expect(editor.getByRole("textbox", { name: "Návod k použití" })).toHaveValue(/Navlhčete pokožku/);
+  await expect(editor.getByRole("textbox", { name: "Množství na jedno použití" })).toHaveValue(/mince/);
+  await expect(editor.getByRole("textbox", { name: "Jak dlouho používat \/ nechat působit" })).toHaveValue(/Několik sekund/);
+  await expect(editor.getByRole("textbox", { name: "Upozornění a omezení" })).toHaveValue(/specifická opatření/);
+  await expect(editor).toContainText("cerave.cz");
+  await editor.getByRole("button", { name: "Uložit produkt" }).click();
+  const data = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(data.products.find((item) => item.name === "SA Smoothing Cleanser")).toMatchObject({
+    instructions: expect.stringContaining("Navlhčete"),
+    usageAmount: expect.stringContaining("mince"),
+    stockCount: null, openedOn: "", expiresOn: "",
   });
 });

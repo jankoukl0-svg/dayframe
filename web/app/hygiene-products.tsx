@@ -26,6 +26,7 @@ type ProductLookupMatch = {
   precautions?: string;
   frequency?: string;
   guideSourceUrl?: string;
+  guideSourceUrls?: string[];
   amount: string;
   priceCzk: number | null;
   imageUrl: string;
@@ -239,9 +240,15 @@ export function HygieneProducts({
       priceCzk: current.priceCzk ?? match.priceCzk ?? null,
       shopUrl: enteredLink || current.shopUrl,
     }, match) : current);
-    setLookupSource(match.sourceLabel + " · " + match.sourceUrl);
+    const guideSources = Array.isArray(match.guideSourceUrls) ? match.guideSourceUrls.filter(Boolean) : [];
+    setLookupSource(guideSources.length ? "Pokyny výrobce: " + guideSources.join(" · ")
+      + " | Katalogový záznam: " + match.sourceUrl
+      : (match.guideSourceUrl ? "Pokyny: " + match.guideSourceUrl + " | Produkt: " + match.sourceUrl
+        : match.sourceLabel + " · " + match.sourceUrl));
     setLookupMatches([]);
-    setLookupNotice("Základní údaje jsou předvyplněné. Dohledávám ještě návod a upozornění výrobce…");
+    setLookupNotice(match.instructions && match.description
+      ? "Popis a dostupné pokyny výrobce jsou předvyplněné. Ověř je podle obalu před uložením."
+      : "Základní údaje jsou předvyplněné. Dohledávám ještě návod a upozornění výrobce…");
     setLookupError("");
 
     setLookupImporting(true);
@@ -258,12 +265,17 @@ export function HygieneProducts({
           });
           if (response.ok && response.headers.get("content-type")?.includes("application/json")) {
             const result = await response.json() as {
-              guide?: Partial<ProductLookupMatch>; sourceUrl?: string;
+              guide?: Partial<ProductLookupMatch>; description?: string; sourceUrl?: string; sourceUrls?: string[];
             };
             if (result.guide) {
               setDraft((current) => current && current.id === draftId
-                ? applyVerified(current, result.guide!) : current);
-              if (result.sourceUrl) setLookupSource("Návod: " + result.sourceUrl + " · produkt: " + match.sourceUrl);
+                ? applyVerified({
+                    ...current, description: current.description.trim()
+                      || (result.description || "").slice(0, 3000),
+                  }, result.guide!) : current);
+              if (result.sourceUrls?.length) setLookupSource("Pokyny výrobce: "
+                + result.sourceUrls.join(" · ") + " | Produkt: " + match.sourceUrl);
+              else if (result.sourceUrl) setLookupSource("Návod: " + result.sourceUrl + " · produkt: " + match.sourceUrl);
             }
           }
         } catch { /* product may be unavailable on manufacturer sites; keep known fields */ }
