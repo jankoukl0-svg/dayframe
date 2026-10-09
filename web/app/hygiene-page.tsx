@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 import { HygieneProducts, ProductPhoto } from "./hygiene-products";
+import { HygieneTaskTimer, ProductCareGuide } from "./hygiene-care-guide";
 import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
@@ -524,8 +525,17 @@ export function HygienePage({
           </div>
 
           {summaries.length ? summaries.map((summary) => {
-            const sections = [...new Set(summary.record.scheduledTasks.map((task) => task.section))];
-            const hasMonthly = sections.includes("Měsíční péče");
+            // Group only consecutive steps: manual up/down ordering remains exact,
+            // even if a step moves across section boundaries.
+            const groups = summary.record.scheduledTasks.reduce<Array<{
+              section: string; tasks: typeof summary.record.scheduledTasks;
+            }>>((items, task) => {
+              const previous = items[items.length - 1];
+              if (previous?.section === task.section) previous.tasks.push(task);
+              else items.push({ section: task.section, tasks: [task] });
+              return items;
+            }, []);
+            const hasMonthly = groups.some((group) => group.section === "Měsíční péče");
             return (
               <article
                 className={"df2-hygiene-routine " + (summary.status === "complete" ? "is-complete" : "")}
@@ -545,11 +555,11 @@ export function HygienePage({
                   </div>
                 </header>
 
-                {sections.map((section) => (
-                  <section className="df2-hygiene-task-group" key={section}>
-                    <h3>{section}</h3>
+                {groups.map((group, groupIndex) => (
+                  <section className="df2-hygiene-task-group" key={group.section + groupIndex}>
+                    <h3>{group.section}</h3>
                     <div>
-                      {summary.record.scheduledTasks.filter((task) => task.section === section).map((task) => {
+                      {group.tasks.map((task) => {
                         const state = summary.record.states[task.id];
                         const definition = summary.routine.tasks.find((item) => item.id === task.id);
                         const productsInStep = state === "done" ? (task.products ?? [])
@@ -557,7 +567,10 @@ export function HygienePage({
                             const product = store.products.find((item) => item.id === id && !item.archived);
                             return product ? [{
                               id: product.id, name: product.name, brand: product.brand,
-                              instructions: product.instructions, photoKey: product.photoKey,
+                              instructions: product.instructions,
+                              usageWhen: product.usageWhen, usageAmount: product.usageAmount,
+                              usageDuration: product.usageDuration, frequency: product.frequency,
+                              precautions: product.precautions, photoKey: product.photoKey,
                             }] : [];
                           }) : (task.products ?? []);
                         return (
@@ -576,23 +589,30 @@ export function HygienePage({
                               {productsInStep.length > 0 && (
                                 <div className="df2-hygiene-used-products">
                                   {productsInStep.map((product) => (
-                                    <button type="button" className="df2-hygiene-used-product" key={product.id}
-                                      aria-label={(state === "done" ? "Historický produkt " : "Detail produktu ") + product.name}
-                                      onClick={() => {
-                                        if (state === "done") {
-                                          setHistoryProductDetail({
-                                            date: planningKey, routine: summary.routine.title, task: task.title, product,
-                                          });
-                                        } else {
-                                          setFocusProductId(product.id);
-                                          setTab("products");
-                                        }
-                                      }}>
-                                      <ProductPhoto photoKey={product.photoKey} name={product.name} />
-                                      <span><b>{product.name}</b>{product.instructions && <small>{product.instructions}</small>}</span>
-                                    </button>
+                                    <div className="df2-hygiene-used-product-entry" key={product.id}>
+                                      <button type="button" className="df2-hygiene-used-product"
+                                        aria-label={(state === "done" ? "Historický produkt " : "Detail produktu ") + product.name}
+                                        onClick={() => {
+                                          if (state === "done") {
+                                            setHistoryProductDetail({
+                                              date: planningKey, routine: summary.routine.title, task: task.title, product,
+                                            });
+                                          } else {
+                                            setFocusProductId(product.id);
+                                            setTab("products");
+                                          }
+                                        }}>
+                                        <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                                        <span><b>{product.name}</b></span>
+                                      </button>
+                                      <ProductCareGuide product={product} />
+                                    </div>
                                   ))}
                                 </div>
+                              )}
+                              {definition?.timerSeconds && (
+                                <HygieneTaskTimer key={planningKey + ":" + task.id}
+                                  seconds={definition.timerSeconds} taskTitle={task.title} />
                               )}
                               {task.optional && <small>Volitelné · nezablokuje dokončení</small>}
                               {state === "skipped" && <small>Není potřeba</small>}
@@ -839,7 +859,11 @@ export function HygienePage({
                 <p><strong>Datum:</strong> {historyProductDetail.date}</p>
                 <p><strong>Rutina:</strong> {historyProductDetail.routine}</p>
                 <p><strong>Dokončený krok:</strong> {historyProductDetail.task}</p>
-                <p><strong>Zaznamenaný návod:</strong> {historyProductDetail.product.instructions || "Nebyl zadán."}</p>
+                <ProductCareGuide product={historyProductDetail.product} />
+                {!historyProductDetail.product.instructions && !historyProductDetail.product.usageWhen
+                  && !historyProductDetail.product.usageAmount && !historyProductDetail.product.usageDuration
+                  && !historyProductDetail.product.frequency && !historyProductDetail.product.precautions
+                  && <p>Pokyny při dokončení nebyly zadány.</p>}
                 <p>Tyto údaje odpovídají okamžiku dokončení, nikoli dnešnímu stavu produktu.</p>
               </div>
             </div>
@@ -912,6 +936,18 @@ export function HygienePage({
                 onChange={(schedule) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, schedule } })}
               />
             )}
+            <label className="df2-hygiene-timer-setting">
+              Volitelný časovač (minuty)
+              <input aria-label="Časovač úkolu v minutách" type="number" step="0.25" min="0.25" max="120"
+                placeholder="Bez časovače" value={taskDraft.task.timerSeconds ? taskDraft.task.timerSeconds / 60 : ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const timerSeconds = value ? Math.max(15, Math.min(7200, Math.round(Number(value) * 60 / 15) * 15)) : undefined;
+                  setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, timerSeconds } });
+                }}
+              />
+              <small>Časovač neovlivňuje dokončení úkolu. Délku si určuješ sám podle známých pokynů.</small>
+            </label>
             <div className="df2-hygiene-task-products">
               <strong>Produkty používané v tomto kroku</strong>
               {(taskDraft.task.productIds ?? []).map((id, index) => {
