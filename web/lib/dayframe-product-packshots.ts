@@ -16,6 +16,8 @@ export type PackshotResult = {
 const ENDPOINT = "/api/hygiene-product-lookup";
 const MAX_BYTES = 6 * 1024 * 1024;
 
+class EmptyPackshotError extends Error {}
+
 const imageExtensions = (type: string) => type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
 const sq = (a: number, b: number) => (a - b) ** 2;
 const pixelDiff = (data: Uint8ClampedArray, offset: number, rgb: number[]) =>
@@ -71,6 +73,22 @@ async function inspect(candidate: PackshotCandidate, blob: Blob): Promise<Inspec
     const uniformity = edges ? clean / edges : 0;
     const center = ((Math.floor(canvas.height / 2) * w) + Math.floor(w / 2)) * 4;
     const centerContrast = Math.sqrt(pixelDiff(pixels, center, avg));
+    // Reject blank white/transparent uploads. A good packshot has a visible
+    // foreground object: enough non-white, non-transparent pixels, not just
+    // a near-white rectangle with high resolution.
+    let subject = 0;
+    const total = w * canvas.height;
+    for (let i = 0; i < total; i++) {
+      const offset = i * 4;
+      if (pixels[offset + 3] > 45
+        && (pixels[offset] < 227 || pixels[offset + 1] < 227 || pixels[offset + 2] < 227))
+        subject++;
+    }
+    const subjectRatio = subject / Math.max(1, total);
+    if (whiteness > .86 && subjectRatio < .006)
+      throw new EmptyPackshotError("Bílý obrázek neobsahuje rozpoznatelný produkt.");
+    if (cornersUniform && whiteness < .8 && centerContrast < 20)
+      throw new EmptyPackshotError("Jednolitý obrázek neobsahuje produkt.");
     const uniform = cornersUniform && uniformity > .77 && centerContrast > 48 && whiteness < .8;
     const resolution = Math.min(1, Math.min(bitmap.width, bitmap.height) / 650);
     const shape = bitmap.width / Math.max(1, bitmap.height);
@@ -164,7 +182,10 @@ export async function findBestProductPackshot(candidates: PackshotCandidate[]): 
         if (!["image/jpeg", "image/png", "image/webp"].includes(blob.type)
           || blob.size < 30 || blob.size > MAX_BYTES) return null;
         try { return await inspect(candidate, blob); }
-        catch {
+        catch (error) {
+          if (error instanceof EmptyPackshotError) return null;
+          // A real image can fail decoding on older browsers: keep it only
+          // as a last-resort fallback, never as a preferred white packshot.
           fallback ??= { blob, source: candidate.source };
           return null;
         }
