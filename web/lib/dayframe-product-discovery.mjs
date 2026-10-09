@@ -58,7 +58,8 @@ export function cleanIndexedUrl(raw) {
       const redirected = url.searchParams.get("uddg");
       if (redirected) url = new URL(redirected);
     }
-    if (url.protocol !== "https:" || url.username || url.password || url.port || !url.hostname.includes(".")) return "";
+    if (url.protocol !== "https:" || url.username || url.password || url.port || !url.hostname.includes(".")
+      || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname) || url.hostname.includes(":")) return "";
     const hostname = url.hostname.toLowerCase();
     if (hostname === "localhost" || hostname.endsWith(".localhost")
       || /(^|\.)((bing|google|duckduckgo|yahoo|yandex|baidu)\.com)$/.test(hostname)
