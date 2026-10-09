@@ -33,12 +33,24 @@ test("product guidance is configured in the catalog, follows the assigned step, 
   await page.getByRole("tab", { name: "Dnes" }).click();
   const morning = page.locator('[data-hygiene-routine="morning"]');
   const step = morning.locator(".df2-hygiene-task").filter({ hasText: "Očistit obličej" });
-  const instructions = step.locator(".df2-care-guide");
+  // Checklist defaults to a short preview; long usage and warnings are hidden.
+  const compact = step.locator(".df2-routine-product-guide");
+  const more = compact.getByRole("button", { name: "Více o produktu Můj čisticí gel" });
+  await expect(compact.locator(".df2-routine-product-summary")).toHaveText("Použij jemně.");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(compact.locator(".df2-care-guide")).toHaveCount(0);
+  await expect(step).not.toContainText("Pozor na oči.");
+  await expect(step).not.toContainText("Podle vlastního návodu");
+  await more.click();
+  await expect(compact.getByRole("button", { name: "Skrýt podrobnosti produktu Můj čisticí gel" })).toHaveAttribute("aria-expanded", "true");
+  const instructions = compact.locator(".df2-care-guide");
   await expect(instructions).toContainText("Použij jemně.");
   await expect(instructions).toContainText("Při ranní péči");
   await expect(instructions).toContainText("Podle vlastního návodu");
   await expect(instructions).toContainText("Dle etikety");
   await expect(instructions).toContainText("Pozor na oči.");
+  await compact.getByRole("button", { name: "Skrýt podrobnosti produktu Můj čisticí gel" }).click();
+  await expect(instructions).toHaveCount(0);
   await expect(morning.locator(".df2-hygiene-check")).toHaveCount(6);
   await step.getByRole("button", { name: "Označit Očistit obličej jako hotovo" }).click();
   const before = await page.evaluate(() => {
@@ -59,7 +71,11 @@ test("product guidance is configured in the catalog, follows the assigned step, 
   await expect(historic).not.toContainText("Později změněné upozornění.");
   await page.reload({ waitUntil: "networkidle" });
   await hygiene(page);
-  await expect(page.locator('[data-hygiene-routine="morning"]')).toContainText("Pozor na oči.");
+  const refreshedStep = page.locator('[data-hygiene-routine="morning"] .df2-hygiene-task')
+    .filter({ hasText: "Očistit obličej" });
+  await expect(refreshedStep.locator(".df2-care-guide")).toHaveCount(0);
+  await refreshedStep.getByRole("button", { name: "Více o produktu Můj čisticí gel" }).click();
+  await expect(refreshedStep.locator(".df2-care-guide")).toContainText("Pozor na oči.");
 });
 
 test("existing product data loads unchanged, multiple products keep order, and steps do not regroup across sections", async ({ page }) => {
@@ -88,6 +104,14 @@ test("existing product data loads unchanged, multiple products keep order, and s
   expect(sections.slice(0, 3)).toEqual(["A", "B", "A"]);
   const face = morning.locator(".df2-hygiene-task").filter({ hasText: "Očistit obličej" });
   expect(await face.locator(".df2-hygiene-used-product b").allTextContents()).toEqual(["Gel B", "Gel A"]);
+  // Each product has its own independent disclosure with no extra checklist items.
+  const previews = face.locator(".df2-routine-product-summary");
+  await expect(previews).toHaveCount(2);
+  await expect(face.locator(".df2-care-guide")).toHaveCount(0);
+  await face.getByRole("button", { name: "Více o produktu Gel B" }).click();
+  await expect(face.locator(".df2-care-guide")).toHaveCount(1);
+  await expect(face.getByRole("button", { name: "Více o produktu Gel A" })).toHaveAttribute("aria-expanded", "false");
+  await expect(face.locator(".df2-hygiene-check")).toHaveCount(1);
   await face.getByRole("button", { name: "Označit Očistit obličej jako hotovo" }).click();
   const payload = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   expect(payload.records["2026-10-06"].morning.scheduledTasks.find((t) => t.id === "morning-face")
