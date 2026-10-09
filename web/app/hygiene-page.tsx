@@ -21,6 +21,7 @@ import {
   setHygieneTaskStatus,
   toggleManualRoutine,
   type HygieneRoutineDefinition,
+  type HygieneProductSnapshot,
   type HygieneSchedule,
   type HygieneStore,
   type HygieneTaskDefinition,
@@ -262,6 +263,9 @@ export function HygienePage({
   const [routineDraft, setRoutineDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [taskDraft, setTaskDraft] = useState<{ sourceRoutineId: string; targetRoutineId: string; task: HygieneTaskDefinition } | null>(null);
   const [focusProductId, setFocusProductId] = useState<string | null>(null);
+  const [historyProductDetail, setHistoryProductDetail] = useState<{
+    date: string; routine: string; task: string; product: HygieneProductSnapshot;
+  } | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -685,12 +689,13 @@ export function HygienePage({
                       <span><strong>{product.name}</strong><small>{date} · {routine} · {task}</small></span>
                     </>
                   );
-                  const exists = store.products.some((item) => item.id === product.id);
-                  return exists ? (
-                    <button type="button" key={date + task + product.id + index} onClick={() => {
-                      setFocusProductId(product.id); setTab("products");
-                    }}>{label}</button>
-                  ) : <div key={date + task + product.id + index}>{label}</div>;
+                  return (
+                    <button type="button" key={date + task + product.id + index}
+                      aria-label={"Historický produkt " + product.name}
+                      onClick={() => setHistoryProductDetail({ date, routine, task, product })}>
+                      {label}
+                    </button>
+                  );
                 })}
               </div>
             </section>
@@ -783,6 +788,35 @@ export function HygienePage({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {historyProductDetail && (
+        <div className="df2-modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setHistoryProductDetail(null);
+        }}>
+          <section role="dialog" aria-modal="true"
+            aria-label={"Historický produkt " + historyProductDetail.product.name}
+            className="df2-modal df2-product-dialog">
+            <header>
+              <div><h2>{historyProductDetail.product.name}</h2>
+                <small>{historyProductDetail.product.brand || "Bez značky"} · Historický záznam</small>
+              </div>
+              <button type="button" aria-label="Zavřít historický produkt"
+                onClick={() => setHistoryProductDetail(null)}>×</button>
+            </header>
+            <div className="df2-product-detail-hero">
+              <ProductPhoto photoKey={historyProductDetail.product.photoKey}
+                name={historyProductDetail.product.name} large />
+              <div>
+                <p><strong>Datum:</strong> {historyProductDetail.date}</p>
+                <p><strong>Rutina:</strong> {historyProductDetail.routine}</p>
+                <p><strong>Dokončený krok:</strong> {historyProductDetail.task}</p>
+                <p><strong>Zaznamenaný návod:</strong> {historyProductDetail.product.instructions || "Nebyl zadán."}</p>
+                <p>Tyto údaje odpovídají okamžiku dokončení, nikoli dnešnímu stavu produktu.</p>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
