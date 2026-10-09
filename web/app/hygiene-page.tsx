@@ -12,6 +12,7 @@ import {
   loadHygieneStore,
   overallHygieneProgress,
   refreshHygieneToday,
+  routineScheduledOnDate,
   routineStats,
   saveHygieneStore,
   scheduleLabel,
@@ -423,7 +424,7 @@ export function HygienePage({
               >
                 <header>
                   <div>
-                    <span>{scheduleLabel(summary.routine.schedule)}</span>
+                    <span>{routineScheduledOnDate(store, summary.routine, planningKey) ? scheduleLabel(summary.routine.schedule) : "Vlastní frekvence úkolu"}</span>
                     <h2>{summary.routine.title}{hasMonthly ? <em>+</em> : null}</h2>
                     {hasMonthly && <small>Měsíční péče je dnes součástí stejné rutiny.</small>}
                   </div>

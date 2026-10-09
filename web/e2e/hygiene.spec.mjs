@@ -335,8 +335,10 @@ test("task-specific cadence can schedule work outside the parent routine cadence
   await openSidebar(page, "Hygiena");
   const routine = page.locator('[data-hygiene-routine="mixed-cadence"]');
   await expect(routine).toBeVisible();
+  await expect(routine).toContainText("Vlastní frekvence úkolu");
   await expect(routine).toContainText("Denní uvnitř týdenní rutiny");
   await expect(routine).not.toContainText("Jen v neděli");
+  await expect(routine).not.toContainText("Každý Ne");
 
   await openSidebar(page, "Dnes");
   await expect(page.locator('[data-hygiene-checklist-routine="mixed-cadence"]')).toContainText("0/1");

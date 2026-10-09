@@ -128,6 +128,7 @@ for (const file of changed) {
     add("dayframe-calendar.spec.mjs");
     addPrefix("week-");
     add("cross-day-move-safety.spec.mjs");
+    if (file === "web/lib/dayframe-calendar.ts") add("hygiene.spec.mjs");
   }
 
   if (
