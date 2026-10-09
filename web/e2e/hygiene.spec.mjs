@@ -628,3 +628,121 @@ test("partially handled snapshots survive routine deactivation in history", asyn
     };
   })).toEqual({ exists: true, archived: true, shower: "done" });
 });
+
+
+test("product photo survives reload, appears in assigned routine without adding a checkbox", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.getByRole("tab", { name: "Moje produkty" }).click();
+  await page.getByRole("button", { name: "+ Přidat produkt" }).click();
+  const editor = page.getByRole("dialog", { name: "Editor produktu" });
+  await editor.getByRole("textbox", { name: "Název produktu *" }).fill("Čisticí gel");
+  await editor.getByRole("textbox", { name: "Značka" }).fill("Testovací značka");
+  await editor.getByRole("textbox", { name: "Návod k použití" }).fill("Jemně opláchnout.");
+  await editor.getByRole("checkbox", { name: "Očistit obličej", exact: true }).check();
+  await editor.getByRole("checkbox", { name: "Očištění obličeje", exact: true }).check();
+  await editor.getByLabel("Fotografie produktu").setInputFiles({
+    name: "sample.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+XBe8AAAAASUVORK5CYII=", "base64"),
+  });
+  await editor.getByRole("button", { name: "Uložit produkt" }).click();
+  await expect(editor).toHaveCount(0);
+  const card = page.locator(".df2-product-card").filter({ hasText: "Čisticí gel" });
+  await expect(card).toBeVisible();
+  await expect(card.locator("img")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  await expect(morning.locator(".df2-hygiene-check")).toHaveCount(6);
+  const faceStep = morning.locator(".df2-hygiene-task").filter({ hasText: "Očistit obličej" });
+  await expect(faceStep).toContainText("Čisticí gel");
+  await expect(faceStep).toContainText("Jemně opláchnout.");
+  await faceStep.getByRole("button", { name: "Detail produktu Čisticí gel" }).click();
+  await expect(page.getByRole("dialog", { name: "Detail produktu Čisticí gel" })).toContainText("Testovací značka");
+  await page.reload({ waitUntil: "networkidle" });
+  await openSidebar(page, "Hygiena");
+  await page.getByRole("tab", { name: "Moje produkty" }).click();
+  await expect(page.locator(".df2-product-card").filter({ hasText: "Čisticí gel" }).locator("img")).toBeVisible();
+});
+
+test("product replacements preserve order, checked actions and historical snapshots", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const store = JSON.parse(window.localStorage.getItem(key));
+    const make = (id, name) => ({
+      id, name, brand: "Test", category: "Pleť", description: "", instructions: "Podle etikety",
+      frequency: "", openedOn: "", expiresOn: "", paoMonths: null, amount: "",
+      stockStatus: "ok", shopUrl: "", archived: false,
+    });
+    store.products = [make("gel", "Gel"), make("cream", "Krém"), make("serum", "Sérum")];
+    const face = store.routines.find((r) => r.id === "morning").tasks.find((t) => t.id === "morning-face");
+    face.productIds = ["gel", "cream"];
+    window.localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  const face = morning.locator(".df2-hygiene-task").filter({ hasText: "Očistit obličej" });
+  await expect(face.locator(".df2-hygiene-used-product")).toHaveCount(2);
+  await face.getByRole("button", { name: "Označit Očistit obličej jako hotovo" }).click();
+  await expect(face.locator(".df2-hygiene-check")).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("tab", { name: "Moje produkty" }).click();
+  await page.locator('[data-product-id="gel"]').click();
+  await page.getByRole("combobox", { name: "Náhradní produkt" }).selectOption("serum");
+  await page.getByRole("button", { name: "Nahradit všude" }).click();
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  await page.locator(".df2-hygiene-manage-task-copy").filter({ hasText: "Očistit obličej" }).click();
+  const taskEditor = page.getByRole("dialog", { name: "Upravit hygienický úkol" });
+  await expect(taskEditor.getByRole("combobox", { name: "Nahradit produkt Sérum" })).toBeVisible();
+  await taskEditor.getByRole("button", { name: "Posunout produkt Krém nahoru" }).click();
+  await taskEditor.getByRole("button", { name: "Uložit" }).click();
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  // Completed tasks retain the products actually shown when completion was recorded.
+  await expect(face).toContainText("Gel");
+  await expect(face).toContainText("Krém");
+  await expect(face.locator(".df2-hygiene-check")).toHaveAttribute("aria-pressed", "true");
+  await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  await openSidebar(page, "Hygiena");
+  const nextFace = page.locator('[data-hygiene-routine="morning"] .df2-hygiene-task').filter({ hasText: "Očistit obličej" });
+  await expect(nextFace.locator(".df2-hygiene-used-product").first()).toContainText("Krém");
+  await expect(nextFace.locator(".df2-hygiene-used-product").nth(1)).toContainText("Sérum");
+  const history = await page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1")));
+  const oldFace = history.records["2026-10-06"].morning.scheduledTasks.find((task) => task.id === "morning-face");
+  expect(oldFace.products.map((product) => product.name)).toEqual(["Gel", "Krém"]);
+});
+
+test("archiving unlinks active product without removing historical completion", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const store = JSON.parse(window.localStorage.getItem(key));
+    store.products = [{
+      id: "old-cream", name: "Starý krém", brand: "", category: "Pleť",
+      description: "", instructions: "", frequency: "", openedOn: "", expiresOn: "",
+      paoMonths: null, amount: "", stockStatus: "low", shopUrl: "", archived: false,
+    }];
+    store.routines.find((r) => r.id === "morning").tasks.find((t) => t.id === "morning-spf").productIds = ["old-cream"];
+    window.localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  const step = morning.locator(".df2-hygiene-task").filter({ hasText: "Hydratační krém + SPF" });
+  await step.getByRole("button", { name: "Označit Hydratační krém + SPF jako hotovo" }).click();
+  await page.getByRole("tab", { name: "Moje produkty" }).click();
+  await page.locator('[data-product-id="old-cream"]').click();
+  await page.getByRole("button", { name: "Archivovat" }).click();
+  await expect(page.locator('[data-product-id="old-cream"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "Archivované" }).click();
+  await expect(page.locator('[data-product-id="old-cream"]')).toBeVisible();
+  await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  await openSidebar(page, "Hygiena");
+  await expect(page.locator('[data-hygiene-routine="morning"]')).not.toContainText("Starý krém");
+  const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1")));
+  expect(saved.records["2026-10-06"].morning.states["morning-spf"]).toBe("done");
+  expect(saved.records["2026-10-06"].morning.scheduledTasks.find((t) => t.id === "morning-spf").products[0].name).toBe("Starý krém");
+});
