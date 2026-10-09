@@ -74,6 +74,13 @@ test("overview tracks completed reading separately across period modes", async (
     window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
     window.localStorage.removeItem("dayframe-reading-library-v1");
     window.localStorage.removeItem("dayframe-reading-book-metadata-v1");
+    // This test measures reading duration from the task plan, not page logging.
+    // Mark the synthetic completed task as handled so the page-log dialog
+    // cannot intercept the Overview navigation after hydration.
+    window.localStorage.setItem("dayframe-reading-sessions-v1", JSON.stringify({
+      version: 1, entries: [], skippedTaskIds: ["reading-done"],
+    }));
+    window.localStorage.removeItem("dayframe-reading-pending-v1");
   });
   await page.reload({ waitUntil: "networkidle" });
 
