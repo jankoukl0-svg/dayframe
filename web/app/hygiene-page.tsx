@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
+import { HygieneProducts, ProductPhoto } from "./hygiene-products";
 import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
@@ -20,12 +21,13 @@ import {
   setHygieneTaskStatus,
   toggleManualRoutine,
   type HygieneRoutineDefinition,
+  type HygieneProductSnapshot,
   type HygieneSchedule,
   type HygieneStore,
   type HygieneTaskDefinition,
 } from "@/lib/dayframe-hygiene";
 
-type HygieneTab = "today" | "history" | "manage";
+type HygieneTab = "today" | "history" | "manage" | "products";
 
 const WEEKDAYS = [
   { value: 1, label: "Po" },
@@ -260,6 +262,10 @@ export function HygienePage({
   const [monthKey, setMonthKey] = useState(() => monthKeyFromPlanningKey(planningKey));
   const [routineDraft, setRoutineDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [taskDraft, setTaskDraft] = useState<{ sourceRoutineId: string; targetRoutineId: string; task: HygieneTaskDefinition } | null>(null);
+  const [focusProductId, setFocusProductId] = useState<string | null>(null);
+  const [historyProductDetail, setHistoryProductDetail] = useState<{
+    date: string; routine: string; task: string; product: HygieneProductSnapshot;
+  } | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -312,6 +318,15 @@ export function HygienePage({
   const summaries = useMemo(() => scheduledRoutineSummaries(store, planningKey, planningKey), [store, planningKey]);
   const overall = useMemo(() => overallHygieneProgress(summaries), [summaries]);
   const historicalRoutines = useMemo(() => historyRoutines(store), [store]);
+  const historicalProducts = useMemo(() => Object.entries(store.records)
+    .filter(([date]) => date <= planningKey)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 45)
+    .flatMap(([date, records]) => Object.values(records).flatMap((record) =>
+      record.scheduledTasks.filter((task) => record.states[task.id] === "done")
+        .flatMap((task) => (task.products ?? []).map((product) => ({
+          date, task: task.title, product, routine: record.routineTitle,
+        }))))), [store.records, planningKey]);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDaysKey(planningKey, index - 6)),
     [planningKey],
@@ -355,6 +370,10 @@ export function HygienePage({
     const cleanTask = { ...taskDraft.task, title: taskDraft.task.title.trim(), section: taskDraft.task.section.trim() || DEFAULT_SECTION };
     const movedState = taskDraft.sourceRoutineId !== taskDraft.targetRoutineId
       ? store.records[planningKey]?.[taskDraft.sourceRoutineId]?.states[cleanTask.id]
+      : undefined;
+    const movedSnapshot = movedState === "done"
+      ? store.records[planningKey]?.[taskDraft.sourceRoutineId]?.scheduledTasks
+        .find((task) => task.id === cleanTask.id)
       : undefined;
     const routines = store.routines.map((routine) => {
       if (routine.id === taskDraft.sourceRoutineId && taskDraft.targetRoutineId !== taskDraft.sourceRoutineId) {
@@ -424,6 +443,27 @@ export function HygienePage({
           cleanTask.id,
           movedState,
         );
+        // A moved, already completed task keeps the products recorded at completion.
+        // Re-snapshotting from the live catalog would rewrite its history.
+        if (movedSnapshot) {
+          const targetRecord = nextStore.records[planningKey]?.[taskDraft.targetRoutineId];
+          if (targetRecord) {
+            nextStore = {
+              ...nextStore,
+              records: {
+                ...nextStore.records,
+                [planningKey]: {
+                  ...nextStore.records[planningKey],
+                  [taskDraft.targetRoutineId]: {
+                    ...targetRecord,
+                    scheduledTasks: targetRecord.scheduledTasks.map((task) =>
+                      task.id === cleanTask.id ? { ...task, products: movedSnapshot.products ?? [] } : task),
+                  },
+                },
+              },
+            };
+          }
+        }
       }
     }
     if (persist(nextStore)) setTaskDraft(null);
@@ -472,6 +512,7 @@ export function HygienePage({
         <button type="button" role="tab" aria-selected={tab === "today"} onClick={() => setTab("today")}>Dnes</button>
         <button type="button" role="tab" aria-selected={tab === "history"} onClick={() => setTab("history")}>Historie</button>
         <button type="button" role="tab" aria-selected={tab === "manage"} onClick={() => setTab("manage")}>Správa rutin</button>
+        <button type="button" role="tab" aria-selected={tab === "products"} onClick={() => { setTab("products"); setFocusProductId(null); }}>Moje produkty</button>
       </div>
 
       {(blocked || error) && <p className="df2-hygiene-error">{blocked ? "Data Hygieny nelze bezpečně načíst. Ukládání je vypnuté." : error}</p>}
@@ -510,6 +551,15 @@ export function HygienePage({
                     <div>
                       {summary.record.scheduledTasks.filter((task) => task.section === section).map((task) => {
                         const state = summary.record.states[task.id];
+                        const definition = summary.routine.tasks.find((item) => item.id === task.id);
+                        const productsInStep = state === "done" ? (task.products ?? [])
+                          : definition ? (definition.productIds ?? []).flatMap((id) => {
+                            const product = store.products.find((item) => item.id === id && !item.archived);
+                            return product ? [{
+                              id: product.id, name: product.name, brand: product.brand,
+                              instructions: product.instructions, photoKey: product.photoKey,
+                            }] : [];
+                          }) : (task.products ?? []);
                         return (
                           <article className={"df2-hygiene-task " + (state ? "is-" + state : "")} key={task.id}>
                             <button
@@ -523,6 +573,27 @@ export function HygienePage({
                             </button>
                             <div>
                               <strong>{task.title}</strong>
+                              {productsInStep.length > 0 && (
+                                <div className="df2-hygiene-used-products">
+                                  {productsInStep.map((product) => (
+                                    <button type="button" className="df2-hygiene-used-product" key={product.id}
+                                      aria-label={(state === "done" ? "Historický produkt " : "Detail produktu ") + product.name}
+                                      onClick={() => {
+                                        if (state === "done") {
+                                          setHistoryProductDetail({
+                                            date: planningKey, routine: summary.routine.title, task: task.title, product,
+                                          });
+                                        } else {
+                                          setFocusProductId(product.id);
+                                          setTab("products");
+                                        }
+                                      }}>
+                                      <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                                      <span><b>{product.name}</b>{product.instructions && <small>{product.instructions}</small>}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               {task.optional && <small>Volitelné · nezablokuje dokončení</small>}
                               {state === "skipped" && <small>Není potřeba</small>}
                             </div>
@@ -551,6 +622,11 @@ export function HygienePage({
             </div>
           )}
         </div>
+      )}
+
+      {tab === "products" && (
+        <HygieneProducts store={store} onSave={persist} focusProductId={focusProductId}
+          onFocusHandled={() => setFocusProductId(null)} />
       )}
 
       {tab === "history" && (
@@ -629,6 +705,28 @@ export function HygienePage({
               })}
             </div>
           </section>
+          {historicalProducts.length > 0 && (
+            <section className="df2-hygiene-history-section">
+              <div className="df2-hygiene-section-title"><div><span>Zaznamenané při splnění</span><h2>Použité produkty</h2></div></div>
+              <div className="df2-product-history">
+                {historicalProducts.map(({ date, routine, task, product }, index) => {
+                  const label = (
+                    <>
+                      <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                      <span><strong>{product.name}</strong><small>{date} · {routine} · {task}</small></span>
+                    </>
+                  );
+                  return (
+                    <button type="button" key={date + task + product.id + index}
+                      aria-label={"Historický produkt " + product.name}
+                      onClick={() => setHistoryProductDetail({ date, routine, task, product })}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -720,6 +818,35 @@ export function HygienePage({
         </div>
       )}
 
+      {historyProductDetail && (
+        <div className="df2-modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setHistoryProductDetail(null);
+        }}>
+          <section role="dialog" aria-modal="true"
+            aria-label={"Historický produkt " + historyProductDetail.product.name}
+            className="df2-modal df2-product-dialog">
+            <header>
+              <div><h2>{historyProductDetail.product.name}</h2>
+                <small>{historyProductDetail.product.brand || "Bez značky"} · Historický záznam</small>
+              </div>
+              <button type="button" aria-label="Zavřít historický produkt"
+                onClick={() => setHistoryProductDetail(null)}>×</button>
+            </header>
+            <div className="df2-product-detail-hero">
+              <ProductPhoto photoKey={historyProductDetail.product.photoKey}
+                name={historyProductDetail.product.name} large />
+              <div>
+                <p><strong>Datum:</strong> {historyProductDetail.date}</p>
+                <p><strong>Rutina:</strong> {historyProductDetail.routine}</p>
+                <p><strong>Dokončený krok:</strong> {historyProductDetail.task}</p>
+                <p><strong>Zaznamenaný návod:</strong> {historyProductDetail.product.instructions || "Nebyl zadán."}</p>
+                <p>Tyto údaje odpovídají okamžiku dokončení, nikoli dnešnímu stavu produktu.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
       {routineDraft && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setRoutineDraft(null); }}>
           <section className="df2-modal df2-hygiene-modal" role="dialog" aria-modal="true" aria-label="Upravit hygienickou rutinu">
@@ -785,6 +912,49 @@ export function HygienePage({
                 onChange={(schedule) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, schedule } })}
               />
             )}
+            <div className="df2-hygiene-task-products">
+              <strong>Produkty používané v tomto kroku</strong>
+              {(taskDraft.task.productIds ?? []).map((id, index) => {
+                const product = store.products.find((item) => item.id === id);
+                if (!product) return null;
+                const ids = taskDraft.task.productIds ?? [];
+                return (
+                  <div className="df2-hygiene-task-product-editor" key={id}>
+                    <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                    <select aria-label={"Nahradit produkt " + product.name} value={id} onChange={(event) => {
+                      const nextIds = [...ids];
+                      const replacement = event.target.value;
+                      if (ids.includes(replacement)) nextIds.splice(index, 1);
+                      else nextIds[index] = replacement;
+                      setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: nextIds } });
+                    }}>
+                      <option value={id}>{product.name}</option>
+                      {store.products.filter((item) => !item.archived && !ids.includes(item.id))
+                        .map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+                    </select>
+                    <button type="button" aria-label={"Posunout produkt " + product.name + " nahoru"} disabled={index === 0}
+                      onClick={() => { const next = [...ids]; [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: next } }); }}>↑</button>
+                    <button type="button" aria-label={"Posunout produkt " + product.name + " dolů"} disabled={index === ids.length - 1}
+                      onClick={() => { const next = [...ids]; [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                        setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: next } }); }}>↓</button>
+                    <button type="button" aria-label={"Odebrat produkt " + product.name} onClick={() =>
+                      setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, productIds: ids.filter((item) => item !== id) } })}>×</button>
+                  </div>
+                );
+              })}
+              <select aria-label="Přidat produkt k úkolu" value="" onChange={(event) => {
+                if (!event.target.value) return;
+                setTaskDraft({ ...taskDraft, task: {
+                  ...taskDraft.task,
+                  productIds: [...(taskDraft.task.productIds ?? []), event.target.value],
+                } });
+              }}>
+                <option value="">+ Přiřadit produkt z knihovny</option>
+                {store.products.filter((item) => !item.archived && !(taskDraft.task.productIds ?? []).includes(item.id))
+                  .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
             <div className="df2-hygiene-task-options">
               <label><input type="checkbox" checked={taskDraft.task.active} onChange={(event) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, active: event.target.checked } })} /> Aktivní</label>
               <label><input type="checkbox" checked={taskDraft.task.optional} onChange={(event) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, optional: event.target.checked } })} /> Volitelné</label>

@@ -22,6 +22,7 @@ export type HygieneTaskDefinition = {
   optional: boolean;
   allowSkip: boolean;
   schedule?: HygieneSchedule;
+  productIds?: string[];
 };
 
 export type HygieneRoutineDefinition = {
@@ -33,12 +34,39 @@ export type HygieneRoutineDefinition = {
   tasks: HygieneTaskDefinition[];
 };
 
+export type HygieneProduct = {
+  id: string;
+  name: string;
+  brand: string;
+  category: string;
+  description: string;
+  instructions: string;
+  frequency: string;
+  openedOn: string;
+  expiresOn: string;
+  paoMonths: number | null;
+  amount: string;
+  stockStatus: "ok" | "low";
+  shopUrl: string;
+  photoKey?: string;
+  archived: boolean;
+};
+
+export type HygieneProductSnapshot = {
+  id: string;
+  name: string;
+  brand: string;
+  instructions: string;
+  photoKey?: string;
+};
+
 export type HygieneTaskSnapshot = {
   id: string;
   title: string;
   section: string;
   optional: boolean;
   allowSkip: boolean;
+  products?: HygieneProductSnapshot[];
 };
 
 export type HygieneRoutineRecord = {
@@ -54,6 +82,7 @@ export type HygieneRoutineRecord = {
 export type HygieneStore = {
   version: 1;
   routines: HygieneRoutineDefinition[];
+  products: HygieneProduct[];
   records: Record<string, Record<string, HygieneRoutineRecord>>;
   manualDates: Record<string, string[]>;
   suppressedDates: Record<string, string[]>;
@@ -168,6 +197,7 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
         ],
       },
     ],
+    products: [],
     records: {},
     manualDates: {},
     suppressedDates: {},
@@ -273,6 +303,10 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         ) {
           return { store: createDefaultHygieneStore(today), blocked: true };
         }
+        if (item.productIds !== undefined && (
+          !Array.isArray(item.productIds)
+          || item.productIds.some((id) => typeof id !== "string" || !id)
+        )) return { store: createDefaultHygieneStore(today), blocked: true };
         taskIds.add(item.id);
         tasks.push({
           id: item.id,
@@ -282,6 +316,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           optional: item.optional,
           allowSkip: item.allowSkip,
           schedule: taskSchedule ?? undefined,
+          productIds: item.productIds ? [...new Set(item.productIds)] : [],
         });
       }
 
@@ -293,6 +328,54 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         order: Number(routine.order),
         schedule,
         tasks,
+      });
+    }
+
+    const products: HygieneProduct[] = [];
+    const productIds = new Set<string>();
+    if (candidate.products !== undefined && !Array.isArray(candidate.products)) {
+      return { store: createDefaultHygieneStore(today), blocked: true };
+    }
+    for (const rawProduct of candidate.products ?? []) {
+      if (!rawProduct || typeof rawProduct !== "object" || Array.isArray(rawProduct)) {
+        return { store: createDefaultHygieneStore(today), blocked: true };
+      }
+      const product = rawProduct as Partial<HygieneProduct>;
+      if (
+        typeof product.id !== "string" || !product.id || productIds.has(product.id)
+        || typeof product.name !== "string" || !product.name.trim()
+        || typeof product.brand !== "string"
+        || typeof product.category !== "string"
+        || typeof product.description !== "string"
+        || typeof product.instructions !== "string"
+        || typeof product.frequency !== "string"
+        || typeof product.openedOn !== "string"
+        || typeof product.expiresOn !== "string"
+        || (product.paoMonths !== null && product.paoMonths !== undefined
+          && (!Number.isInteger(product.paoMonths) || product.paoMonths < 1 || product.paoMonths > 60))
+        || typeof product.amount !== "string"
+        || (product.stockStatus !== "ok" && product.stockStatus !== "low")
+        || typeof product.shopUrl !== "string"
+        || (product.photoKey !== undefined && (typeof product.photoKey !== "string" || !product.photoKey))
+        || typeof product.archived !== "boolean"
+      ) return { store: createDefaultHygieneStore(today), blocked: true };
+      productIds.add(product.id);
+      products.push({
+        id: product.id,
+        name: product.name.trim(),
+        brand: product.brand,
+        category: product.category,
+        description: product.description,
+        instructions: product.instructions,
+        frequency: product.frequency,
+        openedOn: product.openedOn,
+        expiresOn: product.expiresOn,
+        paoMonths: product.paoMonths ?? null,
+        amount: product.amount,
+        stockStatus: product.stockStatus,
+        shopUrl: product.shopUrl,
+        photoKey: product.photoKey,
+        archived: product.archived,
       });
     }
 
@@ -333,7 +416,21 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           ) {
             return { store: createDefaultHygieneStore(today), blocked: true };
           }
+          if (snapshot.products !== undefined && (
+            !Array.isArray(snapshot.products)
+            || snapshot.products.some((product) => !product || typeof product !== "object"
+              || typeof product.id !== "string" || typeof product.name !== "string"
+              || typeof product.brand !== "string" || typeof product.instructions !== "string"
+              || (product.photoKey !== undefined && typeof product.photoKey !== "string"))
+          )) return { store: createDefaultHygieneStore(today), blocked: true };
           snapshots.push({
+            products: snapshot.products?.map((product) => ({
+              id: product.id,
+              name: product.name,
+              brand: product.brand,
+              instructions: product.instructions,
+              photoKey: product.photoKey,
+            })) ?? [],
             id: snapshot.id,
             title: snapshot.title,
             section: snapshot.section,
@@ -395,6 +492,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       store: {
         version: 1,
         routines,
+        products,
         records,
         manualDates,
         suppressedDates,
@@ -446,8 +544,22 @@ export function taskScheduledOnDate(task: HygieneTaskDefinition, dateKey: string
   return scheduleMatches(task.schedule, dateKey);
 }
 
+export function productSnapshotsForTask(store: HygieneStore, task: HygieneTaskDefinition): HygieneProductSnapshot[] {
+  return (task.productIds ?? []).map((id) => store.products.find((product) => product.id === id))
+    .filter((product): product is HygieneProduct => Boolean(product && !product.archived))
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      instructions: product.instructions,
+      photoKey: product.photoKey,
+    }));
+}
+
 function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
   return {
+    // Avoid duplicating products/instructions for every scheduled or missed day.
+    // Capture the actual products only when the task is marked done.
     id: task.id,
     title: task.title,
     section: task.section,
@@ -496,7 +608,12 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
       const preservedHandledTasks = existing.scheduledTasks.filter(
         (item) => !configuredTaskIds.has(item.id) && Boolean(existing.states[item.id]),
       );
-      const nextScheduledTasks = [...scheduledTasks, ...preservedHandledTasks];
+      const nextScheduledTasks = [
+        ...scheduledTasks.map((task) => existing.states[task.id]
+          ? existing.scheduledTasks.find((previous) => previous.id === task.id) ?? task
+          : task),
+        ...preservedHandledTasks,
+      ];
       const validTaskIds = new Set(nextScheduledTasks.map((item) => item.id));
       const states = Object.fromEntries(Object.entries(existing.states).filter(([taskId]) => validTaskIds.has(taskId)));
       const next = {
@@ -668,13 +785,24 @@ export function setHygieneTaskStatus(
   if (status === null) delete states[taskId];
   else states[taskId] = status;
 
+  const definition = store.routines.find((routine) => routine.id === routineId)
+    ?.tasks.find((task) => task.id === taskId);
+  const scheduledTasks = record.scheduledTasks.map((task) => {
+    if (task.id !== taskId) return task;
+    if (status === "done") {
+      // One historical snapshot per completed step, not one per planned day.
+      return definition ? { ...task, products: productSnapshotsForTask(store, definition) } : task;
+    }
+    return { ...task, products: [] };
+  });
+
   return {
     ...store,
     records: {
       ...store.records,
       [dateKey]: {
         ...store.records[dateKey],
-        [routineId]: { ...record, states },
+        [routineId]: { ...record, states, scheduledTasks },
       },
     },
   };
