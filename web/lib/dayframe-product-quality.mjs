@@ -76,6 +76,7 @@ export function safeFdaLabel(label, name, brand = "") {
   const purpose = first(obj, ["purpose", "indications_and_usage"], 850);
   const warningSections = [
     ["Upozornění", ["warnings", "boxed_warning"]],
+    ["Přestaňte používat a kontaktujte lékaře", ["stop_use"]],
     ["Nepoužívejte, pokud", ["do_not_use"]],
     ["Před použitím se poraďte s lékařem", ["ask_doctor", "ask_doctor_or_pharmacist"]],
     ["Při používání", ["when_using"]],
