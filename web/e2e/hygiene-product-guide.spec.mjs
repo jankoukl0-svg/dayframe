@@ -84,7 +84,7 @@ test("selecting a catalog match enriches all six fields from a labelled guide wh
   await editor.getByRole("textbox", { name: "Kdy používat" }).fill("Moje vlastní poznámka");
   await editor.getByRole("button", { name: "Vyhledat a doplnit" }).click();
   await editor.getByRole("button", { name: "Použít tento produkt" }).click();
-  await expect(editor.getByRole("textbox", { name: "Návod k použití" })).toContainText("Navlhčenou");
+  await expect(editor.getByRole("textbox", { name: "Návod k použití" })).toHaveValue(/navlhčenou/);
   await expect(editor.getByRole("textbox", { name: "Kdy používat" })).toHaveValue("Moje vlastní poznámka");
   await expect(editor.getByRole("textbox", { name: "Množství na jedno použití" })).toHaveValue("Množství velikosti mince");
   await expect(editor.getByRole("textbox", { name: "Jak dlouho používat / nechat působit" })).toHaveValue("Masírujte 30 sekund");
