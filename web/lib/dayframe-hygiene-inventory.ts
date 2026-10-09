@@ -79,7 +79,8 @@ export function hygieneInventoryAlerts(products: HygieneProduct[], today: string
     if (product.replacementEveryDays && isDateKey(product.lastReplacedOn ?? "")) {
       const dueOn = addDaysKey(product.lastReplacedOn!, product.replacementEveryDays);
       const daysLeft = daysBetween(today, dueOn);
-      if (daysLeft <= 14) alerts.push({
+      const warningDays = Math.min(7, Math.max(1, Math.floor(product.replacementEveryDays / 4)));
+      if (daysLeft <= warningDays) alerts.push({
         product, kind: "replacement", dueOn, daysLeft,
         state: daysLeft < 0 ? "overdue" : "soon", detail: "Výměna hygienické pomůcky",
       });
