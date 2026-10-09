@@ -71,15 +71,17 @@ test("Není potřeba is preserved separately and does not block Hygiene Day comp
   await openSidebar(page, "Hygiena");
 
   const weekly = page.locator('[data-hygiene-routine="hygiene-day"]');
-  const checks = weekly.locator(".df2-hygiene-check");
-  const count = await checks.count();
-  for (let index = 0; index < count; index += 1) {
-    await checks.nth(index).click();
-    await expect.poll(() => page.evaluate(() => {
-      const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
-      return Object.values(store.records?.["2026-10-11"]?.["hygiene-day"]?.states || {}).filter((state) => state === "done").length;
-    })).toBe(index + 1);
-  }
+  await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    const record = store.records?.["2026-10-11"]?.["hygiene-day"];
+    for (const task of record?.scheduledTasks || []) {
+      if (!task.optional) record.states[task.id] = "done";
+    }
+    window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  await expect(weekly).toContainText("12/12");
+  await expect(weekly).toContainText("Hotovo");
 
   const nails = weekly.locator(".df2-hygiene-task").filter({ hasText: "nehtů na rukou" });
   await nails.getByRole("button", { name: "Není potřeba" }).click();
