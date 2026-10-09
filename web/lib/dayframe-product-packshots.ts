@@ -55,6 +55,7 @@ async function inspect(candidate: PackshotCandidate, blob: Blob): Promise<Inspec
     ];
     const avg = [0, 1, 2].map(channel =>
       corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
+    const backgroundAlpha = corners.reduce((sum, index) => sum + pixels[index + 3], 0) / 4;
     const cornersUniform = corners.every(index => pixelDiff(pixels, index, avg) < 34 * 34);
     let clean = 0, white = 0, edges = 0;
     for (let y = 0; y < canvas.height; y++) {
@@ -79,7 +80,9 @@ async function inspect(candidate: PackshotCandidate, blob: Blob): Promise<Inspec
       for (let x = Math.floor(w * .18); x < Math.ceil(w * .82); x++) {
         const index = (y * w + x) * 4;
         inner++;
-        if (pixels[index + 3] > 25 && pixelDiff(pixels, index, avg) > 40 * 40) foreground++;
+        if (pixels[index + 3] > 25
+          && (pixelDiff(pixels, index, avg) > 40 * 40
+            || (backgroundAlpha < 32 && pixels[index + 3] > 160))) foreground++;
       }
     }
     const foregroundShare = foreground / Math.max(1, inner);
