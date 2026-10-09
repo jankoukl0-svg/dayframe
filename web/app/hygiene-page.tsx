@@ -669,6 +669,7 @@ export function HygienePage({
                               className="df2-hygiene-check"
                               aria-label={(state === "done" ? "Vrátit " : "Označit ") + task.title + (state === "done" ? " jako nesplněné" : " jako hotovo")}
                               aria-pressed={state === "done"}
+                              disabled={state === "deferred"}
                               onClick={() => updateTask(summary.routine.id, task.id, "done")}
                             >
                               {state === "done" ? "✓" : ""}
