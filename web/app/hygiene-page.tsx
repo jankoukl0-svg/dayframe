@@ -375,7 +375,25 @@ export function HygienePage({
     if (movedState && taskDraft.sourceRoutineId !== taskDraft.targetRoutineId) {
       const destinationHasTask = nextStore.records[planningKey]?.[taskDraft.targetRoutineId]?.scheduledTasks
         .some((task) => task.id === cleanTask.id);
-      if (destinationHasTask) {
+      if (!destinationHasTask) {
+        const sourceRecord = nextStore.records[planningKey]?.[taskDraft.sourceRoutineId];
+        if (sourceRecord?.scheduledTasks.some((task) => task.id === cleanTask.id)) {
+          nextStore = {
+            ...nextStore,
+            records: {
+              ...nextStore.records,
+              [planningKey]: {
+                ...nextStore.records[planningKey],
+                [taskDraft.sourceRoutineId]: {
+                  ...sourceRecord,
+                  archived: undefined,
+                  carryToday: true,
+                },
+              },
+            },
+          };
+        }
+      } else {
         const sourceRecord = nextStore.records[planningKey]?.[taskDraft.sourceRoutineId];
         if (sourceRecord) {
           const sourceStates = { ...sourceRecord.states };

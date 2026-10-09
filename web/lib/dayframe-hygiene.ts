@@ -48,6 +48,7 @@ export type HygieneRoutineRecord = {
   scheduledTasks: HygieneTaskSnapshot[];
   states: Record<string, HygieneTaskStatus>;
   archived?: boolean;
+  carryToday?: boolean;
 };
 
 export type HygieneStore = {
@@ -347,7 +348,10 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           }
           states[taskId] = state;
         }
-        if (record.archived !== undefined && typeof record.archived !== "boolean") {
+        if (
+          (record.archived !== undefined && typeof record.archived !== "boolean")
+          || (record.carryToday !== undefined && typeof record.carryToday !== "boolean")
+        ) {
           return { store: createDefaultHygieneStore(today), blocked: true };
         }
         records[date][routineId] = {
@@ -357,6 +361,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           scheduledTasks: snapshots,
           states,
           archived: record.archived === true ? true : undefined,
+          carryToday: record.carryToday === true ? true : undefined,
         };
       }
     }
@@ -485,6 +490,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         scheduledTasks,
         states: {},
         archived: undefined,
+        carryToday: undefined,
       };
       changed = true;
       continue;
@@ -504,6 +510,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         scheduledTasks: nextScheduledTasks,
         states,
         archived: undefined,
+        carryToday: undefined,
       };
       if (JSON.stringify(next) !== JSON.stringify(existing)) {
         dateRecords[routine.id] = next;
@@ -516,9 +523,16 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
     for (const routineId of Object.keys(dateRecords)) {
       if (scheduledRoutineIds.has(routineId)) continue;
       const existing = dateRecords[routineId];
+      if (existing.carryToday && Object.keys(existing.states).length > 0) {
+        if (existing.archived) {
+          dateRecords[routineId] = { ...existing, archived: undefined };
+          changed = true;
+        }
+        continue;
+      }
       if (recordIsFinalized(existing)) {
         if (!existing.archived) {
-          dateRecords[routineId] = { ...existing, archived: true };
+          dateRecords[routineId] = { ...existing, archived: true, carryToday: undefined };
           changed = true;
         }
       } else {
