@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 const ROOT = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+XBe8AAAAASUVORK5CYII=", "base64");
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAYElEQVR4nO3PQQ0AIBDAMMC/50MEj4ZkVbDtmVk/OzrgVQNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgPaBXKqA31N0fbGAAAAAElFTkSuQmCC", "base64");
 
 async function start(page) {
   await page.clock.setFixedTime(new Date("2026-10-09T12:00:00"));
