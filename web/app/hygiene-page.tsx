@@ -314,6 +314,15 @@ export function HygienePage({
   const summaries = useMemo(() => scheduledRoutineSummaries(store, planningKey, planningKey), [store, planningKey]);
   const overall = useMemo(() => overallHygieneProgress(summaries), [summaries]);
   const historicalRoutines = useMemo(() => historyRoutines(store), [store]);
+  const historicalProducts = useMemo(() => Object.entries(store.records)
+    .filter(([date]) => date <= planningKey)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 45)
+    .flatMap(([date, records]) => Object.values(records).flatMap((record) =>
+      record.scheduledTasks.filter((task) => record.states[task.id] === "done")
+        .flatMap((task) => (task.products ?? []).map((product) => ({
+          date, task: task.title, product, routine: record.routineTitle,
+        }))))), [store.records, planningKey]);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDaysKey(planningKey, index - 6)),
     [planningKey],
@@ -656,6 +665,27 @@ export function HygienePage({
               })}
             </div>
           </section>
+          {historicalProducts.length > 0 && (
+            <section className="df2-hygiene-history-section">
+              <div className="df2-hygiene-section-title"><div><span>Zaznamenané při splnění</span><h2>Použité produkty</h2></div></div>
+              <div className="df2-product-history">
+                {historicalProducts.map(({ date, routine, task, product }, index) => {
+                  const label = (
+                    <>
+                      <ProductPhoto photoKey={product.photoKey} name={product.name} />
+                      <span><strong>{product.name}</strong><small>{date} · {routine} · {task}</small></span>
+                    </>
+                  );
+                  const exists = store.products.some((item) => item.id === product.id);
+                  return exists ? (
+                    <button type="button" key={date + task + product.id + index} onClick={() => {
+                      setFocusProductId(product.id); setTab("products");
+                    }}>{label}</button>
+                  ) : <div key={date + task + product.id + index}>{label}</div>;
+                })}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
