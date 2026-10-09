@@ -40,7 +40,7 @@ test("rolling Hygiene Day interval resets from actual late completion and does n
   expect(data.records["2026-10-06"]["hygiene-day"].states["weekly-hand-nails"]).toBe("done");
   expect(data.records["2026-10-06"]["hygiene-day"].completedOn["weekly-hand-nails"]).toBe("2026-10-08");
   await changeDay(page, "2026-10-12");
-  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).not.toContainText("Kontrola a případné stříhání nehtů na rukou");
+  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toHaveCount(0);
   await changeDay(page, "2026-10-15");
   await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toContainText("Kontrola a případné stříhání nehtů na rukou");
   const after = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
@@ -68,7 +68,7 @@ test("postpone overdue Hygiene Day once, keep an immutable original and material
   let result = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   expect(result.taskReschedules["2026-10-06|hygiene-day|weekly-hand-nails"]).toBe("2026-10-10");
   expect(result.records["2026-10-06"]["hygiene-day"].states["weekly-hand-nails"]).toBe("deferred");
-  await expect(overdue).not.toContainText("Kontrola a případné stříhání nehtů na rukou");
+  await expect(overdue).toHaveCount(0);
   await changeDay(page, "2026-10-10");
   const today = page.locator('[data-hygiene-routine="hygiene-day"] .df2-hygiene-task')
     .filter({ hasText: "Kontrola a případné stříhání nehtů na rukou" });
