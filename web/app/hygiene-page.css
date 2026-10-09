@@ -777,3 +777,97 @@
     transition: none;
   }
 }
+
+
+/* Product catalog and routine product guidance */
+.df2-products { display: grid; gap: 20px; }
+.df2-products-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.df2-products-top > div { display: grid; gap: 5px; min-width: 0; }
+.df2-products-top span { font-size: 10px; font-weight: 750; letter-spacing: .075em; text-transform: uppercase; color: var(--accent-dark); }
+.df2-products-top h2 { margin: 0; font-size: 23px; letter-spacing: -.025em; }
+.df2-products-top p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.df2-products-top > button { flex-shrink: 0; }
+.df2-products-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.df2-products-toolbar > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.df2-products-toolbar button { padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 10px; font-weight: 700; }
+.df2-products-toolbar button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-dark); }
+.df2-products-toolbar input { min-width: 180px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 11px; }
+.df2-products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 14px; }
+.df2-product-card { overflow: hidden; display: grid; align-content: start; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); text-align: left; transition: border-color .18s, transform .18s; }
+.df2-product-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.df2-product-photo { width: 36px; height: 36px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px solid var(--line); border-radius: 8px; color: var(--accent-dark); }
+.df2-product-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.df2-product-photo > span { font-size: 16px; opacity: .55; }
+.df2-product-photo.is-large { width: 100%; height: auto; aspect-ratio: 1 / 1; border: 0; border-radius: 0; }
+.df2-product-photo.is-large > span { font-size: 28px; }
+.df2-product-card-copy { display: grid; align-content: start; gap: 5px; padding: 13px; }
+.df2-product-card-copy small { font-size: 9px; font-weight: 760; color: var(--accent-dark); }
+.df2-product-card-copy strong { font-size: 13px; line-height: 1.35; }
+.df2-product-card-copy > span { font-size: 10px; color: var(--muted); }
+.df2-product-card-copy em { justify-self: start; padding: 4px 7px; margin-top: 3px; font-size: 9px; border-radius: 6px; background: var(--accent-wash); color: var(--accent-dark); font-style: normal; font-weight: 750; }
+
+.df2-hygiene-used-products { display: grid; gap: 6px; margin-top: 7px; padding-bottom: 8px; }
+.df2-hygiene-used-product { min-width: 0; width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 9px; padding: 5px 8px 5px 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); text-align: left; }
+button.df2-hygiene-used-product:hover { border-color: var(--accent); }
+.df2-hygiene-used-product > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.df2-hygiene-used-product b { font-size: 10px; font-weight: 700; }
+.df2-hygiene-used-product small { max-width: 360px; overflow-wrap: anywhere; color: var(--muted); font-size: 9px; line-height: 1.45; white-space: pre-line; }
+
+.df2-product-dialog { width: min(690px, 100%); max-height: min(90vh, 850px); overflow-y: auto; }
+.df2-product-dialog > header small { display: block; font-size: 10px; color: var(--muted); }
+.df2-product-detail-hero { display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: 17px; }
+.df2-product-detail-hero .df2-product-photo { border-radius: 10px; border: 1px solid var(--line); }
+.df2-product-detail-hero p { margin: 0 0 9px; font-size: 11px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
+.df2-product-detail-hero a { font-size: 11px; color: var(--accent-dark); }
+.df2-product-usage { display: grid; gap: 6px; }
+.df2-product-usage > strong, .df2-hygiene-task-products > strong { font-size: 11px; }
+.df2-product-usage > span { font-size: 10px; color: var(--muted); }
+.df2-product-replace { display: flex; align-items: end; gap: 9px; flex-wrap: wrap; }
+.df2-product-replace label { display: grid; flex: 1; gap: 5px; min-width: 160px; font-size: 10px; color: var(--muted); }
+.df2-product-replace select, .df2-product-replace button { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--paper); }
+.df2-product-replace button { font-size: 10px; font-weight: 700; }
+.df2-product-actions { flex-wrap: wrap; }
+.df2-product-photo-editor { display: flex; align-items: center; gap: 14px; }
+.df2-product-photo-editor .df2-product-photo { width: 98px; height: 98px; flex: 0 0 98px; border: 1px solid var(--line); border-radius: 10px; }
+.df2-product-photo-editor > div { display: grid; gap: 7px; justify-items: start; }
+.df2-product-file-picker { cursor: pointer; font-size: 11px; font-weight: 750; color: var(--accent-dark); }
+.df2-product-file-picker input { display: block; min-height: 0 !important; width: min(100%, 240px); margin-top: 5px; font-size: 10px; }
+.df2-product-photo-editor small { font-size: 9px; color: var(--muted); }
+.df2-product-photo-editor button { border: 0; padding: 0; background: transparent; font-size: 10px; color: var(--ink); text-decoration: underline; }
+.df2-product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.df2-product-form-grid label { min-width: 0; display: grid; gap: 5px; font-size: 10px; color: var(--muted); }
+.df2-product-form-grid label.is-wide { grid-column: 1 / -1; }
+.df2-product-form-grid input, .df2-product-form-grid select, .df2-product-form-grid textarea { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); font-size: 11px; resize: vertical; }
+.df2-product-form-grid .df2-product-check { display: flex; align-items: center; color: var(--ink); }
+.df2-product-check input { width: auto; }
+.df2-product-assign { display: grid; gap: 9px; }
+.df2-product-assign h3 { margin: 0; font-size: 13px; }
+.df2-product-assign p { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); }
+.df2-product-assign fieldset { margin: 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.df2-product-assign legend { padding: 0 5px; font-size: 11px; font-weight: 700; }
+.df2-product-assign fieldset > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.df2-product-assign fieldset label { display: flex; align-items: start; gap: 7px; font-size: 10px; line-height: 1.4; }
+.df2-product-assign input { margin-top: 2px; }
+
+.df2-hygiene-task-products { display: grid; gap: 8px; }
+.df2-hygiene-task-products > select { min-height: 36px; width: 100%; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); }
+.df2-hygiene-task-product-editor { display: grid; grid-template-columns: 36px minmax(0, 1fr) repeat(3, 29px); gap: 5px; align-items: center; }
+.df2-hygiene-task-product-editor select { width: 100%; min-width: 0; min-height: 34px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
+.df2-hygiene-task-product-editor button { height: 30px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); }
+.df2-hygiene-task-product-editor button:disabled { opacity: .35; }
+
+@media (max-width: 720px) {
+  .df2-products-top { align-items: start; flex-direction: column; }
+  .df2-products-toolbar input { width: 100%; }
+  .df2-products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .df2-product-card-copy { padding: 10px; }
+  .df2-product-dialog { max-height: 92dvh; }
+  .df2-product-detail-hero { grid-template-columns: 110px 1fr; gap: 12px; }
+  .df2-product-form-grid { grid-template-columns: 1fr; }
+  .df2-product-assign fieldset > div { grid-template-columns: 1fr; }
+  .df2-hygiene-used-product small { max-width: 240px; }
+}
+@media (max-width: 400px) {
+  .df2-product-detail-hero { grid-template-columns: 1fr; }
+  .df2-product-detail-hero .df2-product-photo { max-width: 150px; }
+}
