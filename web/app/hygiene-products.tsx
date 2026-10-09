@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HygieneProduct, HygieneStore } from "@/lib/dayframe-hygiene";
 import { ProductCareGuide } from "./hygiene-care-guide";
+import { findBestProductPackshot, type PackshotCandidate } from "@/lib/dayframe-product-packshots";
 import { chooseImportedValue, isCatalogBoilerplate } from "@/lib/dayframe-product-quality.mjs";
 import { effectiveExpiry, hygieneInventoryAlerts, hygieneShoppingCost, hygieneShoppingList, recordHygienePurchase } from "@/lib/dayframe-hygiene-inventory";
 import {
@@ -131,6 +132,10 @@ export function HygieneProducts({
   const [lookupImporting, setLookupImporting] = useState(false);
   const [lookupSource, setLookupSource] = useState("");
   const [overwriteKnown, setOverwriteKnown] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoNotice, setPhotoNotice] = useState("");
+  const photoPreferenceRef = useRef<"none" | "manual" | "automatic">("none");
+  const activeEditorRef = useRef<string | null>(null);
 
 
   useEffect(() => {
@@ -187,6 +192,10 @@ export function HygieneProducts({
       .map((task) => routine.title + " · " + task.title));
 
   const openEditor = (product: HygieneProduct) => {
+    activeEditorRef.current = product.id;
+    photoPreferenceRef.current = "none";
+    setPhotoBusy(false);
+    setPhotoNotice("");
     setDraft({ ...product });
     setLinks(store.routines.flatMap((routine) =>
       routine.tasks.filter((task) => (task.productIds ?? []).includes(product.id))
@@ -234,6 +243,58 @@ export function HygieneProducts({
     }
   };
 
+
+  const findProductPhoto = async (name: string, brand: string, sourceUrl: string,
+    preferredImage = "", replaceExisting = false, photoOfId?: string) => {
+    const id = photoOfId ?? draft?.id;
+    if (!id || photoBusy || (!replaceExisting && (photoPreferenceRef.current === "manual"
+      || Boolean(file) || Boolean(draft?.photoKey)))) return;
+    setPhotoBusy(true);
+    setPhotoNotice("Hledám čistou produktovou fotografii s bílým pozadím…");
+    try {
+      const params = new URLSearchParams({
+        mode: "photos", name, brand, url: sourceUrl.startsWith("https://") ? sourceUrl : "",
+        image: preferredImage,
+      });
+      let candidates: PackshotCandidate[] = [];
+      try {
+        const response = await fetch(LOOKUP_ENDPOINT + "?" + params, {
+          signal: AbortSignal.timeout(17000),
+        });
+        if (response.ok) {
+          const payload = await response.json() as { candidates?: PackshotCandidate[] };
+          candidates = (payload.candidates ?? []).filter((item) =>
+            item && typeof item.url === "string" && typeof item.source === "string"
+            && typeof item.priority === "number");
+        }
+      } catch { /* can still import the chosen product's own image */ }
+      if (preferredImage && !candidates.some((item) => item.url === preferredImage))
+        candidates.unshift({ url: preferredImage, source: "Vybraný produkt", priority: 20 });
+      const selected = await findBestProductPackshot(candidates);
+      if (activeEditorRef.current !== id) return;
+      if (!replaceExisting && photoPreferenceRef.current === "manual") return;
+      if (!selected) {
+        setPhotoNotice("Ověřitelnou fotografii tohoto produktu se nepodařilo stáhnout. Můžeš ji nahrát ručně.");
+        return;
+      }
+      const invalid = validateProductPhoto(selected.file);
+      if (invalid) { setPhotoNotice(invalid); return; }
+      photoPreferenceRef.current = "automatic";
+      setFile(selected.file);
+      setPhotoNotice(selected.quality === "white"
+        ? "Vybral jsem fotografii s bílým nebo průhledným pozadím · " + selected.source
+        : selected.quality === "cleaned"
+          ? "Pozadí fotografie jsem sjednotil na bílou · " + selected.source
+          : "Vybral jsem nejčistší dostupnou fotografii · " + selected.source
+            + ". Bílé pozadí nelze spolehlivě zaručit.");
+    } catch {
+      if (activeEditorRef.current === id)
+        setPhotoNotice("Fotografie se nepodařila zpracovat. Můžeš vybrat vlastní.");
+    } finally {
+      if (activeEditorRef.current === id) setPhotoBusy(false);
+    }
+  };
+
   const applyLookupMatch = async (match: ProductLookupMatch) => {
     if (!draft || lookupImporting) return;
     const draftId = draft.id;
@@ -261,7 +322,6 @@ export function HygieneProducts({
     setLookupError("");
 
     setLookupImporting(true);
-    let imageFailed = false;
     let gotDetailedGuide = Boolean(match.instructions || match.precautions || match.usageWhen || match.usageAmount || match.usageDuration);
     try {
       // Name-only matches are often sparse catalog records, so look for a maker's instructions.
@@ -293,23 +353,12 @@ export function HygieneProducts({
           }
         } catch { /* product may be unavailable on manufacturer sites; keep known fields */ }
       }
-      if (match.imageUrl && !file && !draft.photoKey) {
-        try {
-          const response = await fetch(LOOKUP_ENDPOINT + "?mode=image&url=" + encodeURIComponent(match.imageUrl));
-          if (!response.ok) throw new Error("Fotografii se nepodařilo načíst.");
-          const blob = await response.blob();
-          const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
-          const imported = new File([blob], "hygiena-produkt." + ext, { type: blob.type });
-          const invalid = validateProductPhoto(imported);
-          if (invalid) throw new Error(invalid);
-          setFile(imported);
-        } catch { imageFailed = true; }
+      if (!file && !draft.photoKey && photoPreferenceRef.current !== "manual") {
+        await findProductPhoto(match.name, match.brand, match.sourceUrl, match.imageUrl, false, draftId);
       }
       setLookupNotice(!gotDetailedGuide
         ? "Základní údaje jsou doplněné, ale ověřitelné pokyny k použití se nepodařilo najít. Zkus odkaz výrobce nebo je doplň z obalu."
-        : imageFailed
-          ? "Nalezené pokyny byly doplněné, ale fotografii je potřeba nahrát ručně."
-          : "Dostupné pokyny výrobce nebo prodejce byly doplněné. Zkontroluj je podle obalu; chybějící informace nevymýšlíme.");
+        : "Dostupné pokyny výrobce nebo prodejce byly doplněné. Zkontroluj je podle obalu; chybějící informace nevymýšlíme.");
     } finally {
       setLookupImporting(false);
     }
@@ -355,7 +404,7 @@ export function HygieneProducts({
   };
 
   const save = async () => {
-    if (!draft || saving || lookupImporting) return;
+    if (!draft || saving || lookupImporting || photoBusy) return;
     if (!draft.name.trim()) {
       setEditError("Vyplň název produktu.");
       return;
@@ -706,12 +755,26 @@ export function HygieneProducts({
                   const selected = event.target.files?.[0] ?? null;
                   const invalid = selected && validateProductPhoto(selected);
                   setEditError(invalid || "");
+                  photoPreferenceRef.current = "manual";
+                  setPhotoNotice(selected && !invalid ? "Použije se tvoje nahraná fotografie." : "");
                   setFile(invalid ? null : selected);
                   event.target.value = "";
                 }} />
               </label>
               <small>JPG, PNG nebo WebP · do 6 MB</small>
-              {(draft.photoKey || file) && <button type="button" onClick={() => { setFile(null); setDraft({ ...draft, photoKey: undefined }); }}>Odebrat fotografii</button>}</div>
+              <button type="button" className="df2-find-packshot" disabled={photoBusy || lookupImporting || draft.name.trim().length < 3}
+                onClick={() => {
+                  photoPreferenceRef.current = "automatic";
+                  void findProductPhoto(draft.name, draft.brand, draft.shopUrl, "", true, draft.id);
+                }}>
+                {photoBusy ? "Hledám fotografii…" : "Najít lepší fotku"}
+              </button>
+              {photoNotice && <small className="df2-packshot-notice" role="status">{photoNotice}</small>}
+              {(draft.photoKey || file) && <button type="button" onClick={() => {
+                photoPreferenceRef.current = "manual";
+                setPhotoNotice("");
+                setFile(null); setDraft({ ...draft, photoKey: undefined });
+              }}>Odebrat fotografii</button>}</div>
             </div>
             <div className="df2-product-form-grid">
               <label>Název produktu *<input autoFocus maxLength={160} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -768,7 +831,7 @@ export function HygieneProducts({
             </div>
             {editError && <p className="df2-hygiene-error" role="alert">{editError}</p>}
             <div className="df2-modal-actions">
-              <button type="button" className="df2-primary" disabled={saving || lookupImporting || !draft.name.trim()} onClick={() => void save()}>{saving ? "Ukládám…" : "Uložit produkt"}</button>
+              <button type="button" className="df2-primary" disabled={saving || lookupImporting || photoBusy || !draft.name.trim()} onClick={() => void save()}>{saving ? "Ukládám…" : "Uložit produkt"}</button>
               <button type="button" disabled={saving} onClick={() => setDraft(null)}>Zrušit</button>
             </div>
           </section>
