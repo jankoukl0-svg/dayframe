@@ -347,3 +347,63 @@ test("task-specific cadence can schedule work outside the parent routine cadence
   await openSidebar(page, "Dnes");
   await expect(page.locator('[data-hygiene-checklist-routine="mixed-cadence"]')).toContainText("0/1");
 });
+
+
+test("completed current-day snapshots stay in history after routine deactivation", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  const checks = morning.locator(".df2-hygiene-check");
+  for (let index = 0; index < 6; index += 1) await checks.nth(index).click();
+  await expect(morning).toContainText("6/6");
+
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const manage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Ranní rutina" });
+  await manage.getByRole("button", { name: "Upravit", exact: true }).click();
+  const modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Aktivní").uncheck();
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  await expect(page.locator('[data-hygiene-routine="morning"]')).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Historie" }).click();
+  const stats = page.locator(".df2-hygiene-stats-grid article").filter({ hasText: "Ranní rutina" });
+  await expect(stats).toContainText("Splněno");
+  await expect(stats).toContainText("1");
+
+  await expect.poll(() => page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    const record = store.records?.["2026-10-06"]?.morning;
+    return { archived: record?.archived, done: Object.values(record?.states || {}).filter((state) => state === "done").length };
+  })).toEqual({ archived: true, done: 6 });
+});
+
+test("moving a completed task between today's routines preserves its state", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  await morning.getByRole("button", { name: "Označit Vyčistit zuby jako hotovo" }).click();
+
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const morningManage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Ranní rutina" });
+  await morningManage.getByRole("button", { name: "Vyčistit zuby Péče", exact: true }).click();
+
+  const modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Rutina").selectOption("evening");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    return {
+      morning: store.records?.["2026-10-06"]?.morning?.states?.["morning-teeth"] ?? null,
+      evening: store.records?.["2026-10-06"]?.evening?.states?.["morning-teeth"] ?? null,
+    };
+  })).toEqual({ morning: null, evening: "done" });
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  const evening = page.locator('[data-hygiene-routine="evening"]');
+  await expect(evening.locator(".df2-hygiene-task").filter({ hasText: "Vyčistit zuby" }).getByRole("button", { name: "Vrátit Vyčistit zuby jako nesplněné" })).toBeVisible();
+});

@@ -344,6 +344,9 @@ export function HygienePage({
   const saveTaskDraft = () => {
     if (!taskDraft?.task.title.trim()) return;
     const cleanTask = { ...taskDraft.task, title: taskDraft.task.title.trim(), section: taskDraft.task.section.trim() || DEFAULT_SECTION };
+    const movedState = taskDraft.sourceRoutineId !== taskDraft.targetRoutineId
+      ? store.records[planningKey]?.[taskDraft.sourceRoutineId]?.states[cleanTask.id]
+      : undefined;
     const routines = store.routines.map((routine) => {
       if (routine.id === taskDraft.sourceRoutineId && taskDraft.targetRoutineId !== taskDraft.sourceRoutineId) {
         return { ...routine, tasks: routine.tasks.filter((task) => task.id !== cleanTask.id) };
@@ -359,7 +362,21 @@ export function HygienePage({
       }
       return routine;
     });
-    if (persist({ ...store, routines })) setTaskDraft(null);
+    let nextStore = refreshHygieneToday({ ...store, routines }, planningKey);
+    if (
+      movedState
+      && taskDraft.sourceRoutineId !== taskDraft.targetRoutineId
+      && nextStore.records[planningKey]?.[taskDraft.targetRoutineId]?.scheduledTasks.some((task) => task.id === cleanTask.id)
+    ) {
+      nextStore = setHygieneTaskStatus(
+        nextStore,
+        planningKey,
+        taskDraft.targetRoutineId,
+        cleanTask.id,
+        movedState,
+      );
+    }
+    if (persist(nextStore)) setTaskDraft(null);
   };
 
   const deleteTask = () => {

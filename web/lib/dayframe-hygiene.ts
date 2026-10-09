@@ -47,6 +47,7 @@ export type HygieneRoutineRecord = {
   routineTitle: string;
   scheduledTasks: HygieneTaskSnapshot[];
   states: Record<string, HygieneTaskStatus>;
+  archived?: boolean;
 };
 
 export type HygieneStore = {
@@ -346,12 +347,16 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           }
           states[taskId] = state;
         }
+        if (record.archived !== undefined && typeof record.archived !== "boolean") {
+          return { store: createDefaultHygieneStore(today), blocked: true };
+        }
         records[date][routineId] = {
           date,
           routineId,
           routineTitle: record.routineTitle,
           scheduledTasks: snapshots,
           states,
+          archived: record.archived === true ? true : undefined,
         };
       }
     }
@@ -446,6 +451,17 @@ function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
   };
 }
 
+function recordIsFinalized(record: HygieneRoutineRecord) {
+  const required = record.scheduledTasks.filter((item) => !item.optional);
+  return required.length === 0 || required.every((item) => record.states[item.id] === "done" || record.states[item.id] === "skipped");
+}
+
+function routineHasScheduledWorkOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
+  if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
+  const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
+  return routine.tasks.some((item) => taskScheduledOnDate(item, dateKey, parentScheduled));
+}
+
 export function materializeHygieneDate(store: HygieneStore, dateKey: string, refresh = false): HygieneStore {
   const dateRecords = { ...(store.records[dateKey] ?? {}) };
   const scheduledRoutineIds = new Set<string>();
@@ -468,6 +484,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         routineTitle: routine.title,
         scheduledTasks,
         states: {},
+        archived: undefined,
       };
       changed = true;
       continue;
@@ -481,6 +498,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         routineTitle: routine.title,
         scheduledTasks,
         states,
+        archived: undefined,
       };
       if (JSON.stringify(next) !== JSON.stringify(existing)) {
         dateRecords[routine.id] = next;
@@ -492,8 +510,16 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
   if (refresh) {
     for (const routineId of Object.keys(dateRecords)) {
       if (scheduledRoutineIds.has(routineId)) continue;
-      delete dateRecords[routineId];
-      changed = true;
+      const existing = dateRecords[routineId];
+      if (recordIsFinalized(existing)) {
+        if (!existing.archived) {
+          dateRecords[routineId] = { ...existing, archived: true };
+          changed = true;
+        }
+      } else {
+        delete dateRecords[routineId];
+        changed = true;
+      }
     }
   }
 
@@ -604,7 +630,10 @@ export function routineSummary(
 export function scheduledRoutineSummaries(store: HygieneStore, dateKey: string, today = dateKey) {
   const dateRecords = store.records[dateKey] ?? {};
   return store.routines
-    .filter((routine) => Boolean(dateRecords[routine.id]))
+    .filter((routine) => {
+      const record = dateRecords[routine.id];
+      return Boolean(record) && !record.archived && routineHasScheduledWorkOnDate(store, routine, dateKey);
+    })
     .sort((left, right) => left.order - right.order)
     .map((routine) => routineSummary(routine, dateRecords[routine.id], today));
 }
