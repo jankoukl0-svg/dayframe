@@ -113,6 +113,7 @@ for (const file of changed) {
   if (lower.includes("label")) addPrefix("label-");
   if (lower.includes("notification")) add("notifications.spec.mjs");
   if (lower.includes("hygiene")) {
+    add("hygiene-care-stage1.spec.mjs");
     add("hygiene.spec.mjs");
     add("daily-checklist.spec.mjs");
     add("completion-ux.spec.mjs");
