@@ -801,3 +801,59 @@ test("scheduled days do not duplicate product instructions; completed steps reta
   const data = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   expect(data.records["2026-10-07"].morning.scheduledTasks.find((t) => t.id === "morning-face").products?.length ?? 0).toBe(0);
 });
+
+
+test("moving a completed task preserves its original product snapshot", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const store = JSON.parse(localStorage.getItem(key));
+    store.products.push({
+      id: "move-gel", name: "Původní gel", brand: "Original",
+      category: "Pleť", description: "", instructions: "Původní návod",
+      frequency: "", openedOn: "", expiresOn: "", paoMonths: null,
+      amount: "", stockStatus: "ok", shopUrl: "", archived: false,
+    });
+    store.routines.find((routine) => routine.id === "morning")
+      .tasks.find((task) => task.id === "morning-face").productIds = ["move-gel"];
+    localStorage.setItem(key, JSON.stringify(store));
+    dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  await morning.getByRole("button", { name: "Označit Očistit obličej jako hotovo" }).click();
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const store = JSON.parse(localStorage.getItem(key));
+    const product = store.products.find((item) => item.id === "move-gel");
+    product.name = "Nový gel";
+    product.instructions = "Nový návod";
+    product.archived = true;
+    localStorage.setItem(key, JSON.stringify(store));
+    dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const manage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Ranní rutina" });
+  await manage.locator(".df2-hygiene-manage-task-copy").filter({ hasText: "Očistit obličej" }).click();
+  const modal = page.getByRole("dialog", { name: "Upravit hygienický úkol" });
+  await modal.getByRole("combobox", { name: "Rutina", exact: true }).selectOption("evening");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+  const record = await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    return {
+      state: store.records["2026-10-06"].evening.states["morning-face"],
+      products: store.records["2026-10-06"].evening.scheduledTasks
+        .find((task) => task.id === "morning-face").products,
+    };
+  });
+  expect(record.state).toBe("done");
+  expect(record.products).toMatchObject([{
+    id: "move-gel", name: "Původní gel", instructions: "Původní návod",
+  }]);
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  const evening = page.locator('[data-hygiene-routine="evening"]');
+  await evening.getByRole("button", { name: "Historický produkt Původní gel" }).click();
+  const history = page.getByRole("dialog", { name: "Historický produkt Původní gel" });
+  await expect(history).toContainText("Původní návod");
+  await expect(history).not.toContainText("Nový návod");
+});
