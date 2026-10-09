@@ -637,7 +637,8 @@ export function hygieneRollingDueDate(store: HygieneStore, taskId: string, sched
       const status = record.states[taskId];
       if (!status || status === "deferred") continue;
       if (!record.scheduledTasks.some((task) => task.id === taskId)) continue;
-      handled.push({ date, performed: status === "done" ? record.completedOn?.[taskId] ?? date : date });
+      const performed = status === "done" ? record.completedOn?.[taskId] ?? date : date;
+      if (performed <= throughDate) handled.push({ date, performed });
     }
   }
   if (!handled.length) return schedule.anchorDate;
