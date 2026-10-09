@@ -127,6 +127,9 @@ function fromLabelledData(record) {
   return details;
 }
 
+/** @param {string} html
+ * @param {Record<string, unknown> | null} [productStructuredData]
+ */
 export function extractGuideFromHtml(html, productStructuredData = null) {
   const body = String(html ?? "").replace(/<(?:script|style|svg|noscript|template)\b[^>]*>[\s\S]*?<\/(?:script|style|svg|noscript|template)\s*>/gi, "");
   const fields = fromLabelledData(productStructuredData);
