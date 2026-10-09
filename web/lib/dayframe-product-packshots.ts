@@ -149,6 +149,9 @@ export async function findBestProductPackshot(candidates: PackshotCandidate[]): 
     .filter((candidate) => candidate.url.startsWith("https://"))
     .map((candidate) => [candidate.url, candidate])).values()].slice(0, 8);
   let best: Inspection | null = null;
+  // Some legitimate product thumbnails decode in <img> but cannot be opened
+  // by createImageBitmap in all browsers. Preserve the original as a fallback.
+  let fallback: { blob: Blob; source: string } | null = null;
   let checked = 0;
   for (let start = 0; start < unique.length; start += 3) {
     const batch = await Promise.all(unique.slice(start, start + 3).map(async (candidate) => {
@@ -160,7 +163,11 @@ export async function findBestProductPackshot(candidates: PackshotCandidate[]): 
         const blob = await response.blob();
         if (!["image/jpeg", "image/png", "image/webp"].includes(blob.type)
           || blob.size < 30 || blob.size > MAX_BYTES) return null;
-        return await inspect(candidate, blob);
+        try { return await inspect(candidate, blob); }
+        catch {
+          fallback ??= { blob, source: candidate.source };
+          return null;
+        }
       } catch { return null; }
     }));
     for (const photo of batch) {
@@ -172,7 +179,13 @@ export async function findBestProductPackshot(candidates: PackshotCandidate[]): 
       } else photo.bitmap.close();
     }
   }
-  if (!best) return null;
+  if (!best) {
+    if (!fallback) return null;
+    const original = fallback as { blob: Blob; source: string };
+    const file = new File([original.blob], "produkt-fotografie." + imageExtensions(original.blob.type),
+      { type: original.blob.type });
+    return { file, source: original.source, quality: "fallback", checked: Math.max(1, checked) };
+  }
   try {
     const selected = await convertSelected(best);
     return { ...selected, checked };
