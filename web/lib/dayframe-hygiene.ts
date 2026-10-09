@@ -23,6 +23,7 @@ export type HygieneTaskDefinition = {
   allowSkip: boolean;
   schedule?: HygieneSchedule;
   productIds?: string[];
+  timerSeconds?: number;
 };
 
 export type HygieneRoutineDefinition = {
@@ -42,6 +43,10 @@ export type HygieneProduct = {
   description: string;
   instructions: string;
   frequency: string;
+  usageWhen?: string;
+  usageAmount?: string;
+  usageDuration?: string;
+  precautions?: string;
   openedOn: string;
   expiresOn: string;
   paoMonths: number | null;
@@ -57,6 +62,11 @@ export type HygieneProductSnapshot = {
   name: string;
   brand: string;
   instructions: string;
+  usageWhen?: string;
+  usageAmount?: string;
+  usageDuration?: string;
+  frequency?: string;
+  precautions?: string;
   photoKey?: string;
 };
 
@@ -303,6 +313,9 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         ) {
           return { store: createDefaultHygieneStore(today), blocked: true };
         }
+        if (item.timerSeconds !== undefined && (
+          !Number.isInteger(item.timerSeconds) || item.timerSeconds < 15 || item.timerSeconds > 7200
+        )) return { store: createDefaultHygieneStore(today), blocked: true };
         if (item.productIds !== undefined && (
           !Array.isArray(item.productIds)
           || item.productIds.some((id) => typeof id !== "string" || !id)
@@ -317,6 +330,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           allowSkip: item.allowSkip,
           schedule: taskSchedule ?? undefined,
           productIds: item.productIds ? [...new Set(item.productIds)] : [],
+          timerSeconds: item.timerSeconds,
         });
       }
 
@@ -349,6 +363,10 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         || typeof product.description !== "string"
         || typeof product.instructions !== "string"
         || typeof product.frequency !== "string"
+        || ["usageWhen", "usageAmount", "usageDuration", "precautions"].some((field) => {
+          const value = product[field as keyof HygieneProduct];
+          return value !== undefined && typeof value !== "string";
+        })
         || typeof product.openedOn !== "string"
         || typeof product.expiresOn !== "string"
         || (product.paoMonths !== null && product.paoMonths !== undefined
@@ -368,6 +386,10 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         description: product.description,
         instructions: product.instructions,
         frequency: product.frequency,
+        usageWhen: product.usageWhen ?? "",
+        usageAmount: product.usageAmount ?? "",
+        usageDuration: product.usageDuration ?? "",
+        precautions: product.precautions ?? "",
         openedOn: product.openedOn,
         expiresOn: product.expiresOn,
         paoMonths: product.paoMonths ?? null,
@@ -421,6 +443,10 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
             || snapshot.products.some((product) => !product || typeof product !== "object"
               || typeof product.id !== "string" || typeof product.name !== "string"
               || typeof product.brand !== "string" || typeof product.instructions !== "string"
+              || ["usageWhen", "usageAmount", "usageDuration", "frequency", "precautions"].some((field) => {
+                const value = product[field as keyof HygieneProductSnapshot];
+                return value !== undefined && typeof value !== "string";
+              })
               || (product.photoKey !== undefined && typeof product.photoKey !== "string"))
           )) return { store: createDefaultHygieneStore(today), blocked: true };
           snapshots.push({
@@ -429,6 +455,11 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
               name: product.name,
               brand: product.brand,
               instructions: product.instructions,
+              usageWhen: product.usageWhen,
+              usageAmount: product.usageAmount,
+              usageDuration: product.usageDuration,
+              frequency: product.frequency,
+              precautions: product.precautions,
               photoKey: product.photoKey,
             })) ?? [],
             id: snapshot.id,
@@ -552,6 +583,11 @@ export function productSnapshotsForTask(store: HygieneStore, task: HygieneTaskDe
       name: product.name,
       brand: product.brand,
       instructions: product.instructions,
+      usageWhen: product.usageWhen,
+      usageAmount: product.usageAmount,
+      usageDuration: product.usageDuration,
+      frequency: product.frequency,
+      precautions: product.precautions,
       photoKey: product.photoKey,
     }));
 }
