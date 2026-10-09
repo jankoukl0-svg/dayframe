@@ -753,7 +753,7 @@ export function HygienePage({
       )}
 
       {tab === "products" && (
-        <HygieneProducts store={store} onSave={persist} focusProductId={focusProductId}
+        <HygieneProducts store={store} today={planningKey} onSave={persist} focusProductId={focusProductId}
           onFocusHandled={() => setFocusProductId(null)} />
       )}
 
