@@ -377,7 +377,7 @@ export function HygieneProducts({
             filter === "archived" ? "Zatím žádné archivované produkty." : "Zatím tu nemáš žádný produkt."}</strong>
           <span>{filter === "active" ? "Přidej svůj první přípravek a přiřaď ho k hygienické rutině." :
             filter === "low" ? "Přidej produkty do seznamu nebo nastav číselnou rezervu v jejich detailu." :
-            filter === "alerts" ? "Zobrazují se známé termíny nejvýše 30 dní před expirací a 14 dní před výměnou." :
+            filter === "alerts" ? "Expirace se hlídá 30 dní dopředu; výměny několik dní před termínem podle délky cyklu." :
             "Můžeš přepnout na aktivní produkty."}</span>
         </div>
       ) : null}
