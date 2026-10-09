@@ -7,6 +7,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { extractGuideFromHtml, extractGuideFromCatalog } from "../lib/dayframe-product-guide-extract.mjs";
 import { manufacturerGuideFor } from "../lib/dayframe-manufacturer-guide.mjs";
+import { isCatalogBoilerplate, usefulDescription, safeFdaLabel } from "../lib/dayframe-product-quality.mjs";
 import { bingRssResults, duckDuckGoResults, productPageIsRelevant, rankProductLinks } from "../lib/dayframe-product-discovery.mjs";
 
 type Match = {
@@ -16,6 +17,7 @@ type Match = {
   amount: string; priceCzk: number | null;
   imageUrl: string; sourceUrl: string; sourceLabel: string; guideSourceUrl: string;
   guideSourceUrls?: string[];
+  safetySource?: string;
 };
 
 const LIMIT = 500_000;
@@ -200,7 +202,7 @@ function fromHtml(html: string, url: string): Match | null {
   const brand = clean(typeof rawBrand === "object" && rawBrand && !Array.isArray(rawBrand)
     ? (rawBrand as Record<string,unknown>).name : rawBrand, 160);
   const category = categoryFrom(clean(ld?.category || "", 100));
-  const description = clean(ld?.description || meta["og:description"] || meta.description, 1800);
+  const description = usefulDescription(clean(ld?.description || meta["og:description"] || meta.description, 1800));
   const amount = clean(ld?.size, 100);
   const guide = extractGuideFromHtml(html, ld);
   const verified = manufacturerGuideFor(brand, title);
@@ -250,7 +252,7 @@ async function searchBeauty(query: string): Promise<Match[]> {
     .map((product): Match => {
       const name = clean(product.product_name, 160);
       const brand = clean(product.brands, 160).split(",")[0];
-      const description = clean(product.generic_name || product.description, 1800);
+      const description = usefulDescription(clean(product.generic_name || product.description, 1800));
       const code = String(product.code ?? "");
       const guide = extractGuideFromCatalog(product);
       const verified = manufacturerGuideFor(brand, name, code);
@@ -328,7 +330,8 @@ function mergeFromSource(base: Match | null, another: Match): Match {
   const guideKeys = ["instructions", "usageWhen", "usageAmount", "usageDuration", "precautions", "frequency"] as const;
   const enriched = { ...base };
   for (const key of guideKeys) if (!enriched[key] && another[key]) enriched[key] = another[key];
-  if (!enriched.description && another.description) enriched.description = another.description;
+  if ((!enriched.description || isCatalogBoilerplate(enriched.description)) && usefulDescription(another.description))
+    enriched.description = usefulDescription(another.description);
   if (!enriched.imageUrl && another.imageUrl) enriched.imageUrl = another.imageUrl;
   if (!enriched.brand && another.brand) enriched.brand = another.brand;
   if (!enriched.amount && another.amount) enriched.amount = another.amount;
@@ -348,18 +351,37 @@ async function researchProductPages(query: string, brand = ""): Promise<Match[]>
   return checked.filter((item): item is Match => item !== null);
 }
 
+async function fetchOfficialDrugLabel(name: string, brand: string) {
+  // Labels are only queried for a recognizably medicinal/OTC product.
+  if (!/(?:\bminoxidil\b|\btopical solution\b|\bhair regrowth\b|\btreatment\b|\bmedicated\b|\bspf\s*\d{2}\b|\b\d+(?:[.,]\d+)?\s*%\b)/i.test(name)) return null;
+  const ingredient = name.match(/\bminoxidil\b/i)?.[0] ?? "";
+  const safe = (value: string) => value.replace(/[^\p{L}\p{N} .%-]/gu, "").trim().slice(0, 80);
+  const term = ingredient
+    ? 'active_ingredient:"' + safe(ingredient) + '"' + (brand ? ' AND openfda.brand_name:"' + safe(brand) + '"' : "")
+    : 'openfda.brand_name:"' + safe(brand || name.split(/\s+/).slice(0, 2).join(" ")) + '"';
+  const query = new URL("https://api.fda.gov/drug/label.json");
+  query.searchParams.set("search", term);
+  query.searchParams.set("limit", "35");
+  try {
+    const response = await requestPublic(query.href, "application/json", 4000);
+    const body = new TextDecoder().decode(await readLimited(response, 1_200_000));
+    const data = JSON.parse(body) as { results?: Record<string, unknown>[] };
+    const found = (data.results || []).map((entry) => safeFdaLabel(entry, name, brand))
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+    return found[0] || null;
+  } catch { return null; }
+}
+
 async function findDetailedGuide(brand: string, name: string, original: string) {
+  const fallback = {
+    instructions: "", usageWhen: "", usageAmount: "", usageDuration: "",
+    precautions: "", frequency: "",
+  };
   const verified = manufacturerGuideFor(brand, name);
-  if (verified) {
-    const { description, sourceUrl, sourceUrls, ...guide } = verified;
-    return { guide, description, sourceUrl, sourceUrls };
-  }
-  const fallback = { instructions: "", usageWhen: "", usageAmount: "", usageDuration: "", precautions: "", frequency: "" };
-  // Discover and inspect the selected source concurrently. A slow catalog page
-  // must not block the whole guide request before web-index research can begin.
-  const [originalPage, pages] = await Promise.all([
+  const [originalPage, pages, medical] = await Promise.all([
     parseSafeUrl(original) ? openProductPage(original, name) : Promise.resolve(null),
     researchProductPages(name, brand),
+    fetchOfficialDrugLabel(name, brand),
   ]);
   let source: Match | null = originalPage;
   for (const page of pages) {
@@ -367,16 +389,40 @@ async function findDetailedGuide(brand: string, name: string, original: string) 
     source = mergeFromSource(source, page);
     if (source && guideCount(source) >= 4 && source.description) break;
   }
-  if (!source) return { guide: fallback, description: "", sourceUrl: "", sourceUrls: [] };
-  const urls = [...new Set([...(source.guideSourceUrls ?? []), source.guideSourceUrl, source.sourceUrl].filter(Boolean))];
+  const guide = { ...fallback };
+  let description = usefulDescription(source?.description);
+  const sourceUrls = new Set<string>();
+  if (source) {
+    Object.assign(guide, {
+      instructions: source.instructions,
+      usageWhen: source.usageWhen,
+      usageAmount: source.usageAmount,
+      usageDuration: source.usageDuration,
+      precautions: source.precautions,
+      frequency: source.frequency,
+    });
+    for (const link of [...(source.guideSourceUrls ?? []), source.guideSourceUrl, source.sourceUrl])
+      if (link) sourceUrls.add(link);
+  }
+  if (verified) {
+    if (!description) description = verified.description;
+    for (const key of Object.keys(fallback) as Array<keyof typeof fallback>)
+      if (!guide[key] && verified[key]) guide[key] = verified[key];
+    for (const link of verified.sourceUrls) sourceUrls.add(link);
+  }
+  if (medical) {
+    // Regulatory instructions supersede retail copy, but must match strength.
+    if (medical.description) description = medical.description;
+    for (const key of Object.keys(fallback) as Array<keyof typeof fallback>)
+      if (medical.guide[key]) guide[key] = medical.guide[key];
+    for (const link of medical.sourceUrls) sourceUrls.add(link);
+  }
+  const ordered = [...sourceUrls].slice(0, 5);
   return {
-    guide: {
-      instructions: source.instructions, usageWhen: source.usageWhen,
-      usageAmount: source.usageAmount, usageDuration: source.usageDuration,
-      precautions: source.precautions, frequency: source.frequency,
-    },
-    description: source.description,
-    sourceUrl: urls[0] ?? "", sourceUrls: urls.slice(0, 4),
+    guide, description, sourceUrl: medical?.sourceUrl || verified?.sourceUrl || ordered[0] || "",
+    sourceUrls: ordered, safetySource: medical?.safetySource || "",
+    warning: medical ? "Lékový štítek pochází z USA. Ověřte přesný přípravek, koncentraci a údaje na obalu."
+      : (!guide.precautions ? "Bezpečnostní upozornění se nepodařilo ověřit. Zkontrolujte obal nebo návod výrobce." : ""),
   };
 }
 
