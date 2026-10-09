@@ -392,7 +392,7 @@ test("moving a completed task between today's routines preserves its state", asy
   await morningManage.getByRole("button", { name: "Vyčistit zuby Péče", exact: true }).click();
 
   const modal = page.locator(".df2-hygiene-modal").last();
-  await modal.getByLabel("Rutina").selectOption("evening");
+  await modal.getByLabel("Rutina", { exact: true }).selectOption("evening");
   await modal.getByRole("button", { name: "Uložit", exact: true }).click();
 
   await expect.poll(() => page.evaluate(() => {
