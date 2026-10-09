@@ -37,7 +37,7 @@ test("drug warnings are used only from an exactly strength-matched official labe
   const safe = safeFdaLabel(label, "Hair Regrowth Formula, Minoxidil Topical Solution 2%", "equate");
   expect(safe).not.toBeNull();
   expect(safe.guide.instructions).toContain("one mL");
-  expect(safe.guide.usageAmount).toBe("one mL".replace("one ", "") === "mL" ? "" : safe.guide.usageAmount); // tolerant of written numbers
+  expect(safe.guide.usageAmount).toBe("one mL");
   expect(safe.guide.precautions).toContain("chest pain");
   expect(safe.guide.precautions).toContain("Do not use");
   expect(safe.sourceUrl).toContain("dailymed.nlm.nih.gov");
