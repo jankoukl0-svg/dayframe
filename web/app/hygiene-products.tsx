@@ -20,6 +20,12 @@ type ProductLookupMatch = {
   category: string;
   description: string;
   instructions: string;
+  usageWhen?: string;
+  usageAmount?: string;
+  usageDuration?: string;
+  precautions?: string;
+  frequency?: string;
+  guideSourceUrl?: string;
   amount: string;
   priceCzk: number | null;
   imageUrl: string;
@@ -210,41 +216,75 @@ export function HygieneProducts({
 
   const applyLookupMatch = async (match: ProductLookupMatch) => {
     if (!draft || lookupImporting) return;
-    const isNew = !store.products.some((item) => item.id === draft.id);
+    const draftId = draft.id;
+    const isNew = !store.products.some((item) => item.id === draftId);
     const enteredLink = /^https:\/\//i.test(lookupQuery.trim()) ? lookupQuery.trim() : "";
-    // Fill verified public facts; never overwrite personal inventory, opening or expiry dates.
-    setDraft({
-      ...draft,
-      name: match.name.slice(0, 160),
-      brand: draft.brand.trim() || (match.brand || "").slice(0, 160),
-      category: isNew && match.category ? match.category : draft.category,
-      description: draft.description.trim() || (match.description || "").slice(0, 3000),
-      instructions: draft.instructions.trim() || (match.instructions || "").slice(0, 3000),
-      amount: draft.amount.trim() || (match.amount || "").slice(0, 100),
-      priceCzk: draft.priceCzk ?? match.priceCzk ?? null,
-      shopUrl: enteredLink || draft.shopUrl,
+    // User edits always win, including a guide completed while enrichment runs.
+    const applyVerified = (current: HygieneProduct, guide: Partial<ProductLookupMatch>) => ({
+      ...current,
+      instructions: current.instructions.trim() || (guide.instructions || "").slice(0, 3000),
+      usageWhen: current.usageWhen?.trim() || (guide.usageWhen || "").slice(0, 400),
+      usageAmount: current.usageAmount?.trim() || (guide.usageAmount || "").slice(0, 400),
+      usageDuration: current.usageDuration?.trim() || (guide.usageDuration || "").slice(0, 400),
+      precautions: current.precautions?.trim() || (guide.precautions || "").slice(0, 1200),
+      frequency: current.frequency.trim() || (guide.frequency || "").slice(0, 400),
     });
+    setDraft((current) => current && current.id === draftId ? applyVerified({
+      ...current,
+      name: match.name.slice(0, 160),
+      brand: current.brand.trim() || (match.brand || "").slice(0, 160),
+      category: isNew && match.category ? match.category : current.category,
+      description: current.description.trim() || (match.description || "").slice(0, 3000),
+      amount: current.amount.trim() || (match.amount || "").slice(0, 100),
+      priceCzk: current.priceCzk ?? match.priceCzk ?? null,
+      shopUrl: enteredLink || current.shopUrl,
+    }, match) : current);
     setLookupSource(match.sourceLabel + " · " + match.sourceUrl);
     setLookupMatches([]);
-    setLookupNotice("Zjištěné údaje jsou předvyplněné. Před uložením je zkontroluj; osobní údaje doplň ručně.");
+    setLookupNotice("Základní údaje jsou předvyplněné. Dohledávám ještě návod a upozornění výrobce…");
     setLookupError("");
 
-    if (match.imageUrl && !file && !draft.photoKey) {
-      setLookupImporting(true);
-      try {
-        const response = await fetch(LOOKUP_ENDPOINT + "?mode=image&url=" + encodeURIComponent(match.imageUrl));
-        if (!response.ok) throw new Error("Fotografii se nepodařilo načíst.");
-        const blob = await response.blob();
-        const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
-        const imported = new File([blob], "hygiena-produkt." + ext, { type: blob.type });
-        const invalid = validateProductPhoto(imported);
-        if (invalid) throw new Error(invalid);
-        setFile(imported);
-      } catch {
-        setLookupNotice("Informace byly předvyplněny. Fotografii se nepodařilo bezpečně převzít; můžeš ji nahrát ručně.");
-      } finally {
-        setLookupImporting(false);
+    setLookupImporting(true);
+    let imageFailed = false;
+    try {
+      // Name-only matches are often sparse catalog records, so look for a maker's instructions.
+      if ((!match.instructions || !match.precautions || !match.usageWhen) && match.brand && match.name) {
+        try {
+          const args = new URLSearchParams({
+            mode: "guide", name: match.name, brand: match.brand, url: match.sourceUrl,
+          });
+          const response = await fetch(LOOKUP_ENDPOINT + "?" + args, {
+            signal: AbortSignal.timeout(12500),
+          });
+          if (response.ok && response.headers.get("content-type")?.includes("application/json")) {
+            const result = await response.json() as {
+              guide?: Partial<ProductLookupMatch>; sourceUrl?: string;
+            };
+            if (result.guide) {
+              setDraft((current) => current && current.id === draftId
+                ? applyVerified(current, result.guide!) : current);
+              if (result.sourceUrl) setLookupSource("Návod: " + result.sourceUrl + " · produkt: " + match.sourceUrl);
+            }
+          }
+        } catch { /* product may be unavailable on manufacturer sites; keep known fields */ }
       }
+      if (match.imageUrl && !file && !draft.photoKey) {
+        try {
+          const response = await fetch(LOOKUP_ENDPOINT + "?mode=image&url=" + encodeURIComponent(match.imageUrl));
+          if (!response.ok) throw new Error("Fotografii se nepodařilo načíst.");
+          const blob = await response.blob();
+          const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+          const imported = new File([blob], "hygiena-produkt." + ext, { type: blob.type });
+          const invalid = validateProductPhoto(imported);
+          if (invalid) throw new Error(invalid);
+          setFile(imported);
+        } catch { imageFailed = true; }
+      }
+      setLookupNotice(imageFailed
+        ? "Dostupné údaje byly doplněné, ale fotografii je potřeba nahrát ručně."
+        : "Dostupné údaje výrobce byly doplněné. Neznámá pole zůstávají prázdná; vše před uložením zkontroluj.");
+    } finally {
+      setLookupImporting(false);
     }
   };
 
@@ -564,7 +604,7 @@ export function HygieneProducts({
               {!lookupQuery && draft.name && <small>Už máš vyplněný název „{draft.name}“ – můžeš kliknout rovnou na Vyhledat.</small>}
               {lookupError && <p className="df2-hygiene-error" role="alert">{lookupError}</p>}
               {lookupNotice && <p className="df2-product-autofill-note" role="status">{lookupNotice}</p>}
-              {lookupImporting && <p className="df2-product-autofill-note" role="status">Stahuji fotografii produktu…</p>}
+              {lookupImporting && <p className="df2-product-autofill-note" role="status">Dohledávám návod a případnou fotografii…</p>}
               {lookupSource && <p className="df2-product-autofill-credit">Zdroj vyplněných údajů: {lookupSource}</p>}
               {lookupMatches.length > 0 && <div className="df2-product-autofill-results" aria-label="Nalezené produkty">
                 {lookupMatches.map((match, index) => (
@@ -573,6 +613,7 @@ export function HygieneProducts({
                       <small>{[match.brand, match.amount, match.category].filter(Boolean).join(" · ")}</small>
                       <span>{match.sourceLabel}</span>
                       {match.description && <p>{match.description.slice(0, 220)}</p>}
+                      {(match.instructions || match.precautions) && <small>Obsahuje také pokyny k použití nebo upozornění</small>}
                     </div>
                     <button type="button" onClick={() => void applyLookupMatch(match)} disabled={lookupImporting}>Použít tento produkt</button>
                   </article>
