@@ -53,6 +53,14 @@ export type HygieneProduct = {
   paoMonths: number | null;
   amount: string;
   stockStatus: "ok" | "low";
+  /** Optional package/piece count. Null means the user is not tracking counts. */
+  stockCount?: number | null;
+  /** Reorder when count is at or below this number; replenishment target is minimum + 1. */
+  stockMinimum?: number | null;
+  priceCzk?: number | null;
+  /** Tool replacement cycle; independent from product expiry. */
+  replacementEveryDays?: number | null;
+  lastReplacedOn?: string;
   shopUrl: string;
   photoKey?: string;
   archived: boolean;
@@ -385,6 +393,16 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         || (product.paoMonths !== null && product.paoMonths !== undefined
           && (!Number.isInteger(product.paoMonths) || product.paoMonths < 1 || product.paoMonths > 60))
         || typeof product.amount !== "string"
+        || ["stockCount", "stockMinimum", "replacementEveryDays"].some((field) => {
+          const value = product[field as keyof HygieneProduct];
+          return value !== undefined && value !== null
+            && (!Number.isInteger(value) || (value as number) < (field === "replacementEveryDays" ? 1 : 0)
+              || (value as number) > (field === "replacementEveryDays" ? 3650 : 10000));
+        })
+        || (product.priceCzk !== undefined && product.priceCzk !== null
+          && (!Number.isFinite(product.priceCzk) || product.priceCzk < 0 || product.priceCzk > 1000000))
+        || (product.lastReplacedOn !== undefined && (typeof product.lastReplacedOn !== "string"
+          || (product.lastReplacedOn !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(product.lastReplacedOn))))
         || (product.stockStatus !== "ok" && product.stockStatus !== "low")
         || typeof product.shopUrl !== "string"
         || (product.photoKey !== undefined && (typeof product.photoKey !== "string" || !product.photoKey))
@@ -408,6 +426,11 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         paoMonths: product.paoMonths ?? null,
         amount: product.amount,
         stockStatus: product.stockStatus,
+        stockCount: product.stockCount ?? null,
+        stockMinimum: product.stockMinimum ?? null,
+        priceCzk: product.priceCzk ?? null,
+        replacementEveryDays: product.replacementEveryDays ?? null,
+        lastReplacedOn: product.lastReplacedOn ?? "",
         shopUrl: product.shopUrl,
         photoKey: product.photoKey,
         archived: product.archived,
