@@ -13,6 +13,9 @@ import {
   historyStatusForDate,
   loadHygieneStore,
   overallHygieneProgress,
+  overdueHygieneTasks,
+  planManualHygieneTask,
+  postponeHygieneTask,
   refreshHygieneToday,
   routineScheduledOnDate,
   routineStats,
@@ -58,6 +61,7 @@ function statusLabel(status: string) {
   if (status === "partial") return "Částečně";
   if (status === "missed") return "Nesplněno";
   if (status === "skipped") return "Přeskočeno";
+  if (status === "deferred") return "Odloženo";
   if (status === "scheduled") return "Naplánováno";
   return "Nenaplánováno";
 }
@@ -114,6 +118,7 @@ function scheduleFromType(type: HygieneSchedule["type"], planningKey: string): H
   if (type === "days") return { type: "days", weekdays: [1, 2, 3, 4, 5] };
   if (type === "weekly") return { type: "weekly", weekday: 0 };
   if (type === "interval") return { type: "interval", everyDays: 2, anchorDate: planningKey };
+  if (type === "rolling") return { type: "rolling", everyDays: 7, anchorDate: planningKey, unit: "days" };
   if (type === "monthly") return { type: "monthly", day: 1 };
   if (type === "nth-weekday") return { type: "nth-weekday", week: 1, weekday: 0 };
   return { type: "manual" };
@@ -136,7 +141,8 @@ function ScheduleEditor({
     { value: "daily", label: "Každý den" },
     { value: "days", label: "Konkrétní dny" },
     { value: "weekly", label: "Jednou týdně" },
-    { value: "interval", label: "Každých X dní" },
+    { value: "interval", label: "Pevně každých X dní od data" },
+    { value: "rolling", label: "Po X dnech / týdnech od splnění" },
     { value: "monthly", label: "Jednou měsíčně" },
     { value: "nth-weekday", label: "Týden + den v měsíci" },
   ];
@@ -209,6 +215,31 @@ function ScheduleEditor({
         </div>
       )}
 
+      {value.type === "rolling" && (
+        <div className="df2-hygiene-schedule-row">
+          <label>Opakovat každých
+            <input aria-label="Interval od dokončení" type="number" min="1" max={value.unit === "weeks" ? 52 : 365}
+              value={value.everyDays} onChange={(event) => onChange({
+                ...value, everyDays: Math.max(1, Math.min(value.unit === "weeks" ? 52 : 365,
+                  Math.round(Number(event.target.value) || 1))),
+              })} />
+          </label>
+          <label>Jednotka
+            <select aria-label="Jednotka intervalu" value={value.unit} onChange={(event) => onChange({
+              ...value, unit: event.target.value as "days" | "weeks",
+              everyDays: Math.min(value.everyDays, event.target.value === "weeks" ? 52 : 365),
+            })}>
+              <option value="days">Dny</option>
+              <option value="weeks">Týdny</option>
+            </select>
+          </label>
+          <label>První termín
+            <input aria-label="První termín intervalu" type="date" value={value.anchorDate}
+              onChange={(event) => onChange({ ...value, anchorDate: event.target.value || planningKey })} />
+          </label>
+          <small>Po dokončení se příští termín vypočítá ze skutečného dne splnění. Pevný týdenní rozvrh zůstává beze změny.</small>
+        </div>
+      )}
       {value.type === "monthly" && (
         <label>
           Den v měsíci
@@ -263,6 +294,10 @@ export function HygienePage({
   const [monthKey, setMonthKey] = useState(() => monthKeyFromPlanningKey(planningKey));
   const [routineDraft, setRoutineDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [taskDraft, setTaskDraft] = useState<{ sourceRoutineId: string; targetRoutineId: string; task: HygieneTaskDefinition } | null>(null);
+  const [manualPlanDate, setManualPlanDate] = useState("");
+  const [scheduleManualDate, setScheduleManualDate] = useState(false);
+  const [postponeKey, setPostponeKey] = useState("");
+  const [postponeDate, setPostponeDate] = useState("");
   const [focusProductId, setFocusProductId] = useState<string | null>(null);
   const [historyProductDetail, setHistoryProductDetail] = useState<{
     date: string; routine: string; task: string; product: HygieneProductSnapshot;
@@ -333,17 +368,43 @@ export function HygienePage({
     [planningKey],
   );
   const calendarDates = useMemo(() => monthDays(monthKey), [monthKey]);
+  const overdue = useMemo(() => overdueHygieneTasks(store, planningKey), [store, planningKey]);
 
-  const updateTask = (routineId: string, taskId: string, nextStatus: "done" | "skipped") => {
+  const changeStatus = (date: string, routineId: string, taskId: string, status: "done" | "skipped" | "omitted") => {
     const latest = loadHygieneStore(planningKey);
     if (latest.blocked) {
       setBlocked(true);
-      setError("Data Hygieny nelze bezpečně načíst. Ukládání je vypnuté, aby se původní data nepřepsala.");
+      setError("Data Hygieny nelze bezpečně načíst. Ukládání je vypnuté.");
       return;
     }
-    const current = latest.store.records[planningKey]?.[routineId]?.states[taskId];
-    const next = current === nextStatus ? null : nextStatus;
-    persist(setHygieneTaskStatus(latest.store, planningKey, routineId, taskId, next));
+    const current = latest.store.records[date]?.[routineId]?.states[taskId];
+    const next = current === status ? null : status;
+    persist(setHygieneTaskStatus(latest.store, date, routineId, taskId, next, planningKey));
+  };
+
+  const deferTask = (date: string, routineId: string, taskId: string) => {
+    const latest = loadHygieneStore(planningKey);
+    if (latest.blocked) {
+      setBlocked(true);
+      setError("Data Hygieny nelze bezpečně načíst. Ukládání je vypnuté.");
+      return;
+    }
+    if (!postponeDate || postponeDate < planningKey || postponeDate <= date) {
+      setError("Vyber platné budoucí datum (ne dříve než dnes).");
+      return;
+    }
+    if (persist(postponeHygieneTask(latest.store, date, routineId, taskId, postponeDate))) {
+      setPostponeKey("");
+      setPostponeDate("");
+    }
+  };
+  const startPostpone = (key: string) => {
+    setPostponeKey((old) => old === key ? "" : key);
+    setPostponeDate(addDaysKey(planningKey, 1));
+  };
+
+  const updateTask = (routineId: string, taskId: string, status: "done" | "skipped" | "omitted") => {
+    changeStatus(planningKey, routineId, taskId, status);
   };
 
   const saveRoutineDraft = () => {
@@ -392,6 +453,9 @@ export function HygienePage({
       return routine;
     });
     let nextStore = refreshHygieneToday({ ...store, routines }, planningKey);
+    if (scheduleManualDate && manualPlanDate >= planningKey && cleanTask.schedule?.type === "manual") {
+      nextStore = planManualHygieneTask(nextStore, cleanTask.id, manualPlanDate);
+    }
     if (movedState && taskDraft.sourceRoutineId !== taskDraft.targetRoutineId) {
       const destinationHasTask = nextStore.records[planningKey]?.[taskDraft.targetRoutineId]?.scheduledTasks
         .some((task) => task.id === cleanTask.id);
@@ -467,7 +531,7 @@ export function HygienePage({
         }
       }
     }
-    if (persist(nextStore)) setTaskDraft(null);
+    if (persist(nextStore)) { setTaskDraft(null); setScheduleManualDate(false); }
   };
 
   const deleteTask = () => {
@@ -524,6 +588,31 @@ export function HygienePage({
             <span style={{ width: overall.percent + "%" }} />
           </div>
 
+          {overdue.length > 0 && (
+            <section className="df2-hygiene-overdue" aria-label="Zmeškané hygienické úkoly">
+              <header><div><span>Čeká na vyřízení</span><h2>Po termínu</h2></div>
+                <small>Každý úkon je zde jen jednou. Starší výskyty zůstávají v historii.</small></header>
+              {overdue.map((item) => {
+                const key = item.date + "|" + item.routineId + "|" + item.taskId;
+                return (
+                  <article key={key}>
+                    <div><strong>{item.title}</strong><small>{item.routineTitle} · původní termín {item.date}</small></div>
+                    <div className="df2-hygiene-overdue-actions">
+                      <button type="button" onClick={() => changeStatus(item.date, item.routineId, item.taskId, "done")}>✓ Hotovo dnes</button>
+                      <button type="button" onClick={() => changeStatus(item.date, item.routineId, item.taskId, "skipped")}>Není potřeba</button>
+                      <button type="button" onClick={() => changeStatus(item.date, item.routineId, item.taskId, "omitted")}>Přeskočit</button>
+                      <button type="button" onClick={() => startPostpone(key)}>Odložit</button>
+                      {postponeKey === key && <div className="df2-hygiene-postpone">
+                        <input aria-label={"Nový termín " + item.title} type="date" min={planningKey}
+                          value={postponeDate} onChange={(event) => setPostponeDate(event.target.value)} />
+                        <button type="button" onClick={() => deferTask(item.date, item.routineId, item.taskId)}>Potvrdit</button>
+                      </div>}
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )}
           {summaries.length ? summaries.map((summary) => {
             // Group only consecutive steps: manual up/down ordering remains exact,
             // even if a step moves across section boundaries.
@@ -616,17 +705,35 @@ export function HygienePage({
                               )}
                               {task.optional && <small>Volitelné · nezablokuje dokončení</small>}
                               {state === "skipped" && <small>Není potřeba</small>}
+                              {state === "omitted" && <small>Přeskočeno (nikoliv splněno)</small>}
+                              {state === "deferred" && <small>Odloženo na jiný den</small>}
                             </div>
-                            {(task.allowSkip || task.optional) && (
-                              <button
-                                type="button"
-                                className="df2-hygiene-skip"
-                                aria-pressed={state === "skipped"}
-                                onClick={() => updateTask(summary.routine.id, task.id, "skipped")}
-                              >
-                                {state === "skipped" ? "Vrátit" : "Není potřeba"}
-                              </button>
-                            )}
+                            <div className="df2-hygiene-task-actions">
+                              {(task.allowSkip || task.optional) && (
+                                <button type="button" className="df2-hygiene-skip"
+                                  aria-pressed={state === "skipped"}
+                                  onClick={() => updateTask(summary.routine.id, task.id, "skipped")}>
+                                  {state === "skipped" ? "Vrátit" : "Není potřeba"}
+                                </button>
+                              )}
+                              {state !== "done" && state !== "deferred" && (
+                                <button type="button" className="df2-hygiene-skip"
+                                  aria-pressed={state === "omitted"} aria-label={"Přeskočit " + task.title}
+                                  onClick={() => updateTask(summary.routine.id, task.id, "omitted")}>
+                                  {state === "omitted" ? "Vrátit přeskočení" : "Přeskočit"}
+                                </button>
+                              )}
+                              {!state && <button type="button" className="df2-hygiene-skip"
+                                aria-label={"Odložit " + task.title}
+                                onClick={() => startPostpone(planningKey + "|" + summary.routine.id + "|" + task.id)}>Odložit</button>}
+                              {postponeKey === planningKey + "|" + summary.routine.id + "|" + task.id && !state && (
+                                <div className="df2-hygiene-postpone">
+                                  <input type="date" aria-label={"Nový termín " + task.title} min={planningKey}
+                                    value={postponeDate} onChange={(event) => setPostponeDate(event.target.value)} />
+                                  <button type="button" onClick={() => deferTask(planningKey, summary.routine.id, task.id)}>Potvrdit</button>
+                                </div>
+                              )}
+                            </div>
                           </article>
                         );
                       })}
@@ -922,7 +1029,9 @@ export function HygienePage({
                 <option value="daily">Každý den</option>
                 <option value="days">Konkrétní dny</option>
                 <option value="weekly">Jednou týdně</option>
-                <option value="interval">Každých X dní</option>
+                <option value="interval">Pevný interval od data</option>
+                <option value="rolling">Interval od posledního splnění</option>
+                <option value="manual">Ručně podle potřeby</option>
                 <option value="monthly">Jednou měsíčně</option>
                 <option value="nth-weekday">Týden + den v měsíci</option>
               </select>
@@ -931,10 +1040,20 @@ export function HygienePage({
               <ScheduleEditor
                 value={taskDraft.task.schedule}
                 planningKey={planningKey}
-                allowManual={false}
+                allowManual
                 showTypeSelect={false}
                 onChange={(schedule) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, schedule } })}
               />
+            )}
+            {taskDraft.task.schedule?.type === "manual" && (
+              <div className="df2-hygiene-manual-plan">
+                <label><input type="checkbox" checked={scheduleManualDate}
+                  onChange={(event) => { setScheduleManualDate(event.target.checked); setManualPlanDate(planningKey); }} />
+                  Naplánovat konkrétní výskyt
+                </label>
+                {scheduleManualDate && <input type="date" min={planningKey} aria-label="Datum ručního úkolu"
+                  value={manualPlanDate} onChange={(event) => setManualPlanDate(event.target.value)} />}
+              </div>
             )}
             <label className="df2-hygiene-timer-setting">
               Volitelný časovač (minuty)
