@@ -75,8 +75,8 @@ test("new product chooses a white studio packshot over a dark image from the sam
   expect(preview.center[2]).toBeGreaterThan(preview.center[0] * 1.5);
   await dialog.getByRole("button", { name: "Uložit produkt" }).click();
   await expect(dialog).toHaveCount(0);
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
-  expect(saved.photoKey).toBeTruthy();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products
+    .find((item) => item.name === "Universal Cleanser")?.photoKey)).toBeTruthy();
 });
 
 test("uniform nonwhite backdrop is cleaned safely to white", async ({ page }) => {
@@ -112,7 +112,10 @@ test("existing uploaded photo is not replaced silently, explicit refresh replace
   await expect(dialog.locator(".df2-packshot-notice")).toContainText("nahraná fotografie");
   await dialog.getByRole("button", { name: "Uložit produkt" }).click();
   await expect(dialog).toHaveCount(0);
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products
+    .find((item) => item.name === "Special Hand Lotion")?.photoKey)).toBeTruthy();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products
+    .find((item) => item.name === "Special Hand Lotion"));
   await page.locator(".df2-product-card").filter({ hasText: "Special Hand Lotion" }).click();
   await page.getByRole("dialog", { name: /Detail produktu/ }).getByRole("button", { name: "Upravit" }).click();
   const edit = page.getByRole("dialog", { name: "Editor produktu" });
@@ -128,11 +131,13 @@ test("existing uploaded photo is not replaced silently, explicit refresh replace
   });
   await edit.getByRole("button", { name: "Najít lepší fotku" }).click();
   await expect(edit.locator(".df2-packshot-notice")).toContainText("bílým nebo průhledným pozadím");
-  const stillSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
+  const stillSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products
+    .find((item) => item.name === "Special Hand Lotion"));
   expect(stillSaved.photoKey).toBe(saved.photoKey);
   await edit.getByRole("button", { name: "Uložit produkt" }).click();
   await expect(edit).toHaveCount(0);
-  const newSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products[0]);
+  const newSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products
+    .find((item) => item.name === "Special Hand Lotion"));
   expect(newSaved.photoKey).not.toBe(saved.photoKey);
 });
 
