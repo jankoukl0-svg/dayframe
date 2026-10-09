@@ -34,7 +34,7 @@ function plainObjectText(value) {
 }
 
 const titles = {
-  instructions: /^(?:how to use(?:\s+(?:this|the)\s+product)?|how to apply|directions(?: for use)?|usage(?: instructions)?|application(?: instructions)?|instructions(?: for use)?|použití(?: produktu)?|návod(?: k použití)?|způsob použití|jak používat|anwendung|anwendungshinweise|mode d'emploi|conseils d'utilisation|modo de uso)(?:\s*[:?])?$/i,
+  instructions: /^(?:how to use(?:\s+(?:this|the)\s+product)?(?:\s+[\w\s-]{3,100})?|how to apply|directions(?: for use)?|usage(?: instructions)?|application(?: instructions)?|instructions(?: for use)?|použití(?: produktu)?|návod(?: k použití)?|způsob použití|jak používat|anwendung|anwendungshinweise|mode d'emploi|conseils d'utilisation|modo de uso)(?:\s*[:?])?$/i,
   precautions: /^(?:warnings?|precautions?|safety(?: information| statement| statements)?|important safety information|cautions?|upozornění(?: a omezení)?|varování|bezpečnostní (?:upozornění|tvrzení|informace)|opatření|hinweise|warnhinweise|précautions(?: d'emploi)?)(?:\s*[:?])?$/i,
   usageWhen: /^(?:when to use|when|kdy používat|kdy aplikovat|time of day)(?:\s*[:?])?$/i,
   usageAmount: /^(?:how much(?: to use)?|množství(?: na jedno použití)?|amount to use|dosage|dávkování)(?:\s*[:?])?$/i,
