@@ -141,6 +141,7 @@ for (const file of changed) {
     add("activity-time-adjustments.spec.mjs");
     add("visual-harmony.spec.mjs");
     add("today-briefing.spec.mjs");
+    add("hygiene.spec.mjs");
   }
 }
 
