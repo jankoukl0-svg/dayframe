@@ -12,6 +12,37 @@ export function canonicalProductTokens(value) {
     ].includes(token));
 }
 
+/**
+ * Verify that a discovered packshot belongs to the requested brand.
+ * Compare whole identity words, never fragments (e.l.f. must not match Self).
+ * Prefer explicit catalog brand; only use the page title / source host when
+ * a catalog did not provide a brand at all.
+ */
+export function productBrandMatches(requestedBrand, recordedBrand = "", productTitle = "", sourceHostname = "") {
+  const parts = (value) => String(value ?? "").normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const expected = parts(requestedBrand);
+  if (!expected.length) return true;
+  const compact = expected.join("");
+  const phraseMatches = (value) => {
+    const actual = parts(value);
+    return actual.includes(compact) || actual.some((_, index) =>
+      expected.every((token, offset) => actual[index + offset] === token));
+  };
+  // A reported maker is stronger evidence than a merchant URL or page title.
+  if (parts(recordedBrand).length) return phraseMatches(recordedBrand);
+  if (phraseMatches(productTitle)) return true;
+  // Official maker domains may join their name and a descriptive suffix.
+  // Anchoring to a complete host label prevents elf matching selfcare.com.
+  const labels = String(sourceHostname ?? "").toLowerCase().split(".").filter(Boolean);
+  return compact.length >= 3 && labels.some((label) => {
+    const normalized = parts(label).join("");
+    if (normalized === compact) return true;
+    if (!normalized.startsWith(compact)) return false;
+    return /^(?:cosmetics|beauty|skincare|skin|care|official|shop)$/.test(normalized.slice(compact.length));
+  });
+}
+
 export function productMatchScore(candidate, query) {
   const expected = canonicalProductTokens(query);
   const actual = new Set(canonicalProductTokens(candidate));
