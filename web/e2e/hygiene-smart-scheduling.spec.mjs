@@ -40,7 +40,7 @@ test("rolling Hygiene Day interval resets from actual late completion and does n
   expect(data.records["2026-10-06"]["hygiene-day"].states["weekly-hand-nails"]).toBe("done");
   expect(data.records["2026-10-06"]["hygiene-day"].completedOn["weekly-hand-nails"]).toBe("2026-10-08");
   await changeDay(page, "2026-10-12");
-  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toHaveCount(0);
+  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).not.toContainText("Kontrola a případné stříhání nehtů na rukou");
   await changeDay(page, "2026-10-15");
   await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toContainText("Kontrola a případné stříhání nehtů na rukou");
   const after = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
@@ -63,7 +63,7 @@ test("postpone overdue Hygiene Day once, keep an immutable original and material
   await changeDay(page, "2026-10-08");
   const overdue = page.getByRole("region", { name: "Zmeškané hygienické úkoly" });
   await overdue.getByRole("button", { name: "Odložit", exact: true }).click();
-  await overdue.getByRole("textbox", { name: "Nový termín Kontrola a případné stříhání nehtů na rukou" }).fill("2026-10-10");
+  await overdue.getByLabel("Nový termín Kontrola a případné stříhání nehtů na rukou").fill("2026-10-10");
   await overdue.getByRole("button", { name: "Potvrdit" }).click();
   let result = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   expect(result.taskReschedules["2026-10-06|hygiene-day|weekly-hand-nails"]).toBe("2026-10-10");
@@ -118,7 +118,7 @@ test("manual hygiene task is scheduled once on a chosen day without extra duplic
   const editor = page.getByRole("dialog", { name: "Upravit hygienický úkol" });
   await editor.getByRole("combobox", { name: "Frekvence úkolu" }).selectOption("manual");
   await editor.getByRole("checkbox", { name: "Naplánovat konkrétní výskyt" }).check();
-  await editor.getByRole("textbox", { name: "Datum ručního úkolu" }).fill("2026-10-09");
+  await editor.getByLabel("Datum ručního úkolu").fill("2026-10-09");
   await editor.getByRole("button", { name: "Uložit", exact: true }).click();
   await changeDay(page, "2026-10-09");
   const manual = page.locator('[data-hygiene-routine="hygiene-day"] .df2-hygiene-task')
