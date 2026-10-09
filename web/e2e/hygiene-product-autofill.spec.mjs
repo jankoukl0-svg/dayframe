@@ -75,7 +75,7 @@ test("name-only lookup suggests verified product, imports photo and leaves perso
 test("a product link fills factual metadata and preserves the exact store link", async ({ page }) => {
   let query = "";
   await lookupMock(page, [{ ...sample, sourceUrl: "https://example.org/cerave", sourceLabel: "example.org",
-    priceCzk: 349, imageUrl: "" }], (params) => { query = params.get("query") || ""; });
+    priceCzk: 349, imageUrl: "" }], (params) => { if (!params.get("mode")) query = params.get("query") || ""; });
   const editor = await start(page);
   const link = "https://example.org/cerave";
   await editor.getByRole("textbox", { name: "Název nebo odkaz na produkt" }).fill(link);
