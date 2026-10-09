@@ -34,7 +34,7 @@ export function productPageIsRelevant(candidate, query, brand = "") {
   const score = productMatchScore(candidate, query);
   const tokens = canonicalProductTokens(query);
   if (tokens.length >= 3 && score < .69) return false;
-  if (tokens.length === 2 && score < .94) return false;
+  if (tokens.length === 2 && score < .9) return false;
   if (tokens.length === 1 && score < .94) return false;
   if (brand) {
     // Many manufacturers omit their own brand from the <h1>; verified by host elsewhere.
@@ -43,7 +43,7 @@ export function productPageIsRelevant(candidate, query, brand = "") {
     if (brandPart.length && actual.size > 0 && brandPart.every((part) => actual.has(part)))
       return true;
   }
-  return score >= (tokens.length <= 2 ? .94 : .69);
+  return score >= (tokens.length === 1 ? .94 : tokens.length === 2 ? .9 : .69);
 }
 
 function decodeMarkup(value) {
