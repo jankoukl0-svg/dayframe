@@ -180,7 +180,7 @@ export function HygieneProducts({
   };
 
   const searchProduct = async (requested?: string) => {
-    const query = (requested ?? lookupQuery.trim() || draft?.shopUrl || draft?.name || "").trim();
+    const query = (requested ?? (lookupQuery.trim() || draft?.shopUrl || draft?.name || "")).trim();
     if (query.length < 3) {
       setLookupError("Zadej alespoň 3 znaky názvu nebo odkaz na produkt.");
       return;
