@@ -486,6 +486,16 @@ async function photoCandidates(name: string, brand: string, original: string, or
   }
   for (const item of pages) {
     if (!productPageIsRelevant(item.name, name)) continue;
+    // A product called e.g. "Moisturizing Lotion" may exist for many brands.
+    // Refuse to borrow another brand's attractive white packshot.
+    const candidateBrand = item.brand.toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    const candidateName = item.name.toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    const candidateHost = new URL(item.sourceUrl).hostname.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (selectedBrand && ![candidateBrand, candidateName, candidateHost]
+      .some(value => value && (value.includes(selectedBrand)
+        || (candidateBrand === value && selectedBrand.includes(value) && value.length >= 4)))) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
   }
   if (html) {
