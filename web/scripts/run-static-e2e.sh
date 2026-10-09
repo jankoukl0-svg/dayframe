@@ -14,6 +14,7 @@ cp "$WEB_ROOT"/e2e/*.spec.mjs "$RUNTIME_DIR"/
 # The product-guide spec imports the real pure extractor, not a duplicated test stub.
 cp "$WEB_ROOT"/lib/dayframe-product-guide-extract.mjs "$RUNTIME_DIR"/
 cp "$WEB_ROOT"/lib/dayframe-manufacturer-guide.mjs "$RUNTIME_DIR"/
+cp "$WEB_ROOT"/lib/dayframe-product-discovery.mjs "$RUNTIME_DIR"/
 cp -a "$WEB_ROOT"/preview-dist/. "$STATIC_DIR/dayframe/"
 
 cd "$RUNTIME_DIR"

@@ -248,14 +248,15 @@ export function HygieneProducts({
     setLookupMatches([]);
     setLookupNotice(match.instructions && match.description
       ? "Popis a dostupné pokyny výrobce jsou předvyplněné. Ověř je podle obalu před uložením."
-      : "Základní údaje jsou předvyplněné. Dohledávám ještě návod a upozornění výrobce…");
+      : "Základní údaje jsou předvyplněné. Prohledávám stránky výrobce a prodejců kvůli návodu a upozorněním…");
     setLookupError("");
 
     setLookupImporting(true);
     let imageFailed = false;
+    let gotDetailedGuide = Boolean(match.instructions || match.precautions || match.usageWhen || match.usageAmount || match.usageDuration);
     try {
       // Name-only matches are often sparse catalog records, so look for a maker's instructions.
-      if ((!match.instructions || !match.precautions || !match.usageWhen) && match.brand && match.name) {
+      if ((!match.instructions || !match.precautions || !match.usageWhen || !match.description) && match.name) {
         try {
           const args = new URLSearchParams({
             mode: "guide", name: match.name, brand: match.brand, url: match.sourceUrl,
@@ -268,12 +269,14 @@ export function HygieneProducts({
               guide?: Partial<ProductLookupMatch>; description?: string; sourceUrl?: string; sourceUrls?: string[];
             };
             if (result.guide) {
+              gotDetailedGuide = gotDetailedGuide || Boolean(result.guide.instructions || result.guide.precautions
+                || result.guide.usageWhen || result.guide.usageAmount || result.guide.usageDuration);
               setDraft((current) => current && current.id === draftId
                 ? applyVerified({
                     ...current, description: current.description.trim()
                       || (result.description || "").slice(0, 3000),
                   }, result.guide!) : current);
-              if (result.sourceUrls?.length) setLookupSource("Pokyny výrobce: "
+              if (result.sourceUrls?.length) setLookupSource("Zdroje pokynů: "
                 + result.sourceUrls.join(" · ") + " | Produkt: " + match.sourceUrl);
               else if (result.sourceUrl) setLookupSource("Návod: " + result.sourceUrl + " · produkt: " + match.sourceUrl);
             }
@@ -292,9 +295,11 @@ export function HygieneProducts({
           setFile(imported);
         } catch { imageFailed = true; }
       }
-      setLookupNotice(imageFailed
-        ? "Dostupné údaje byly doplněné, ale fotografii je potřeba nahrát ručně."
-        : "Dostupné údaje výrobce byly doplněné. Neznámá pole zůstávají prázdná; vše před uložením zkontroluj.");
+      setLookupNotice(!gotDetailedGuide
+        ? "Základní údaje jsou doplněné, ale ověřitelné pokyny k použití se nepodařilo najít. Zkus odkaz výrobce nebo je doplň z obalu."
+        : imageFailed
+          ? "Nalezené pokyny byly doplněné, ale fotografii je potřeba nahrát ručně."
+          : "Dostupné pokyny výrobce nebo prodejce byly doplněné. Zkontroluj je podle obalu; chybějící informace nevymýšlíme.");
     } finally {
       setLookupImporting(false);
     }
