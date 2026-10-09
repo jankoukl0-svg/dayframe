@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 import { HygieneProducts, ProductPhoto } from "./hygiene-products";
-import { HygieneTaskTimer, ProductCareGuide } from "./hygiene-care-guide";
+import { CompactRoutineProductGuide, HygieneTaskTimer, ProductCareGuide } from "./hygiene-care-guide";
 import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
@@ -695,7 +695,7 @@ export function HygienePage({
                                         <ProductPhoto photoKey={product.photoKey} name={product.name} />
                                         <span><b>{product.name}</b></span>
                                       </button>
-                                      <ProductCareGuide product={product} />
+                                      <CompactRoutineProductGuide product={product} />
                                     </div>
                                   ))}
                                 </div>
