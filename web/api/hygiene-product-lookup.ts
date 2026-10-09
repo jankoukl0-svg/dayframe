@@ -6,6 +6,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { extractGuideFromHtml, extractGuideFromCatalog } from "../lib/dayframe-product-guide-extract.mjs";
+import { manufacturerGuideFor } from "../lib/dayframe-manufacturer-guide.mjs";
 
 type Match = {
   name: string; brand: string; category: string; description: string;
@@ -13,6 +14,7 @@ type Match = {
   precautions: string; frequency: string;
   amount: string; priceCzk: number | null;
   imageUrl: string; sourceUrl: string; sourceLabel: string; guideSourceUrl: string;
+  guideSourceUrls?: string[];
 };
 
 const LIMIT = 500_000;
@@ -199,9 +201,20 @@ function fromHtml(html: string, url: string): Match | null {
   const description = clean(ld?.description || meta["og:description"] || meta.description, 1800);
   const amount = clean(ld?.size, 100);
   const guide = extractGuideFromHtml(html, ld);
+  const verified = manufacturerGuideFor(brand, title);
+  const mergedGuide = {
+    instructions: guide.instructions || verified?.instructions || "",
+    usageWhen: guide.usageWhen || verified?.usageWhen || "",
+    usageAmount: guide.usageAmount || verified?.usageAmount || "",
+    usageDuration: guide.usageDuration || verified?.usageDuration || "",
+    precautions: guide.precautions || verified?.precautions || "",
+    frequency: guide.frequency || verified?.frequency || "",
+  };
   return {
-    name: title, brand, category, description,
-    ...guide, guideSourceUrl: guide.instructions || guide.precautions ? url : "",
+    name: title, brand, category, description: description || verified?.description || "",
+    ...mergedGuide,
+    guideSourceUrl: guide.instructions || guide.precautions ? url : verified?.sourceUrl || "",
+    guideSourceUrls: verified?.sourceUrls || [],
     amount,
     priceCzk: priceFrom(ld?.offers),
     imageUrl: imageUrl(ld?.image || meta["og:image"] || meta["twitter:image"], url),
@@ -238,10 +251,20 @@ async function searchBeauty(query: string): Promise<Match[]> {
       const description = clean(product.generic_name || product.description, 1800);
       const code = String(product.code ?? "");
       const guide = extractGuideFromCatalog(product);
+      const verified = manufacturerGuideFor(brand, name, code);
+      const originalGuideSource = guide.instructions || guide.precautions
+        ? (/^\d{8,14}$/.test(code) ? "https://world.openbeautyfacts.org/product/" + code : "https://world.openbeautyfacts.org") : "";
       return {
         name, brand, category: categoryFrom(clean(product.categories, 300)),
-        description, ...guide, guideSourceUrl: guide.instructions || guide.precautions
-          ? (/^\d{8,14}$/.test(code) ? "https://world.openbeautyfacts.org/product/" + code : "https://world.openbeautyfacts.org") : "",
+        description: description || verified?.description || "",
+        instructions: guide.instructions || verified?.instructions || "",
+        usageWhen: guide.usageWhen || verified?.usageWhen || "",
+        usageAmount: guide.usageAmount || verified?.usageAmount || "",
+        usageDuration: guide.usageDuration || verified?.usageDuration || "",
+        precautions: guide.precautions || verified?.precautions || "",
+        frequency: guide.frequency || verified?.frequency || "",
+        guideSourceUrl: originalGuideSource || verified?.sourceUrl || "",
+        guideSourceUrls: verified?.sourceUrls || [],
         amount: clean(product.quantity, 100),
         priceCzk: null,
         imageUrl: imageUrl(product.image_front_url || product.image_url),
@@ -293,6 +316,11 @@ async function discoverBrandPage(brand: string, name: string): Promise<string> {
 }
 
 async function findDetailedGuide(brand: string, name: string, original: string) {
+  const verified = manufacturerGuideFor(brand, name);
+  if (verified) {
+    const { description, sourceUrl, sourceUrls, ...guide } = verified;
+    return { guide, description, sourceUrl, sourceUrls };
+  }
   const fallback = { instructions: "", usageWhen: "", usageAmount: "", usageDuration: "", precautions: "", frequency: "" };
   // Catalog descriptions rarely contain instructions, but product pages sometimes do.
   if (/^https:\/\/(?:[a-z-]+\.)?openbeautyfacts\.org\/product\/\d{8,14}/i.test(original)) {
