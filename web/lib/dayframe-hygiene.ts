@@ -396,8 +396,9 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         || ["stockCount", "stockMinimum", "replacementEveryDays"].some((field) => {
           const value = product[field as keyof HygieneProduct];
           return value !== undefined && value !== null
-            && (!Number.isInteger(value) || (value as number) < (field === "replacementEveryDays" ? 1 : 0)
-              || (value as number) > (field === "replacementEveryDays" ? 3650 : 10000));
+            && (typeof value !== "number" || !Number.isInteger(value)
+              || value < (field === "replacementEveryDays" ? 1 : 0)
+              || value > (field === "replacementEveryDays" ? 3650 : 10000));
         })
         || (product.priceCzk !== undefined && product.priceCzk !== null
           && (!Number.isFinite(product.priceCzk) || product.priceCzk < 0 || product.priceCzk > 1000000))
