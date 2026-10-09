@@ -117,6 +117,7 @@ for (const file of changed) {
     add("hygiene-smart-scheduling.spec.mjs");
     add("hygiene-inventory.spec.mjs");
     add("hygiene-product-autofill.spec.mjs");
+    add("hygiene-product-guide.spec.mjs");
     add("hygiene.spec.mjs");
     add("daily-checklist.spec.mjs");
     add("completion-ux.spec.mjs");
