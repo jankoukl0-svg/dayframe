@@ -255,7 +255,7 @@ export function HygieneProducts({
     let imageFailed = false;
     try {
       // Name-only matches are often sparse catalog records, so look for a maker's instructions.
-      if ((!match.instructions || !match.precautions || !match.usageWhen) && match.brand && match.name) {
+      if ((!match.instructions || !match.precautions || !match.usageWhen || !match.description) && match.name) {
         try {
           const args = new URLSearchParams({
             mode: "guide", name: match.name, brand: match.brand, url: match.sourceUrl,
