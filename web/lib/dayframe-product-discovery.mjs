@@ -24,6 +24,13 @@ export function productMatchScore(candidate, query) {
 }
 
 export function productPageIsRelevant(candidate, query, brand = "") {
+  const families = ["cleanser", "cream", "serum", "lotion", "toner", "shampoo", "conditioner",
+    "sunscreen", "mask", "oil", "balm", "scrub", "exfoliant", "moisturizer", "wash", "deodorant"];
+  const wanted = new Set(canonicalProductTokens(query));
+  const actualFamilies = new Set(canonicalProductTokens(candidate).filter((part) => families.includes(part)));
+  const wantedFamilies = families.filter((part) => wanted.has(part));
+  if (wantedFamilies.length && actualFamilies.size
+    && !wantedFamilies.some((part) => actualFamilies.has(part))) return false;
   const score = productMatchScore(candidate, query);
   const tokens = canonicalProductTokens(query);
   if (tokens.length >= 3 && score < .69) return false;
