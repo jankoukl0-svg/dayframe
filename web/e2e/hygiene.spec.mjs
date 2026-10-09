@@ -73,7 +73,13 @@ test("Není potřeba is preserved separately and does not block Hygiene Day comp
   const weekly = page.locator('[data-hygiene-routine="hygiene-day"]');
   const checks = weekly.locator(".df2-hygiene-check");
   const count = await checks.count();
-  for (let index = 0; index < count; index += 1) await checks.nth(index).click();
+  for (let index = 0; index < count; index += 1) {
+    await checks.nth(index).click();
+    await expect.poll(() => page.evaluate(() => {
+      const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+      return Object.values(store.records?.["2026-10-11"]?.["hygiene-day"]?.states || {}).filter((state) => state === "done").length;
+    })).toBe(index + 1);
+  }
 
   const nails = weekly.locator(".df2-hygiene-task").filter({ hasText: "nehtů na rukou" });
   await nails.getByRole("button", { name: "Není potřeba" }).click();
@@ -256,6 +262,8 @@ test("history preserves skipped-only status and aligns month dates to weekdays",
   await openFresh(page, "2026-10-08T12:00:00");
   await page.evaluate(() => {
     const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    store.routines = store.routines.map((routine) => ({ ...routine, active: false }));
+    store.records["2026-10-08"] = {};
     store.routines.push({
       id: "skip-only",
       title: "Přeskočitelná rutina",
@@ -285,4 +293,49 @@ test("history preserves skipped-only status and aligns month dates to weekdays",
 
   const octoberFirst = page.locator('[data-calendar-date="2026-10-01"]');
   await expect(octoberFirst).toHaveCSS("grid-column-start", "4");
+});
+
+
+test("task-specific cadence can schedule work outside the parent routine cadence", async ({ page }) => {
+  await openFresh(page, "2026-10-12T12:00:00");
+  await page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    store.routines.push({
+      id: "mixed-cadence",
+      title: "Smíšená frekvence",
+      active: true,
+      order: 95,
+      schedule: { type: "weekly", weekday: 0 },
+      tasks: [
+        {
+          id: "mixed-inherited",
+          title: "Jen v neděli",
+          section: "Péče",
+          active: true,
+          optional: false,
+          allowSkip: false,
+        },
+        {
+          id: "mixed-daily",
+          title: "Denní uvnitř týdenní rutiny",
+          section: "Péče",
+          active: true,
+          optional: false,
+          allowSkip: false,
+          schedule: { type: "daily" },
+        },
+      ],
+    });
+    window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+
+  await openSidebar(page, "Hygiena");
+  const routine = page.locator('[data-hygiene-routine="mixed-cadence"]');
+  await expect(routine).toBeVisible();
+  await expect(routine).toContainText("Denní uvnitř týdenní rutiny");
+  await expect(routine).not.toContainText("Jen v neděli");
+
+  await openSidebar(page, "Dnes");
+  await expect(page.locator('[data-hygiene-checklist-routine="mixed-cadence"]')).toContainText("0/1");
 });

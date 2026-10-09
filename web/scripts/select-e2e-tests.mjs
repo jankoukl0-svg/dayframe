@@ -63,6 +63,7 @@ for (const file of changed) {
   if (lower.includes("daily-checklist")) {
     add("daily-checklist.spec.mjs");
     add("completion-ux.spec.mjs");
+    add("hygiene.spec.mjs");
   }
 
   if (
@@ -72,6 +73,7 @@ for (const file of changed) {
     || file === "web/app/dayframe-v2.css"
   ) {
     add("completion-ux.spec.mjs");
+    if (file === "web/app/dayframe-v2.tsx" || file === "web/app/dayframe-v2.css") add("hygiene.spec.mjs");
   }
 
   if (file === "web/app/execution-tracker.tsx") {

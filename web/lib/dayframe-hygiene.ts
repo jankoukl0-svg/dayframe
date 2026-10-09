@@ -405,9 +405,9 @@ export function routineScheduledOnDate(store: HygieneStore, routine: HygieneRout
   return scheduleMatches(routine.schedule, dateKey);
 }
 
-export function taskScheduledOnDate(task: HygieneTaskDefinition, dateKey: string) {
+export function taskScheduledOnDate(task: HygieneTaskDefinition, dateKey: string, parentScheduled = true) {
   if (!task.active) return false;
-  if (!task.schedule) return true;
+  if (!task.schedule) return parentScheduled;
   if (task.schedule.type === "manual") return false;
   return scheduleMatches(task.schedule, dateKey);
 }
@@ -428,8 +428,11 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
   let changed = false;
 
   for (const routine of store.routines) {
-    if (!routineScheduledOnDate(store, routine, dateKey)) continue;
-    const scheduledTasks = routine.tasks.filter((item) => taskScheduledOnDate(item, dateKey)).map(taskSnapshot);
+    if (!routine.active) continue;
+    const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
+    const scheduledTasks = routine.tasks
+      .filter((item) => taskScheduledOnDate(item, dateKey, parentScheduled))
+      .map(taskSnapshot);
     if (!scheduledTasks.length) continue;
     scheduledRoutineIds.add(routine.id);
 
@@ -577,13 +580,9 @@ export function routineSummary(
 export function scheduledRoutineSummaries(store: HygieneStore, dateKey: string, today = dateKey) {
   const dateRecords = store.records[dateKey] ?? {};
   return store.routines
-    .filter((routine) => routineScheduledOnDate(store, routine, dateKey))
+    .filter((routine) => Boolean(dateRecords[routine.id]))
     .sort((left, right) => left.order - right.order)
-    .map((routine) => {
-      const record = dateRecords[routine.id];
-      return record ? routineSummary(routine, record, today) : null;
-    })
-    .filter((value): value is HygieneRoutineSummary => Boolean(value));
+    .map((routine) => routineSummary(routine, dateRecords[routine.id], today));
 }
 
 export function setHygieneTaskStatus(
