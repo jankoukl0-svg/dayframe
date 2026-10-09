@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { HygieneProduct, HygieneStore } from "@/lib/dayframe-hygiene";
 import { ProductCareGuide } from "./hygiene-care-guide";
+import { chooseImportedValue, isCatalogBoilerplate } from "@/lib/dayframe-product-quality.mjs";
 import { effectiveExpiry, hygieneInventoryAlerts, hygieneShoppingCost, hygieneShoppingList, recordHygienePurchase } from "@/lib/dayframe-hygiene-inventory";
 import {
   loadProductPhoto,
@@ -27,6 +28,7 @@ type ProductLookupMatch = {
   frequency?: string;
   guideSourceUrl?: string;
   guideSourceUrls?: string[];
+  safetySource?: string;
   amount: string;
   priceCzk: number | null;
   imageUrl: string;
@@ -35,6 +37,20 @@ type ProductLookupMatch = {
 };
 type ProductLookupResponse = { matches?: ProductLookupMatch[]; notice?: string; error?: string };
 const LOOKUP_ENDPOINT = "/api/hygiene-product-lookup";
+type ProductGuideEnrichment = Partial<ProductLookupMatch> & { description?: string };
+
+function mergeProductGuide(current: HygieneProduct, source: ProductGuideEnrichment, overwrite: boolean) {
+  return {
+    ...current,
+    description: chooseImportedValue(current.description, source.description, overwrite, true).slice(0, 3000),
+    instructions: chooseImportedValue(current.instructions, source.instructions, overwrite).slice(0, 3000),
+    usageWhen: chooseImportedValue(current.usageWhen, source.usageWhen, overwrite).slice(0, 400),
+    usageAmount: chooseImportedValue(current.usageAmount, source.usageAmount, overwrite).slice(0, 400),
+    usageDuration: chooseImportedValue(current.usageDuration, source.usageDuration, overwrite).slice(0, 400),
+    frequency: chooseImportedValue(current.frequency, source.frequency, overwrite).slice(0, 400),
+    precautions: chooseImportedValue(current.precautions, source.precautions, overwrite).slice(0, 2700),
+  };
+}
 
 
 function blankProduct(): HygieneProduct {
@@ -114,6 +130,7 @@ export function HygieneProducts({
   const [lookupError, setLookupError] = useState("");
   const [lookupImporting, setLookupImporting] = useState(false);
   const [lookupSource, setLookupSource] = useState("");
+  const [overwriteKnown, setOverwriteKnown] = useState(false);
 
 
   useEffect(() => {
@@ -183,11 +200,13 @@ export function HygieneProducts({
     setLookupBusy(false);
     setLookupImporting(false);
     setLookupSource("");
+    setOverwriteKnown(false);
     setViewingId(null);
   };
 
   const searchProduct = async (requested?: string) => {
-    const query = (requested ?? (lookupQuery.trim() || draft?.shopUrl || draft?.name || "")).trim();
+    const fallbackName = draft?.name ? [draft.brand, draft.name].filter(Boolean).join(" ") : "";
+    const query = (requested ?? (lookupQuery.trim() || draft?.shopUrl || fallbackName)).trim();
     if (query.length < 3) {
       setLookupError("Zadej alespoň 3 znaky názvu nebo odkaz na produkt.");
       return;
@@ -220,26 +239,16 @@ export function HygieneProducts({
     const draftId = draft.id;
     const isNew = !store.products.some((item) => item.id === draftId);
     const enteredLink = /^https:\/\//i.test(lookupQuery.trim()) ? lookupQuery.trim() : "";
-    // User edits always win, including a guide completed while enrichment runs.
-    const applyVerified = (current: HygieneProduct, guide: Partial<ProductLookupMatch>) => ({
+    setDraft((current) => current && current.id === draftId ? mergeProductGuide({
       ...current,
-      instructions: current.instructions.trim() || (guide.instructions || "").slice(0, 3000),
-      usageWhen: current.usageWhen?.trim() || (guide.usageWhen || "").slice(0, 400),
-      usageAmount: current.usageAmount?.trim() || (guide.usageAmount || "").slice(0, 400),
-      usageDuration: current.usageDuration?.trim() || (guide.usageDuration || "").slice(0, 400),
-      precautions: current.precautions?.trim() || (guide.precautions || "").slice(0, 1200),
-      frequency: current.frequency.trim() || (guide.frequency || "").slice(0, 400),
-    });
-    setDraft((current) => current && current.id === draftId ? applyVerified({
-      ...current,
-      name: match.name.slice(0, 160),
+      name: isNew || !current.name.trim() ? match.name.slice(0, 160) : current.name,
       brand: current.brand.trim() || (match.brand || "").slice(0, 160),
       category: isNew && match.category ? match.category : current.category,
-      description: current.description.trim() || (match.description || "").slice(0, 3000),
+      description: current.description,
       amount: current.amount.trim() || (match.amount || "").slice(0, 100),
       priceCzk: current.priceCzk ?? match.priceCzk ?? null,
       shopUrl: enteredLink || current.shopUrl,
-    }, match) : current);
+    }, match, overwriteKnown) : current);
     const guideSources = Array.isArray(match.guideSourceUrls) ? match.guideSourceUrls.filter(Boolean) : [];
     setLookupSource(guideSources.length ? "Pokyny výrobce: " + guideSources.join(" · ")
       + " | Katalogový záznam: " + match.sourceUrl
@@ -262,20 +271,21 @@ export function HygieneProducts({
             mode: "guide", name: match.name, brand: match.brand, url: match.sourceUrl,
           });
           const response = await fetch(LOOKUP_ENDPOINT + "?" + args, {
-            signal: AbortSignal.timeout(12500),
+            signal: AbortSignal.timeout(24000),
           });
           if (response.ok && response.headers.get("content-type")?.includes("application/json")) {
             const result = await response.json() as {
-              guide?: Partial<ProductLookupMatch>; description?: string; sourceUrl?: string; sourceUrls?: string[];
+              guide?: Partial<ProductLookupMatch>; description?: string;
+              sourceUrl?: string; sourceUrls?: string[]; warning?: string; safetySource?: string;
             };
             if (result.guide) {
               gotDetailedGuide = gotDetailedGuide || Boolean(result.guide.instructions || result.guide.precautions
                 || result.guide.usageWhen || result.guide.usageAmount || result.guide.usageDuration);
               setDraft((current) => current && current.id === draftId
-                ? applyVerified({
-                    ...current, description: current.description.trim()
-                      || (result.description || "").slice(0, 3000),
-                  }, result.guide!) : current);
+                ? mergeProductGuide(current, {
+                  ...result.guide, description: result.description,
+                }, overwriteKnown) : current);
+              if (result.warning) setLookupError(result.warning);
               if (result.sourceUrls?.length) setLookupSource("Zdroje pokynů: "
                 + result.sourceUrls.join(" · ") + " | Produkt: " + match.sourceUrl);
               else if (result.sourceUrl) setLookupSource("Návod: " + result.sourceUrl + " · produkt: " + match.sourceUrl);
@@ -300,6 +310,45 @@ export function HygieneProducts({
         : imageFailed
           ? "Nalezené pokyny byly doplněné, ale fotografii je potřeba nahrát ručně."
           : "Dostupné pokyny výrobce nebo prodejce byly doplněné. Zkontroluj je podle obalu; chybějící informace nevymýšlíme.");
+    } finally {
+      setLookupImporting(false);
+    }
+  };
+
+  const researchCurrentProduct = async () => {
+    if (!draft || draft.name.trim().length < 3 || lookupImporting) return;
+    const draftId = draft.id;
+    setLookupError("");
+    setLookupNotice("Dohledávám návod a rizika u konkrétního produktu…");
+    setLookupImporting(true);
+    try {
+      const params = new URLSearchParams({
+        mode: "guide", name: draft.name, brand: draft.brand,
+        url: draft.shopUrl.startsWith("https://") ? draft.shopUrl : "",
+      });
+      const response = await fetch(LOOKUP_ENDPOINT + "?" + params.toString(), {
+        signal: AbortSignal.timeout(24000),
+      });
+      if (!response.ok) throw new Error("Podrobnosti se nepodařilo načíst.");
+      const data = await response.json() as {
+        guide?: ProductGuideEnrichment; description?: string; sourceUrl?: string;
+        sourceUrls?: string[]; warning?: string; safetySource?: string;
+      };
+      const enriched: ProductGuideEnrichment = { ...data.guide, description: data.description };
+      const count = ["instructions", "usageWhen", "usageAmount", "usageDuration", "frequency", "precautions", "description"]
+        .filter((key) => Boolean(enriched[key as keyof ProductGuideEnrichment])).length;
+      if (count) setDraft((previous) => previous?.id === draftId
+        ? mergeProductGuide(previous, enriched, overwriteKnown) : previous);
+      setLookupSource(data.sourceUrls?.length ? "Zdroje: " + data.sourceUrls.join(" · ")
+        : data.sourceUrl ? "Zdroj: " + data.sourceUrl : "");
+      const missingWarnings = !(data.guide?.precautions || draft.precautions);
+      setLookupNotice(count
+        ? "Doplněné údaje jsou převzaté z dostupných zdrojů. Před použitím je zkontroluj podle obalu."
+        : "Pro tuto konkrétní variantu se nepodařilo ověřit podrobnosti. Zkus přímý odkaz výrobce nebo text z etikety.");
+      if (data.warning) setLookupError(data.warning);
+      else if (missingWarnings) setLookupError("Upozornění ani rizika nebyla ve zdrojích ověřena. Neznamená to, že produkt nemá rizika.");
+    } catch {
+      setLookupNotice("Podrobnější zdroje nebyly dostupné. Můžeš vložit odkaz výrobce nebo doplnit údaje z obalu.");
     } finally {
       setLookupImporting(false);
     }
@@ -336,7 +385,7 @@ export function HygieneProducts({
         usageWhen: (draft.usageWhen ?? "").trim().slice(0, 400),
         usageAmount: (draft.usageAmount ?? "").trim().slice(0, 400),
         usageDuration: (draft.usageDuration ?? "").trim().slice(0, 400),
-        precautions: (draft.precautions ?? "").trim().slice(0, 1200),
+        precautions: (draft.precautions ?? "").trim().slice(0, 2700),
         amount: draft.amount.trim().slice(0, 100),
         shopUrl: draft.shopUrl.trim(),
         stockCount: draft.stockCount ?? null,
@@ -619,6 +668,18 @@ export function HygieneProducts({
                 </button>
               </div>
               {!lookupQuery && draft.name && <small>Už máš vyplněný název „{draft.name}“ – můžeš kliknout rovnou na Vyhledat.</small>}
+              <div className="df2-product-autofill-options">
+                <button type="button" disabled={lookupBusy || lookupImporting || draft.name.trim().length < 3}
+                  onClick={() => void researchCurrentProduct()}>
+                  {lookupImporting ? "Dohledávám…" : "Doplnit návod a rizika k tomuto produktu"}
+                </button>
+                <label><input type="checkbox" checked={overwriteKnown} onChange={(event) => setOverwriteKnown(event.target.checked)} />
+                  Nahradit také existující texty nově nalezenými údaji
+                </label>
+                {isCatalogBoilerplate(draft.description) && <p className="df2-product-autofill-note">
+                  Současný popis pochází z katalogového výpisu složení, nikoli z návodu. Po dohledání se může nahradit užitečnějším popisem.
+                </p>}
+              </div>
               {lookupError && <p className="df2-hygiene-error" role="alert">{lookupError}</p>}
               {lookupNotice && <p className="df2-product-autofill-note" role="status">{lookupNotice}</p>}
               {lookupImporting && <p className="df2-product-autofill-note" role="status">Dohledávám návod a případnou fotografii…</p>}
@@ -663,7 +724,7 @@ export function HygieneProducts({
               <label>Kdy používat<input maxLength={400} value={draft.usageWhen ?? ""} placeholder="Např. po očištění pleti" onChange={(event) => setDraft({ ...draft, usageWhen: event.target.value })} /></label>
               <label>Množství na jedno použití<input maxLength={400} value={draft.usageAmount ?? ""} placeholder="Podle etikety" onChange={(event) => setDraft({ ...draft, usageAmount: event.target.value })} /></label>
               <label>Jak dlouho používat / nechat působit<input maxLength={400} value={draft.usageDuration ?? ""} placeholder="Vyplň jen ověřený údaj" onChange={(event) => setDraft({ ...draft, usageDuration: event.target.value })} /></label>
-              <label className="is-wide">Upozornění a omezení<textarea rows={2} maxLength={1200} value={draft.precautions ?? ""} placeholder="Pouze známá omezení, např. z etikety" onChange={(event) => setDraft({ ...draft, precautions: event.target.value })} /></label>
+              <label className="is-wide">Upozornění, rizika a omezení<textarea rows={3} maxLength={2700} value={draft.precautions ?? ""} placeholder="Pouze známá omezení, např. z etikety" onChange={(event) => setDraft({ ...draft, precautions: event.target.value })} /></label>
               <label>Datum otevření<input type="date" value={draft.openedOn} onChange={(event) => setDraft({ ...draft, openedOn: event.target.value })} /></label>
               <label>Expirace (pokud známá)<input type="date" value={draft.expiresOn} onChange={(event) => setDraft({ ...draft, expiresOn: event.target.value })} /></label>
               <label>Trvanlivost po otevření (měsíce)<input type="number" min={1} max={60} value={draft.paoMonths ?? ""} onChange={(event) => setDraft({ ...draft, paoMonths: event.target.value ? Math.min(60, Math.max(1, Math.round(Number(event.target.value) || 1))) : null })} /></label>
