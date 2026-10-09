@@ -11,6 +11,8 @@ WORKERS="${DAYFRAME_E2E_WORKERS:-1}"
 rm -rf "$RUNTIME_DIR" "$STATIC_DIR"
 mkdir -p "$RUNTIME_DIR" "$STATIC_DIR/dayframe"
 cp "$WEB_ROOT"/e2e/*.spec.mjs "$RUNTIME_DIR"/
+# The product-guide spec imports the real pure extractor, not a duplicated test stub.
+cp "$WEB_ROOT"/lib/dayframe-product-guide-extract.mjs "$RUNTIME_DIR"/
 cp -a "$WEB_ROOT"/preview-dist/. "$STATIC_DIR/dayframe/"
 
 cd "$RUNTIME_DIR"
