@@ -283,8 +283,8 @@ async function searchBeauty(query: string): Promise<Match[]> {
 
 
 function guideCount(guide: Partial<Match>) {
-  return ["instructions", "usageWhen", "usageAmount", "usageDuration", "precautions"]
-    .filter((field) => guide[field]).length;
+  return (["instructions", "usageWhen", "usageAmount", "usageDuration", "precautions"] as const)
+    .filter((field) => Boolean(guide[field])).length;
 }
 
 type WebLink = { title: string; url: string; engine: string; score?: number };
