@@ -14,6 +14,22 @@ import {
 const CATEGORIES = ["Pleť", "Tělo", "Vlasy", "Zuby", "Holení", "Pomůcky", "Ostatní"];
 const keyFor = (routineId: string, taskId: string) => routineId + "::" + taskId;
 
+type ProductLookupMatch = {
+  name: string;
+  brand: string;
+  category: string;
+  description: string;
+  instructions: string;
+  amount: string;
+  priceCzk: number | null;
+  imageUrl: string;
+  sourceUrl: string;
+  sourceLabel: string;
+};
+type ProductLookupResponse = { matches?: ProductLookupMatch[]; notice?: string; error?: string };
+const LOOKUP_ENDPOINT = "/api/hygiene-product-lookup";
+
+
 function blankProduct(): HygieneProduct {
   return {
     id: "hygiene-product-" + (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
@@ -84,6 +100,14 @@ export function HygieneProducts({
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
   const [replacementId, setReplacementId] = useState("");
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupMatches, setLookupMatches] = useState<ProductLookupMatch[]>([]);
+  const [lookupNotice, setLookupNotice] = useState("");
+  const [lookupError, setLookupError] = useState("");
+  const [lookupImporting, setLookupImporting] = useState(false);
+  const [lookupSource, setLookupSource] = useState("");
+
 
   useEffect(() => {
     if (focusProductId) {
@@ -145,11 +169,87 @@ export function HygieneProducts({
         .map((task) => keyFor(routine.id, task.id))));
     setEditError("");
     setFile(null);
+    setLookupQuery("");
+    setLookupMatches([]);
+    setLookupError("");
+    setLookupNotice("");
+    setLookupBusy(false);
+    setLookupImporting(false);
+    setLookupSource("");
     setViewingId(null);
   };
 
+  const searchProduct = async (requested?: string) => {
+    const query = (requested ?? (lookupQuery.trim() || draft?.shopUrl || draft?.name || "")).trim();
+    if (query.length < 3) {
+      setLookupError("Zadej alespoň 3 znaky názvu nebo odkaz na produkt.");
+      return;
+    }
+    setLookupBusy(true);
+    setLookupError("");
+    setLookupMatches([]);
+    setLookupNotice("");
+    try {
+      const response = await fetch(LOOKUP_ENDPOINT + "?query=" + encodeURIComponent(query), {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.headers.get("content-type")?.includes("application/json"))
+        throw new Error("Vyhledávací služba na tomto nasazení není dostupná.");
+      const data = await response.json() as ProductLookupResponse;
+      if (!response.ok) throw new Error(data.error || "Produkt nelze vyhledat.");
+      const found = (data.matches ?? []).filter((item) =>
+        item && typeof item.name === "string" && item.name.trim() && typeof item.sourceUrl === "string");
+      setLookupMatches(found);
+      setLookupNotice(data.notice || (!found.length ? "Nenašel se ověřitelný produkt. Zkus jiný odkaz." : ""));
+    } catch (error) {
+      setLookupError(error instanceof Error ? error.message : "Vyhledávání není dostupné.");
+    } finally {
+      setLookupBusy(false);
+    }
+  };
+
+  const applyLookupMatch = async (match: ProductLookupMatch) => {
+    if (!draft || lookupImporting) return;
+    const isNew = !store.products.some((item) => item.id === draft.id);
+    const enteredLink = /^https:\/\//i.test(lookupQuery.trim()) ? lookupQuery.trim() : "";
+    // Fill verified public facts; never overwrite personal inventory, opening or expiry dates.
+    setDraft({
+      ...draft,
+      name: match.name.slice(0, 160),
+      brand: draft.brand.trim() || (match.brand || "").slice(0, 160),
+      category: isNew && match.category ? match.category : draft.category,
+      description: draft.description.trim() || (match.description || "").slice(0, 3000),
+      instructions: draft.instructions.trim() || (match.instructions || "").slice(0, 3000),
+      amount: draft.amount.trim() || (match.amount || "").slice(0, 100),
+      priceCzk: draft.priceCzk ?? match.priceCzk ?? null,
+      shopUrl: enteredLink || draft.shopUrl,
+    });
+    setLookupSource(match.sourceLabel + " · " + match.sourceUrl);
+    setLookupMatches([]);
+    setLookupNotice("Zjištěné údaje jsou předvyplněné. Před uložením je zkontroluj; osobní údaje doplň ručně.");
+    setLookupError("");
+
+    if (match.imageUrl && !file && !draft.photoKey) {
+      setLookupImporting(true);
+      try {
+        const response = await fetch(LOOKUP_ENDPOINT + "?mode=image&url=" + encodeURIComponent(match.imageUrl));
+        if (!response.ok) throw new Error("Fotografii se nepodařilo načíst.");
+        const blob = await response.blob();
+        const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+        const imported = new File([blob], "hygiena-produkt." + ext, { type: blob.type });
+        const invalid = validateProductPhoto(imported);
+        if (invalid) throw new Error(invalid);
+        setFile(imported);
+      } catch {
+        setLookupNotice("Informace byly předvyplněny. Fotografii se nepodařilo bezpečně převzít; můžeš ji nahrát ručně.");
+      } finally {
+        setLookupImporting(false);
+      }
+    }
+  };
+
   const save = async () => {
-    if (!draft || saving) return;
+    if (!draft || saving || lookupImporting) return;
     if (!draft.name.trim()) {
       setEditError("Vyplň název produktu.");
       return;
@@ -442,6 +542,43 @@ export function HygieneProducts({
             <header><div><h2>{store.products.some((p) => p.id === draft.id) ? "Upravit produkt" : "Nový produkt"}</h2></div>
               <button type="button" disabled={saving} aria-label="Zavřít editor produktu" onClick={() => setDraft(null)}>×</button>
             </header>
+            <div className="df2-product-autofill" aria-label="Automatické vyplnění produktu">
+              <div className="df2-product-autofill-head">
+                <span>Rychlé vložení produktu</span>
+                <strong>Najít produkt a vyplnit údaje</strong>
+                <small>Zadej název nebo vlož HTTPS odkaz z e-shopu či webu výrobce. Nemusíš vyplňovat celý formulář ručně.</small>
+              </div>
+              <div className="df2-product-autofill-search">
+                <input type="text" aria-label="Název nebo odkaz na produkt" value={lookupQuery}
+                  placeholder="Např. CeraVe SA Smoothing Cleanser nebo https://…"
+                  onChange={(event) => setLookupQuery(event.target.value)}
+                  onPaste={(event) => {
+                    const pasted = event.clipboardData.getData("text").trim();
+                    if (/^https:\/\//i.test(pasted)) void searchProduct(pasted);
+                  }}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchProduct(); } }} />
+                <button type="button" disabled={lookupBusy || lookupImporting} onClick={() => void searchProduct()}>
+                  {lookupBusy ? "Vyhledávám…" : "Vyhledat a doplnit"}
+                </button>
+              </div>
+              {!lookupQuery && draft.name && <small>Už máš vyplněný název „{draft.name}“ – můžeš kliknout rovnou na Vyhledat.</small>}
+              {lookupError && <p className="df2-hygiene-error" role="alert">{lookupError}</p>}
+              {lookupNotice && <p className="df2-product-autofill-note" role="status">{lookupNotice}</p>}
+              {lookupImporting && <p className="df2-product-autofill-note" role="status">Stahuji fotografii produktu…</p>}
+              {lookupSource && <p className="df2-product-autofill-credit">Zdroj vyplněných údajů: {lookupSource}</p>}
+              {lookupMatches.length > 0 && <div className="df2-product-autofill-results" aria-label="Nalezené produkty">
+                {lookupMatches.map((match, index) => (
+                  <article key={match.sourceUrl + ":" + index}>
+                    <div><strong>{match.name}</strong>
+                      <small>{[match.brand, match.amount, match.category].filter(Boolean).join(" · ")}</small>
+                      <span>{match.sourceLabel}</span>
+                      {match.description && <p>{match.description.slice(0, 220)}</p>}
+                    </div>
+                    <button type="button" onClick={() => void applyLookupMatch(match)} disabled={lookupImporting}>Použít tento produkt</button>
+                  </article>
+                ))}
+              </div>}
+            </div>
             <div className="df2-product-photo-editor">
               {uploadPreview ? <span className="df2-product-photo is-large"><img src={uploadPreview} alt="Náhled nahrané fotografie" /></span> :
                 <ProductPhoto photoKey={draft.photoKey} name={draft.name || "Produkt"} large />}
@@ -512,7 +649,7 @@ export function HygieneProducts({
             </div>
             {editError && <p className="df2-hygiene-error" role="alert">{editError}</p>}
             <div className="df2-modal-actions">
-              <button type="button" className="df2-primary" disabled={saving || !draft.name.trim()} onClick={() => void save()}>{saving ? "Ukládám…" : "Uložit produkt"}</button>
+              <button type="button" className="df2-primary" disabled={saving || lookupImporting || !draft.name.trim()} onClick={() => void save()}>{saving ? "Ukládám…" : "Uložit produkt"}</button>
               <button type="button" disabled={saving} onClick={() => setDraft(null)}>Zrušit</button>
             </div>
           </section>

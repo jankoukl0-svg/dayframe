@@ -1061,3 +1061,82 @@ button.df2-hygiene-used-product:hover { border-color: var(--accent); }
   .df2-inventory-item-actions { width: 100%; }
   .df2-inventory-summary small { flex-basis: 100%; }
 }
+
+
+/* Product identity / auto-fill entry point. Stays inside the existing editor modal. */
+.df2-product-autofill {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--paper) 94%, var(--accent));
+}
+.df2-product-autofill-head { display: grid; gap: 4px; }
+.df2-product-autofill-head > span {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .035em;
+  color: var(--accent-dark, var(--ink));
+  text-transform: uppercase;
+}
+.df2-product-autofill-head > strong { color: var(--ink); font-size: 15px; font-weight: 800; }
+.df2-product-autofill-head > small,
+.df2-product-autofill > small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.df2-product-autofill-search { display: flex; flex-wrap: wrap; gap: 8px; }
+.df2-product-autofill-search > input {
+  flex: 1 1 220px;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 11px;
+}
+.df2-product-autofill-search > button,
+.df2-product-autofill-results button {
+  min-height: 38px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 13px;
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 11px;
+  background: var(--paper);
+  cursor: pointer;
+}
+.df2-product-autofill-search > button:hover,
+.df2-product-autofill-results button:hover { background: var(--surface-secondary, var(--paper)); }
+.df2-product-autofill-search button:disabled,
+.df2-product-autofill-results button:disabled { opacity: .55; cursor: not-allowed; }
+.df2-product-autofill-note {
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.55;
+  margin: 0;
+}
+.df2-product-autofill-credit { color: var(--muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; margin: 0; }
+.df2-product-autofill-results { display: grid; gap: 7px; max-height: 340px; overflow-y: auto; }
+.df2-product-autofill-results > article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+.df2-product-autofill-results > article > div { display: grid; flex: 1 1 185px; gap: 4px; }
+.df2-product-autofill-results strong { font-size: 12px; color: var(--ink); }
+.df2-product-autofill-results small { font-size: 10px; color: var(--muted); }
+.df2-product-autofill-results span { font-size: 10px; color: var(--accent-dark, var(--ink)); font-weight: 750; }
+.df2-product-autofill-results p { margin: 3px 0 0; font-size: 10px; line-height: 1.5; color: var(--ink); }
+@media (max-width: 720px) {
+  .df2-product-autofill { padding: 12px; }
+  .df2-product-autofill-search > button { flex: 1 0 auto; }
+  .df2-product-autofill-results button { flex: 1 0 auto; }
+}
