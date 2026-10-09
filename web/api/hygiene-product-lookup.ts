@@ -7,6 +7,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { extractGuideFromHtml, extractGuideFromCatalog } from "../lib/dayframe-product-guide-extract.mjs";
 import { manufacturerGuideFor } from "../lib/dayframe-manufacturer-guide.mjs";
+import { bingRssResults, duckDuckGoResults, productPageIsRelevant, rankProductLinks } from "../lib/dayframe-product-discovery.mjs";
 
 type Match = {
   name: string; brand: string; category: string; description: string;
@@ -18,6 +19,7 @@ type Match = {
 };
 
 const LIMIT = 500_000;
+const PRODUCT_PAGE_LIMIT = 1_100_000;
 const IMG_LIMIT = 6 * 1024 * 1024;
 const UA = "Dayframe/1.0 (https://dayframe2.vercel.app; personal product inventory)";
 const json = (value: unknown, status = 200) => Response.json(value, {
@@ -279,40 +281,71 @@ async function searchBeauty(query: string): Promise<Match[]> {
 }
 
 
-function normalizeBrand(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
+
 function guideCount(guide: Record<string, string>) {
-  return ["instructions","usageWhen","usageAmount","usageDuration","precautions"].filter((field) => guide[field]).length;
+  return ["instructions", "usageWhen", "usageAmount", "usageDuration", "precautions"]
+    .filter((field) => guide[field]).length;
 }
 
-/** Only product pages on domains matching the claimed manufacturer name can enrich a name-only hit.
- * A search result is a suggestion, never a guaranteed manufacturer endorsement. */
-async function discoverBrandPage(brand: string, name: string): Promise<string> {
-  const brandKey = normalizeBrand(brand);
-  if (brandKey.length < 4) return "";
-  const request = new URL("https://www.bing.com/search");
-  request.searchParams.set("q", brand + " " + name + " how to use");
-  request.searchParams.set("format", "rss");
+type WebLink = { title: string; url: string; engine: string; score?: number };
+
+async function searchPublicWeb(query: string, brand = ""): Promise<WebLink[]> {
+  const search = (brand ? brand + " " + query : query).slice(0, 170);
+  const bing = new URL("https://www.bing.com/search");
+  bing.searchParams.set("q", search + " how to use");
+  bing.searchParams.set("format", "rss");
+  const duck = new URL("https://html.duckduckgo.com/html/");
+  duck.searchParams.set("q", search + " directions");
+  // Indexes are independent: one blocked engine must never suppress the other.
+  const [bingResult, duckResult] = await Promise.allSettled([
+    requestPublic(bing.href, "application/rss+xml,application/xml,text/xml").then(async (response) =>
+      bingRssResults(new TextDecoder().decode(await readLimited(response, 200_000, true)), query)),
+    requestPublic(duck.href, "text/html").then(async (response) =>
+      duckDuckGoResults(new TextDecoder().decode(await readLimited(response, 300_000, true)), query)),
+  ]);
+  const candidates: WebLink[] = [
+    ...(bingResult.status === "fulfilled" ? bingResult.value : []),
+    ...(duckResult.status === "fulfilled" ? duckResult.value : []),
+  ];
+  return rankProductLinks(candidates, query, brand);
+}
+
+async function openProductPage(url: string, query: string): Promise<Match | null> {
   try {
-    const response = await requestPublic(request.href, "application/rss+xml,application/xml,text/xml");
-    const xml = new TextDecoder().decode(await readLimited(response, 180_000, true));
-    for (const result of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
-      const title = entities(result[1].match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/<[^>]*>/g, "");
-      const candidate = entities(result[1].match(/<link>([\s\S]*?)<\/link>/i)?.[1] ?? "").trim();
-      const url = parseSafeUrl(candidate);
-      if (!url) continue;
-      const hostKey = normalizeBrand(url.hostname.split(".").slice(-3).join("."));
-      // The maker's brand should be represented by the hostname, not a query parameter.
-      if (!hostKey.includes(brandKey)) continue;
-      const resultName = title.replace(/\s+[|–-]\s+.+$/, "");
-      const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g," ").split(" ").filter((part) => part.length >= 3);
-      const hits = normalized.filter((part) => resultName.toLowerCase().includes(part)).length;
-      if (!normalized.length || hits < Math.min(2, normalized.length) || hits / normalized.length < 0.5) continue;
-      return url.href;
-    }
-  } catch { /* no reliable maker page available */ }
-  return "";
+    const response = await requestPublic(url, "text/html");
+    if (!(response.headers.get("content-type") || "").toLowerCase().includes("text/html")) return null;
+    const html = new TextDecoder().decode(await readLimited(response, PRODUCT_PAGE_LIMIT, true));
+    const product = fromHtml(html, url);
+    if (!product || !productPageIsRelevant(product.name, query)) return null;
+    return product;
+  } catch {
+    return null;
+  }
+}
+
+function mergeFromSource(base: Match | null, another: Match): Match {
+  if (!base) return another;
+  const guideKeys = ["instructions", "usageWhen", "usageAmount", "usageDuration", "precautions", "frequency"] as const;
+  const enriched = { ...base };
+  for (const key of guideKeys) if (!enriched[key] && another[key]) enriched[key] = another[key];
+  if (!enriched.description && another.description) enriched.description = another.description;
+  if (!enriched.imageUrl && another.imageUrl) enriched.imageUrl = another.imageUrl;
+  if (!enriched.brand && another.brand) enriched.brand = another.brand;
+  if (!enriched.amount && another.amount) enriched.amount = another.amount;
+  if (enriched.priceCzk == null && another.priceCzk != null) enriched.priceCzk = another.priceCzk;
+  const urls = new Set([...(base.guideSourceUrls ?? []), ...(another.guideSourceUrls ?? []),
+    ...(another.guideSourceUrl ? [another.guideSourceUrl] : [])]);
+  enriched.guideSourceUrls = [...urls].slice(0, 4);
+  if (!enriched.guideSourceUrl && another.guideSourceUrl) enriched.guideSourceUrl = another.guideSourceUrl;
+  return enriched;
+}
+
+async function researchProductPages(query: string, brand = ""): Promise<Match[]> {
+  const links = await searchPublicWeb(query, brand);
+  if (!links.length) return [];
+  // Cap untrusted network requests; rank before fetching and verify actual page metadata.
+  const checked = await Promise.all(links.slice(0, 4).map((item) => openProductPage(item.url, query)));
+  return checked.filter((item): item is Match => item !== null);
 }
 
 async function findDetailedGuide(brand: string, name: string, original: string) {
@@ -322,32 +355,35 @@ async function findDetailedGuide(brand: string, name: string, original: string) 
     return { guide, description, sourceUrl, sourceUrls };
   }
   const fallback = { instructions: "", usageWhen: "", usageAmount: "", usageDuration: "", precautions: "", frequency: "" };
-  // Catalog descriptions rarely contain instructions, but product pages sometimes do.
+  let source: Match | null = null;
+
+  // A selected catalog URL can contain labelled directions absent from the catalog API.
   if (/^https:\/\/(?:[a-z-]+\.)?openbeautyfacts\.org\/product\/\d{8,14}/i.test(original)) {
-    try {
-      const response = await requestPublic(original, "text/html");
-      if ((response.headers.get("content-type") || "").includes("text/html")) {
-        const html = new TextDecoder().decode(await readLimited(response, LIMIT, true));
-        const guide = extractGuideFromHtml(html);
-        if (guideCount(guide) >= 2) return { guide, sourceUrl: original };
-      }
-    } catch { /* try maker instead */ }
+    source = await openProductPage(original, name);
+  } else if (parseSafeUrl(original)) {
+    source = await openProductPage(original, name);
   }
-  const link = await discoverBrandPage(brand, name);
-  if (!link) return { guide: fallback, sourceUrl: "" };
-  try {
-    const response = await requestPublic(link, "text/html");
-    if (!(response.headers.get("content-type") || "").includes("text/html")) return { guide: fallback, sourceUrl: "" };
-    const html = new TextDecoder().decode(await readLimited(response, LIMIT, true));
-    const product = fromHtml(html, link);
-    // Prevent matching only on the brand and filling from the wrong variant.
-    const actualName = product?.name ?? "";
-    if (score({ ...(product ?? {}), name: actualName, brand } as Match, name) < 0.55) return { guide: fallback, sourceUrl: "" };
-    const guide = extractGuideFromHtml(html, getProductJsonld(html));
-    return { guide, sourceUrl: guideCount(guide) ? link : "" };
-  } catch {
-    return { guide: fallback, sourceUrl: "" };
+  // A single catalogue page may have only a photo. Search broadly across manufacturer
+  // and retail pages, regardless of brand/domain spelling and localization.
+  if (!source || guideCount(source) < 4 || !source.description) {
+    const pages = await researchProductPages(name, brand);
+    for (const page of pages) {
+      if (brand && page.brand && !productPageIsRelevant(page.brand + " " + page.name, brand + " " + name)) continue;
+      source = mergeFromSource(source, page);
+      if (source && guideCount(source) >= 4 && source.description) break;
+    }
   }
+  if (!source) return { guide: fallback, description: "", sourceUrl: "", sourceUrls: [] };
+  const urls = [...new Set([...(source.guideSourceUrls ?? []), source.guideSourceUrl, source.sourceUrl].filter(Boolean))];
+  return {
+    guide: {
+      instructions: source.instructions, usageWhen: source.usageWhen,
+      usageAmount: source.usageAmount, usageDuration: source.usageDuration,
+      precautions: source.precautions, frequency: source.frequency,
+    },
+    description: source.description,
+    sourceUrl: urls[0] ?? "", sourceUrls: urls.slice(0, 4),
+  };
 }
 
 async function handle(request: Request): Promise<Response> {
@@ -357,8 +393,8 @@ async function handle(request: Request): Promise<Response> {
     const name = clean(url.searchParams.get("name"), 160);
     const brand = clean(url.searchParams.get("brand"), 160);
     const original = url.searchParams.get("url") ?? "";
-    if (name.length < 3 || brand.length < 2 || name.length > 160 || original.length > 2048)
-      return json({ error: "Pro dohledání návodu zadej výrobce a název produktu." }, 400);
+    if (name.length < 3 || name.length > 160 || brand.length > 160 || original.length > 2048)
+      return json({ error: "Pro dohledání návodu zadej název produktu." }, 400);
     const enriched = await findDetailedGuide(brand, name, original);
     return json(enriched);
   }
@@ -387,15 +423,20 @@ async function handle(request: Request): Promise<Response> {
       const response = await requestPublic(query, "text/html");
       const type = (response.headers.get("content-type") || "").toLowerCase();
       if (!type.includes("text/html")) return json({ error: "Odkaz neobsahuje běžnou produktovou stránku." }, 422);
-      const html = new TextDecoder().decode(await readLimited(response, LIMIT, true));
+      const html = new TextDecoder().decode(await readLimited(response, PRODUCT_PAGE_LIMIT, true));
       const match = fromHtml(html, query);
       if (!match) return json({ matches: [], notice: "Na stránce se nepodařilo ověřit název produktu. Zkus název nebo jiný odkaz." });
       return json({ matches: [match], notice: "Údaje pocházejí z metadat odkazované stránky. Před uložením je zkontroluj." });
     }
-    const matches = await searchBeauty(query);
-    return json({ matches, notice: matches.length
-      ? "Výsledky z komunitní databáze Open Beauty Facts. Vyber odpovídající balení a zkontroluj údaje."
-      : "V Open Beauty Facts nebyl nalezen dostatečně podobný produkt. Můžeš zkusit přímý odkaz." });
+    let matches: Match[] = [];
+    try { matches = await searchBeauty(query); } catch { /* independent web fallback */ }
+    if (matches.length) return json({
+      matches, notice: "Výsledky z katalogu Open Beauty Facts. Po výběru dohledáme také pokyny výrobce nebo prodejce.",
+    });
+    const webMatches = await researchProductPages(query);
+    return json({ matches: webMatches.slice(0, 5), notice: webMatches.length
+      ? "Produkt nebyl v katalogu; našel jsem odpovídající webové stránky. Vyber správnou variantu."
+      : "Produkt se v dostupných zdrojích nepodařilo spolehlivě identifikovat. Zkus odkaz výrobce nebo e-shopu." });
   } catch {
     return json({ matches: [], notice: "Zdroj je nedostupný nebo blokuje automatické načítání. Zkus jiný odkaz či název." });
   }
