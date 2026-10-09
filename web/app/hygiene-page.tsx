@@ -191,7 +191,10 @@ function ScheduleEditor({
               min="1"
               max="90"
               value={value.everyDays}
-              onChange={(event) => onChange({ ...value, everyDays: Math.max(1, Number(event.target.value) || 1) })}
+              onChange={(event) => onChange({
+                ...value,
+                everyDays: Math.max(1, Math.min(90, Math.round(Number(event.target.value) || 1))),
+              })}
             />
           </label>
           <label>
@@ -209,7 +212,10 @@ function ScheduleEditor({
             min="1"
             max="31"
             value={value.day}
-            onChange={(event) => onChange({ type: "monthly", day: Math.max(1, Math.min(31, Number(event.target.value) || 1)) })}
+            onChange={(event) => onChange({
+              type: "monthly",
+              day: Math.max(1, Math.min(31, Math.round(Number(event.target.value) || 1))),
+            })}
           />
         </label>
       )}

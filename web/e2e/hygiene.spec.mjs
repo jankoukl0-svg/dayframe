@@ -407,3 +407,41 @@ test("moving a completed task between today's routines preserves its state", asy
   const evening = page.locator('[data-hygiene-routine="evening"]');
   await expect(evening.locator(".df2-hygiene-task").filter({ hasText: "Vyčistit zuby" }).getByRole("button", { name: "Vrátit Vyčistit zuby jako nesplněné" })).toBeVisible();
 });
+
+
+test("numeric Hygiene schedules are normalized before persistence", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+
+  await page.getByRole("button", { name: "+ Vlastní rutina" }).click();
+  let modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Název").fill("Interval rutina");
+  await modal.getByLabel("Frekvence", { exact: true }).selectOption("interval");
+  await modal.getByLabel("Každých", { exact: true }).fill("120.7");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await page.getByRole("button", { name: "+ Vlastní rutina" }).click();
+  modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Název").fill("Měsíční rutina");
+  await modal.getByLabel("Frekvence", { exact: true }).selectOption("monthly");
+  await modal.getByLabel("Den v měsíci", { exact: true }).fill("12.6");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    const interval = store.routines.find((routine) => routine.title === "Interval rutina")?.schedule;
+    const monthly = store.routines.find((routine) => routine.title === "Měsíční rutina")?.schedule;
+    return { interval, monthly };
+  })).toEqual({
+    interval: { type: "interval", everyDays: 90, anchorDate: "2026-10-06" },
+    monthly: { type: "monthly", day: 13 },
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await openSidebar(page, "Hygiena");
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  await expect(page.locator(".df2-hygiene-error")).toHaveCount(0);
+  await expect(page.locator(".df2-hygiene-manage-list")).toContainText("Interval rutina");
+  await expect(page.locator(".df2-hygiene-manage-list")).toContainText("Měsíční rutina");
+});
