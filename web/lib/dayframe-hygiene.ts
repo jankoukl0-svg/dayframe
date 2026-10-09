@@ -456,11 +456,6 @@ function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
   };
 }
 
-function recordIsFinalized(record: HygieneRoutineRecord) {
-  const required = record.scheduledTasks.filter((item) => !item.optional);
-  return required.length === 0 || required.every((item) => record.states[item.id] === "done" || record.states[item.id] === "skipped");
-}
-
 function routineHasScheduledWorkOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
   if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
   const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
@@ -530,8 +525,9 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         }
         continue;
       }
-      if (recordIsFinalized(existing)) {
-        if (!existing.archived) {
+      const hasHandledSnapshot = Object.keys(existing.states).length > 0;
+      if (hasHandledSnapshot) {
+        if (!existing.archived || existing.carryToday) {
           dateRecords[routineId] = { ...existing, archived: true, carryToday: undefined };
           changed = true;
         }

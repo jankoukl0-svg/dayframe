@@ -593,3 +593,38 @@ test("moving the sole completed task to a scheduled routine removes the empty so
     .locator(".df2-hygiene-task").filter({ hasText: "Přesouvaný hotový úkol" })
     .getByRole("button", { name: "Vrátit Přesouvaný hotový úkol jako nesplněné" })).toBeVisible();
 });
+
+
+test("partially handled snapshots survive routine deactivation in history", async ({ page }) => {
+  await openFresh(page);
+  await openSidebar(page, "Hygiena");
+
+  const morning = page.locator('[data-hygiene-routine="morning"]');
+  await morning.getByRole("button", { name: "Označit Ranní sprcha jako hotovo" }).click();
+  await expect(morning).toContainText("1/6");
+
+  await page.getByRole("tab", { name: "Správa rutin" }).click();
+  const manage = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Ranní rutina" });
+  await manage.getByRole("button", { name: "Upravit", exact: true }).click();
+  const modal = page.locator(".df2-hygiene-modal").last();
+  await modal.getByLabel("Aktivní").uncheck();
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  await expect(page.locator('[data-hygiene-routine="morning"]')).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Historie" }).click();
+  const stats = page.locator(".df2-hygiene-stats-grid article").filter({ hasText: "Ranní rutina" });
+  await expect(stats).toContainText("částečně");
+  await expect(stats).toContainText("1");
+
+  await expect.poll(() => page.evaluate(() => {
+    const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
+    const record = store.records?.["2026-10-06"]?.morning;
+    return {
+      exists: Boolean(record),
+      archived: record?.archived,
+      shower: record?.states?.["morning-shower"] ?? null,
+    };
+  })).toEqual({ exists: true, archived: true, shower: "done" });
+});
