@@ -255,9 +255,10 @@ export function HygieneProducts({
 
 
   const findProductPhoto = async (name: string, brand: string, sourceUrl: string,
-    preferredImage = "", replaceExisting = false, photoOfId?: string) => {
+    preferredImage = "", replaceExisting = false, photoOfId?: string, expectedSession?: number) => {
     const id = photoOfId ?? draft?.id;
     const session = photoSessionRef.current;
+    if (expectedSession !== undefined && session !== expectedSession) return;
     if (!id || photoBusy || (!replaceExisting && (photoPreferenceRef.current === "manual"
       || Boolean(file) || Boolean(draft?.photoKey)))) return;
     setPhotoBusy(true);
@@ -310,6 +311,8 @@ export function HygieneProducts({
   const applyLookupMatch = async (match: ProductLookupMatch) => {
     if (!draft || lookupImporting) return;
     const draftId = draft.id;
+    const initiatedSession = photoSessionRef.current;
+    const isCurrentSession = () => activeEditorRef.current === draftId && photoSessionRef.current === initiatedSession;
     const isNew = !store.products.some((item) => item.id === draftId);
     const enteredLink = /^https:\/\//i.test(lookupQuery.trim()) ? lookupQuery.trim() : "";
     setDraft((current) => current && current.id === draftId ? mergeProductGuide({
@@ -350,6 +353,7 @@ export function HygieneProducts({
               guide?: Partial<ProductLookupMatch>; description?: string;
               sourceUrl?: string; sourceUrls?: string[]; warning?: string; safetySource?: string;
             };
+            if (!isCurrentSession()) return;
             if (result.guide) {
               gotDetailedGuide = gotDetailedGuide || Boolean(result.guide.instructions || result.guide.precautions
                 || result.guide.usageWhen || result.guide.usageAmount || result.guide.usageDuration);
@@ -365,14 +369,17 @@ export function HygieneProducts({
           }
         } catch { /* product may be unavailable on manufacturer sites; keep known fields */ }
       }
+      if (!isCurrentSession()) return;
       if (!file && !draft.photoKey && photoPreferenceRef.current !== "manual") {
-        await findProductPhoto(match.name, match.brand, match.sourceUrl, match.imageUrl, false, draftId);
+        await findProductPhoto(match.name, match.brand, match.sourceUrl, match.imageUrl,
+          false, draftId, initiatedSession);
       }
+      if (!isCurrentSession()) return;
       setLookupNotice(!gotDetailedGuide
         ? "Základní údaje jsou doplněné, ale ověřitelné pokyny k použití se nepodařilo najít. Zkus odkaz výrobce nebo je doplň z obalu."
         : "Dostupné pokyny výrobce nebo prodejce byly doplněné. Zkontroluj je podle obalu; chybějící informace nevymýšlíme.");
     } finally {
-      setLookupImporting(false);
+      if (isCurrentSession()) setLookupImporting(false);
     }
   };
 
