@@ -27,6 +27,49 @@ export function ProductCareGuide({ product }: { product: Pick<HygieneProductSnap
   );
 }
 
+type CareGuideFields = Pick<HygieneProductSnapshot,
+  "instructions" | "usageWhen" | "usageAmount" | "usageDuration" | "frequency" | "precautions">;
+
+/**
+ * Today's checklist should be scannable. Full, immutable product guidance is
+ * still available on demand and in the product/historical detail views.
+ */
+export function CompactRoutineProductGuide({
+  product,
+}: {
+  product: CareGuideFields & Pick<HygieneProductSnapshot, "name">;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasGuide = Boolean(product.instructions || product.usageWhen || product.usageAmount
+    || product.usageDuration || product.frequency || product.precautions);
+  if (!hasGuide) return null;
+
+  const instruction = product.instructions?.replace(/\s+/g, " ").trim()
+    || product.usageWhen?.replace(/\s+/g, " ").trim()
+    || product.usageAmount?.replace(/\s+/g, " ").trim()
+    || "";
+
+  return (
+    <div className="df2-routine-product-guide">
+      {!expanded && instruction && (
+        <p className="df2-routine-product-summary" title={instruction}>{instruction}</p>
+      )}
+      {expanded && (
+        <div className="df2-routine-product-expanded">
+          <ProductCareGuide product={product} />
+        </div>
+      )}
+      <button type="button" className="df2-routine-product-more"
+        aria-label={(expanded ? "Skrýt podrobnosti produktu " : "Více o produktu ") + product.name}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((previous) => !previous)}>
+        {expanded ? "Méně" : "Více o použití"}
+        <span aria-hidden="true">{expanded ? "▴" : "▾"}</span>
+      </button>
+    </div>
+  );
+}
+
 function clockLabel(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   return String(minutes).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
