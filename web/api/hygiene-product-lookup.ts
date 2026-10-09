@@ -80,8 +80,8 @@ async function requestPublic(raw: string, accept: string): Promise<Response> {
   throw new Error("Příliš mnoho přesměrování.");
 }
 
-async function readLimited(response: Response, max: number): Promise<Uint8Array> {
-  if (Number(response.headers.get("content-length") || 0) > max) throw new Error("Soubor je příliš velký.");
+async function readLimited(response: Response, max: number, partial = false): Promise<Uint8Array> {
+  if (!partial && Number(response.headers.get("content-length") || 0) > max) throw new Error("Soubor je příliš velký.");
   if (!response.body) throw new Error("Zdroj neobsahuje data.");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -90,8 +90,13 @@ async function readLimited(response: Response, max: number): Promise<Uint8Array>
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      if (total + value.byteLength > max) {
+        if (!partial) throw new Error("Zdroj je příliš velký.");
+        const available = max - total;
+        if (available > 0) { chunks.push(value.slice(0, available)); total += available; }
+        break;
+      }
       total += value.byteLength;
-      if (total > max) throw new Error("Zdroj je příliš velký.");
       chunks.push(value);
     }
   } finally { await reader.cancel().catch(() => {}); }
@@ -140,7 +145,7 @@ function getProductJsonld(html: string): Record<string, unknown> | null {
     if (!value || typeof value !== "object") return null;
     const record = value as Record<string, unknown>;
     const types = Array.isArray(record["@type"]) ? record["@type"] : [record["@type"]];
-    if (types.some((type) => typeof type === "string" && /(^|:)Product$/i.test(type))) return record;
+    if (types.some((type) => typeof type === "string" && /(^|[/:])Product$/i.test(type))) return record;
     return visit(record["@graph"]) ?? visit(record.mainEntity);
   };
   for (const value of queue) { const found = visit(value); if (found) return found; }
@@ -255,7 +260,7 @@ async function handle(request: Request): Promise<Response> {
       if (!["image/jpeg", "image/png", "image/webp"].includes(type))
         return json({ error: "Fotografie nemá podporovaný formát." }, 415);
       const bytes = await readLimited(response, IMG_LIMIT);
-      return new Response(bytes, {
+      return new Response(bytes.buffer as ArrayBuffer, {
         headers: { "Content-Type": type, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
       });
     } catch {
@@ -271,7 +276,7 @@ async function handle(request: Request): Promise<Response> {
       const response = await requestPublic(query, "text/html");
       const type = (response.headers.get("content-type") || "").toLowerCase();
       if (!type.includes("text/html")) return json({ error: "Odkaz neobsahuje běžnou produktovou stránku." }, 422);
-      const html = new TextDecoder().decode(await readLimited(response, LIMIT));
+      const html = new TextDecoder().decode(await readLimited(response, LIMIT, true));
       const match = fromHtml(html, query);
       if (!match) return json({ matches: [], notice: "Na stránce se nepodařilo ověřit název produktu. Zkus název nebo jiný odkaz." });
       return json({ matches: [match], notice: "Údaje pocházejí z metadat odkazované stránky. Před uložením je zkontroluj." });
