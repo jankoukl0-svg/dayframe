@@ -149,3 +149,188 @@ test("photo lookup failure preserves existing manual photograph", async ({ page 
   await expect(dialog.locator(".df2-packshot-notice")).toContainText("nepodařilo stáhnout");
   await expect(dialog.locator('img[alt="Náhled nahrané fotografie"]')).toBeVisible();
 });
+
+
+test("rejects empty white results rather than treating a blank canvas as a product packshot", async ({ page }) => {
+  const dialog = await start(page);
+  const realPhoto = await imageFixture(page, "#ffffff");
+  const empty = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 280; canvas.height = 320;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png");
+  });
+  const blank = Buffer.from(empty.split(",")[1], "base64");
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("mode") === "photos") return route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ candidates: [
+        { url: "https://example.org/blank.png", source: "Empty image", priority: 100 },
+        { url: "https://example.org/real.png", source: "Actual product", priority: 8 },
+      ] }),
+    });
+    if (params.get("mode") === "image") return route.fulfill({
+      status: 200, contentType: "image/png",
+      body: params.get("url")?.endsWith("/blank.png") ? blank : realPhoto,
+    });
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await dialog.getByRole("textbox", { name: "Název produktu *" }).fill("Real Product");
+  await dialog.getByRole("button", { name: "Najít lepší fotku" }).click();
+  await expect(dialog.locator(".df2-packshot-notice")).toContainText("Actual product");
+  const preview = await inspectPreviewCorners(dialog);
+  expect(preview.center[2]).toBeGreaterThan(preview.center[0] * 1.5);
+});
+
+test("uploading a manual photo while automatic refresh is in flight wins over the late result", async ({ page }) => {
+  const dialog = await start(page);
+  const manual = await imageFixture(page, "#eafafa");
+  const automatic = await imageFixture(page, "#ffffff");
+  let releaseImage = () => {};
+  const allowImage = new Promise((resolve) => { releaseImage = resolve; });
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("mode") === "photos") return route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ candidates: [
+        { url: "https://example.org/white.png", source: "Online image", priority: 22 },
+      ] }),
+    });
+    if (params.get("mode") === "image") {
+      await allowImage;
+      return route.fulfill({ status: 200, contentType: "image/png", body: automatic });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await dialog.getByRole("textbox", { name: "Název produktu *" }).fill("Mixed Product");
+  const pendingImage = page.waitForRequest((req) =>
+    req.url().includes("hygiene-product-lookup") && new URL(req.url()).searchParams.get("mode") === "image");
+  await dialog.getByRole("button", { name: "Najít lepší fotku" }).click();
+  await pendingImage;
+  await dialog.getByLabel("Fotografie produktu").setInputFiles({
+    name: "manual.png", mimeType: "image/png", buffer: manual,
+  });
+  releaseImage();
+  await expect(dialog.getByRole("button", { name: "Najít lepší fotku" })).toBeEnabled();
+  await expect(dialog.locator(".df2-packshot-notice")).toContainText("nahraná fotografie");
+  const selected = await inspectPreviewCorners(dialog);
+  expect(selected.corner[1]).toBeGreaterThan(selected.corner[0]);
+});
+
+test("closing and reopening the same product ignores an older in-flight photo lookup", async ({ page }) => {
+  const dialog = await start(page);
+  await dialog.getByRole("textbox", { name: "Název produktu *" }).fill("Reusable Skin Lotion");
+  await dialog.getByRole("button", { name: "Uložit produkt" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.locator(".df2-product-card").filter({ hasText: "Reusable Skin Lotion" }).click();
+  await page.getByRole("dialog", { name: /Detail produktu/ }).getByRole("button", { name: "Upravit" }).click();
+  const editor = page.getByRole("dialog", { name: "Editor produktu" });
+  let releaseImage = () => {};
+  const allowImage = new Promise((resolve) => { releaseImage = resolve; });
+  const white = await imageFixture(page, "#ffffff");
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("mode") === "photos") return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ candidates: [{ url: "https://example.org/lotion.png", source: "Maker", priority: 20 }] }),
+    });
+    if (params.get("mode") === "image") {
+      await allowImage;
+      return route.fulfill({ status: 200, contentType: "image/png", body: white });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  const pendingImage = page.waitForRequest((req) =>
+    req.url().includes("hygiene-product-lookup") && new URL(req.url()).searchParams.get("mode") === "image");
+  await editor.getByRole("button", { name: "Najít lepší fotku" }).click();
+  await pendingImage;
+  await editor.getByRole("button", { name: "Zavřít editor produktu" }).click();
+  await page.locator(".df2-product-card").filter({ hasText: "Reusable Skin Lotion" }).click();
+  await page.getByRole("dialog", { name: /Detail produktu/ }).getByRole("button", { name: "Upravit" }).click();
+  const reopened = page.getByRole("dialog", { name: "Editor produktu" });
+  releaseImage();
+  await expect(reopened.getByRole("button", { name: "Najít lepší fotku" })).toBeEnabled();
+  await expect(reopened.locator('img[alt="Náhled nahrané fotografie"]')).toHaveCount(0);
+  await expect(reopened.locator(".df2-packshot-notice")).toHaveCount(0);
+});
+
+
+test("guide lookup from a previous edit session cannot restart automatic photo import after reopen", async ({ page }) => {
+  const dialog = await start(page);
+  await dialog.getByRole("textbox", { name: "Název produktu *" }).fill("Skin Lotion 50");
+  await dialog.getByRole("button", { name: "Uložit produkt" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.locator(".df2-product-card").filter({ hasText: "Skin Lotion 50" }).click();
+  await page.getByRole("dialog", { name: /Detail produktu/ }).getByRole("button", { name: "Upravit" }).click();
+  const editor = page.getByRole("dialog", { name: "Editor produktu" });
+  let releaseGuide = () => {};
+  const allowGuide = new Promise((resolve) => { releaseGuide = resolve; });
+  let requestedPhotos = 0;
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("mode") === "guide") {
+      await allowGuide;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        guide: { instructions: "Instructions only for the earlier session." },
+      }) });
+    }
+    if (params.get("mode") === "photos") requestedPhotos++;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      matches: [{ name: "Skin Lotion 50", brand: "Brand", category: "Pleť",
+        description: "", instructions: "", imageUrl: "https://example.org/white.png",
+        sourceUrl: "https://example.org/skin-lotion-50", sourceLabel: "Store",
+        amount: "50 ml", priceCzk: null }],
+    }) });
+  });
+  await editor.getByRole("button", { name: "Vyhledat a doplnit" }).click();
+  const pending = page.waitForRequest((req) =>
+    req.url().includes("hygiene-product-lookup") && new URL(req.url()).searchParams.get("mode") === "guide");
+  await editor.getByRole("button", { name: "Použít tento produkt" }).click();
+  await pending;
+  await editor.getByRole("button", { name: "Zavřít editor produktu" }).click();
+  await page.locator(".df2-product-card").filter({ hasText: "Skin Lotion 50" }).click();
+  await page.getByRole("dialog", { name: /Detail produktu/ }).getByRole("button", { name: "Upravit" }).click();
+  const reopened = page.getByRole("dialog", { name: "Editor produktu" });
+  const response = page.waitForResponse((res) =>
+    res.url().includes("hygiene-product-lookup") && new URL(res.url()).searchParams.get("mode") === "guide");
+  releaseGuide();
+  await response;
+  await page.waitForTimeout(175);
+  await expect(reopened.locator('img[alt="Náhled nahrané fotografie"]')).toHaveCount(0);
+  await expect(reopened.getByRole("textbox", { name: "Návod k použití" })).toHaveValue("");
+  expect(requestedPhotos).toBe(0);
+});
+
+
+test("dark opaque product on transparent background remains visible on white", async ({ page }) => {
+  const dialog = await start(page);
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 280; canvas.height = 320;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 280, 320);
+    ctx.fillStyle = "#111111";
+    ctx.fillRect(95, 52, 92, 245);
+    return canvas.toDataURL("image/png");
+  });
+  const transparent = Buffer.from(image.split(",")[1], "base64");
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("mode") === "photos") return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ candidates: [
+        { url: "https://example.org/transparent-dark.png", source: "Manufacturer", priority: 20 },
+      ] }),
+    });
+    if (params.get("mode") === "image") return route.fulfill({
+      status: 200, contentType: "image/png", body: transparent,
+    });
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await dialog.getByRole("textbox", { name: "Název produktu *" }).fill("Black Bottle");
+  await dialog.getByRole("button", { name: "Najít lepší fotku" }).click();
+  await expect(dialog.locator(".df2-packshot-notice")).toContainText("bílým nebo průhledným pozadím");
+  const preview = await inspectPreviewCorners(dialog);
+  expect(preview.corner.every(value => value >= 240)).toBe(true);
+  expect(preview.center.every(value => value <= 60)).toBe(true);
+});

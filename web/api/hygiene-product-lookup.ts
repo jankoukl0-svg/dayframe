@@ -459,7 +459,7 @@ function imageSourcesFromHtml(html: string, pageUrl: string, productName: string
 
 async function photoCandidates(name: string, brand: string, original: string, originalImage: string) {
   const results: PhotoCandidate[] = [];
-  const selectedBrand = brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const selectedBrand = brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]/gu, "");
   function add(candidate: PhotoCandidate) {
     if (!candidate.url || candidate.url.length > 2000) return;
     if (!parseSafeUrl(candidate.url) || results.some(item => item.url === candidate.url)) return;
@@ -480,12 +480,20 @@ async function photoCandidates(name: string, brand: string, original: string, or
   for (const item of catalog) {
     // Only the right product and concentration/variant may provide a packshot.
     if (!productPageIsRelevant(item.name, name)) continue;
-    const b = item.brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+    const b = item.brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]/gu,"");
     if (selectedBrand && b && !b.includes(selectedBrand) && !selectedBrand.includes(b)) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 14});
   }
   for (const item of pages) {
     if (!productPageIsRelevant(item.name, name)) continue;
+    const normalize = (value: string) => value.toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]/gu,"");
+    const b = normalize(item.brand);
+    const makerDomain = normalize(new URL(item.sourceUrl).hostname);
+    const title = normalize(item.name);
+    const confirmedBrand = b ? (b.includes(selectedBrand) || selectedBrand.includes(b))
+      : (makerDomain.includes(selectedBrand) || title.includes(selectedBrand));
+    if (selectedBrand && !confirmedBrand) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
   }
   if (html) {
@@ -496,7 +504,7 @@ async function photoCandidates(name: string, brand: string, original: string, or
   const prioritized = results.map(candidate => ({
     ...candidate,
     priority: candidate.priority + (
-      selectedBrand && candidate.source.toLowerCase().replace(/[^a-z0-9]/g,"").includes(selectedBrand) ? 8 : 0),
+      selectedBrand && candidate.source.toLowerCase().replace(/[^\p{L}\p{N}]/gu,"").includes(selectedBrand) ? 8 : 0),
   })).sort((a,b) => b.priority - a.priority);
   return prioritized.slice(0, 10);
 }

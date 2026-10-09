@@ -55,6 +55,7 @@ async function inspect(candidate: PackshotCandidate, blob: Blob): Promise<Inspec
     ];
     const avg = [0, 1, 2].map(channel =>
       corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
+    const backgroundAlpha = corners.reduce((sum, index) => sum + pixels[index + 3], 0) / 4;
     const cornersUniform = corners.every(index => pixelDiff(pixels, index, avg) < 34 * 34);
     let clean = 0, white = 0, edges = 0;
     for (let y = 0; y < canvas.height; y++) {
@@ -71,6 +72,21 @@ async function inspect(candidate: PackshotCandidate, blob: Blob): Promise<Inspec
     const uniformity = edges ? clean / edges : 0;
     const center = ((Math.floor(canvas.height / 2) * w) + Math.floor(w / 2)) * 4;
     const centerContrast = Math.sqrt(pixelDiff(pixels, center, avg));
+    // An empty white/transparent image can score better than a real packshot.
+    // Require a visible foreground occupying part of the interior, not only
+    // a contrasting pixel at the center.
+    let foreground = 0, inner = 0;
+    for (let y = Math.floor(canvas.height * .18); y < Math.ceil(canvas.height * .82); y++) {
+      for (let x = Math.floor(w * .18); x < Math.ceil(w * .82); x++) {
+        const index = (y * w + x) * 4;
+        inner++;
+        if (pixels[index + 3] > 25
+          && (pixelDiff(pixels, index, avg) > 40 * 40
+            || (backgroundAlpha < 32 && pixels[index + 3] > 160))) foreground++;
+      }
+    }
+    const foregroundShare = foreground / Math.max(1, inner);
+    if (foregroundShare < .012) throw new Error("Fotografie neobsahuje rozpoznatelný produkt.");
     const uniform = cornersUniform && uniformity > .77 && centerContrast > 48 && whiteness < .8;
     const resolution = Math.min(1, Math.min(bitmap.width, bitmap.height) / 650);
     const shape = bitmap.width / Math.max(1, bitmap.height);
@@ -164,7 +180,9 @@ export async function findBestProductPackshot(candidates: PackshotCandidate[]): 
         if (!["image/jpeg", "image/png", "image/webp"].includes(blob.type)
           || blob.size < 30 || blob.size > MAX_BYTES) return null;
         try { return await inspect(candidate, blob); }
-        catch {
+        catch (error) {
+          // A decoded but empty white image must not return as a fallback.
+          if (error instanceof Error && error.message.includes("rozpoznatelný produkt")) return null;
           fallback ??= { blob, source: candidate.source };
           return null;
         }
