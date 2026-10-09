@@ -1140,3 +1140,56 @@ button.df2-hygiene-used-product:hover { border-color: var(--accent); }
   .df2-product-autofill-search > button { flex: 1 0 auto; }
   .df2-product-autofill-results button { flex: 1 0 auto; }
 }
+
+
+/* Daily Hygiene is a checklist, not a full product leaflet.
+ * Only the 1–2 line instruction is shown until the user requests details.
+ * Catalog and historical dialogs keep their complete guide unchanged. */
+.df2-hygiene-used-products { max-width: min(100%, 520px); }
+.df2-hygiene-used-product-entry { width: 100%; }
+.df2-routine-product-guide {
+  display: grid;
+  justify-items: start;
+  min-width: 0;
+  width: 100%;
+  gap: 3px;
+  padding: 0 3px 2px;
+}
+.df2-routine-product-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 0;
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.df2-routine-product-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 27px;
+  padding: 3px 1px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent-dark, var(--ink));
+  font-size: 10px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+.df2-routine-product-more:hover { text-decoration: underline; }
+.df2-routine-product-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.df2-routine-product-more > span { font-size: 11px; }
+.df2-routine-product-expanded { max-width: 100%; padding: 5px 0 2px; }
+.df2-routine-product-expanded .df2-care-guide { max-width: 100%; }
+@media (max-width: 720px) {
+  .df2-hygiene-used-products { max-width: 100%; }
+  .df2-routine-product-summary { -webkit-line-clamp: 2; line-clamp: 2; }
+}
