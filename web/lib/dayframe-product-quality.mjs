@@ -87,7 +87,7 @@ export function safeFdaLabel(label, name, brand = "") {
     return value ? title + ":\n" + value : "";
   }).filter(Boolean);
   const precautions = warningSections.join("\n\n").slice(0, 2600);
-  const amount = directions.match(/\b\d+(?:[.,]\d+)?\s*(?:ml|millilit(?:er|re)s?|drops?|tablets?|capsules?|pump(?:s)?)\b/i);
+  const amount = directions.match(/\b(?:\d+(?:[.,]\d+)?|one|two|three)\s*(?:ml|millilit(?:er|re)s?|drops?|tablets?|capsules?|pump(?:s)?)\b/i);
   const frequency = directions.match(/\b(?:once|twice|three times|two times|\d+\s*times)\s*(?:a|per)\s*day\b/i);
   const setid = String(openfda.spl_set_id?.[0] ?? "");
   const labelUrl = /^[0-9a-f-]{36}$/i.test(setid)
