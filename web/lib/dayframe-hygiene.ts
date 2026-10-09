@@ -54,6 +54,7 @@ export type HygieneStore = {
   routines: HygieneRoutineDefinition[];
   records: Record<string, Record<string, HygieneRoutineRecord>>;
   manualDates: Record<string, string[]>;
+  suppressedDates: Record<string, string[]>;
   lastMaterializedDate: string | null;
 };
 
@@ -167,6 +168,7 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
     ],
     records: {},
     manualDates: {},
+    suppressedDates: {},
     lastMaterializedDate: addDaysKey(today, -1),
   };
 }
@@ -362,12 +364,30 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       manualDates[date] = [...new Set(ids)];
     }
 
+    const suppressedDates: Record<string, string[]> = {};
+    if (candidate.suppressedDates !== undefined) {
+      if (
+        !candidate.suppressedDates
+        || typeof candidate.suppressedDates !== "object"
+        || Array.isArray(candidate.suppressedDates)
+      ) {
+        return { store: createDefaultHygieneStore(today), blocked: true };
+      }
+      for (const [date, ids] of Object.entries(candidate.suppressedDates)) {
+        if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
+          return { store: createDefaultHygieneStore(today), blocked: true };
+        }
+        suppressedDates[date] = [...new Set(ids)];
+      }
+    }
+
     return {
       store: {
         version: 1,
         routines,
         records,
         manualDates,
+        suppressedDates,
         lastMaterializedDate: typeof candidate.lastMaterializedDate === "string" ? candidate.lastMaterializedDate : null,
       },
       blocked: false,
@@ -399,8 +419,12 @@ export function scheduleMatches(schedule: HygieneSchedule, dateKey: string) {
   return false;
 }
 
+function routineSuppressedOnDate(store: HygieneStore, routineId: string, dateKey: string) {
+  return (store.suppressedDates[dateKey] ?? []).includes(routineId);
+}
+
 export function routineScheduledOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
-  if (!routine.active) return false;
+  if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
   if (routine.schedule.type === "manual") return (store.manualDates[dateKey] ?? []).includes(routine.id);
   return scheduleMatches(routine.schedule, dateKey);
 }
@@ -428,7 +452,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
   let changed = false;
 
   for (const routine of store.routines) {
-    if (!routine.active) continue;
+    if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) continue;
     const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
     const scheduledTasks = routine.tasks
       .filter((item) => taskScheduledOnDate(item, dateKey, parentScheduled))
@@ -611,13 +635,18 @@ export function setHygieneTaskStatus(
 }
 
 export function toggleManualRoutine(store: HygieneStore, dateKey: string, routineId: string, enabled: boolean) {
-  const current = store.manualDates[dateKey] ?? [];
-  const nextIds = enabled
-    ? [...new Set([...current, routineId])]
-    : current.filter((id) => id !== routineId);
+  const currentManual = store.manualDates[dateKey] ?? [];
+  const currentSuppressed = store.suppressedDates[dateKey] ?? [];
+  const nextManual = enabled
+    ? [...new Set([...currentManual, routineId])]
+    : currentManual.filter((id) => id !== routineId);
+  const nextSuppressed = enabled
+    ? currentSuppressed.filter((id) => id !== routineId)
+    : [...new Set([...currentSuppressed, routineId])];
   const next: HygieneStore = {
     ...store,
-    manualDates: { ...store.manualDates, [dateKey]: nextIds },
+    manualDates: { ...store.manualDates, [dateKey]: nextManual },
+    suppressedDates: { ...store.suppressedDates, [dateKey]: nextSuppressed },
   };
   return refreshHygieneToday(next, dateKey);
 }

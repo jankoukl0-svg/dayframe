@@ -335,7 +335,10 @@ export function HygienePage({
     const manualDates = Object.fromEntries(
       Object.entries(store.manualDates).map(([date, ids]) => [date, ids.filter((id) => id !== routineId)]),
     );
-    if (persist({ ...store, routines, manualDates })) setRoutineDraft(null);
+    const suppressedDates = Object.fromEntries(
+      Object.entries(store.suppressedDates).map(([date, ids]) => [date, ids.filter((id) => id !== routineId)]),
+    );
+    if (persist({ ...store, routines, manualDates, suppressedDates })) setRoutineDraft(null);
   };
 
   const saveTaskDraft = () => {

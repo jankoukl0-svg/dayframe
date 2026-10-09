@@ -195,6 +195,7 @@ test("manual routine can be removed from today without leaving a missed history 
   await card.getByRole("button", { name: "+ Přidat úkol" }).click();
   modal = page.locator(".df2-hygiene-modal").last();
   await modal.getByLabel("Název").fill("Jednorázová péče");
+  await modal.getByLabel("Frekvence úkolu").selectOption("daily");
   await modal.getByRole("button", { name: "Uložit", exact: true }).click();
 
   card = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Manuální péče" });
@@ -213,8 +214,11 @@ test("manual routine can be removed from today without leaving a missed history 
   await card.getByRole("button", { name: "Odebrat z dneška" }).click();
   await expect.poll(() => page.evaluate((id) => {
     const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");
-    return Boolean(store.records?.["2026-10-06"]?.[id]);
-  }, routineId)).toBe(false);
+    return {
+      record: Boolean(store.records?.["2026-10-06"]?.[id]),
+      suppressed: (store.suppressedDates?.["2026-10-06"] || []).includes(id),
+    };
+  }, routineId)).toEqual({ record: false, suppressed: true });
 
   await card.getByRole("button", { name: "Upravit" }).click();
   modal = page.locator(".df2-hygiene-modal").last();
