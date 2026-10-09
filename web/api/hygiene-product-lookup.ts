@@ -486,6 +486,8 @@ async function photoCandidates(name: string, brand: string, original: string, or
   }
   for (const item of pages) {
     if (!productPageIsRelevant(item.name, name)) continue;
+    const b = item.brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+    if (selectedBrand && b && !b.includes(selectedBrand) && !selectedBrand.includes(b)) continue;
     add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
   }
   if (html) {
