@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Droplets } from "lucide-react";
 import {
   addDays,
   addDaysKey,
@@ -37,6 +38,7 @@ import {
 import { daysUntilDate, getDayCountdown } from "@/lib/dayframe-countdown";
 import { parseSmartTaskInput } from "@/lib/dayframe-smart-input";
 import { DailyChecklist } from "./daily-checklist";
+import { HygienePage } from "./hygiene-page";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -45,7 +47,7 @@ const DROP_MAGNET_RANGE = 60;
 const COMPLETION_HOLD_MS = 680;
 const COMPLETION_TOAST_MS = 5000;
 
-type View = "today" | "week" | "focus" | "milestones" | "settings";
+type View = "today" | "week" | "focus" | "milestones" | "hygiene" | "settings";
 
 type Draft = {
   title: string;
@@ -148,6 +150,7 @@ export function DayframeV2() {
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+  const [hygieneRoutineFocus, setHygieneRoutineFocus] = useState<string | null>(null);
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
   const completionToastTimers = useRef<Map<string, number>>(new Map());
@@ -242,6 +245,7 @@ export function DayframeV2() {
       if (event.key === "3") setView("focus");
       if (event.key === "4") setView("milestones");
       if (event.key === "5") setView("settings");
+      if (event.key === "6") setView("hygiene");
     };
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
@@ -562,6 +566,7 @@ export function DayframeV2() {
             <NavButton active={view === "today"} onClick={() => setView("today")} label="Dnes" shortcut="1" />
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
+            <NavButton active={view === "hygiene"} onClick={() => { setHygieneRoutineFocus(null); setView("hygiene"); }} label="Hygiena" shortcut="6" icon={<Droplets size={14} aria-hidden="true" />} />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
           <div className="df2-sidebar-bottom"><span>Den končí</span><strong>02:00</strong></div>
@@ -585,6 +590,18 @@ export function DayframeV2() {
               onDelete={(id) => setData((current) => deleteTask(current, id))}
               onFocus={startFocus}
               onMilestones={() => setView("milestones")}
+              onOpenHygiene={(routineId) => {
+                setHygieneRoutineFocus(routineId);
+                setView("hygiene");
+              }}
+            />
+          )}
+
+          {view === "hygiene" && (
+            <HygienePage
+              planningKey={todayKey}
+              focusRoutineId={hygieneRoutineFocus}
+              onFocusHandled={() => setHygieneRoutineFocus(null)}
             />
           )}
 
@@ -779,12 +796,12 @@ export function DayframeV2() {
   );
 }
 
-function NavButton({ active, onClick, label, shortcut }: { active: boolean; onClick: () => void; label: string; shortcut: string }) {
-  return <button className={active ? "active" : ""} onClick={onClick}><span>{label}</span><kbd>{shortcut}</kbd></button>;
+function NavButton({ active, onClick, label, shortcut, icon }: { active: boolean; onClick: () => void; label: string; shortcut: string; icon?: React.ReactNode }) {
+  return <button className={active ? "active" : ""} onClick={onClick}><span>{icon}{label}</span><kbd>{shortcut}</kbd></button>;
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, completingTaskIds,
+  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, completingTaskIds,
 }: {
   now: Date;
   tasks: CalendarTask[];
@@ -800,6 +817,7 @@ function TodayView({
   onDelete: (id: string) => void;
   onFocus: (task: CalendarTask | null) => void;
   onMilestones: () => void;
+  onOpenHygiene: (routineId: string) => void;
   completingTaskIds: ReadonlySet<string>;
 }) {
   const [checklistSummary, setChecklistSummary] = useState({ planningKey: "", completed: 0, total: 0, hydrated: false, blocked: false });
@@ -901,7 +919,7 @@ function TodayView({
           </div>
         )}
       </section>
-      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} />
+      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} />
 
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">

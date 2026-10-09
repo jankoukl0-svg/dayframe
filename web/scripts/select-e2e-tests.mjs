@@ -63,6 +63,7 @@ for (const file of changed) {
   if (lower.includes("daily-checklist")) {
     add("daily-checklist.spec.mjs");
     add("completion-ux.spec.mjs");
+    add("hygiene.spec.mjs");
   }
 
   if (
@@ -72,6 +73,7 @@ for (const file of changed) {
     || file === "web/app/dayframe-v2.css"
   ) {
     add("completion-ux.spec.mjs");
+    if (file === "web/app/dayframe-v2.tsx" || file === "web/app/dayframe-v2.css") add("hygiene.spec.mjs");
   }
 
   if (file === "web/app/execution-tracker.tsx") {
@@ -110,6 +112,11 @@ for (const file of changed) {
   if (lower.includes("routine")) addPrefix("routine-");
   if (lower.includes("label")) addPrefix("label-");
   if (lower.includes("notification")) add("notifications.spec.mjs");
+  if (lower.includes("hygiene")) {
+    add("hygiene.spec.mjs");
+    add("daily-checklist.spec.mjs");
+    add("completion-ux.spec.mjs");
+  }
   if (lower.includes("google-calendar")) addPrefix("google-calendar");
 
   if (
@@ -121,6 +128,7 @@ for (const file of changed) {
     add("dayframe-calendar.spec.mjs");
     addPrefix("week-");
     add("cross-day-move-safety.spec.mjs");
+    if (file === "web/lib/dayframe-calendar.ts") add("hygiene.spec.mjs");
   }
 
   if (
@@ -133,6 +141,7 @@ for (const file of changed) {
     add("activity-time-adjustments.spec.mjs");
     add("visual-harmony.spec.mjs");
     add("today-briefing.spec.mjs");
+    add("hygiene.spec.mjs");
   }
 }
 
