@@ -3,13 +3,14 @@ import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 export const HYGIENE_STORAGE_KEY = "dayframe-hygiene-v1";
 export const HYGIENE_SYNC_EVENT = "dayframe-hygiene-sync";
 
-export type HygieneTaskStatus = "done" | "skipped";
+export type HygieneTaskStatus = "done" | "skipped" | "omitted" | "deferred";
 
 export type HygieneSchedule =
   | { type: "daily" }
   | { type: "days"; weekdays: number[] }
   | { type: "weekly"; weekday: number }
   | { type: "interval"; everyDays: number; anchorDate: string }
+  | { type: "rolling"; everyDays: number; anchorDate: string; unit: "days" | "weeks" }
   | { type: "monthly"; day: number }
   | { type: "nth-weekday"; week: number; weekday: number }
   | { type: "manual" };
@@ -77,6 +78,7 @@ export type HygieneTaskSnapshot = {
   optional: boolean;
   allowSkip: boolean;
   products?: HygieneProductSnapshot[];
+  originDate?: string;
 };
 
 export type HygieneRoutineRecord = {
@@ -85,6 +87,7 @@ export type HygieneRoutineRecord = {
   routineTitle: string;
   scheduledTasks: HygieneTaskSnapshot[];
   states: Record<string, HygieneTaskStatus>;
+  completedOn?: Record<string, string>;
   archived?: boolean;
   carryToday?: boolean;
 };
@@ -96,10 +99,12 @@ export type HygieneStore = {
   records: Record<string, Record<string, HygieneRoutineRecord>>;
   manualDates: Record<string, string[]>;
   suppressedDates: Record<string, string[]>;
+  manualTaskDates: Record<string, string[]>;
+  taskReschedules: Record<string, string>;
   lastMaterializedDate: string | null;
 };
 
-export type HygieneRoutineStatus = "complete" | "partial" | "missed" | "skipped" | "scheduled";
+export type HygieneRoutineStatus = "complete" | "partial" | "missed" | "skipped" | "deferred" | "scheduled";
 
 export type HygieneRoutineSummary = {
   routine: HygieneRoutineDefinition;
@@ -211,6 +216,8 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
     records: {},
     manualDates: {},
     suppressedDates: {},
+    manualTaskDates: {},
+    taskReschedules: {},
     lastMaterializedDate: addDaysKey(today, -1),
   };
 }
@@ -231,6 +238,12 @@ function cleanSchedule(value: unknown): HygieneSchedule | null {
   }
   if (schedule.type === "interval" && Number.isInteger(schedule.everyDays) && Number(schedule.everyDays) >= 1 && typeof schedule.anchorDate === "string") {
     return { type: "interval", everyDays: Number(schedule.everyDays), anchorDate: schedule.anchorDate };
+  }
+  if (schedule.type === "rolling" && Number.isInteger(schedule.everyDays)
+    && Number(schedule.everyDays) >= 1 && Number(schedule.everyDays) <= 365
+    && typeof schedule.anchorDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(schedule.anchorDate)
+    && (schedule.unit === "days" || schedule.unit === "weeks")) {
+    return { type: "rolling", everyDays: Number(schedule.everyDays), anchorDate: schedule.anchorDate, unit: schedule.unit };
   }
   if (schedule.type === "monthly" && Number.isInteger(schedule.day) && Number(schedule.day) >= 1 && Number(schedule.day) <= 31) {
     return { type: "monthly", day: Number(schedule.day) };
@@ -438,6 +451,9 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           ) {
             return { store: createDefaultHygieneStore(today), blocked: true };
           }
+          if (snapshot.originDate !== undefined && (
+            typeof snapshot.originDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(snapshot.originDate)
+          )) return { store: createDefaultHygieneStore(today), blocked: true };
           if (snapshot.products !== undefined && (
             !Array.isArray(snapshot.products)
             || snapshot.products.some((product) => !product || typeof product !== "object"
@@ -463,6 +479,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
               photoKey: product.photoKey,
             })) ?? [],
             id: snapshot.id,
+            originDate: snapshot.originDate,
             title: snapshot.title,
             section: snapshot.section,
             optional: snapshot.optional,
@@ -471,10 +488,21 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         }
         const states: Record<string, HygieneTaskStatus> = {};
         for (const [taskId, state] of Object.entries(record.states)) {
-          if (state !== "done" && state !== "skipped") {
+          if (state !== "done" && state !== "skipped" && state !== "omitted" && state !== "deferred") {
             return { store: createDefaultHygieneStore(today), blocked: true };
           }
           states[taskId] = state;
+        }
+        const completedOn: Record<string, string> = {};
+        if (record.completedOn !== undefined) {
+          if (!record.completedOn || typeof record.completedOn !== "object" || Array.isArray(record.completedOn)) {
+            return { store: createDefaultHygieneStore(today), blocked: true };
+          }
+          for (const [taskId, date] of Object.entries(record.completedOn)) {
+            if (states[taskId] !== "done" || typeof date !== "string"
+              || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { store: createDefaultHygieneStore(today), blocked: true };
+            completedOn[taskId] = date;
+          }
         }
         if (
           (record.archived !== undefined && typeof record.archived !== "boolean")
@@ -488,6 +516,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           routineTitle: record.routineTitle,
           scheduledTasks: snapshots,
           states,
+          completedOn,
           archived: record.archived === true ? true : undefined,
           carryToday: record.carryToday === true ? true : undefined,
         };
@@ -519,6 +548,28 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       }
     }
 
+    const manualTaskDates: Record<string, string[]> = {};
+    if (candidate.manualTaskDates !== undefined && (
+      !candidate.manualTaskDates || typeof candidate.manualTaskDates !== "object" || Array.isArray(candidate.manualTaskDates)
+    )) return { store: createDefaultHygieneStore(today), blocked: true };
+    for (const [taskId, dates] of Object.entries(candidate.manualTaskDates ?? {})) {
+      if (!Array.isArray(dates) || dates.some((date) => typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date))) {
+        return { store: createDefaultHygieneStore(today), blocked: true };
+      }
+      manualTaskDates[taskId] = [...new Set(dates)];
+    }
+    const taskReschedules: Record<string, string> = {};
+    if (candidate.taskReschedules !== undefined && (
+      !candidate.taskReschedules || typeof candidate.taskReschedules !== "object" || Array.isArray(candidate.taskReschedules)
+    )) return { store: createDefaultHygieneStore(today), blocked: true };
+    for (const [key, date] of Object.entries(candidate.taskReschedules ?? {})) {
+      if (!/^\d{4}-\d{2}-\d{2}\|[^|]+\|[^|]+$/.test(key) || typeof date !== "string"
+        || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { store: createDefaultHygieneStore(today), blocked: true };
+      }
+      taskReschedules[key] = date;
+    }
+
     return {
       store: {
         version: 1,
@@ -527,6 +578,8 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         records,
         manualDates,
         suppressedDates,
+        manualTaskDates,
+        taskReschedules,
         lastMaterializedDate: typeof candidate.lastMaterializedDate === "string" ? candidate.lastMaterializedDate : null,
       },
       blocked: false,
@@ -551,6 +604,7 @@ export function scheduleMatches(schedule: HygieneSchedule, dateKey: string) {
     const difference = dayDiff(schedule.anchorDate, dateKey);
     return difference >= 0 && difference % schedule.everyDays === 0;
   }
+  if (schedule.type === "rolling") return dateKey === schedule.anchorDate;
   if (schedule.type === "monthly") return date.getDate() === schedule.day;
   if (schedule.type === "nth-weekday") {
     return weekday === schedule.weekday && Math.ceil(date.getDate() / 7) === schedule.week;
@@ -573,6 +627,92 @@ export function taskScheduledOnDate(task: HygieneTaskDefinition, dateKey: string
   if (!task.schedule) return parentScheduled;
   if (task.schedule.type === "manual") return false;
   return scheduleMatches(task.schedule, dateKey);
+}
+
+export function hygieneRollingDueDate(store: HygieneStore, taskId: string, schedule: Extract<HygieneSchedule, { type: "rolling" }>, throughDate: string): string {
+  const handled: Array<{ date: string; performed: string }> = [];
+  for (const [date, routines] of Object.entries(store.records)) {
+    if (date > throughDate || date < schedule.anchorDate) continue;
+    for (const record of Object.values(routines)) {
+      const status = record.states[taskId];
+      if (!status || status === "deferred") continue;
+      if (!record.scheduledTasks.some((task) => task.id === taskId)) continue;
+      const performed = status === "done" ? record.completedOn?.[taskId] ?? date : date;
+      if (performed <= throughDate) handled.push({ date, performed });
+    }
+  }
+  if (!handled.length) return schedule.anchorDate;
+  const latest = handled.sort((a, b) => b.performed.localeCompare(a.performed))[0];
+  const interval = schedule.everyDays * (schedule.unit === "weeks" ? 7 : 1);
+  return addDaysKey(latest.performed, interval);
+}
+
+function rescheduleOrigin(store: HygieneStore, routineId: string, taskId: string, date: string): string | undefined {
+  for (const [key, target] of Object.entries(store.taskReschedules)) {
+    if (target !== date) continue;
+    const [origin, routine, task] = key.split("|");
+    if (routine === routineId && task === taskId) return origin;
+  }
+  return undefined;
+}
+
+function taskDueOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, task: HygieneTaskDefinition, date: string, parentScheduled: boolean): boolean {
+  if (!task.active) return false;
+  if (rescheduleOrigin(store, routine.id, task.id, date)) return true;
+  const schedule = task.schedule ?? routine.schedule;
+  if (schedule.type === "manual") return (store.manualTaskDates[task.id] ?? []).includes(date)
+    || (!task.schedule && parentScheduled);
+  if (schedule.type === "rolling") {
+    const due = hygieneRollingDueDate(store, task.id, schedule, date);
+    return due === date;
+  }
+  return taskScheduledOnDate(task, date, parentScheduled);
+}
+
+export function overdueHygieneTasks(store: HygieneStore, today: string) {
+  const pending = new Map<string, { date: string; routineId: string; taskId: string; title: string; routineTitle: string }>();
+  for (const [date, records] of Object.entries(store.records).sort(([a], [b]) => b.localeCompare(a))) {
+    if (date >= today) continue;
+    for (const [routineId, record] of Object.entries(records)) {
+      const routine = store.routines.find((item) => item.id === routineId && item.active);
+      if (!routine) continue;
+      for (const snapshot of record.scheduledTasks) {
+        const task = routine.tasks.find((item) => item.id === snapshot.id && item.active);
+        if (!task || record.states[snapshot.id]) continue;
+        const schedule = task.schedule ?? routine.schedule;
+        // Daily routines are separate expected occurrences; don't flood the backlog with them.
+        if (schedule.type === "daily") continue;
+        if (!pending.has(task.id)) pending.set(task.id, {
+          date, routineId, taskId: task.id, title: snapshot.title, routineTitle: record.routineTitle,
+        });
+      }
+    }
+  }
+  return [...pending.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function postponeHygieneTask(store: HygieneStore, fromDate: string, routineId: string, taskId: string, toDate: string): HygieneStore {
+  if (toDate <= fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) return store;
+  const record = store.records[fromDate]?.[routineId];
+  const snapshot = record?.scheduledTasks.find((item) => item.id === taskId);
+  if (!record || !snapshot || record.states[taskId]) return store;
+  const originDate = snapshot.originDate ?? fromDate;
+  const next = setHygieneTaskStatus(store, fromDate, routineId, taskId, "deferred");
+  return {
+    ...next,
+    taskReschedules: {
+      ...next.taskReschedules,
+      [originDate + "|" + routineId + "|" + taskId]: toDate,
+    },
+  };
+}
+
+export function planManualHygieneTask(store: HygieneStore, taskId: string, date: string): HygieneStore {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return store;
+  return { ...store, manualTaskDates: {
+    ...store.manualTaskDates,
+    [taskId]: [...new Set([...(store.manualTaskDates[taskId] ?? []), date])],
+  } };
 }
 
 export function productSnapshotsForTask(store: HygieneStore, task: HygieneTaskDefinition): HygieneProductSnapshot[] {
@@ -607,7 +747,7 @@ function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
 function routineHasScheduledWorkOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
   if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
   const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
-  return routine.tasks.some((item) => taskScheduledOnDate(item, dateKey, parentScheduled));
+  return routine.tasks.some((item) => taskDueOnDate(store, routine, item, dateKey, parentScheduled));
 }
 
 export function materializeHygieneDate(store: HygieneStore, dateKey: string, refresh = false): HygieneStore {
@@ -619,8 +759,11 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
     if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) continue;
     const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
     const scheduledTasks = routine.tasks
-      .filter((item) => taskScheduledOnDate(item, dateKey, parentScheduled))
-      .map(taskSnapshot);
+      .filter((item) => taskDueOnDate(store, routine, item, dateKey, parentScheduled))
+      .map((item) => ({
+        ...taskSnapshot(item),
+        originDate: rescheduleOrigin(store, routine.id, item.id, dateKey),
+      }));
     if (!scheduledTasks.length) continue;
     scheduledRoutineIds.add(routine.id);
 
@@ -769,16 +912,18 @@ export function routineSummary(
   today: string,
 ): HygieneRoutineSummary {
   const base = completionTasks(record);
-  const handled = base.filter((item) => record.states[item.id] === "done" || record.states[item.id] === "skipped").length;
+  const handled = base.filter((item) => Boolean(record.states[item.id])).length;
   const done = record.scheduledTasks.filter((item) => record.states[item.id] === "done").length;
   const skipped = record.scheduledTasks.filter((item) => record.states[item.id] === "skipped").length;
   const optionalDone = record.scheduledTasks.filter((item) => item.optional && record.states[item.id] === "done").length;
-  const allSkipped = base.length > 0 && base.every((item) => record.states[item.id] === "skipped");
+  const allSkipped = base.length > 0 && base.every((item) => record.states[item.id] === "skipped" || record.states[item.id] === "omitted");
+  const deferred = base.some((item) => record.states[item.id] === "deferred");
   const complete = base.length === 0 || handled === base.length;
   const touched = Object.keys(record.states).length > 0;
 
   let status: HygieneRoutineStatus = "scheduled";
   if (allSkipped) status = "skipped";
+  else if (deferred) status = "deferred";
   else if (complete) status = "complete";
   else if (touched) status = "partial";
   else if (record.date < today) status = "missed";
@@ -814,12 +959,17 @@ export function setHygieneTaskStatus(
   routineId: string,
   taskId: string,
   status: HygieneTaskStatus | null,
+  performedOn = dateKey,
 ) {
   const record = store.records[dateKey]?.[routineId];
   if (!record) return store;
+  if (!record.scheduledTasks.some((task) => task.id === taskId)) return store;
   const states = { ...record.states };
+  const completedOn = { ...(record.completedOn ?? {}) };
   if (status === null) delete states[taskId];
   else states[taskId] = status;
+  if (status === "done") completedOn[taskId] = performedOn;
+  else delete completedOn[taskId];
 
   const definition = store.routines.find((routine) => routine.id === routineId)
     ?.tasks.find((task) => task.id === taskId);
@@ -838,7 +988,7 @@ export function setHygieneTaskStatus(
       ...store.records,
       [dateKey]: {
         ...store.records[dateKey],
-        [routineId]: { ...record, states, scheduledTasks },
+        [routineId]: { ...record, states, completedOn, scheduledTasks },
       },
     },
   };
@@ -954,7 +1104,8 @@ export function scheduleLabel(schedule: HygieneSchedule) {
   if (schedule.type === "daily") return "Každý den";
   if (schedule.type === "days") return schedule.weekdays.map((day) => days[day]).join(" · ");
   if (schedule.type === "weekly") return "Každý " + days[schedule.weekday];
-  if (schedule.type === "interval") return "Každých " + schedule.everyDays + " dní";
+  if (schedule.type === "interval") return "Každých " + schedule.everyDays + " dní od data";
+  if (schedule.type === "rolling") return "Po " + schedule.everyDays + (schedule.unit === "weeks" ? " týdnech" : " dnech") + " od posledního splnění";
   if (schedule.type === "monthly") return schedule.day + ". den v měsíci";
   if (schedule.type === "nth-weekday") return schedule.week + ". " + days[schedule.weekday] + " v měsíci";
   return "Bez pevné frekvence";
