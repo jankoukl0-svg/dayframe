@@ -9,7 +9,7 @@ export function canonicalProductTokens(value) {
       "the","and","for","with","product","products","buy","online","shop",
       "official","store","skincare","skin","care","cosmetics","cosmetic",
       "cleansers","cz","czech","eu","uk","us","of","by","at",
-    ].includes(token)).map((t) => t === "cleanserS" ? "cleanser" : t);
+    ].includes(token));
 }
 
 export function productMatchScore(candidate, query) {
