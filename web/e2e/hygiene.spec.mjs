@@ -692,6 +692,19 @@ test("product replacements preserve order, checked actions and historical snapsh
   await page.locator('[data-product-id="gel"]').click();
   await page.getByRole("combobox", { name: "Náhradní produkt" }).selectOption("serum");
   await page.getByRole("button", { name: "Nahradit všude" }).click();
+  await page.evaluate(() => {
+    const key = "dayframe-hygiene-v1";
+    const saved = JSON.parse(localStorage.getItem(key));
+    saved.products.find((product) => product.id === "gel").instructions = "Nový návod";
+    localStorage.setItem(key, JSON.stringify(saved));
+    dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  await page.getByRole("tab", { name: "Dnes" }).click();
+  await face.getByRole("button", { name: "Historický produkt Gel" }).click();
+  const todaySnapshot = page.getByRole("dialog", { name: "Historický produkt Gel" });
+  await expect(todaySnapshot).toContainText("Podle etikety");
+  await expect(todaySnapshot).not.toContainText("Nový návod");
+  await todaySnapshot.getByRole("button", { name: "Zavřít historický produkt" }).click();
   await page.getByRole("tab", { name: "Správa rutin" }).click();
   await page.locator(".df2-hygiene-manage-task-copy").filter({ hasText: "Očistit obličej" }).click();
   const taskEditor = page.getByRole("dialog", { name: "Upravit hygienický úkol" });
