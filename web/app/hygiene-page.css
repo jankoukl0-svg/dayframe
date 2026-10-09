@@ -1193,3 +1193,31 @@ button.df2-hygiene-used-product:hover { border-color: var(--accent); }
   .df2-hygiene-used-products { max-width: 100%; }
   .df2-routine-product-summary { -webkit-line-clamp: 2; line-clamp: 2; }
 }
+
+
+/* Product research can be refreshed independently for an already saved product. */
+.df2-product-autofill-options { display: grid; justify-items: start; gap: 9px; }
+.df2-product-autofill-options > button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.df2-product-autofill-options > button:hover { border-color: var(--accent); }
+.df2-product-autofill-options > button:disabled { opacity: .55; cursor: not-allowed; }
+.df2-product-autofill-options > label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.df2-product-autofill-options > label input { accent-color: var(--accent); }
+.df2-product-autofill-options p { margin: 0; line-height: 1.5; }
