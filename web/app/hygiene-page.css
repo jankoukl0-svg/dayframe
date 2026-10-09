@@ -1221,3 +1221,36 @@ button.df2-hygiene-used-product:hover { border-color: var(--accent); }
 }
 .df2-product-autofill-options > label input { accent-color: var(--accent); }
 .df2-product-autofill-options p { margin: 0; line-height: 1.5; }
+
+
+/* White-background packshot finder. Keep manual photo upload prominent. */
+.df2-product-photo-editor .df2-product-photo {
+  background: #fff;
+}
+.df2-product-photo-editor .df2-product-photo img {
+  object-fit: contain;
+  background: #fff;
+}
+.df2-product-photo-editor .df2-find-packshot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.df2-product-photo-editor .df2-find-packshot:hover { border-color: var(--accent); }
+.df2-product-photo-editor .df2-find-packshot:disabled { opacity: .55; cursor: not-allowed; }
+.df2-product-photo-editor .df2-packshot-notice {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  color: var(--ink);
+  line-height: 1.55;
+}

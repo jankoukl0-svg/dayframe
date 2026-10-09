@@ -426,9 +426,96 @@ async function findDetailedGuide(brand: string, name: string, original: string) 
   };
 }
 
+
+type PhotoCandidate = { url: string; source: string; priority: number };
+
+function imageSourcesFromHtml(html: string, pageUrl: string, productName: string): PhotoCandidate[] {
+  const out: PhotoCandidate[] = [];
+  const push = (value: unknown, priority: number) => {
+    const url = imageUrl(value, pageUrl);
+    if (url && !/(?:logo|avatar|icon|placeholder|sprite|pixel|badge)/i.test(new URL(url).pathname))
+      out.push({ url, source: new URL(pageUrl).hostname, priority });
+  };
+  const ld = getProductJsonld(html);
+  const images = Array.isArray(ld?.image) ? ld.image : ld?.image ? [ld.image] : [];
+  for (const img of images.slice(0, 5)) push(img, 22);
+  const metadata = metas(html);
+  push(metadata["og:image"], 13);
+  push(metadata["twitter:image"], 11);
+  // Prefer the product's own front-facing photograph, not unrelated recommendations
+  // or lifestyle cards. Reject images whose alt text identifies another variant.
+  const expected = productName.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter(x=>x.length>=3);
+  for (const tag of (html.match(/<img\b[^>]*>/gi) ?? []).slice(0, 130)) {
+    const alt = attribute(tag, "alt").toLowerCase().replace(/[^a-z0-9]+/g, " ");
+    const matches = expected.filter(word => alt.split(" ").includes(word)).length;
+    if (expected.length && matches / expected.length < .65) continue;
+    if (!alt || /(?:logo|banner|model|lifestyle|before and after)/i.test(alt)) continue;
+    const candidate = attribute(tag, "data-src") || attribute(tag, "src");
+    if (candidate.startsWith("data:")) continue;
+    push(candidate, 9 + Math.floor(8 * matches / expected.length));
+  }
+  return out;
+}
+
+async function photoCandidates(name: string, brand: string, original: string, originalImage: string) {
+  const results: PhotoCandidate[] = [];
+  const selectedBrand = brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  function add(candidate: PhotoCandidate) {
+    if (!candidate.url || candidate.url.length > 2000) return;
+    if (!parseSafeUrl(candidate.url) || results.some(item => item.url === candidate.url)) return;
+    results.push(candidate);
+  }
+  if (originalImage) add({url: originalImage, source: "Vybraný produkt", priority: 20});
+  const responses = await Promise.allSettled([
+    searchBeauty([brand, name].filter(Boolean).join(" ")).catch(() => [] as Match[]),
+    researchProductPages(name, brand).catch(() => [] as Match[]),
+    parseSafeUrl(original) ? requestPublic(original, "text/html", 4000)
+      .then(async response => (response.headers.get("content-type") ?? "").includes("text/html")
+        ? new TextDecoder().decode(await readLimited(response, PRODUCT_PAGE_LIMIT, true)) : "")
+      .catch(() => "") : Promise.resolve(""),
+  ]);
+  const catalog = responses[0].status === "fulfilled" ? responses[0].value : [];
+  const pages = responses[1].status === "fulfilled" ? responses[1].value : [];
+  const html = responses[2].status === "fulfilled" ? responses[2].value : "";
+  for (const item of catalog) {
+    // Only the right product and concentration/variant may provide a packshot.
+    if (!productPageIsRelevant(item.name, name)) continue;
+    const b = item.brand.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+    if (selectedBrand && b && !b.includes(selectedBrand) && !selectedBrand.includes(b)) continue;
+    add({url: item.imageUrl, source: item.sourceLabel, priority: 14});
+  }
+  for (const item of pages) {
+    if (!productPageIsRelevant(item.name, name)) continue;
+    add({url: item.imageUrl, source: item.sourceLabel, priority: 17});
+  }
+  if (html) {
+    const parsed = fromHtml(html, original);
+    if (parsed && productPageIsRelevant(parsed.name, name))
+      for (const img of imageSourcesFromHtml(html, original, name)) add(img);
+  }
+  const prioritized = results.map(candidate => ({
+    ...candidate,
+    priority: candidate.priority + (
+      selectedBrand && candidate.source.toLowerCase().replace(/[^a-z0-9]/g,"").includes(selectedBrand) ? 8 : 0),
+  })).sort((a,b) => b.priority - a.priority);
+  return prioritized.slice(0, 10);
+}
+
 async function handle(request: Request): Promise<Response> {
   if (request.method !== "GET") return json({ error: "Nepodporovaná metoda." }, 405);
   const url = new URL(request.url);
+  if (url.searchParams.get("mode") === "photos") {
+    const name = clean(url.searchParams.get("name"), 160);
+    const brand = clean(url.searchParams.get("brand"), 160);
+    const original = url.searchParams.get("url") ?? "";
+    const preferred = url.searchParams.get("image") ?? "";
+    if (name.length < 3 || name.length > 160 || original.length > 2000 || preferred.length > 2000)
+      return json({ error: "Zadej platný název produktu." }, 400);
+    const candidates = await photoCandidates(name, brand, original, preferred);
+    return json({ candidates, notice: candidates.length
+      ? "Nalezené snímky. Výběr upřednostní čisté bílé nebo průhledné pozadí."
+      : "Pro tento produkt nebyly nalezené ověřitelné produktové fotografie." });
+  }
   if (url.searchParams.get("mode") === "guide") {
     const name = clean(url.searchParams.get("name"), 160);
     const brand = clean(url.searchParams.get("brand"), 160);

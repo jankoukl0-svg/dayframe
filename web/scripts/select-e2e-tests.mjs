@@ -120,6 +120,7 @@ for (const file of changed) {
     add("hygiene-product-guide.spec.mjs");
     add("hygiene-universal-product.spec.mjs");
     add("hygiene-product-safety.spec.mjs");
+    add("hygiene-packshots.spec.mjs");
     add("hygiene.spec.mjs");
     add("daily-checklist.spec.mjs");
     add("completion-ux.spec.mjs");
