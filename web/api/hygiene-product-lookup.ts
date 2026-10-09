@@ -282,7 +282,7 @@ async function searchBeauty(query: string): Promise<Match[]> {
 
 
 
-function guideCount(guide: Record<string, string>) {
+function guideCount(guide: Partial<Match>) {
   return ["instructions", "usageWhen", "usageAmount", "usageDuration", "precautions"]
     .filter((field) => guide[field]).length;
 }
