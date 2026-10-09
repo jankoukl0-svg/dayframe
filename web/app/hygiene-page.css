@@ -982,3 +982,82 @@ button.df2-hygiene-used-product:hover { border-color: var(--accent); }
   .df2-hygiene-task-actions { max-width: 100%; justify-content: start; }
   .df2-hygiene-postpone { width: 100%; }
 }
+
+
+/* Hygiene inventory · Stage 3 */
+.df2-inventory-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 28px;
+  padding: 17px 20px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--paper);
+}
+.df2-inventory-summary > div { display: grid; gap: 4px; }
+.df2-inventory-summary span { color: var(--muted); font-size: 10px; font-weight: 650; }
+.df2-inventory-summary strong { color: var(--ink); font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.df2-inventory-summary small { color: var(--muted); font-size: 10px; line-height: 1.5; flex: 1; min-width: 180px; }
+.df2-inventory-shopping, .df2-inventory-alerts { display: grid; gap: 9px; }
+.df2-inventory-shopping > article, .df2-inventory-alerts > article {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 15px;
+  min-height: 81px;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.df2-inventory-shopping .df2-product-photo, .df2-inventory-alerts .df2-product-photo { flex: 0 0 auto; }
+.df2-inventory-item-copy, .df2-inventory-alerts > article > div:nth-child(2) {
+  display: grid;
+  flex: 1 1 165px;
+  min-width: 0;
+  gap: 4px;
+}
+.df2-inventory-item-copy strong, .df2-inventory-alerts strong { color: var(--ink); font-size: 12px; line-height: 1.35; }
+.df2-inventory-item-copy small, .df2-inventory-alerts small { color: var(--muted); font-size: 10px; }
+.df2-inventory-item-copy span, .df2-inventory-alerts span { color: var(--ink); font-size: 10px; font-weight: 650; }
+.df2-inventory-shopping label { display: grid; gap: 5px; font-size: 10px; font-weight: 650; color: var(--ink); }
+.df2-inventory-shopping input {
+  width: 92px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.df2-inventory-item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.df2-inventory-item-actions button, .df2-inventory-item-actions a, .df2-inventory-quick-stock button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 7px 11px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 10px;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+.df2-inventory-item-actions button:hover, .df2-inventory-item-actions a:hover, .df2-inventory-quick-stock button:hover { border-color: var(--accent); }
+.df2-inventory-item-actions button:disabled, .df2-inventory-quick-stock button:disabled { opacity: .5; cursor: not-allowed; }
+.df2-inventory-item-actions button:first-of-type { border-color: var(--accent); }
+.df2-inventory-quick-stock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; }
+.df2-inventory-quick-stock strong { margin-right: auto; color: var(--ink); font-size: 11px; }
+.df2-inventory-form-note { margin: 0; grid-column: 1 / -1; color: var(--muted); font-size: 10px; line-height: 1.6; }
+@media (max-width: 720px) {
+  .df2-inventory-shopping > article, .df2-inventory-alerts > article { align-items: flex-start; }
+  .df2-inventory-shopping label { flex: 0 0 auto; }
+  .df2-inventory-item-actions { width: 100%; }
+  .df2-inventory-summary small { flex-basis: 100%; }
+}
