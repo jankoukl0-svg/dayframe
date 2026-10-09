@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { HygieneProduct, HygieneStore } from "@/lib/dayframe-hygiene";
+import { ProductCareGuide } from "./hygiene-care-guide";
 import {
   loadProductPhoto,
   removeProductPhoto,
@@ -16,7 +17,8 @@ function blankProduct(): HygieneProduct {
   return {
     id: "hygiene-product-" + (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
     name: "", brand: "", category: "Pleť", description: "", instructions: "",
-    frequency: "", openedOn: "", expiresOn: "", paoMonths: null, amount: "",
+    frequency: "", usageWhen: "", usageAmount: "", usageDuration: "", precautions: "",
+    openedOn: "", expiresOn: "", paoMonths: null, amount: "",
     stockStatus: "ok", shopUrl: "", archived: false,
   };
 }
@@ -145,6 +147,10 @@ export function HygieneProducts({
         description: draft.description.trim().slice(0, 3000),
         instructions: draft.instructions.trim().slice(0, 3000),
         frequency: draft.frequency.trim().slice(0, 400),
+        usageWhen: (draft.usageWhen ?? "").trim().slice(0, 400),
+        usageAmount: (draft.usageAmount ?? "").trim().slice(0, 400),
+        usageDuration: (draft.usageDuration ?? "").trim().slice(0, 400),
+        precautions: (draft.precautions ?? "").trim().slice(0, 1200),
         amount: draft.amount.trim().slice(0, 100),
         shopUrl: draft.shopUrl.trim(),
         photoKey: uploadedKey ?? draft.photoKey,
@@ -282,9 +288,8 @@ export function HygieneProducts({
               <ProductPhoto photoKey={current.photoKey} name={current.name} large />
               <div>
                 {current.description && <p>{current.description}</p>}
-                {current.instructions && <p><strong>Návod:</strong> {current.instructions}</p>}
-                {current.frequency && <p><strong>Frekvence:</strong> {current.frequency}</p>}
-                {current.amount && <p><strong>Množství:</strong> {current.amount}</p>}
+                <ProductCareGuide product={current} />
+                {current.amount && <p><strong>Velikost balení / zásoba:</strong> {current.amount}</p>}
                 {current.openedOn && <p><strong>Otevřeno:</strong> {current.openedOn}</p>}
                 {current.expiresOn && <p><strong>Expirace:</strong> {current.expiresOn}</p>}
                 {current.paoMonths && <p><strong>Po otevření:</strong> {current.paoMonths} měsíců</p>}
@@ -343,11 +348,15 @@ export function HygieneProducts({
                 {CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label>
               <label>Frekvence podle obalu / vlastní<input value={draft.frequency} placeholder="Např. dle návodu, 2× týdně" onChange={(event) => setDraft({ ...draft, frequency: event.target.value })} /></label>
               <label className="is-wide">Popis a účel<textarea rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-              <label className="is-wide">Návod k použití<textarea rows={3} value={draft.instructions} placeholder="Pouze ověřené pokyny nebo vlastní postup" onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /></label>
+              <label className="is-wide">Návod k použití<textarea rows={3} value={draft.instructions} placeholder="Jen skutečné pokyny z etikety nebo vlastní postup" onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /></label>
+              <label>Kdy používat<input maxLength={400} value={draft.usageWhen ?? ""} placeholder="Např. po očištění pleti" onChange={(event) => setDraft({ ...draft, usageWhen: event.target.value })} /></label>
+              <label>Množství na jedno použití<input maxLength={400} value={draft.usageAmount ?? ""} placeholder="Podle etikety" onChange={(event) => setDraft({ ...draft, usageAmount: event.target.value })} /></label>
+              <label>Jak dlouho používat / nechat působit<input maxLength={400} value={draft.usageDuration ?? ""} placeholder="Vyplň jen ověřený údaj" onChange={(event) => setDraft({ ...draft, usageDuration: event.target.value })} /></label>
+              <label className="is-wide">Upozornění a omezení<textarea rows={2} maxLength={1200} value={draft.precautions ?? ""} placeholder="Pouze známá omezení, např. z etikety" onChange={(event) => setDraft({ ...draft, precautions: event.target.value })} /></label>
               <label>Datum otevření<input type="date" value={draft.openedOn} onChange={(event) => setDraft({ ...draft, openedOn: event.target.value })} /></label>
               <label>Expirace (pokud známá)<input type="date" value={draft.expiresOn} onChange={(event) => setDraft({ ...draft, expiresOn: event.target.value })} /></label>
               <label>Trvanlivost po otevření (měsíce)<input type="number" min={1} max={60} value={draft.paoMonths ?? ""} onChange={(event) => setDraft({ ...draft, paoMonths: event.target.value ? Math.min(60, Math.max(1, Math.round(Number(event.target.value) || 1))) : null })} /></label>
-              <label>Množství / zásoba<input value={draft.amount} placeholder="Např. 50 ml" onChange={(event) => setDraft({ ...draft, amount: event.target.value })} /></label>
+              <label>Velikost balení / zásoba<input value={draft.amount} placeholder="Např. 50 ml" onChange={(event) => setDraft({ ...draft, amount: event.target.value })} /></label>
               <label className="is-wide">Odkaz do obchodu<input type="url" value={draft.shopUrl} placeholder="https://" onChange={(event) => setDraft({ ...draft, shopUrl: event.target.value })} /></label>
               <label className="df2-product-check"><input type="checkbox" checked={draft.stockStatus === "low"} onChange={(event) => setDraft({ ...draft, stockStatus: event.target.checked ? "low" : "ok" })} /> Dochází / potřebuji dokoupit</label>
             </div>
