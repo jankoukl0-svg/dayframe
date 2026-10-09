@@ -5,11 +5,14 @@
  */
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { extractGuideFromHtml, extractGuideFromCatalog } from "../lib/dayframe-product-guide-extract.mjs";
 
 type Match = {
   name: string; brand: string; category: string; description: string;
-  instructions: string; amount: string; priceCzk: number | null;
-  imageUrl: string; sourceUrl: string; sourceLabel: string;
+  instructions: string; usageWhen: string; usageAmount: string; usageDuration: string;
+  precautions: string; frequency: string;
+  amount: string; priceCzk: number | null;
+  imageUrl: string; sourceUrl: string; sourceLabel: string; guideSourceUrl: string;
 };
 
 const LIMIT = 500_000;
@@ -195,10 +198,11 @@ function fromHtml(html: string, url: string): Match | null {
   const category = categoryFrom(clean(ld?.category || "", 100));
   const description = clean(ld?.description || meta["og:description"] || meta.description, 1800);
   const amount = clean(ld?.size, 100);
+  const guide = extractGuideFromHtml(html, ld);
   return {
     name: title, brand, category, description,
-    // Descriptive marketing text is not a validated usage instruction or precaution.
-    instructions: "", amount,
+    ...guide, guideSourceUrl: guide.instructions || guide.precautions ? url : "",
+    amount,
     priceCzk: priceFrom(ld?.offers),
     imageUrl: imageUrl(ld?.image || meta["og:image"] || meta["twitter:image"], url),
     sourceUrl: url, sourceLabel: new URL(url).hostname,
@@ -222,7 +226,7 @@ async function searchBeauty(query: string): Promise<Match[]> {
   url.searchParams.set("action", "process");
   url.searchParams.set("json", "1");
   url.searchParams.set("page_size", "12");
-  url.searchParams.set("fields", "code,product_name,brands,quantity,categories,description,generic_name,image_front_url,image_url");
+  url.searchParams.set("fields", "code,product_name,brands,quantity,categories,description,generic_name,image_front_url,image_url,usage,usage_text,usage_text_cs,usage_text_en,usage_instructions,directions,instructions,product_usage,precautions,warnings");
   const response = await requestPublic(url.href, "application/json");
   const content = new TextDecoder().decode(await readLimited(response, LIMIT));
   const payload = JSON.parse(content) as { products?: Record<string,unknown>[] };
@@ -233,9 +237,12 @@ async function searchBeauty(query: string): Promise<Match[]> {
       const brand = clean(product.brands, 160).split(",")[0];
       const description = clean(product.generic_name || product.description, 1800);
       const code = String(product.code ?? "");
+      const guide = extractGuideFromCatalog(product);
       return {
         name, brand, category: categoryFrom(clean(product.categories, 300)),
-        description, instructions: "", amount: clean(product.quantity, 100),
+        description, ...guide, guideSourceUrl: guide.instructions || guide.precautions
+          ? (/^\d{8,14}$/.test(code) ? "https://world.openbeautyfacts.org/product/" + code : "https://world.openbeautyfacts.org") : "",
+        amount: clean(product.quantity, 100),
         priceCzk: null,
         imageUrl: imageUrl(product.image_front_url || product.image_url),
         sourceUrl: /^\d{8,14}$/.test(code) ? "https://world.openbeautyfacts.org/product/" + code : "https://world.openbeautyfacts.org",
@@ -248,9 +255,85 @@ async function searchBeauty(query: string): Promise<Match[]> {
     .slice(0, 5);
 }
 
+
+function normalizeBrand(value: string) {
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+function guideCount(guide: Record<string, string>) {
+  return ["instructions","usageWhen","usageAmount","usageDuration","precautions"].filter((field) => guide[field]).length;
+}
+
+/** Only product pages on domains matching the claimed manufacturer name can enrich a name-only hit.
+ * A search result is a suggestion, never a guaranteed manufacturer endorsement. */
+async function discoverBrandPage(brand: string, name: string): Promise<string> {
+  const brandKey = normalizeBrand(brand);
+  if (brandKey.length < 4) return "";
+  const request = new URL("https://www.bing.com/search");
+  request.searchParams.set("q", brand + " " + name + " how to use");
+  request.searchParams.set("format", "rss");
+  try {
+    const response = await requestPublic(request.href, "application/rss+xml,application/xml,text/xml");
+    const xml = new TextDecoder().decode(await readLimited(response, 180_000, true));
+    for (const result of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+      const title = entities(result[1].match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/<[^>]*>/g, "");
+      const candidate = entities(result[1].match(/<link>([\s\S]*?)<\/link>/i)?.[1] ?? "").trim();
+      const url = parseSafeUrl(candidate);
+      if (!url) continue;
+      const hostKey = normalizeBrand(url.hostname.split(".").slice(-3).join("."));
+      // The maker's brand should be represented by the hostname, not a query parameter.
+      if (!hostKey.includes(brandKey)) continue;
+      const resultName = title.replace(/\s+[|–-]\s+.+$/, "");
+      const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g," ").split(" ").filter((part) => part.length >= 3);
+      const hits = normalized.filter((part) => resultName.toLowerCase().includes(part)).length;
+      if (!normalized.length || hits < Math.min(2, normalized.length) || hits / normalized.length < 0.5) continue;
+      return url.href;
+    }
+  } catch { /* no reliable maker page available */ }
+  return "";
+}
+
+async function findDetailedGuide(brand: string, name: string, original: string) {
+  const fallback = { instructions: "", usageWhen: "", usageAmount: "", usageDuration: "", precautions: "", frequency: "" };
+  // Catalog descriptions rarely contain instructions, but product pages sometimes do.
+  if (/^https:\/\/(?:[a-z-]+\.)?openbeautyfacts\.org\/product\/\d{8,14}/i.test(original)) {
+    try {
+      const response = await requestPublic(original, "text/html");
+      if ((response.headers.get("content-type") || "").includes("text/html")) {
+        const html = new TextDecoder().decode(await readLimited(response, LIMIT, true));
+        const guide = extractGuideFromHtml(html);
+        if (guideCount(guide) >= 2) return { guide, sourceUrl: original };
+      }
+    } catch { /* try maker instead */ }
+  }
+  const link = await discoverBrandPage(brand, name);
+  if (!link) return { guide: fallback, sourceUrl: "" };
+  try {
+    const response = await requestPublic(link, "text/html");
+    if (!(response.headers.get("content-type") || "").includes("text/html")) return { guide: fallback, sourceUrl: "" };
+    const html = new TextDecoder().decode(await readLimited(response, LIMIT, true));
+    const product = fromHtml(html, link);
+    // Prevent matching only on the brand and filling from the wrong variant.
+    const actualName = product?.name ?? "";
+    if (score({ ...(product ?? {}), name: actualName, brand } as Match, name) < 0.55) return { guide: fallback, sourceUrl: "" };
+    const guide = extractGuideFromHtml(html, getProductJsonld(html));
+    return { guide, sourceUrl: guideCount(guide) ? link : "" };
+  } catch {
+    return { guide: fallback, sourceUrl: "" };
+  }
+}
+
 async function handle(request: Request): Promise<Response> {
   if (request.method !== "GET") return json({ error: "Nepodporovaná metoda." }, 405);
   const url = new URL(request.url);
+  if (url.searchParams.get("mode") === "guide") {
+    const name = clean(url.searchParams.get("name"), 160);
+    const brand = clean(url.searchParams.get("brand"), 160);
+    const original = url.searchParams.get("url") ?? "";
+    if (name.length < 3 || brand.length < 2 || name.length > 160 || original.length > 2048)
+      return json({ error: "Pro dohledání návodu zadej výrobce a název produktu." }, 400);
+    const enriched = await findDetailedGuide(brand, name, original);
+    return json(enriched);
+  }
   if (url.searchParams.get("mode") === "image") {
     const image = url.searchParams.get("url") ?? "";
     if (!image || image.length > 2000) return json({ error: "Neplatná adresa fotografie." }, 400);
