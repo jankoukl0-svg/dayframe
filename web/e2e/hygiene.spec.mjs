@@ -199,7 +199,8 @@ test("manual routine can be removed from today without leaving a missed history 
   await modal.getByRole("button", { name: "Uložit", exact: true }).click();
 
   card = page.locator(".df2-hygiene-manage-list > article").filter({ hasText: "Manuální péče" });
-  await card.getByRole("button", { name: "Naplánovat dnes" }).click();
+  await expect(card.getByRole("button", { name: "Odebrat z dneška" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Naplánovat dnes" })).toHaveCount(0);
 
   const routineId = await page.evaluate(() => {
     const store = JSON.parse(window.localStorage.getItem("dayframe-hygiene-v1") || "{}");

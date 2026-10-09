@@ -145,6 +145,7 @@ function ScheduleEditor({
         <label>
           Frekvence
           <select
+            aria-label="Frekvence"
             value={value.type}
             onChange={(event) => onChange(scheduleFromType(event.target.value as HygieneSchedule["type"], planningKey))}
           >
@@ -187,6 +188,7 @@ function ScheduleEditor({
           <label>
             Každých
             <input
+              aria-label="Každých"
               type="number"
               min="1"
               max="90"
@@ -208,6 +210,7 @@ function ScheduleEditor({
         <label>
           Den v měsíci
           <input
+            aria-label="Den v měsíci"
             type="number"
             min="1"
             max="31"
@@ -610,7 +613,7 @@ export function HygienePage({
 
           <div className="df2-hygiene-manage-list">
             {[...store.routines].sort((left, right) => left.order - right.order).map((routine) => {
-              const manualToday = (store.manualDates[planningKey] ?? []).includes(routine.id);
+              const routineRunningToday = summaries.some((summary) => summary.routine.id === routine.id);
               return (
                 <article className={routine.active ? "" : "is-inactive"} key={routine.id}>
                   <header>
@@ -620,8 +623,11 @@ export function HygienePage({
                     </div>
                     <div>
                       {routine.schedule.type === "manual" && routine.active && (
-                        <button type="button" onClick={() => persist(toggleManualRoutine(store, planningKey, routine.id, !manualToday))}>
-                          {manualToday ? "Odebrat z dneška" : "Naplánovat dnes"}
+                        <button
+                          type="button"
+                          onClick={() => persist(toggleManualRoutine(store, planningKey, routine.id, !routineRunningToday))}
+                        >
+                          {routineRunningToday ? "Odebrat z dneška" : "Naplánovat dnes"}
                         </button>
                       )}
                       <button type="button" onClick={() => setRoutineDraft({ ...routine, schedule: cloneSchedule(routine.schedule), tasks: routine.tasks.map((task) => ({ ...task, schedule: task.schedule ? cloneSchedule(task.schedule) : undefined })) })}>Upravit</button>
@@ -700,13 +706,14 @@ export function HygienePage({
             <label>Skupina<input value={taskDraft.task.section} onChange={(event) => setTaskDraft({ ...taskDraft, task: { ...taskDraft.task, section: event.target.value } })} /></label>
             <label>
               Rutina
-              <select value={taskDraft.targetRoutineId} onChange={(event) => setTaskDraft({ ...taskDraft, targetRoutineId: event.target.value })}>
+              <select aria-label="Rutina" value={taskDraft.targetRoutineId} onChange={(event) => setTaskDraft({ ...taskDraft, targetRoutineId: event.target.value })}>
                 {store.routines.map((routine) => <option key={routine.id} value={routine.id}>{routine.title}</option>)}
               </select>
             </label>
             <label>
               Frekvence úkolu
               <select
+                aria-label="Frekvence úkolu"
                 value={taskDraft.task.schedule?.type ?? "inherit"}
                 onChange={(event) => {
                   const value = event.target.value;
