@@ -121,7 +121,7 @@ test("missing instructions show an explicit warning, not a false success message
   await dlg.getByRole("textbox", { name: "Název nebo odkaz na produkt" }).fill("Unique Unlisted Face Serum");
   await dlg.getByRole("button", { name: "Vyhledat a doplnit" }).click();
   await dlg.getByRole("button", { name: "Použít tento produkt" }).click();
-  await expect(dlg.getByRole("status")).toContainText("nepodařilo najít");
+  await expect(dlg.getByText(/ověřitelné pokyny k použití se nepodařilo najít/)).toBeVisible();
   await expect(dlg.getByRole("textbox", { name: "Návod k použití" })).toHaveValue("");
   await expect(dlg.getByRole("textbox", { name: "Jak dlouho používat / nechat působit" })).toHaveValue("");
 });
