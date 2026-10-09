@@ -104,7 +104,9 @@ export function HygieneProducts({
 
   const shopping = useMemo(() => hygieneShoppingList(store.products), [store.products]);
   const alerts = useMemo(() => hygieneInventoryAlerts(store.products, today), [store.products, today]);
-  const shoppingCost = useMemo(() => hygieneShoppingCost(shopping), [shopping]);
+  const shoppingCost = useMemo(() => hygieneShoppingCost(shopping.map((item) => ({
+    ...item, needed: purchaseQuantities[item.product.id] ?? item.needed,
+  }))), [shopping, purchaseQuantities]);
   const money = (amount: number) => new Intl.NumberFormat("cs-CZ", {
     style: "currency", currency: "CZK", maximumFractionDigits: 2,
   }).format(amount);
