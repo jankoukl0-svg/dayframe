@@ -68,11 +68,11 @@ async function validated(raw: string) {
   return url;
 }
 
-async function requestPublic(raw: string, accept: string): Promise<Response> {
+async function requestPublic(raw: string, accept: string, timeoutMs = 6500): Promise<Response> {
   let url = await validated(raw);
   for (let hop = 0; hop < 3; hop++) {
     const response = await fetch(url, {
-      redirect: "manual", signal: AbortSignal.timeout(6500),
+      redirect: "manual", signal: AbortSignal.timeout(timeoutMs),
       headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "cs,en;q=0.8" },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
@@ -298,9 +298,9 @@ async function searchPublicWeb(query: string, brand = ""): Promise<WebLink[]> {
   duck.searchParams.set("q", search + " directions");
   // Indexes are independent: one blocked engine must never suppress the other.
   const [bingResult, duckResult] = await Promise.allSettled([
-    requestPublic(bing.href, "application/rss+xml,application/xml,text/xml").then(async (response) =>
+    requestPublic(bing.href, "application/rss+xml,application/xml,text/xml", 3400).then(async (response) =>
       bingRssResults(new TextDecoder().decode(await readLimited(response, 200_000, true)), query)),
-    requestPublic(duck.href, "text/html").then(async (response) =>
+    requestPublic(duck.href, "text/html", 3400).then(async (response) =>
       duckDuckGoResults(new TextDecoder().decode(await readLimited(response, 300_000, true)), query)),
   ]);
   const candidates: WebLink[] = [
@@ -312,7 +312,7 @@ async function searchPublicWeb(query: string, brand = ""): Promise<WebLink[]> {
 
 async function openProductPage(url: string, query: string): Promise<Match | null> {
   try {
-    const response = await requestPublic(url, "text/html");
+    const response = await requestPublic(url, "text/html", 4200);
     if (!(response.headers.get("content-type") || "").toLowerCase().includes("text/html")) return null;
     const html = new TextDecoder().decode(await readLimited(response, PRODUCT_PAGE_LIMIT, true));
     const product = fromHtml(html, url);
@@ -355,23 +355,17 @@ async function findDetailedGuide(brand: string, name: string, original: string) 
     return { guide, description, sourceUrl, sourceUrls };
   }
   const fallback = { instructions: "", usageWhen: "", usageAmount: "", usageDuration: "", precautions: "", frequency: "" };
-  let source: Match | null = null;
-
-  // A selected catalog URL can contain labelled directions absent from the catalog API.
-  if (/^https:\/\/(?:[a-z-]+\.)?openbeautyfacts\.org\/product\/\d{8,14}/i.test(original)) {
-    source = await openProductPage(original, name);
-  } else if (parseSafeUrl(original)) {
-    source = await openProductPage(original, name);
-  }
-  // A single catalogue page may have only a photo. Search broadly across manufacturer
-  // and retail pages, regardless of brand/domain spelling and localization.
-  if (!source || guideCount(source) < 4 || !source.description) {
-    const pages = await researchProductPages(name, brand);
-    for (const page of pages) {
-      if (brand && page.brand && !productPageIsRelevant(page.brand + " " + page.name, brand + " " + name)) continue;
-      source = mergeFromSource(source, page);
-      if (source && guideCount(source) >= 4 && source.description) break;
-    }
+  // Discover and inspect the selected source concurrently. A slow catalog page
+  // must not block the whole guide request before web-index research can begin.
+  const [originalPage, pages] = await Promise.all([
+    parseSafeUrl(original) ? openProductPage(original, name) : Promise.resolve(null),
+    researchProductPages(name, brand),
+  ]);
+  let source: Match | null = originalPage;
+  for (const page of pages) {
+    if (brand && page.brand && !productPageIsRelevant(page.brand + " " + page.name, brand + " " + name)) continue;
+    source = mergeFromSource(source, page);
+    if (source && guideCount(source) >= 4 && source.description) break;
   }
   if (!source) return { guide: fallback, description: "", sourceUrl: "", sourceUrls: [] };
   const urls = [...new Set([...(source.guideSourceUrls ?? []), source.guideSourceUrl, source.sourceUrl].filter(Boolean))];
