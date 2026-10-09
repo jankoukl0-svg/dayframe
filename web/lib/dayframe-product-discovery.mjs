@@ -53,7 +53,7 @@ function plain(value) {
 
 export function cleanIndexedUrl(raw) {
   try {
-    let url = new URL(decodeMarkup(raw));
+    let url = new URL(decodeMarkup(raw), "https://duckduckgo.com");
     if (url.hostname.endsWith("duckduckgo.com")) {
       const redirected = url.searchParams.get("uddg");
       if (redirected) url = new URL(redirected);
