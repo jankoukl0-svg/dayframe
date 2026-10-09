@@ -522,6 +522,15 @@ export function HygienePage({
                     <div>
                       {summary.record.scheduledTasks.filter((task) => task.section === section).map((task) => {
                         const state = summary.record.states[task.id];
+                        const definition = summary.routine.tasks.find((item) => item.id === task.id);
+                        const productsInStep = state === "done" ? (task.products ?? [])
+                          : definition ? (definition.productIds ?? []).flatMap((id) => {
+                            const product = store.products.find((item) => item.id === id && !item.archived);
+                            return product ? [{
+                              id: product.id, name: product.name, brand: product.brand,
+                              instructions: product.instructions, photoKey: product.photoKey,
+                            }] : [];
+                          }) : (task.products ?? []);
                         return (
                           <article className={"df2-hygiene-task " + (state ? "is-" + state : "")} key={task.id}>
                             <button
@@ -535,9 +544,9 @@ export function HygienePage({
                             </button>
                             <div>
                               <strong>{task.title}</strong>
-                              {(task.products ?? []).length > 0 && (
+                              {productsInStep.length > 0 && (
                                 <div className="df2-hygiene-used-products">
-                                  {task.products?.map((product) => (
+                                  {productsInStep.map((product) => (
                                     store.products.some((item) => item.id === product.id) ? (
                                       <button type="button" className="df2-hygiene-used-product" key={product.id}
                                         aria-label={"Detail produktu " + product.name}
