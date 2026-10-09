@@ -544,17 +544,22 @@ export function taskScheduledOnDate(task: HygieneTaskDefinition, dateKey: string
   return scheduleMatches(task.schedule, dateKey);
 }
 
-function taskSnapshot(store: HygieneStore, task: HygieneTaskDefinition): HygieneTaskSnapshot {
+export function productSnapshotsForTask(store: HygieneStore, task: HygieneTaskDefinition): HygieneProductSnapshot[] {
+  return (task.productIds ?? []).map((id) => store.products.find((product) => product.id === id))
+    .filter((product): product is HygieneProduct => Boolean(product && !product.archived))
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      instructions: product.instructions,
+      photoKey: product.photoKey,
+    }));
+}
+
+function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
   return {
-    products: (task.productIds ?? []).map((id) => store.products.find((product) => product.id === id))
-      .filter((product): product is HygieneProduct => Boolean(product && !product.archived))
-      .map((product) => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-        instructions: product.instructions,
-        photoKey: product.photoKey,
-      })),
+    // Avoid duplicating products/instructions for every scheduled or missed day.
+    // Capture the actual products only when the task is marked done.
     id: task.id,
     title: task.title,
     section: task.section,
@@ -579,7 +584,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
     const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
     const scheduledTasks = routine.tasks
       .filter((item) => taskScheduledOnDate(item, dateKey, parentScheduled))
-      .map((task) => taskSnapshot(store, task));
+      .map(taskSnapshot);
     if (!scheduledTasks.length) continue;
     scheduledRoutineIds.add(routine.id);
 
@@ -780,13 +785,24 @@ export function setHygieneTaskStatus(
   if (status === null) delete states[taskId];
   else states[taskId] = status;
 
+  const definition = store.routines.find((routine) => routine.id === routineId)
+    ?.tasks.find((task) => task.id === taskId);
+  const scheduledTasks = record.scheduledTasks.map((task) => {
+    if (task.id !== taskId) return task;
+    if (status === "done") {
+      // One historical snapshot per completed step, not one per planned day.
+      return definition ? { ...task, products: productSnapshotsForTask(store, definition) } : task;
+    }
+    return { ...task, products: [] };
+  });
+
   return {
     ...store,
     records: {
       ...store.records,
       [dateKey]: {
         ...store.records[dateKey],
-        [routineId]: { ...record, states },
+        [routineId]: { ...record, states, scheduledTasks },
       },
     },
   };
