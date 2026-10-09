@@ -256,10 +256,10 @@ export function HygieneProducts({
 
 
   const findProductPhoto = async (name: string, brand: string, sourceUrl: string,
-    preferredImage = "", replaceExisting = false, photoOfId?: string) => {
+    preferredImage = "", replaceExisting = false, photoOfId?: string, originSession?: number) => {
     const id = photoOfId ?? draft?.id;
-    const editorSession = photoSessionRef.current;
-    if (!id || photoBusy || (!replaceExisting && (photoPreferenceRef.current === "manual"
+    const editorSession = originSession ?? photoSessionRef.current;
+    if (!id || editorSession !== photoSessionRef.current || photoBusy || (!replaceExisting && (photoPreferenceRef.current === "manual"
       || Boolean(file) || Boolean(draft?.photoKey)))) return;
     setPhotoBusy(true);
     setPhotoNotice("Hledám čistou produktovou fotografii s bílým pozadím…");
@@ -310,6 +310,7 @@ export function HygieneProducts({
   const applyLookupMatch = async (match: ProductLookupMatch) => {
     if (!draft || lookupImporting) return;
     const draftId = draft.id;
+    const originSession = photoSessionRef.current;
     const isNew = !store.products.some((item) => item.id === draftId);
     const enteredLink = /^https:\/\//i.test(lookupQuery.trim()) ? lookupQuery.trim() : "";
     setDraft((current) => current && current.id === draftId ? mergeProductGuide({
@@ -353,10 +354,11 @@ export function HygieneProducts({
             if (result.guide) {
               gotDetailedGuide = gotDetailedGuide || Boolean(result.guide.instructions || result.guide.precautions
                 || result.guide.usageWhen || result.guide.usageAmount || result.guide.usageDuration);
-              setDraft((current) => current && current.id === draftId
+              setDraft((current) => current && current.id === draftId && photoSessionRef.current === originSession
                 ? mergeProductGuide(current, {
                   ...result.guide, description: result.description,
                 }, overwriteKnown) : current);
+              if (photoSessionRef.current !== originSession) return;
               if (result.warning) setLookupError(result.warning);
               if (result.sourceUrls?.length) setLookupSource("Zdroje pokynů: "
                 + result.sourceUrls.join(" · ") + " | Produkt: " + match.sourceUrl);
@@ -365,14 +367,16 @@ export function HygieneProducts({
           }
         } catch { /* product may be unavailable on manufacturer sites; keep known fields */ }
       }
+      if (photoSessionRef.current !== originSession) return;
       if (!file && !draft.photoKey && photoPreferenceRef.current !== "manual") {
-        await findProductPhoto(match.name, match.brand, match.sourceUrl, match.imageUrl, false, draftId);
+        await findProductPhoto(match.name, match.brand, match.sourceUrl, match.imageUrl, false, draftId, originSession);
       }
+      if (photoSessionRef.current !== originSession) return;
       setLookupNotice(!gotDetailedGuide
         ? "Základní údaje jsou doplněné, ale ověřitelné pokyny k použití se nepodařilo najít. Zkus odkaz výrobce nebo je doplň z obalu."
         : "Dostupné pokyny výrobce nebo prodejce byly doplněné. Zkontroluj je podle obalu; chybějící informace nevymýšlíme.");
     } finally {
-      setLookupImporting(false);
+      if (photoSessionRef.current === originSession) setLookupImporting(false);
     }
   };
 
