@@ -46,6 +46,9 @@ export function productPageIsRelevant(candidate, query, brand = "", indexedTitle
     && !candidateSizes.some((size) => requestedSizes.includes(size))) return false;
 
   const tokens = canonicalProductTokens(query);
+  // Preserve the most specific queried term; it often distinguishes a
+  // fragrance flanker from the regular product (Elixir vs Le Parfum).
+  if (tokens.length >= 3 && !actual.includes(tokens[tokens.length - 1])) return false;
   const score = productMatchScore(name, query);
   const threshold = tokens.length === 1 ? .94 : tokens.length === 2 ? .9 : .69;
   if (score >= threshold) return true;
