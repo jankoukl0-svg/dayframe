@@ -574,7 +574,7 @@ export function DayframeV2() {
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "hygiene"} onClick={() => { setHygieneRoutineFocus(null); setView("hygiene"); }} label="Hygiena" shortcut="6" icon={<Droplets size={14} aria-hidden="true" />} />
-            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
+            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setGymFocus(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
           <div className="df2-sidebar-bottom"><span>Den končí</span><strong>02:00</strong></div>
@@ -620,7 +620,8 @@ export function DayframeV2() {
 
           {view === "health" && (
             <HealthPage planningKey={todayKey} focusRoutineId={healthRoutineFocus}
-              onFocusHandled={() => setHealthRoutineFocus(null)} focusGymKey={gymFocus?.key} focusGymDate={gymFocus?.date} />
+              onFocusHandled={() => setHealthRoutineFocus(null)} focusGymKey={gymFocus?.key} focusGymDate={gymFocus?.date}
+              onGymFocusHandled={() => setGymFocus(null)} />
           )}
 
           {view === "week" && (
