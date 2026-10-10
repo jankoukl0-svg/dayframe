@@ -125,7 +125,7 @@ function scheduleFromType(type: HygieneSchedule["type"], planningKey: string): H
   return { type: "manual" };
 }
 
-function ScheduleEditor({
+export function ScheduleEditor({
   value,
   onChange,
   planningKey,
