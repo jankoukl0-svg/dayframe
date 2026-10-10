@@ -113,14 +113,19 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
   if(extra.length || !validDate(date)||!timeRx.test(time))return store;
   const item=store.supplements.find(x=>x.id===id);
   if(!item)return store;
-  // Undo and correction are idempotent by occurrence, never create duplicate check-ins.
+  // Only an explicitly scheduled occurrence, or its historical record, may be edited.
   const existing=store.intakes.find(x=>x.key===key);
+  if(!existing && !(supplementDue(item,date) && item.times.includes(time)))return store;
   const isUndo=existing?.status===status;
   const nextStatus=isUndo?null:status;
+  // Never silently invent stock on an undo when the original intake had
+  // already exhausted the inventory. Ask for a manual correction instead.
+  const available=item.stock===null?null:item.stock+(existing?.status==="taken"?existing.servings:0);
+  if(nextStatus==="taken" && available!==null && available<item.servingsPerIntake)return store;
   let stock=item.stock;
   if(stock!==null){
     if(existing?.status==="taken") stock+=existing.servings;
-    if(nextStatus==="taken") stock=Math.max(0,stock-item.servingsPerIntake);
+    if(nextStatus==="taken") stock=stock-item.servingsPerIntake;
   }
   const updated={...store,
     supplements:store.supplements.map(x=>x.id===id?{...x,stock}:x),
