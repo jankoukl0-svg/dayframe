@@ -162,11 +162,17 @@ function getProductJsonld(html: string): Record<string, unknown> | null {
 }
 
 function categoryFrom(value: string) {
-  const category = value.toLocaleLowerCase("cs");
+  // Product descriptions commonly say fragrance-free; that is NOT a scent.
+  const category = value.toLocaleLowerCase("cs")
+    .replace(/\b(?:fragrance|perfume|parfum)[- ]*(?:free|less)\b/g, "")
+    .replace(/\b(?:sans parfum|bez parfemace|neparfemovan[ýáe])\b/g, "");
   if (/(šampon|shampoo|conditioner|kondicion|hair|vlasy)/.test(category)) return "Vlasy";
   if (/(zub|tooth|dental|mouthwash|dentifrice)/.test(category)) return "Zuby";
   if (/(shav|razor|beard|holic|vous)/.test(category)) return "Holení";
   if (/(brush|tool|device|pomůc|kartáč)/.test(category)) return "Pomůcky";
+  const scent = /(parf[eé]m|parfum|perfume|fragrance|cologne|eau de (?:parfum|toilette)|kolínsk|vůně|vone)/.test(category);
+  const skincare = /(moisturi|hydrating|cleanser|serum|skin care|skincare|face cream|face lotion|pleť|pletov|proti vráskám)/.test(category);
+  if (scent && !skincare) return "Vůně";
   if (/(body|tělo|sprch|deodor|antiperspirant)/.test(category)) return "Tělo";
   if (/(skin|face|facial|pleť|cleans|serum|acne|exfoliat|moisturi|cosmetic|beauty)/.test(category)) return "Pleť";
   return "";
@@ -193,15 +199,16 @@ function priceFrom(raw: unknown): number | null {
     ? price : null;
 }
 
-function fromHtml(html: string, url: string): Match | null {
+export function fromHtml(html: string, url: string): Match | null {
   const meta = metas(html), ld = getProductJsonld(html);
-  const title = clean(ld?.name || meta["og:title"] || meta["twitter:title"], 160)
+  const pageTitle = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "";
+  const title = clean(ld?.name || meta["og:title"] || meta["twitter:title"] || entities(pageTitle), 160)
     .replace(/\s+[|\-–]\s+.+$/, "");
   if (!title) return null;
   const rawBrand = ld?.brand;
   const brand = clean(typeof rawBrand === "object" && rawBrand && !Array.isArray(rawBrand)
-    ? (rawBrand as Record<string,unknown>).name : rawBrand, 160);
-  const category = categoryFrom(clean(ld?.category || "", 100));
+    ? (rawBrand as Record<string,unknown>).name : rawBrand || meta["product:brand"] || meta["brand"], 160);
+  const category = categoryFrom(clean(ld?.category || meta["product:category"] || title + " " + (ld?.description || meta["og:description"] || ""), 300));
   const description = usefulDescription(clean(ld?.description || meta["og:description"] || meta.description, 1800));
   const amount = clean(ld?.size, 100);
   const guide = extractGuideFromHtml(html, ld);
@@ -276,7 +283,8 @@ async function searchBeauty(query: string): Promise<Match[]> {
         sourceLabel: "Open Beauty Facts",
       };
     })
-    .filter((item) => item.name && score(item, query) >= 0.55 && (!unique.has(item.name + "|" + item.brand)
+    .filter((item) => item.name && score(item, query) >= 0.55
+      && productPageIsRelevant(item.name, query, item.brand, "", item.amount) && (!unique.has(item.name + "|" + item.brand)
       && unique.add(item.name + "|" + item.brand)))
     .sort((a,b) => score(b, query) - score(a, query))
     .slice(0, 5);
@@ -291,13 +299,13 @@ function guideCount(guide: Partial<Match>) {
 
 type WebLink = { title: string; url: string; engine: string; score?: number };
 
-async function searchPublicWeb(query: string, brand = ""): Promise<WebLink[]> {
+async function searchPublicWeb(query: string, brand = "", qualifier = ""): Promise<WebLink[]> {
   const search = (brand ? brand + " " + query : query).slice(0, 170);
   const bing = new URL("https://www.bing.com/search");
-  bing.searchParams.set("q", search + " how to use");
+  bing.searchParams.set("q", search + qualifier);
   bing.searchParams.set("format", "rss");
   const duck = new URL("https://html.duckduckgo.com/html/");
-  duck.searchParams.set("q", search + " directions");
+  duck.searchParams.set("q", search + qualifier);
   // Indexes are independent: one blocked engine must never suppress the other.
   const [bingResult, duckResult] = await Promise.allSettled([
     requestPublic(bing.href, "application/rss+xml,application/xml,text/xml", 3400).then(async (response) =>
@@ -312,13 +320,13 @@ async function searchPublicWeb(query: string, brand = ""): Promise<WebLink[]> {
   return rankProductLinks(candidates, query, brand);
 }
 
-async function openProductPage(url: string, query: string): Promise<Match | null> {
+async function openProductPage(url: string, query: string, indexedTitle = ""): Promise<Match | null> {
   try {
     const response = await requestPublic(url, "text/html", 4200);
     if (!(response.headers.get("content-type") || "").toLowerCase().includes("text/html")) return null;
     const html = new TextDecoder().decode(await readLimited(response, PRODUCT_PAGE_LIMIT, true));
     const product = fromHtml(html, url);
-    if (!product || !productPageIsRelevant(product.name, query)) return null;
+    if (!product || !productPageIsRelevant(product.name, query, product.brand, indexedTitle, product.amount)) return null;
     return product;
   } catch {
     return null;
@@ -344,11 +352,19 @@ function mergeFromSource(base: Match | null, another: Match): Match {
 }
 
 async function researchProductPages(query: string, brand = ""): Promise<Match[]> {
+  // First search the product itself, not instructions/directions: fragrances
+  // often have no dedicated how-to-use pages in the public search indexes.
   const links = await searchPublicWeb(query, brand);
-  if (!links.length) return [];
-  // Cap untrusted network requests; rank before fetching and verify actual page metadata.
-  const checked = await Promise.all(links.slice(0, 4).map((item) => openProductPage(item.url, query)));
-  return checked.filter((item): item is Match => item !== null);
+  const checked = await Promise.all(links.slice(0, 5).map((item) => openProductPage(item.url, query, item.title)));
+  const products = checked.filter((item): item is Match => item !== null);
+  if (products.length) return products;
+  // When a product name does not reveal its type (e.g. "Le Male Elixir"),
+  // supplement a failed lookup with perfume-oriented search terms. Retain
+  // strict identity checks so this cannot yield an unrelated fragrance.
+  const fallback = await searchPublicWeb(query, brand, " perfume parfum");
+  const distinct = fallback.filter((item) => !links.some((seen) => seen.url === item.url));
+  const additional = await Promise.all(distinct.slice(0, 4).map((item) => openProductPage(item.url, query, item.title)));
+  return additional.filter((item): item is Match => item !== null);
 }
 
 async function fetchOfficialDrugLabel(name: string, brand: string) {

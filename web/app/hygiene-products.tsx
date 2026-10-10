@@ -13,7 +13,7 @@ import {
   validateProductPhoto,
 } from "@/lib/dayframe-product-photos";
 
-const CATEGORIES = ["Pleť", "Tělo", "Vlasy", "Zuby", "Holení", "Pomůcky", "Ostatní"];
+const CATEGORIES = ["Pleť", "Tělo", "Vlasy", "Zuby", "Holení", "Vůně", "Pomůcky", "Ostatní"];
 const keyFor = (routineId: string, taskId: string) => routineId + "::" + taskId;
 
 type ProductLookupMatch = {

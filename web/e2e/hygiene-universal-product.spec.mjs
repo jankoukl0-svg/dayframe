@@ -125,3 +125,40 @@ test("missing instructions show an explicit warning, not a false success message
   await expect(dlg.getByRole("textbox", { name: "Návod k použití" })).toHaveValue("");
   await expect(dlg.getByRole("textbox", { name: "Jak dlouho používat / nechat působit" })).toHaveValue("");
 });
+
+test("fragrance identified by product name fills the perfume category and keeps details verifiable", async ({ page }) => {
+  await page.route("**/api/hygiene-product-lookup?*", async (route) => {
+    const mode = new URL(route.request().url()).searchParams.get("mode");
+    if (mode === "guide") return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ guide: {}, description: "", sourceUrls: [] }),
+    });
+    if (mode === "photos") return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ candidates: [] }),
+    });
+    return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ matches: [{
+        name: "Le Male Elixir Parfum", brand: "Jean Paul Gaultier", category: "Vůně",
+        description: "Dřevitá aromatická ambrová vůně.", instructions: "",
+        amount: "125 ml", imageUrl: "", priceCzk: null,
+        sourceLabel: "Jean Paul Gaultier",
+        sourceUrl: "https://www.jeanpaulgaultier.com/ww/en/fragrances/range-le-male/le-male-elixir-parfum",
+      }] }),
+    });
+  });
+  const dialog = await editor(page);
+  await dialog.getByRole("textbox", { name: "Název nebo odkaz na produkt" })
+    .fill("Jean Paul Gaultier Le Male Elixir");
+  await dialog.getByRole("button", { name: "Vyhledat a doplnit" }).click();
+  await expect(dialog.getByLabel("Nalezené produkty")).toContainText("Le Male Elixir");
+  await dialog.getByRole("button", { name: "Použít tento produkt" }).click();
+  await expect(dialog.getByRole("textbox", { name: "Značka" })).toHaveValue("Jean Paul Gaultier");
+  await expect(dialog.getByLabel("Kategorie")).toHaveValue("Vůně");
+  await expect(dialog.getByRole("textbox", { name: "Velikost balení" })).toHaveValue("125 ml");
+  await expect(dialog.getByRole("textbox", { name: "Návod k použití" })).toHaveValue("");
+  await dialog.getByRole("button", { name: "Uložit produkt" }).click();
+  const products = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).products);
+  expect(products[0]).toMatchObject({ name: "Le Male Elixir Parfum", brand: "Jean Paul Gaultier", category: "Vůně", amount: "125 ml" });
+});
