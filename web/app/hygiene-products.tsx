@@ -187,6 +187,29 @@ export function HygieneProducts({
       .includes(search.toLocaleLowerCase("cs")))
     .sort((a, b) => a.name.localeCompare(b.name, "cs")), [store.products, shopping, alerts, filter, search]);
 
+  const categoryGroups = useMemo(() => {
+    const byCategory = new Map<string, HygieneProduct[]>();
+    for (const product of visibleProducts) {
+      const category = product.category.trim() || "Ostatní";
+      const group = byCategory.get(category) ?? [];
+      group.push(product);
+      byCategory.set(category, group);
+    }
+    // Main hygiene groups stay in a predictable order. Additional/custom
+    // categories are never lost; uncategorized products appear last.
+    const categories = [
+      ...CATEGORIES.filter((category) => category !== "Ostatní"),
+      ...[...byCategory.keys()]
+        .filter((category) => !CATEGORIES.includes(category))
+        .sort((a, b) => a.localeCompare(b, "cs")),
+      "Ostatní",
+    ];
+    return categories.flatMap((category) => {
+      const products = byCategory.get(category);
+      return products?.length ? [{ category, products }] : [];
+    });
+  }, [visibleProducts]);
+
   const current = store.products.find((product) => product.id === viewingId);
   const linkLabels = (id: string) => store.routines.flatMap((routine) =>
     routine.tasks.filter((task) => (task.productIds ?? []).includes(id))
@@ -629,19 +652,29 @@ export function HygieneProducts({
         </div>
       )}
       {(filter === "active" || filter === "archived") && visibleProducts.length ? (
-        <div className="df2-products-grid">
-          {visibleProducts.map((product) => (
-            <button type="button" className="df2-product-card" key={product.id}
-              onClick={() => { setViewingId(product.id); setReplacementId(""); }} data-product-id={product.id}>
-              <ProductPhoto photoKey={product.photoKey} name={product.name} large />
-              <span className="df2-product-card-copy">
-                <small>{product.category}{product.archived ? " · Archivováno" : ""}</small>
-                <strong>{product.name}</strong>
-                <span>{product.brand || "Bez značky"}</span>
-                {!product.archived && shopping.some((entry) => entry.product.id === product.id) && <em>Dokoupit</em>}
-                {product.stockCount != null && <span>Na skladě: {product.stockCount} ks</span>}
-              </span>
-            </button>
+        <div className="df2-products-categories" aria-label="Produkty podle kategorií">
+          {categoryGroups.map(({ category, products }) => (
+            <section className="df2-products-category" aria-label={"Kategorie " + category} key={category}>
+              <header className="df2-products-category-heading">
+                <h3>{category}</h3>
+                <span>{products.length} {products.length === 1 ? "produkt" : products.length < 5 ? "produkty" : "produktů"}</span>
+              </header>
+              <div className="df2-products-grid">
+                {products.map((product) => (
+                  <button type="button" className="df2-product-card" key={product.id}
+                    onClick={() => { setViewingId(product.id); setReplacementId(""); }} data-product-id={product.id}>
+                    <ProductPhoto photoKey={product.photoKey} name={product.name} large />
+                    <span className="df2-product-card-copy">
+                      {product.archived && <small>Archivováno</small>}
+                      <strong>{product.name}</strong>
+                      <span>{product.brand || "Bez značky"}</span>
+                      {!product.archived && shopping.some((entry) => entry.product.id === product.id) && <em>Dokoupit</em>}
+                      {product.stockCount != null && <span>Na skladě: {product.stockCount} ks</span>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       ) : filter === "active" || filter === "archived" || !visibleProducts.length ? (
