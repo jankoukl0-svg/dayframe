@@ -28,6 +28,8 @@ export type HygieneTaskDefinition = {
 };
 
 export type HygieneRoutineDefinition = {
+  /** Unset on existing data; existing routines belong to Hygiena. */
+  domain?: "health";
   id: string;
   title: string;
   active: boolean;
@@ -90,6 +92,8 @@ export type HygieneTaskSnapshot = {
 };
 
 export type HygieneRoutineRecord = {
+  /** Persist domain with records so historical health entries survive definition deletion. */
+  domain?: "health";
   date: string;
   routineId: string;
   routineTitle: string;
@@ -99,6 +103,25 @@ export type HygieneRoutineRecord = {
   archived?: boolean;
   carryToday?: boolean;
 };
+
+export type PersonalCareDomain = "hygiene" | "health";
+
+export function routineDomain(routine: Pick<HygieneRoutineDefinition, "domain">): PersonalCareDomain {
+  return routine.domain === "health" ? "health" : "hygiene";
+}
+
+/** Read-only projection of a shared store; save changes against the full store. */
+export function careDomainStore(store: HygieneStore, domain: PersonalCareDomain): HygieneStore {
+  const routines = store.routines.filter((routine) => routineDomain(routine) === domain);
+  const currentIds = new Set(routines.map((routine) => routine.id));
+  const knownIds = new Set(store.routines.map((routine) => routine.id));
+  const records: HygieneStore["records"] = {};
+  for (const [date, dateRecords] of Object.entries(store.records)) {
+    records[date] = Object.fromEntries(Object.entries(dateRecords).filter(([id, record]) =>
+      currentIds.has(id) || (!knownIds.has(id) && (record.domain === "health" ? "health" : "hygiene") === domain)));
+  }
+  return { ...store, routines, records };
+}
 
 export type HygieneStore = {
   version: 1;
@@ -297,6 +320,8 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       }
       const routine = rawRoutine as Partial<HygieneRoutineDefinition>;
       const schedule = cleanSchedule(routine.schedule);
+      if (routine.domain !== undefined && routine.domain !== "health")
+        return { store: createDefaultHygieneStore(today), blocked: true };
       if (
         typeof routine.id !== "string"
         || !routine.id
@@ -357,6 +382,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
 
       routineIds.add(routine.id);
       routines.push({
+        domain: routine.domain,
         id: routine.id,
         title: routine.title.trim(),
         active: routine.active,
@@ -528,6 +554,8 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
             completedOn[taskId] = date;
           }
         }
+        if (record.domain !== undefined && record.domain !== "health")
+          return { store: createDefaultHygieneStore(today), blocked: true };
         if (
           (record.archived !== undefined && typeof record.archived !== "boolean")
           || (record.carryToday !== undefined && typeof record.carryToday !== "boolean")
@@ -535,6 +563,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           return { store: createDefaultHygieneStore(today), blocked: true };
         }
         records[date][routineId] = {
+          domain: record.domain,
           date,
           routineId,
           routineTitle: record.routineTitle,
@@ -794,6 +823,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
     const existing = dateRecords[routine.id];
     if (!existing) {
       dateRecords[routine.id] = {
+        domain: routine.domain,
         date: dateKey,
         routineId: routine.id,
         routineTitle: routine.title,
@@ -822,6 +852,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
       const next = {
         ...existing,
         routineTitle: routine.title,
+        domain: routine.domain,
         scheduledTasks: nextScheduledTasks,
         states,
         archived: undefined,
