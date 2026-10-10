@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { useSupplementStore } from "./use-supplement-store";
 import { buySupplement, lowStockSupplements, markSupplementIntake, newSupplement, supplementOccurrences,
-  supplementStats, type Supplement } from "@/lib/dayframe-supplements";
+  supplementStats, withSupplementSchedule, type Supplement } from "@/lib/dayframe-supplements";
 import { addDaysKey } from "@/lib/dayframe-calendar";
 
 type Tab="today"|"library"|"shopping"|"history";
@@ -20,7 +20,8 @@ export function SupplementsPage({today}:{today:string}){
   const due=useMemo(()=>supplementOccurrences(store,today),[store,today]);
   const low=useMemo(()=>lowStockSupplements(store),[store]);
   const stats=useMemo(()=>supplementStats(store,addDaysKey(today,-29),today),[store,today]);
-  const records=store.intakes.filter(x=>x.date<=today).slice().sort((a,b)=>b.date.localeCompare(a.date)||b.time.localeCompare(a.time)).slice(0,70);
+  const records=store.intakes.filter(x=>x.date>=addDaysKey(today,-29)&&x.date<=today)
+    .slice().sort((a,b)=>b.date.localeCompare(a.date)||b.time.localeCompare(a.time));
   const showEdit=(item:Supplement)=>{
     setDraft({...item,weekdays:[...item.weekdays],times:[...item.times]});
     setDraftTimes(item.times.join(", "));
@@ -38,12 +39,16 @@ export function SupplementsPage({today}:{today:string}){
     if(draft.stock!==null&&draft.stock<0){setEditError("Zásoba nemůže být záporná.");return;}
     const item={...draft,name:draft.name.trim(),brand:draft.brand.trim(),doseLabel:draft.doseLabel.trim(),
       weekdays:[...draft.weekdays].sort(),times};
+    const existing=store.supplements.find(x=>x.id===item.id);
+    const scheduled=withSupplementSchedule(item,today,existing);
     const ok=persist(s=>({...s,supplements:s.supplements.some(x=>x.id===item.id)
-      ?s.supplements.map(x=>x.id===item.id?item:x):[...s.supplements,item]}));
+      ?s.supplements.map(x=>x.id===item.id?scheduled:x):[...s.supplements,scheduled]}));
     if(ok){setDraft(null);setEditError("");setNotice("");}
   };
   const mark=(key:string,status:"taken"|"skipped")=>{
     const before=store.intakes.find(x=>x.key===key);
+    const preview=markSupplementIntake(store,key,status);
+    if(preview===store){setNotice("Nedostatečná zásoba pro potvrzení dávky. Nejprve uprav zásoby nebo potvrď nákup.");return;}
     const ok=persist(s=>markSupplementIntake(s,key,status));
     const after=before?.status===status?"Záznam byl vrácen do nesplněného stavu.":"Záznam byl uložen.";
     if(ok)setNotice(after);
@@ -98,7 +103,8 @@ export function SupplementsPage({today}:{today:string}){
             </div>
             <div className="df2-supplements-card-actions">
               <button type="button" onClick={()=>showEdit(item)}>Upravit</button>
-              <button type="button" disabled={blocked} onClick={()=>persist(s=>({...s,supplements:s.supplements.map(x=>x.id===item.id?{...x,active:!x.active}:x)}))}>
+              <button type="button" disabled={blocked} onClick={()=>persist(s=>({...s,supplements:s.supplements.map(x=>x.id===item.id?
+                withSupplementSchedule({...x,active:!x.active},today,x):x)}))}>
                 {item.active?"Pozastavit":"Aktivovat"}</button>
               <button type="button" disabled={blocked} onClick={()=>persist(s=>({...s,supplements:s.supplements.map(x=>x.id===item.id?{...x,shopping:!x.shopping}:x)}))}>
                 {item.shopping?"Odebrat z nákupu":"Přidat k nákupu"}</button>
