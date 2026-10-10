@@ -194,7 +194,7 @@ function priceFrom(raw: unknown): number | null {
     ? price : null;
 }
 
-function fromHtml(html: string, url: string): Match | null {
+export function fromHtml(html: string, url: string): Match | null {
   const meta = metas(html), ld = getProductJsonld(html);
   const pageTitle = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "";
   const title = clean(ld?.name || meta["og:title"] || meta["twitter:title"] || entities(pageTitle), 160)
