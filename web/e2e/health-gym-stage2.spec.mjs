@@ -114,3 +114,40 @@ test("Gym interface stays usable at mobile width",async({page})=>{
   await root.getByRole("button",{name:"Cviky",exact:true}).click();
   await expect(root.getByRole("searchbox",{name:"Hledat cviky"})).toBeVisible();
 });
+
+test("renaming a plan or day cannot store a transient blank name and block existing Gym data",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Bezpečný plán");
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  const planName=root.getByRole("textbox",{name:"Název plánu",exact:true});
+  await planName.fill("");
+  await root.getByRole("heading",{name:"Moje plány"}).click();
+  await expect(root).toContainText("Název plánu nesmí být prázdný");
+  await expect(planName).toHaveValue("Bezpečný plán");
+  await planName.fill("Nový plán");
+  await planName.press("Tab");
+  const dayName=root.getByRole("textbox",{name:"Název tréninkového dne 1"});
+  await dayName.fill("");
+  await dayName.press("Tab");
+  await expect(dayName).toHaveValue("Upper");
+  await dayName.fill("Síla horní poloviny");
+  await dayName.press("Tab");
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.plans[0].name).toBe("Nový plán");
+  expect(saved.plans[0].days[0].name).toBe("Síla horní poloviny");
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await expect(again).toContainText("Nový plán");
+  await expect(again).not.toContainText("Tréninková data nelze bezpečně načíst");
+});
+
+test("a Gym deep link is consumed and an ordinary Health click returns to its overview",async({page})=>{
+  await fresh(page);
+  await createPlan(page);
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await page.locator("[data-week-gym]").first().click();
+  await expect(page.getByRole("tab",{name:"Gym & Tréninky"})).toHaveAttribute("aria-selected","true");
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Zdraví"}).click();
+  await expect(page.getByRole("tab",{name:"Přehled"})).toHaveAttribute("aria-selected","true");
+});
