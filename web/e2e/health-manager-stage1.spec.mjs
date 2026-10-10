@@ -106,3 +106,25 @@ test("Health menu and future-module tabs are usable at mobile width", async ({ p
   await health.getByRole("tab", { name: "Prevence" }).click();
   await expect(health).toContainText("ETAPA 6");
 });
+
+test("deactivating a completed Health habit keeps its actual completion in history", async ({ page }) => {
+  await fresh(page);
+  const health = await goHealth(page);
+  await health.getByRole("button", { name: "+ Přidat návyk" }).click();
+  const editor = page.getByRole("dialog", { name: "Zdravotní návyk" });
+  await editor.getByRole("textbox", { name: "Název rutiny" }).fill("Zdravotní rutina");
+  await editor.getByRole("textbox", { name: "Název úkolu" }).fill("Pohyb");
+  await editor.getByRole("button", { name: "Uložit návyk" }).click();
+  await health.getByRole("button", { name: "Hotovo", exact: true }).click();
+  await health.getByRole("button", { name: "Upravit", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "Zdravotní návyk" });
+  await edit.getByRole("checkbox", { name: "Aktivní" }).uncheck();
+  await edit.getByRole("button", { name: "Uložit návyk" }).click();
+  await expect(health).toContainText("Pro dnešek nejsou naplánované žádné zdravotní návyky");
+  await health.getByRole("button", { name: "Zobrazit" }).click();
+  await expect(health.locator(".df2-health-history")).toContainText("1/1 splněno");
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  const record = Object.values(saved.records["2026-10-09"]).find((r) => r.domain === "health");
+  expect(record.archived).toBe(true);
+  expect(Object.values(record.states)).toContain("done");
+});
