@@ -23,7 +23,7 @@ export function productMatchScore(candidate, query) {
   return coverage * .87 + precision * .13;
 }
 
-export function productPageIsRelevant(candidate, query, brand = "", indexedTitle = "") {
+export function productPageIsRelevant(candidate, query, brand = "", indexedTitle = "", knownSize = "") {
   const families = ["cleanser", "cream", "serum", "lotion", "toner", "shampoo", "conditioner",
     "sunscreen", "mask", "oil", "balm", "scrub", "exfoliant", "moisturizer", "wash", "deodorant"];
   const name = brand ? candidate + " " + brand : candidate;
@@ -41,14 +41,17 @@ export function productPageIsRelevant(candidate, query, brand = "", indexedTitle
   }
   const volumes = (value) => [...String(value).toLowerCase().matchAll(/\b\d+(?:[.,]\d+)?\s*(?:ml|cl|oz)\b/g)]
     .map((match) => match[0].replace(/\s+/g, ""));
-  const requestedSizes = volumes(query), candidateSizes = volumes(candidate);
-  if (requestedSizes.length && candidateSizes.length
-    && !candidateSizes.some((size) => requestedSizes.includes(size))) return false;
+  const requestedSizes = volumes(query), candidateSizes = volumes(candidate + " " + knownSize);
+  // If a specific bottle size was requested, only accept a page with a
+  // matching verified package size, not an arbitrary size from search results.
+  if (requestedSizes.length && !candidateSizes.some((size) => requestedSizes.includes(size))) return false;
 
   const tokens = canonicalProductTokens(query);
-  // Preserve the most specific queried term; it often distinguishes a
-  // fragrance flanker from the regular product (Elixir vs Le Parfum).
-  if (tokens.length >= 3 && !actual.includes(tokens[tokens.length - 1])) return false;
+  const identityTokens = tokens.filter((token) => !["ml", "cl", "oz"].includes(token)
+    && !/^\d+(?:[.,]\d+)?$/.test(token));
+  // Package-size units are not product identity. Verify the last meaningful
+  // identity token and compare a requested volume separately above.
+  if (identityTokens.length >= 3 && !actual.includes(identityTokens[identityTokens.length - 1])) return false;
   const score = productMatchScore(name, query);
   const threshold = tokens.length === 1 ? .94 : tokens.length === 2 ? .9 : .69;
   if (score >= threshold) return true;
@@ -57,8 +60,9 @@ export function productPageIsRelevant(candidate, query, brand = "", indexedTitle
   // indexed result includes "Jean Paul Gaultier". Accept such shortened
   // titles ONLY when the indexed title matches the entire query and the
   // exact trailing product identity is present without extra variant words.
-  if (indexedTitle && tokens.length >= 5 && productPageIsRelevant(indexedTitle, query)) {
-    const tail = tokens.slice(-3);
+  const searchIdentity = query.replace(/\b\d+(?:[.,]\d+)?\s*(?:ml|cl|oz)\b/gi, "").trim();
+  if (indexedTitle && identityTokens.length >= 5 && productPageIsRelevant(indexedTitle, searchIdentity)) {
+    const tail = identityTokens.slice(-3);
     const foundTail = actual.some((part, index) => part === tail[0]
       && tail.every((token, offset) => actual[index + offset] === token));
     const generic = new Set(["parfum", "perfume", "fragrance", "eau", "de", "toilette",
