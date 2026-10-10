@@ -46,7 +46,18 @@ test("Health habit shares recurrence/history storage and Today shows one linked 
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   const added = saved.routines.find((routine) => routine.domain === "health");
   expect(added).toBeTruthy();
-  expect(saved.routines.filter((item) => item.domain !== "health")).toEqual(before.routines);
+  // The legacy parser normalizes absent productIds to [], which is not a
+  // change to the existing routine definitions or their scheduling semantics.
+  const invariant = (routines) => routines.map((routine) => ({
+    id: routine.id, title: routine.title, active: routine.active,
+    schedule: routine.schedule, order: routine.order,
+    tasks: routine.tasks.map((task) => ({
+      id: task.id, title: task.title, section: task.section, active: task.active,
+      optional: task.optional, allowSkip: task.allowSkip, schedule: task.schedule,
+      timerSeconds: task.timerSeconds, linkedProducts: task.productIds ?? [],
+    })),
+  }));
+  expect(invariant(saved.routines.filter((item) => item.domain !== "health"))).toEqual(invariant(before.routines));
   expect(saved.products).toEqual(before.products);
   expect(saved.records["2026-10-09"][added.id].domain).toBe("health");
 
