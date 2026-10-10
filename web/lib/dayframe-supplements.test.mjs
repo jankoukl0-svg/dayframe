@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {emptySupplementStore,parseSupplementStore,newSupplement,supplementOccurrences,supplementIntakeKey,
-  markSupplementIntake,buySupplement,lowStockSupplements,supplementStats} from "./dayframe-supplements.ts";
+  markSupplementIntake,buySupplement,lowStockSupplements,supplementStats,withSupplementSchedule} from "./dayframe-supplements.ts";
 
 const date="2026-10-12";
 function setup(){
   const item=newSupplement("Kreatin — testovací přípravek");
   item.doseLabel="Dle etikety";
   item.stock=8;item.lowStockAt=4;item.packServings=30;item.times=["08:00","20:00"];
+  item.scheduleHistory=[{effectiveFrom:date,active:true,weekdays:[...item.weekdays],times:[...item.times]}];
   return {item,store:{...emptySupplementStore(),supplements:[item]}};
 }
 test("schedule creates one occurrence per chosen time and weekday with stable IDs",()=>{
@@ -17,8 +18,9 @@ test("schedule creates one occurrence per chosen time and weekday with stable ID
   assert.deepEqual(day.map(x=>x.time),["08:00","20:00"]);
   assert.equal(day[0].key,supplementIntakeKey(item.id,date,"08:00"));
   assert.equal(supplementOccurrences(store,"2026-10-13").length,2);
-  item.weekdays=[1];
-  assert.equal(supplementOccurrences(store,"2026-10-13").length,0);
+  const next=withSupplementSchedule({...item,weekdays:[1]},"2026-10-13",item);
+  assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-13").length,0);
+  assert.equal(supplementOccurrences({...store,supplements:[next]},date).length,2);
 });
 test("intake is reversible, idempotent, updates stock once and preserves explicit skipped state",()=>{
   const {store}=setup();const key=supplementOccurrences(store,date)[0].key;
@@ -61,4 +63,16 @@ test("unrecognized or malformed storage blocks changes rather than overwriting r
   assert.equal(parseSupplementStore(JSON.stringify({...store,supplements:[{...store.supplements[0],times:["25:00"]}]})).blocked,true);
   assert.equal(parseSupplementStore(JSON.stringify({...store,supplements:[{...store.supplements[0],stock:-1}]})).blocked,true);
   assert.equal(parseSupplementStore(JSON.stringify({...store,intakes:[{key:"nonsense",supplementId:"a",date,time:"08:00",status:"taken",recordedAt:"x",servings:1}]})).blocked,true);
+});
+test("schedule-effective dates preserve historical denominator on creation, day edits and pauses",()=>{
+  const item=newSupplement("Test");
+  item.times=["08:00"];
+  const first=withSupplementSchedule(item,"2026-10-12");
+  const store={...emptySupplementStore(),supplements:[first]};
+  assert.equal(supplementStats(store,"2026-10-09","2026-10-12").planned,1);
+  const changed=withSupplementSchedule({...first,times:["08:00","20:00"]},"2026-10-13",first);
+  const next={...store,supplements:[changed]};
+  assert.equal(supplementStats(next,"2026-10-12","2026-10-13").planned,3);
+  const paused=withSupplementSchedule({...changed,active:false},"2026-10-14",changed);
+  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,3);
 });
