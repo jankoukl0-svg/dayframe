@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { planningDateKey } from "@/lib/dayframe-calendar";
 import { assignmentsOnDate } from "@/lib/dayframe-gym";
+import { supplementOccurrences } from "@/lib/dayframe-supplements";
+import { useSupplementStore } from "./use-supplement-store";
 import { useGymStore } from "./use-gym-store";
 import {
   HYGIENE_STORAGE_KEY,
@@ -161,12 +163,14 @@ export function DailyChecklist({
   onOpenHygiene,
   onOpenHealth,
   onOpenGym,
+  onOpenSupplements,
 }: {
   onSummaryChange?: (summary: DailyChecklistSummary) => void;
   planningKey?: string;
   onOpenHygiene?: (routineId: string) => void;
   onOpenHealth?: (routineId: string) => void;
   onOpenGym?: (key: string, date: string) => void;
+  onOpenSupplements?:()=>void;
 } = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
@@ -185,6 +189,7 @@ export function DailyChecklist({
   const [healthItems, setHealthItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
   const [hygieneHydrated, setHygieneHydrated] = useState(false);
   const gym=useGymStore();
+  const supplements=useSupplementStore();
   const [hygieneBlocked, setHygieneBlocked] = useState(false);
   const completionFeedbackTimer = useRef<number | null>(null);
 
@@ -200,8 +205,10 @@ export function DailyChecklist({
   const healthCompletedCount = healthItems.filter((item) => item.complete).length;
   const gymItems = useMemo(()=>assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
   const gymCompletedCount = gymItems.filter(x=>x.completed).length;
-  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length;
-  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount;
+  const supplementItems=useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
+  const supplementCompletedCount=supplementItems.filter(x=>!!x.intake).length;
+  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + supplementItems.length;
+  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + supplementCompletedCount;
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
   const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
@@ -260,10 +267,10 @@ export function DailyChecklist({
       planningKey,
       completed: totalCompletedCount,
       total: totalVisibleCount,
-      hydrated: hydrated && hygieneHydrated && gym.hydrated,
-      blocked: storageBlocked || hygieneBlocked || gym.blocked,
+      hydrated: hydrated && hygieneHydrated && gym.hydrated && supplements.hydrated,
+      blocked: storageBlocked || hygieneBlocked || gym.blocked || supplements.blocked,
     });
-  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, gym.hydrated, gym.blocked, onSummaryChange]);
+  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, gym.hydrated, gym.blocked, supplements.hydrated, supplements.blocked, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
@@ -500,6 +507,17 @@ export function DailyChecklist({
                 <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>
             ))}
+            {supplementItems.map((item)=>(
+              <article key={"supp-"+item.key} data-supplement-checklist={item.key}
+                className={"df2-checklist-hygiene-row "+(item.intake?"done":"")}>
+                <span className={"df2-checklist-hygiene-indicator "+(item.intake?"is-done":"")} aria-hidden="true">{item.intake?"✓":""}</span>
+                <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
+                  aria-label={"Otevřít suplement "+item.supplement.name+" ve Zdraví"} onClick={onOpenSupplements}>
+                  <strong>{item.time} · {item.supplement.name}</strong>
+                  <small>{item.intake?.status==="taken"?"Užito":item.intake?.status==="skipped"?"Vynecháno":"Čeká · Suplementy"}</small>
+                </button><span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
+              </article>
+            ))}
             {visibleItems.map((item) => {
               const done = completedIds.has(item.id);
               return (
@@ -551,13 +569,13 @@ export function DailyChecklist({
           </div>
         ) : (
           <div className="df2-checklist-empty">
-            {store.items.length || hygieneItems.length || healthItems.length || gymItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
+            {store.items.length || hygieneItems.length || healthItems.length || gymItems.length || supplementItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
         {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}
-        {(storageBlocked || storageError || hygieneBlocked || gym.blocked) && (
+        {(storageBlocked || storageError || hygieneBlocked || gym.blocked || supplements.blocked) && (
           <p className="df2-checklist-error">
-            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : storageError}
+            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : supplements.blocked ? "Data suplementů nelze bezpečně načíst." : storageError}
           </p>
         )}
       </section>
