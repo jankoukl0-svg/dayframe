@@ -212,7 +212,9 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled }: {
               <button type="button" onClick={() => setShowHistory((value) => !value)}>{showHistory ? "Skrýt" : "Zobrazit"}</button></div>
             {showHistory && <div className="df2-health-history">
               {historyDays.map((date) => {
-                const records = Object.values(scoped.records[date] ?? {}).filter((record) => !record.archived);
+                // A handled record may be archived when a routine is deactivated or rescheduled.
+                // It remains a real completion in historical reporting.
+                const records = Object.values(scoped.records[date] ?? {});
                 const planned = records.flatMap((record) => record.scheduledTasks.map((task) => ({ record, task })));
                 const done = planned.filter(({ record, task }) => record.states[task.id] === "done").length;
                 return <div key={date}><time dateTime={date}>{date}</time><span>{planned.length ? done + "/" + planned.length + " splněno" : "Bez záznamu"}</span></div>;
