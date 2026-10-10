@@ -14,7 +14,7 @@ const numberValue = (raw:string,min:number,max:number):number|null => raw.trim()
 const pretty = (date:string)=>new Intl.DateTimeFormat("cs-CZ",{weekday:"short",day:"numeric",month:"numeric"}).format(new Date(date+"T12:00:00"));
 const formatKg = (value:number)=>new Intl.NumberFormat("cs-CZ",{maximumFractionDigits:1}).format(value)+" kg";
 
-export function GymPage({today,focusKey,focusDate}:{today:string;focusKey?:string|null;focusDate?:string|null}) {
+export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;focusKey?:string|null;focusDate?:string|null;onFocusHandled?:()=>void}) {
   const {store,hydrated,blocked,error,persist}=useGymStore();
   const [view,setView]=useState<GymView>("workout");
   const [selectedDate,setSelectedDate]=useState(today);
@@ -24,6 +24,8 @@ export function GymPage({today,focusKey,focusDate}:{today:string;focusKey?:strin
   const [template,setTemplate]=useState<GymTemplate>("upper-lower");
   const [newPlan,setNewPlan]=useState(false);
   const [editedPlanId,setEditedPlanId]=useState<string|null>(null);
+  const [planNameDraft,setPlanNameDraft]=useState<{id:string;value:string}|null>(null);
+  const [dayNameDrafts,setDayNameDrafts]=useState<Record<string,string>>({});
   const [exerciseQuery,setExerciseQuery]=useState("");
   const [newExercise,setNewExercise]=useState(false);
   const [exerciseDraft,setExerciseDraft]=useState({name:"",muscle:"",equipment:"",kind:"Silový",technique:"",photoUrl:""});
@@ -31,13 +33,18 @@ export function GymPage({today,focusKey,focusDate}:{today:string;focusKey?:strin
   const [clock,setClock]=useState(()=>Date.now());
   const [message,setMessage]=useState("");
 
-  useEffect(()=>{if(!focusKey)return;setView("workout");setHighlightKey(focusKey);setSelectedDate(focusDate||today);
+  useEffect(()=>{if(!hydrated||!focusKey)return;setView("workout");setHighlightKey(focusKey);setSelectedDate(focusDate||today);
     const current=store.sessions.find(s=>s.occurrenceKey===focusKey);
     if(current)setSelectedSession(current.id);
-  },[focusKey,focusDate,today,store.sessions]);
+    onFocusHandled?.();
+  },[hydrated,focusKey,focusDate,today,store.sessions,onFocusHandled]);
   const session=store.sessions.find(x=>x.id===selectedSession)??null;
   useEffect(()=>{if(!session?.restUntil || session.restUntil<=Date.now())return;
-    const timer=window.setInterval(()=>setClock(Date.now()),1000);
+    const deadline=session.restUntil;
+    const timer=window.setInterval(()=>{
+      const now=Date.now();setClock(now);
+      if(now>=deadline)window.clearInterval(timer);
+    },1000);
     return ()=>window.clearInterval(timer);
   },[session?.restUntil]);
   const plan=store.plans.find(p=>p.id===(editedPlanId||store.activePlanId))??null;
@@ -210,8 +217,14 @@ export function GymPage({today,focusKey,focusDate}:{today:string;focusKey?:strin
       {!store.plans.length && <p className="df2-health-empty">Začni vlastní šablonou PPL, Upper / Lower, Full Body nebo od prázdného plánu.</p>}
       {plan && <section className="df2-gym-plan-edit" data-gym-plan-editor>
         <div className="df2-gym-section-head">
-          <label>Název plánu<input aria-label="Název plánu" value={plan.name} maxLength={100}
-            onChange={e=>savePlan(plan.id,p=>({...p,name:e.target.value}))}/></label>
+          <label>Název plánu<input aria-label="Název plánu" value={planNameDraft?.id===plan.id?planNameDraft.value:plan.name} maxLength={100}
+            onChange={e=>setPlanNameDraft({id:plan.id,value:e.target.value})}
+            onBlur={e=>{
+              const value=e.target.value.trim();
+              if(value) savePlan(plan.id,p=>({...p,name:value}));
+              else setMessage("Název plánu nesmí být prázdný.");
+              setPlanNameDraft(null);
+            }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/></label>
           <button type="button" onClick={()=>{
             if(!window.confirm("Smazat plán? Historické tréninky zůstanou zachované."))return;
             persist(s=>({...s,plans:s.plans.filter(p=>p.id!==plan.id),activePlanId:s.activePlanId===plan.id?null:s.activePlanId}));
@@ -220,8 +233,14 @@ export function GymPage({today,focusKey,focusDate}:{today:string;focusKey?:strin
         </div>
         {plan.days.map((day,dayIndex)=><article key={day.id} className="df2-gym-day-edit">
           <div className="df2-gym-inline">
-            <input aria-label={"Název tréninkového dne "+(dayIndex+1)} value={day.name} maxLength={100}
-              onChange={e=>savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,name:e.target.value}:d)}))}/>
+            <input aria-label={"Název tréninkového dne "+(dayIndex+1)} value={dayNameDrafts[day.id]??day.name} maxLength={100}
+              onChange={e=>setDayNameDrafts(d=>({...d,[day.id]:e.target.value}))}
+              onBlur={e=>{
+                const value=e.target.value.trim();
+                if(value) savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,name:value}:d)}));
+                else setMessage("Název tréninkového dne nesmí být prázdný.");
+                setDayNameDrafts(d=>{const next={...d};delete next[day.id];return next;});
+              }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/>
             <select aria-label={"Den v týdnu "+day.name} value={day.weekday}
               onChange={e=>savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,weekday:Number(e.target.value)}:d)}))}>
               {WEEKDAYS.map((name,index)=><option key={index} value={index}>{name}</option>)}</select>
