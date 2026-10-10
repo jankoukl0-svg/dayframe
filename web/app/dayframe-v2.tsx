@@ -40,6 +40,8 @@ import { parseSmartTaskInput } from "@/lib/dayframe-smart-input";
 import { DailyChecklist } from "./daily-checklist";
 import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
+import { useGymStore } from "./use-gym-store";
+import { assignmentsOnDate } from "@/lib/dayframe-gym";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -153,6 +155,8 @@ export function DayframeV2() {
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const [hygieneRoutineFocus, setHygieneRoutineFocus] = useState<string | null>(null);
   const [healthRoutineFocus, setHealthRoutineFocus] = useState<string | null>(null);
+  const [gymFocus, setGymFocus] = useState<{ key:string; date:string } | null>(null);
+  const gym = useGymStore();
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
   const completionToastTimers = useRef<Map<string, number>>(new Map());
@@ -570,7 +574,7 @@ export function DayframeV2() {
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "hygiene"} onClick={() => { setHygieneRoutineFocus(null); setView("hygiene"); }} label="Hygiena" shortcut="6" icon={<Droplets size={14} aria-hidden="true" />} />
-            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
+            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setGymFocus(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
           <div className="df2-sidebar-bottom"><span>Den končí</span><strong>02:00</strong></div>
@@ -602,6 +606,7 @@ export function DayframeV2() {
                 setHealthRoutineFocus(routineId);
                 setView("health");
               }}
+              onOpenGym={(key,date) => { setGymFocus({key,date}); setView("health"); }}
             />
           )}
 
@@ -615,7 +620,8 @@ export function DayframeV2() {
 
           {view === "health" && (
             <HealthPage planningKey={todayKey} focusRoutineId={healthRoutineFocus}
-              onFocusHandled={() => setHealthRoutineFocus(null)} />
+              onFocusHandled={() => setHealthRoutineFocus(null)} focusGymKey={gymFocus?.key} focusGymDate={gymFocus?.date}
+              onGymFocusHandled={() => setGymFocus(null)} />
           )}
 
           {view === "week" && (
@@ -645,6 +651,12 @@ export function DayframeV2() {
                         </header>
                         <div className="df2-unscheduled">
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
+                          {assignmentsOnDate(gym.store,key).map(occ => (
+                            <button type="button" key={occ.key} data-week-gym={occ.key} className="df2-week-gym"
+                              onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}>
+                              <strong>{occ.name}</strong><small>{occ.completed?"✓ Gym · Hotovo":occ.session?"Gym · Rozpracováno":"Gym · bez času"}</small>
+                            </button>
+                          ))}
                         </div>
                         <div
                           className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
@@ -814,7 +826,7 @@ function NavButton({ active, onClick, label, shortcut, icon }: { active: boolean
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, completingTaskIds,
+  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, completingTaskIds,
 }: {
   now: Date;
   tasks: CalendarTask[];
@@ -832,6 +844,7 @@ function TodayView({
   onMilestones: () => void;
   onOpenHygiene: (routineId: string) => void;
   onOpenHealth: (routineId: string) => void;
+  onOpenGym: (key: string,date:string) => void;
   completingTaskIds: ReadonlySet<string>;
 }) {
   const [checklistSummary, setChecklistSummary] = useState({ planningKey: "", completed: 0, total: 0, hydrated: false, blocked: false });
@@ -933,7 +946,7 @@ function TodayView({
           </div>
         )}
       </section>
-      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} />
+      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} />
 
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">
