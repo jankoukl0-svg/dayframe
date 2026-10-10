@@ -162,12 +162,17 @@ function getProductJsonld(html: string): Record<string, unknown> | null {
 }
 
 function categoryFrom(value: string) {
-  const category = value.toLocaleLowerCase("cs");
+  // Product descriptions commonly say fragrance-free; that is NOT a scent.
+  const category = value.toLocaleLowerCase("cs")
+    .replace(/\b(?:fragrance|perfume|parfum)[- ]*(?:free|less)\b/g, "")
+    .replace(/\b(?:sans parfum|bez parfemace|neparfemovan[ýáe])\b/g, "");
   if (/(šampon|shampoo|conditioner|kondicion|hair|vlasy)/.test(category)) return "Vlasy";
   if (/(zub|tooth|dental|mouthwash|dentifrice)/.test(category)) return "Zuby";
   if (/(shav|razor|beard|holic|vous)/.test(category)) return "Holení";
   if (/(brush|tool|device|pomůc|kartáč)/.test(category)) return "Pomůcky";
-  if (/(parf[eé]m|parfum|perfume|fragrance|cologne|eau de (?:parfum|toilette)|kolínsk|vůně|vone)/.test(category)) return "Vůně";
+  const scent = /(parf[eé]m|parfum|perfume|fragrance|cologne|eau de (?:parfum|toilette)|kolínsk|vůně|vone)/.test(category);
+  const skincare = /(moisturi|hydrating|cleanser|serum|skin care|skincare|face cream|face lotion|pleť|pletov|proti vráskám)/.test(category);
+  if (scent && !skincare) return "Vůně";
   if (/(body|tělo|sprch|deodor|antiperspirant)/.test(category)) return "Tělo";
   if (/(skin|face|facial|pleť|cleans|serum|acne|exfoliat|moisturi|cosmetic|beauty)/.test(category)) return "Pleť";
   return "";
@@ -279,7 +284,7 @@ async function searchBeauty(query: string): Promise<Match[]> {
       };
     })
     .filter((item) => item.name && score(item, query) >= 0.55
-      && productPageIsRelevant(item.name, query, item.brand) && (!unique.has(item.name + "|" + item.brand)
+      && productPageIsRelevant(item.name, query, item.brand, "", item.amount) && (!unique.has(item.name + "|" + item.brand)
       && unique.add(item.name + "|" + item.brand)))
     .sort((a,b) => score(b, query) - score(a, query))
     .slice(0, 5);
@@ -321,7 +326,7 @@ async function openProductPage(url: string, query: string, indexedTitle = ""): P
     if (!(response.headers.get("content-type") || "").toLowerCase().includes("text/html")) return null;
     const html = new TextDecoder().decode(await readLimited(response, PRODUCT_PAGE_LIMIT, true));
     const product = fromHtml(html, url);
-    if (!product || !productPageIsRelevant(product.name, query, product.brand, indexedTitle)) return null;
+    if (!product || !productPageIsRelevant(product.name, query, product.brand, indexedTitle, product.amount)) return null;
     return product;
   } catch {
     return null;
