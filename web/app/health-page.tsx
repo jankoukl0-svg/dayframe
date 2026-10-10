@@ -40,9 +40,9 @@ function newHealthRoutine(): HygieneRoutineDefinition {
   };
 }
 
-export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate }: {
+export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled }: {
   planningKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
-  focusGymKey?: string | null; focusGymDate?: string | null;
+  focusGymKey?: string | null; focusGymDate?: string | null; onGymFocusHandled?: () => void;
 }) {
   const [store, setStore] = useState<HygieneStore>(() => createDefaultHygieneStore(planningKey));
   const [blocked, setBlocked] = useState(false);
@@ -237,7 +237,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
           </section>
         </div>
       ) : tab === "gym" ? (
-        <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} />
+        <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} onFocusHandled={onGymFocusHandled} />
       ) : (
         <section className="df2-health-coming-soon">
           <span>ETAPA {activeTab.stage}</span>
