@@ -6,6 +6,7 @@ import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
   loadHygieneStore,
+  routineDomain,
   scheduledRoutineSummaries,
 } from "@/lib/dayframe-hygiene";
 
@@ -156,10 +157,12 @@ export function DailyChecklist({
   onSummaryChange,
   planningKey: externalPlanningKey,
   onOpenHygiene,
+  onOpenHealth,
 }: {
   onSummaryChange?: (summary: DailyChecklistSummary) => void;
   planningKey?: string;
   onOpenHygiene?: (routineId: string) => void;
+  onOpenHealth?: (routineId: string) => void;
 } = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
@@ -175,6 +178,7 @@ export function DailyChecklist({
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [recentlyCompletedId, setRecentlyCompletedId] = useState<string | null>(null);
   const [hygieneItems, setHygieneItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
+  const [healthItems, setHealthItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
   const [hygieneHydrated, setHygieneHydrated] = useState(false);
   const [hygieneBlocked, setHygieneBlocked] = useState(false);
   const completionFeedbackTimer = useRef<number | null>(null);
@@ -188,8 +192,9 @@ export function DailyChecklist({
   const completedIds = new Set(store.completedByDate[planningKey] ?? []);
   const completedCount = visibleItems.filter((item) => completedIds.has(item.id)).length;
   const hygieneCompletedCount = hygieneItems.filter((item) => item.complete).length;
-  const totalVisibleCount = visibleItems.length + hygieneItems.length;
-  const totalCompletedCount = completedCount + hygieneCompletedCount;
+  const healthCompletedCount = healthItems.filter((item) => item.complete).length;
+  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length;
+  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount;
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
   const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
@@ -219,13 +224,15 @@ export function DailyChecklist({
     const syncHygiene = () => {
       const result = loadHygieneStore(planningKey);
       const summaries = result.blocked ? [] : scheduledRoutineSummaries(result.store, planningKey, planningKey);
-      setHygieneItems(summaries.map((summary) => ({
+      const summaryItem = (summary: typeof summaries[number]) => ({
         id: summary.routine.id,
         title: summary.routine.title,
         handled: summary.handled,
         total: summary.total,
         complete: summary.status === "complete" || summary.status === "skipped",
-      })));
+      });
+      setHygieneItems(summaries.filter((summary) => routineDomain(summary.routine) === "hygiene").map(summaryItem));
+      setHealthItems(summaries.filter((summary) => routineDomain(summary.routine) === "health").map(summaryItem));
       setHygieneBlocked(result.blocked);
       setHygieneHydrated(true);
     };
@@ -460,6 +467,21 @@ export function DailyChecklist({
                 <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>
             ))}
+            {healthItems.map((item) => (
+              <article key={"health-" + item.id} data-health-checklist-routine={item.id}
+                className={"df2-checklist-hygiene-row " + (item.complete ? "done" : "")}>
+                <span className={"df2-checklist-hygiene-indicator " + (item.complete ? "is-done" : "")} aria-hidden="true">
+                  {item.complete ? "✓" : ""}
+                </span>
+                <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
+                  onClick={() => onOpenHealth?.(item.id)}
+                  aria-label={"Otevřít " + item.title + " ve Zdraví"}>
+                  <strong>{item.title}</strong>
+                  <small>{item.complete ? "Hotovo" : item.handled + "/" + item.total + " · Zdraví"}</small>
+                </button>
+                <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
+              </article>
+            ))}
             {visibleItems.map((item) => {
               const done = completedIds.has(item.id);
               return (
@@ -511,7 +533,7 @@ export function DailyChecklist({
           </div>
         ) : (
           <div className="df2-checklist-empty">
-            {store.items.length || hygieneItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
+            {store.items.length || hygieneItems.length || healthItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
         {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}

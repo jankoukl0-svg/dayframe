@@ -8,6 +8,7 @@ import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
   createDefaultHygieneStore,
+  careDomainStore,
   createRoutineId,
   createTaskId,
   historyStatusForDate,
@@ -124,7 +125,7 @@ function scheduleFromType(type: HygieneSchedule["type"], planningKey: string): H
   return { type: "manual" };
 }
 
-function ScheduleEditor({
+export function ScheduleEditor({
   value,
   onChange,
   planningKey,
@@ -351,10 +352,11 @@ export function HygienePage({
     return true;
   };
 
-  const summaries = useMemo(() => scheduledRoutineSummaries(store, planningKey, planningKey), [store, planningKey]);
+  const hygieneStore = useMemo(() => careDomainStore(store, "hygiene"), [store]);
+  const summaries = useMemo(() => scheduledRoutineSummaries(hygieneStore, planningKey, planningKey), [hygieneStore, planningKey]);
   const overall = useMemo(() => overallHygieneProgress(summaries), [summaries]);
-  const historicalRoutines = useMemo(() => historyRoutines(store), [store]);
-  const historicalProducts = useMemo(() => Object.entries(store.records)
+  const historicalRoutines = useMemo(() => historyRoutines(hygieneStore), [hygieneStore]);
+  const historicalProducts = useMemo(() => Object.entries(hygieneStore.records)
     .filter(([date]) => date <= planningKey)
     .sort(([a], [b]) => b.localeCompare(a))
     .slice(0, 45)
@@ -362,13 +364,13 @@ export function HygienePage({
       record.scheduledTasks.filter((task) => record.states[task.id] === "done")
         .flatMap((task) => (task.products ?? []).map((product) => ({
           date, task: task.title, product, routine: record.routineTitle,
-        }))))), [store.records, planningKey]);
+        }))))), [hygieneStore.records, planningKey]);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDaysKey(planningKey, index - 6)),
     [planningKey],
   );
   const calendarDates = useMemo(() => monthDays(monthKey), [monthKey]);
-  const overdue = useMemo(() => overdueHygieneTasks(store, planningKey), [store, planningKey]);
+  const overdue = useMemo(() => overdueHygieneTasks(hygieneStore, planningKey), [hygieneStore, planningKey]);
 
   const changeStatus = (date: string, routineId: string, taskId: string, status: "done" | "skipped" | "omitted") => {
     const latest = loadHygieneStore(planningKey);
@@ -765,8 +767,8 @@ export function HygienePage({
             </div>
             <div className="df2-hygiene-week-history">
               {weekDates.map((date) => {
-                const status = overallDateStatus(store, date, planningKey);
-                const planned = Object.keys(store.records[date] ?? {}).length;
+                const status = overallDateStatus(hygieneStore, date, planningKey);
+                const planned = Object.keys(hygieneStore.records[date] ?? {}).length;
                 return (
                   <div className={"df2-hygiene-history-day is-" + status} key={date}>
                     <span>{shortDay(date)}</span>
@@ -788,7 +790,7 @@ export function HygienePage({
                 <span className="df2-hygiene-month-weekday" key={day}>{day}</span>
               ))}
               {calendarDates.map((date, index) => {
-                const status = overallDateStatus(store, date, planningKey);
+                const status = overallDateStatus(hygieneStore, date, planningKey);
                 const mondayFirstColumn = ((dateFromKey(date).getDay() + 6) % 7) + 1;
                 return (
                   <div
@@ -817,7 +819,7 @@ export function HygienePage({
             <div className="df2-hygiene-section-title"><div><span>Rutina po rutině</span><h2>Statistiky</h2></div></div>
             <div className="df2-hygiene-stats-grid">
               {historicalRoutines.map((routine) => {
-                const stats = routineStats(store, routine.id, planningKey);
+                const stats = routineStats(hygieneStore, routine.id, planningKey);
                 return (
                   <article key={routine.id}>
                     <header><strong>{routine.title}</strong><span>{stats.successRate}%</span></header>
@@ -879,7 +881,7 @@ export function HygienePage({
           </div>
 
           <div className="df2-hygiene-manage-list">
-            {[...store.routines].sort((left, right) => left.order - right.order).map((routine) => {
+            {[...hygieneStore.routines].sort((left, right) => left.order - right.order).map((routine) => {
               const routineRunningToday = summaries.some((summary) => summary.routine.id === routine.id);
               return (
                 <article className={routine.active ? "" : "is-inactive"} key={routine.id}>
@@ -1007,7 +1009,7 @@ export function HygienePage({
             <label>
               Rutina
               <select aria-label="Rutina" value={taskDraft.targetRoutineId} onChange={(event) => setTaskDraft({ ...taskDraft, targetRoutineId: event.target.value })}>
-                {store.routines.map((routine) => <option key={routine.id} value={routine.id}>{routine.title}</option>)}
+                {hygieneStore.routines.map((routine) => <option key={routine.id} value={routine.id}>{routine.title}</option>)}
               </select>
             </label>
             <label>
