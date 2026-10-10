@@ -66,3 +66,23 @@ test("public fragrance results use exact product identity before fetching a page
     + 'Jean Paul Gaultier Le Male Elixir Parfum</a>';
   assert.equal(duckDuckGoResults(html, query).length, 1);
 });
+
+test("fragrance-free skincare remains skincare rather than perfume", () => {
+  const html = '<html><head><script type="application/ld+json">'
+    + JSON.stringify({ "@type": "Product", name: "Sensitive Face Moisturizer",
+      brand: { name: "Derm Brand" }, description: "Fragrance-free moisturizer for sensitive skin." })
+    + '</script></head></html>';
+  assert.equal(fromHtml(html, "https://example.org/face-moisturizer").category, "Pleť");
+});
+
+test("a fragrance size in JSON-LD can verify an exact bottle size without appearing in the title", () => {
+  const html = '<html><head><script type="application/ld+json">'
+    + JSON.stringify({ "@type": "Product", name: "Le Male Elixir Parfum", brand: { name: "Jean Paul Gaultier" },
+      category: "Perfume", size: "125 ml" }) + '</script></head></html>';
+  const product = fromHtml(html, "https://example.org/le-male-elixir");
+  const requested = "Jean Paul Gaultier Le Male Elixir 125 ml";
+  assert.equal(productPageIsRelevant(product.name, requested, product.brand, "", product.amount), true);
+  assert.equal(productPageIsRelevant("Le Male Elixir Parfum", requested, "", query, "125 ml"), true);
+  assert.equal(productPageIsRelevant("Le Male Elixir Parfum", requested, "", query, "75 ml"), false);
+  assert.equal(productPageIsRelevant(product.name, requested, product.brand, "", "75 ml"), false);
+});
