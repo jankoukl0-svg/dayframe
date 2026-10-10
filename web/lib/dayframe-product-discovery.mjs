@@ -23,27 +23,48 @@ export function productMatchScore(candidate, query) {
   return coverage * .87 + precision * .13;
 }
 
-export function productPageIsRelevant(candidate, query, brand = "") {
+export function productPageIsRelevant(candidate, query, brand = "", indexedTitle = "") {
   const families = ["cleanser", "cream", "serum", "lotion", "toner", "shampoo", "conditioner",
     "sunscreen", "mask", "oil", "balm", "scrub", "exfoliant", "moisturizer", "wash", "deodorant"];
+  const name = brand ? candidate + " " + brand : candidate;
   const wanted = new Set(canonicalProductTokens(query));
-  const actualFamilies = new Set(canonicalProductTokens(candidate).filter((part) => families.includes(part)));
+  const actual = canonicalProductTokens(name);
+  const actualFamilies = new Set(actual.filter((part) => families.includes(part)));
   const wantedFamilies = families.filter((part) => wanted.has(part));
   if (wantedFamilies.length && actualFamilies.size
     && !wantedFamilies.some((part) => actualFamilies.has(part))) return false;
-  const score = productMatchScore(candidate, query);
-  const tokens = canonicalProductTokens(query);
-  if (tokens.length >= 3 && score < .69) return false;
-  if (tokens.length === 2 && score < .9) return false;
-  if (tokens.length === 1 && score < .94) return false;
-  if (brand) {
-    // Many manufacturers omit their own brand from the <h1>; verified by host elsewhere.
-    const brandPart = canonicalProductTokens(brand);
-    const actual = new Set(canonicalProductTokens(candidate));
-    if (brandPart.length && actual.size > 0 && brandPart.every((part) => actual.has(part)))
-      return true;
+
+  // A family match must not silently turn an exact perfume/cosmetic variant
+  // into a different flanker (e.g. Le Male Elixir vs Elixir Absolu).
+  for (const qualifier of ["absolu", "elixir", "intense", "extreme", "ultra", "sport", "extrait"]) {
+    if (actual.includes(qualifier) && !wanted.has(qualifier)) return false;
   }
-  return score >= (tokens.length === 1 ? .94 : tokens.length === 2 ? .9 : .69);
+  const volumes = (value) => [...String(value).toLowerCase().matchAll(/\b\d+(?:[.,]\d+)?\s*(?:ml|cl|oz)\b/g)]
+    .map((match) => match[0].replace(/\s+/g, ""));
+  const requestedSizes = volumes(query), candidateSizes = volumes(candidate);
+  if (requestedSizes.length && candidateSizes.length
+    && !candidateSizes.some((size) => requestedSizes.includes(size))) return false;
+
+  const tokens = canonicalProductTokens(query);
+  const score = productMatchScore(name, query);
+  const threshold = tokens.length === 1 ? .94 : tokens.length === 2 ? .9 : .69;
+  if (score >= threshold) return true;
+
+  // Product pages often call a perfume only "Le Male Elixir", while their
+  // indexed result includes "Jean Paul Gaultier". Accept such shortened
+  // titles ONLY when the indexed title matches the entire query and the
+  // exact trailing product identity is present without extra variant words.
+  if (indexedTitle && tokens.length >= 5 && productPageIsRelevant(indexedTitle, query)) {
+    const tail = tokens.slice(-3);
+    const foundTail = actual.some((part, index) => part === tail[0]
+      && tail.every((token, offset) => actual[index + offset] === token));
+    const generic = new Set(["parfum", "perfume", "fragrance", "eau", "de", "toilette",
+      "edp", "edt", "spray", "ml", "cl", "oz", "pour", "homme", "men", "women"]);
+    const unknown = actual.filter((token) => !wanted.has(token)
+      && !generic.has(token) && !/^\d+$/.test(token));
+    return foundTail && unknown.length === 0;
+  }
+  return false;
 }
 
 function decodeMarkup(value) {
