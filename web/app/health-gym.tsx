@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGymStore } from "./use-gym-store";
 import {
-  assignmentsOnDate, dateShift, gymMetrics, lastExercisePerformance,
+  assignmentsOnDate, dateShift, gymMetrics, lastExercisePerformance, weekday,
   makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan, setGymDayWeekday,
   type GymExercise, type GymPlan, type GymPlanDay, type GymPlanExercise,
   type GymSession, type GymSessionExercise, type GymSet, type GymTemplate
@@ -17,6 +17,7 @@ const formatKg = (value:number)=>new Intl.NumberFormat("cs-CZ",{maximumFractionD
 export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;focusKey?:string|null;focusDate?:string|null;onFocusHandled?:()=>void}) {
   const {store,hydrated,blocked,error,persist}=useGymStore();
   const [view,setView]=useState<GymView>("workout");
+  const [selectedDayId,setSelectedDayId]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState(today);
   const [selectedSession,setSelectedSession]=useState<string|null>(null);
   const [highlightKey,setHighlightKey]=useState<string|null>(null);
@@ -51,6 +52,29 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const days=useMemo(()=>Array.from({length:14},(_,i)=>dateShift(selectedDate,i-3)),[selectedDate]);
   const occurrences=useMemo(()=>days.flatMap(date=>assignmentsOnDate(store,date)),[days,store]);
   const metrics=useMemo(()=>gymMetrics(store),[store]);
+  const activePlan=store.plans.find(p=>p.id===store.activePlanId)??null;
+  const activeDay=activePlan?.days.find(d=>d.id===selectedDayId)??activePlan?.days[0]??null;
+  // The schedule browser can inspect history; the dashboard remains anchored to today.
+  const currentDates=useMemo(()=>Array.from({length:22},(_,i)=>dateShift(today,i)),[today]);
+  const upcomingOccurrences=useMemo(()=>currentDates.flatMap(date=>assignmentsOnDate(store,date))
+    .filter(o=>!o.completed).sort((a,b)=>a.date.localeCompare(b.date)),[currentDates,store]);
+  const nearest=upcomingOccurrences[0]??null;
+  const activeDayOccurrence=upcomingOccurrences.find(o=>o.dayId===activeDay?.id)??null;
+  const monday=dateShift(today,-((weekday(today)+6)%7));
+  const weekDates=Array.from({length:7},(_,i)=>dateShift(monday,i));
+  const completedWeek=metrics.workouts.filter(w=>w.date>=monday&&w.date<=weekDates[6]).length;
+  const selectedWeekOccurrences=weekDates.flatMap(day=>assignmentsOnDate(store,day));
+  const weekTotal=selectedWeekOccurrences.length;
+  const weekDayShort=["Po","Út","St","Čt","Pá","So","Ne"];
+  const exerciseName=(id:string)=>store.exercises.find(ex=>ex.id===id)?.name??"Neznámý cvik";
+  const createQuickPpl=()=>{
+    if(blocked||store.activePlanId)return;
+    const created=makeGymPlan("Push / Pull / Lower","ppl",today);
+    if(persist(s=>{
+      if(s.activePlanId)return s;
+      return setActiveGymPlan({...s,plans:[...s.plans,created]},created.id,today);
+    })){setSelectedDayId(created.days[0]?.id??null);setEditedPlanId(null);setMessage("");}
+  };
   const library=useMemo(()=>store.exercises.filter(e=>[e.name,e.muscle,e.equipment].join(" ").toLocaleLowerCase("cs")
     .includes(exerciseQuery.toLocaleLowerCase("cs"))).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery]);
   const savePlan=(id:string,fn:(plan:GymPlan)=>GymPlan)=>persist(s=>({...s,plans:s.plans.map(p=>p.id===id?fn(p):p)}));
@@ -126,7 +150,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   if(!hydrated)return <div className="df2-gym-loading">Načítám tréninkový deník…</div>;
   return <div className="df2-gym" data-gym-root>
     <header className="df2-gym-heading"><div><span>ETAPA 2 · TRÉNINKOVÝ DENÍK</span><h2>Gym & Tréninky</h2>
-      <p>Plán, cviky, série i historie na jednom místě.</p></div>
+      <p>Tvůj tréninkový plán, záznamy a pokrok na jednom místě.</p></div>
       <button type="button" disabled={blocked} className="df2-accent-button" onClick={()=>{setNewPlan(true);setMessage("");}}>+ Tréninkový plán</button>
     </header>
     <nav className="df2-gym-nav" aria-label="Gym navigace">
@@ -198,22 +222,81 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
           <button className="df2-primary" type="button" onClick={doneSession}>{session.completedAt?"Znovu otevřít trénink":"Dokončit trénink"}</button>
         </div>
       </section> : <>
-        <div className="df2-gym-section-head"><div><span>AKTIVNÍ PLÁN</span><h3>{store.plans.find(p=>p.id===store.activePlanId)?.name??"Zatím žádný aktivní plán"}</h3></div>
-          <button type="button" onClick={()=>setView("plans")}>Spravovat plány</button></div>
-        <div className="df2-gym-inline"><label>Prohlížet od data <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value||today)}/></label>
-          <button type="button" onClick={()=>setSelectedDate(today)}>Tento týden</button></div>
-        {occurrences.length?<div className="df2-gym-appointments">{occurrences.map(occ=>
-          <article key={occ.key} data-gym-occurrence={occ.key} className={highlightKey===occ.key?"is-highlighted":""}>
-            <div><time dateTime={occ.date}>{pretty(occ.date)}</time><strong>{occ.name}</strong>
-              <small>{occ.completed?"✓ Dokončeno":occ.session?"Rozpracováno":occ.originalDate!==occ.date?"Přesunuto z "+pretty(occ.originalDate):"Naplánováno"}</small></div>
-            <div className="df2-gym-inline">
-              {!occ.session && <input type="date" aria-label={"Přesunout "+occ.name+" z "+occ.originalDate} min={today} value={occ.date}
-                onChange={e=>persist(s=>moveOccurrence(s,occ.key,e.target.value))}/>}
-              <button type="button" onClick={()=>showSession(occ.key,occ.date)}>{occ.completed?"Zobrazit / upravit":occ.session?"Pokračovat":"Zahájit"}</button>
+        <div className="df2-gym-summary" data-gym-summary>
+          <div><small>Aktivní split</small><strong>{activePlan?.name??"Nenastaveno"}</strong></div>
+          <div><small>Tento týden</small><strong>{completedWeek} / {weekTotal} tréninků</strong></div>
+          <div><small>Další trénink</small><strong>{nearest?nearest.name+" · "+pretty(nearest.date):"Zatím neplánováno"}</strong></div>
+        </div>
+        {!activePlan ? <section className="df2-gym-welcome" data-gym-setup>
+          <div><span>ZAČNI JEDNÍM KROKEM</span><h3>Tvůj split: Push / Pull / Lower</h3>
+            <p>Tři tréninkové dny. Cviky, série a rozvrh si můžeš kdykoli upravit. Žádný plán se nevytvoří bez tvého potvrzení.</p>
+            <div className="df2-gym-welcome-split">
+              <span><strong>Push</strong><small>Hrudník · ramena · triceps</small></span>
+              <span><strong>Pull</strong><small>Záda · biceps</small></span>
+              <span><strong>Lower</strong><small>Nohy · core</small></span>
             </div>
-          </article>)}</div>:
-          <p className="df2-health-empty">Žádné tréninky v tomto období. Vytvoř a aktivuj plán nebo změň zobrazené datum.</p>}
-        {!!history.length && <section className="df2-gym-history"><h3>Historie tréninků</h3>
+          </div>
+          <button type="button" className="df2-accent-button" disabled={blocked} onClick={createQuickPpl}>Použít split Push / Pull / Lower →</button>
+        </section> : <>
+          <section className="df2-gym-split" data-gym-split>
+            <div className="df2-gym-section-head">
+              <div><h3>Tréninkový split</h3><small>{activePlan.name} · vyber trénink pro náhled</small></div>
+              <button type="button" onClick={()=>{setEditedPlanId(activePlan.id);setView("plans");}}>Upravit plán</button>
+            </div>
+            <div className="df2-gym-split-days">
+              {activePlan.days.map(day=><button key={day.id} type="button" data-gym-day={day.name}
+                aria-pressed={activeDay?.id===day.id} onClick={()=>setSelectedDayId(day.id)}>
+                <strong>{day.name}</strong><small>{day.exercises.length} cviků</small><span aria-hidden="true">→</span>
+              </button>)}
+            </div>
+          </section>
+          {activeDay&&<section className="df2-gym-workout-preview" data-gym-workout-preview>
+            <div className="df2-gym-section-head">
+              <div><span>TRÉNINKOVÝ DEN</span><h3>{activeDay.name}</h3>
+                <small>{activeDay.exercises.length} cviků · {WEEKDAYS[activeDay.weekday]}</small></div>
+              <div className="df2-gym-inline">
+                <button type="button" onClick={()=>{setEditedPlanId(activePlan.id);setView("plans");}}>Upravit cviky</button>
+                {activeDayOccurrence&&<button type="button" className="df2-primary" disabled={blocked}
+                  onClick={()=>showSession(activeDayOccurrence.key,activeDayOccurrence.date)}>
+                  {activeDayOccurrence.session?"Pokračovat":"Zahájit trénink"}</button>}
+              </div>
+            </div>
+            {activeDay.exercises.length?<div className="df2-gym-preview-list">
+              <div className="df2-gym-preview-labels"><span>Cvik</span><span>Série</span><span>Opak.</span></div>
+              {activeDay.exercises.map((ex,i)=><div className="df2-gym-preview-row" key={ex.id}>
+                <span><small>{String(i+1).padStart(2,"0")}</small><strong>{exerciseName(ex.exerciseId)}</strong></span>
+                <b>{ex.sets}</b><b>{ex.reps}</b>
+              </div>)}
+            </div>:<div className="df2-gym-preview-empty">Tento den zatím nemá cviky. Otevři „Upravit cviky“ a sestav si vlastní trénink.</div>}
+          </section>}
+          <section className="df2-gym-week-strip" data-gym-week>
+            <div className="df2-gym-section-head"><h3>Tento týden</h3><small>Jen skutečně naplánované tréninky</small></div>
+            <div className="df2-gym-week-days">{weekDates.map((date,index)=>{
+              const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
+              return <div key={date} className={date===today?"is-today":""}>
+                <small>{weekDayShort[index]} · {date.slice(8)}.{date.slice(5,7)}.</small>
+                <strong>{scheduled.length?scheduled.map(o=>o.name).join(" / "):"—"}</strong>
+              </div>;
+            })}</div>
+          </section>
+        </>}
+        <section className="df2-gym-schedule" data-gym-schedule>
+          <div className="df2-gym-section-head"><div><h3>Naplánované tréninky</h3><small>Termíny a jejich splnění jsou propojené s Dnes a Týdnem.</small></div>
+            <div className="df2-gym-inline"><label>Prohlížet od data <input aria-label="Prohlížet od data" type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value||today)}/></label>
+            <button type="button" onClick={()=>setSelectedDate(today)}>Tento týden</button></div></div>
+          {occurrences.length?<div className="df2-gym-appointments">{occurrences.map(occ=>
+            <article key={occ.key} data-gym-occurrence={occ.key} className={highlightKey===occ.key?"is-highlighted":""}>
+              <div><time dateTime={occ.date}>{pretty(occ.date)}</time><strong>{occ.name}</strong>
+                <small>{occ.completed?"✓ Dokončeno":occ.session?"Rozpracováno":occ.originalDate!==occ.date?"Přesunuto z "+pretty(occ.originalDate):"Naplánováno"}</small></div>
+              <div className="df2-gym-inline">
+                {!occ.session && <input type="date" aria-label={"Přesunout "+occ.name+" z "+occ.originalDate} min={today} value={occ.date}
+                  onChange={e=>persist(s=>moveOccurrence(s,occ.key,e.target.value))}/>}
+                <button type="button" onClick={()=>showSession(occ.key,occ.date)}>{occ.completed?"Zobrazit / upravit":occ.session?"Pokračovat":"Zahájit"}</button>
+              </div>
+            </article>)}</div>:
+            <p className="df2-health-empty">Žádné tréninky v tomto období. {store.plans.length?"Uprav rozvrh nebo změň zobrazené datum.":"Vyber split výše nebo vytvoř vlastní plán."}</p>}
+        </section>
+        {!!history.length&&<section className="df2-gym-history" data-gym-history><div className="df2-gym-section-head"><h3>Historie tréninků</h3><small>Skutečné záznamy</small></div>
           {history.slice(0,20).map(s=><button key={s.id} type="button" onClick={()=>setSelectedSession(s.id)}>
             <span>{s.date} · {s.title}</span><strong>{s.completedAt?"Dokončeno":"Rozpracováno"}</strong></button>)}
         </section>}
