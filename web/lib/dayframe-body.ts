@@ -131,7 +131,7 @@ export function bodyGoalProgress(store:BodyStore,goal:BodyGoal,date:string) {
   if(current===null)return {current:null,percent:null,reached:false};
   const reached=origin===null ? Math.abs(current-goal.target)<0.001 :
     origin<goal.target?current>=goal.target:origin>goal.target?current<=goal.target:Math.abs(current-goal.target)<0.001;
-  const progress=origin===null?null:origin===goal.target?100:
+  const progress=origin===null?null:origin===goal.target?(reached?100:0):
     Math.round(Math.max(0,Math.min(100,((current-origin)/(goal.target-origin))*100)));
   return {current,percent:progress,reached};
 }
