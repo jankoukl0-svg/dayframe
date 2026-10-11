@@ -59,9 +59,12 @@ function priceOf(value){
 export function supplementFromHtml(html,url){
   let base;try{base=new URL(url);if(base.protocol!=="https:")return null;}catch{return null;}
   const ld=jsonLdProduct(html),m=meta(html);
-  const rawTitle=clean(ld?.name||m["og:title"]||m["twitter:title"]||
+  const structuredName=clean(ld?.name,160);
+  const rawTitle=clean(m["og:title"]||m["twitter:title"]||
     html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1],220);
-  const name=rawTitle.replace(/^recenze\s*[-–:]\s*/i,"")
+  // Structured Product.name is the authoritative title; only strip SEO
+  // suffixes from page titles when Product metadata is absent.
+  const name=structuredName||rawTitle.replace(/^recenze\s*[-–:]\s*/i,"")
     .replace(/\s+[-|–]\s+(?:GymBeam(?:\.cz)?|[\w.-]+\.(?:cz|com|eu)|Recenze).*$/i,"").trim().slice(0,160);
   if(name.length<3)return null;
   const brand=brandOf(ld?.brand||m["product:brand"]||m.brand);

@@ -44,7 +44,8 @@ test("public web results exclude cosmetic collisions while allowing ingestible s
   assert.equal(plausibleSupplementListing("Magnesium Citrate 60 capsules","Ostatní","Supplement"),true);
   assert.equal(plausibleSupplementListing("Collagen 60 kapslí","Ostatní",""),true);
 });
-\ntest("GymBeam URL produces a clearly unverified, safe fallback without invented photo, pack or dose",()=>{
+
+test("GymBeam URL produces a clearly unverified, safe fallback without invented photo, pack or dose",()=>{
   const url="https://gymbeam.cz/omega-3-gym-beam.html";
   const suggestion=supplementSuggestionFromUrl(url);
   assert.ok(suggestion);
