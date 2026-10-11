@@ -156,6 +156,7 @@ export function DayframeV2() {
   const [hygieneRoutineFocus, setHygieneRoutineFocus] = useState<string | null>(null);
   const [healthRoutineFocus, setHealthRoutineFocus] = useState<string | null>(null);
   const [gymFocus, setGymFocus] = useState<{ key:string; date:string } | null>(null);
+  const [supplementsFocus,setSupplementsFocus] = useState(false);
   const gym = useGymStore();
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
@@ -574,7 +575,7 @@ export function DayframeV2() {
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "hygiene"} onClick={() => { setHygieneRoutineFocus(null); setView("hygiene"); }} label="Hygiena" shortcut="6" icon={<Droplets size={14} aria-hidden="true" />} />
-            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setGymFocus(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
+            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setGymFocus(null); setSupplementsFocus(false); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
           <div className="df2-sidebar-bottom"><span>Den končí</span><strong>02:00</strong></div>
@@ -607,6 +608,7 @@ export function DayframeV2() {
                 setView("health");
               }}
               onOpenGym={(key,date) => { setGymFocus({key,date}); setView("health"); }}
+              onOpenSupplements={() => {setSupplementsFocus(true);setView("health");}}
             />
           )}
 
@@ -621,7 +623,8 @@ export function DayframeV2() {
           {view === "health" && (
             <HealthPage planningKey={todayKey} focusRoutineId={healthRoutineFocus}
               onFocusHandled={() => setHealthRoutineFocus(null)} focusGymKey={gymFocus?.key} focusGymDate={gymFocus?.date}
-              onGymFocusHandled={() => setGymFocus(null)} />
+              onGymFocusHandled={() => setGymFocus(null)} focusSupplements={supplementsFocus}
+              onSupplementsFocusHandled={() => setSupplementsFocus(false)} />
           )}
 
           {view === "week" && (
@@ -826,7 +829,7 @@ function NavButton({ active, onClick, label, shortcut, icon }: { active: boolean
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, completingTaskIds,
+  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, onOpenSupplements, completingTaskIds,
 }: {
   now: Date;
   tasks: CalendarTask[];
@@ -845,6 +848,7 @@ function TodayView({
   onOpenHygiene: (routineId: string) => void;
   onOpenHealth: (routineId: string) => void;
   onOpenGym: (key: string,date:string) => void;
+  onOpenSupplements:()=>void;
   completingTaskIds: ReadonlySet<string>;
 }) {
   const [checklistSummary, setChecklistSummary] = useState({ planningKey: "", completed: 0, total: 0, hydrated: false, blocked: false });
@@ -946,7 +950,7 @@ function TodayView({
           </div>
         )}
       </section>
-      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} />
+      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} onOpenSupplements={onOpenSupplements} />
 
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">

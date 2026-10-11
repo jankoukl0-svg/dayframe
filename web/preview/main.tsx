@@ -44,6 +44,7 @@ import "../app/daily-checklist.css";
 import "../app/hygiene-page.css";
 import "../app/health-page.css";
 import "../app/health-gym.css";
+import "../app/health-supplements.css";
 import "../app/dayframe-countdowns.css";
 import "../app/milestone-alignment.css";
 import "../app/week-calendar-polish.css";

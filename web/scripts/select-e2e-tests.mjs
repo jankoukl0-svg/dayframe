@@ -113,6 +113,9 @@ for (const file of changed) {
   if (lower.includes("label")) addPrefix("label-");
   if (lower.includes("notification")) add("notifications.spec.mjs");
   if (lower.includes("dayframe-product-packshots")) add("hygiene-packshots.spec.mjs");
+  if (lower.includes("supplement") || lower.includes("health") || lower.includes("daily-checklist") || file === "web/app/dayframe-v2.tsx") {
+    add("health-supplements-stage3.spec.mjs");
+  }
   if (lower.includes("gym") || lower.includes("health") || lower.includes("daily-checklist") || file === "web/app/dayframe-v2.tsx") {
     add("health-gym-stage2.spec.mjs");
   }
