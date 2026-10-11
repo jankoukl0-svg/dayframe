@@ -62,3 +62,15 @@ export function foodCatalogCandidates(products:Record<string,unknown>[],query:st
       packServings:pack?.count??null,packUnit:pack?.unit??""}];
   }).slice(0,5);
 }
+
+/** Reject cosmetic products with the same ingredient name as a supplement. */
+export function plausibleSupplementListing(name:string,category:string,description=""):boolean{
+  const info=(name+" "+category).toLocaleLowerCase("cs");
+  const ingestible=/\b(?:dietary|supplements?|capsules?|caps?|tablets?|softgels?|powder|drink|oral|gummies|sachets?)\b/i.test(info)
+    ||/(?:kapsl|tablety|doplněk stravy|doplnky stravy|prášek k užití)/i.test(info);
+  const topical=/\b(?:face|facial|skin|body|hair|lotion|serum|cream|topical|perfume|fragrance|shampoo|cleanser|skincare|deodorant|spray|wash|soap)\b/i.test(info)
+    ||/(?:pleťov|pleť|krém|šamp[oó]n|sprchov|pokožk)/i.test(info);
+  const cosmeticCategory=/^(?:Pleť|Tělo|Vlasy|Zuby|Holení|Vůně|Pomůcky)$/i.test(category.trim());
+  if((topical||cosmeticCategory)&&!ingestible)return false;
+  return looksLikeSupplementCategory(name+" "+description+" "+category)||ingestible;
+}

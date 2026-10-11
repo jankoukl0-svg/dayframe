@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {packCountFromLabel,looksLikeSupplementCategory,sameSupplementProduct,foodCatalogCandidates} from "./dayframe-supplement-lookup.ts";
+import {packCountFromLabel,looksLikeSupplementCategory,sameSupplementProduct,foodCatalogCandidates,plausibleSupplementListing} from "./dayframe-supplement-lookup.ts";
 test("extracts package counts but never invents dosing from mg strength or weight",()=>{
   assert.deepEqual(packCountFromLabel("Vitamin C 1000 mg – 60 kapslí"),{count:60,unit:"kapsle"});
   assert.deepEqual(packCountFromLabel("Creatine 120 capsules"),{count:120,unit:"kapsle"});
@@ -34,4 +34,13 @@ test("Open Food Facts supplement results are identity-filtered and never supply 
   assert.equal(results[0].priceCzk,null);
   assert.equal("doseLabel" in results[0],false);
   assert.ok(results[0].imageUrl.startsWith("https://"));
+});
+
+test("public web results exclude cosmetic collisions while allowing ingestible supplements",()=>{
+  assert.equal(plausibleSupplementListing("Collagen Face Serum","Pleť","Collagen peptide skincare"),false);
+  assert.equal(plausibleSupplementListing("Magnesium Body Spray","Tělo","Magnesium skincare"),false);
+  assert.equal(plausibleSupplementListing("Vitamin C Cream","Pleť","Vitamin C antioxidant serum"),false);
+  assert.equal(plausibleSupplementListing("Creatine Monohydrate 500g","Ostatní","Creatine powder"),true);
+  assert.equal(plausibleSupplementListing("Magnesium Citrate 60 capsules","Ostatní","Supplement"),true);
+  assert.equal(plausibleSupplementListing("Collagen 60 kapslí","Ostatní",""),true);
 });

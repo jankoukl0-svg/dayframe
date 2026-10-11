@@ -29,7 +29,16 @@ export function SupplementAutoLookup({hint,onApply,onPhoto,onBusy,manualPhoto}:P
   useEffect(()=>{manualRef.current=manualPhoto;},[manualPhoto]);
   useEffect(()=>{callbackRef.current={onApply,onPhoto,onBusy};},[onApply,onPhoto,onBusy]);
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;request.current++;photoRequest.current++;callbackRef.current.onBusy(false);};},[]);
-  useEffect(()=>{if(hint!==null&&hint.trim().length>=3)setQuery(hint);},[hint]);
+  const invalidatePending=()=>{
+    request.current++;photoRequest.current++;lastQuery.current="";
+    setBusy(false);setFindingPhoto(false);setMatches([]);
+    callbackRef.current.onBusy(false);
+  };
+  useEffect(()=>{
+    if(hint!==null){invalidatePending();setQuery(hint);}
+  // Changes typed into name/link fields must cancel pending responses immediately.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[hint]);
 
   const apply=async(match:SupplementLookupMatch)=>{
     request.current++;setBusy(false);
@@ -118,7 +127,7 @@ export function SupplementAutoLookup({hint,onApply,onPhoto,onBusy,manualPhoto}:P
     <div className="df2-supplement-autofill-row">
       <input type="text" aria-label="Název nebo odkaz suplementu" value={query}
         placeholder="Např. MyProtein Creatine nebo https://…"
-        onChange={e=>{setQuery(e.target.value);lastQuery.current="";}}
+        onChange={e=>{invalidatePending();setQuery(e.target.value);}}
         onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();void search(query,true);}}}/>
       <button type="button" disabled={busy||findingPhoto} onClick={()=>void search(query,true)}>
         {busy?"Vyhledávám…":"Vyhledat"}

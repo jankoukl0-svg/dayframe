@@ -93,3 +93,24 @@ test("failed lookup preserves manually entered personal fields and photograph up
   await expect(dialog.getByRole("textbox",{name:"Dávkování"})).toHaveValue("Z etikety");
   await expect(dialog.getByLabel("Nahrát fotografii suplementu")).toBeAttached();
 });
+
+test("stale URL lookup cannot overwrite a newly typed product name during debounce",async({page})=>{
+  const dialog=await setup(page);
+  let resolveOld;
+  await page.route("**/api/supplement-product-lookup?*",async route=>{
+    const query=new URL(route.request().url()).searchParams.get("query")||"";
+    if(query.includes("old-product")){
+      await new Promise(resolve=>{resolveOld=resolve;});
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({matches:[A]})}).catch(()=>{});
+    }
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({matches:[],notice:"Bez výsledku"})});
+  });
+  const input=dialog.getByRole("textbox",{name:"Název nebo odkaz suplementu"});
+  await input.fill("https://example.com/old-product");
+  await expect.poll(()=>typeof resolveOld).toBe("function");
+  await input.fill("Nový jiný produkt");
+  resolveOld();
+  await expect(dialog.getByRole("textbox",{name:"Název suplementu"})).toHaveValue("");
+  await expect(input).toHaveValue("Nový jiný produkt");
+  await expect(dialog.locator(".df2-supplements-photo-editor img")).toHaveCount(0);
+});

@@ -6,7 +6,7 @@
 import {fromHtml} from "./hygiene-product-lookup";
 import {readLimited,requestPublic} from "./supplement-remote";
 import {bingRssResults,duckDuckGoResults,rankProductLinks,productPageIsRelevant} from "../lib/dayframe-product-discovery.mjs";
-import {foodCatalogCandidates,packCountFromLabel,sameSupplementProduct,
+import {foodCatalogCandidates,packCountFromLabel,sameSupplementProduct,plausibleSupplementListing,
   type SupplementLookupMatch} from "../lib/dayframe-supplement-lookup";
 
 const str=(v:unknown,max=160)=>typeof v==="string"?v.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,max):"";
@@ -47,13 +47,14 @@ async function researchProductPages(query:string){
     ...(a.status==="fulfilled"?a.value:[]),
     ...(b.status==="fulfilled"?b.value:[])
   ],query).slice(0,6);
-  const results=await Promise.all(discovered.map(async link=>{
+  const results=await Promise.all(discovered.map(async (link:{url:string;title:string})=>{
     try{
       const r=await requestPublic(link.url,"text/html",4200);
       if(!(r.headers.get("content-type")??"").toLowerCase().includes("text/html"))return null;
       const html=new TextDecoder().decode(await readLimited(r,1_100_000,true));
       const found=fromHtml(html,link.url);
-      if(!found||!productPageIsRelevant(found.name,query,found.brand,link.title,found.amount))return null;
+      if(!found||!productPageIsRelevant(found.name,query,found.brand,link.title,found.amount)
+        ||!plausibleSupplementListing(found.name,found.category,found.description))return null;
       return found;
     }catch{return null;}
   }));
