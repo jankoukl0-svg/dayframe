@@ -17,12 +17,14 @@ export function GymExercisePicker({exercises,label,dayName="",disabled=false,pla
   const [filter,setFilter]=useState<GymExerciseFilter>(()=>defaultGymExerciseFilter(dayName));
   const container=useRef<HTMLDivElement>(null);
   const search=useRef<HTMLInputElement>(null);
+  const manuallySelectedFilter=useRef(false);
   const toggle=useRef<HTMLButtonElement>(null);
   const id=useId();
   const groups=useMemo(()=>searchGymExercises(exercises,query,filter),[exercises,query,filter]);
   const count=groups.reduce((sum,g)=>sum+g.items.length,0);
 
   const close=()=>{
+    manuallySelectedFilter.current=false;
     setOpen(false);setQuery("");
     setFilter(defaultGymExerciseFilter(dayName));
   };
@@ -47,7 +49,7 @@ export function GymExercisePicker({exercises,label,dayName="",disabled=false,pla
   return <div ref={container} className={"df2-gym-exercise-picker"+(open?" is-open":"")} data-placement={placement} data-gym-exercise-picker>
     <button ref={toggle} type="button" className="df2-gym-picker-toggle"
       aria-label={label} aria-expanded={open} aria-controls={id} disabled={disabled}
-      onClick={()=>open?close():(setQuery(""),setFilter(defaultGymExerciseFilter(dayName)),setOpen(true))}>
+      onClick={()=>open?close():(manuallySelectedFilter.current=false,setQuery(""),setFilter(defaultGymExerciseFilter(dayName)),setOpen(true))}>
       <span>{label.startsWith("Vyměnit")?"Vyměnit cvik":"+ Přidat cvik"}</span><span aria-hidden="true">{open?"⌃":"⌄"}</span>
     </button>
     {open&&<div id={id} role="region" aria-label={"Výběr cviku – "+label}
@@ -62,12 +64,12 @@ export function GymExercisePicker({exercises,label,dayName="",disabled=false,pla
           const value=event.target.value;
           // Typing searches every group so even a Push exercise can be found
           // from a Pull day's default view; chips still narrow results on demand.
-          if(value.trim()&&!query.trim())setFilter("Vše");
+          if(value.trim()&&!query.trim()&&!manuallySelectedFilter.current)setFilter("Vše");
           setQuery(value);
         }}/>
       <div className="df2-gym-picker-filters" role="group" aria-label="Skupina cviků">
         {(["Vše",...GYM_EXERCISE_GROUPS] as GymExerciseFilter[]).map(g=><button
-          type="button" key={g} aria-pressed={filter===g} onClick={()=>setFilter(g)}>{g}</button>)}
+          type="button" key={g} aria-pressed={filter===g} onClick={()=>{manuallySelectedFilter.current=true;setFilter(g);}}>{g}</button>)}
       </div>
       <div className="df2-gym-picker-results" data-gym-picker-results>
         {!count?<p className="df2-gym-picker-empty">Žádné odpovídající cviky. Zkus jiný název nebo kategorii.</p>:

@@ -445,6 +445,14 @@ test("pecdec finds chest and reverse rear delt variants from Pull with correct s
   await expect(chooser.getByRole("button",{name:"Vše",exact:true})).toHaveAttribute("aria-pressed","true");
   await expect(chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]')).toBeVisible();
   await expect(chooser.locator('[data-gym-picker-exercise="pec-deck"]')).toBeVisible();
+  // A chip deliberately clicked by the user must remain selected while typing.
+  await chooser.getByRole("button",{name:"Pull",exact:true}).click();
+  await input.fill("");
+  await input.fill("pecdec");
+  await expect(chooser.getByRole("button",{name:"Pull",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(chooser.locator('[data-gym-picker-exercise="pec-deck"]')).toHaveCount(0);
+  await expect(chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]')).toBeVisible();
+  await chooser.getByRole("button",{name:"Vše",exact:true}).click();
   await input.fill("pecdec na zadni ramena");
   await expect(chooser.locator('[data-gym-picker-exercise]')).toHaveCount(1);
   await chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]').click();
