@@ -102,3 +102,20 @@ test("weekday changes keep historical scheduled keys and actual logged completio
   assert.equal(assignmentsOnDate(store,"2026-10-19").some(x=>x.dayId===a.days[0].id),false);
   assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
 });
+
+test("new PPL template is Push / Pull / Lower with real editable exercises, and has no effect on existing plans",()=>{
+ const store=active();
+ const saved=JSON.stringify(store);
+ const ppl=makeGymPlan("Push / Pull / Lower","ppl","2026-10-11");
+ assert.deepEqual(ppl.days.map(day=>day.name),["Push","Pull","Lower"]);
+ assert.deepEqual(ppl.days.map(day=>day.weekday),[1,3,5]);
+ assert.equal(ppl.days[0].exercises.length,5);
+ assert.equal(ppl.days[0].exercises.every(ex=>store.exercises.some(e=>e.id===ex.exerciseId)),true);
+ assert.equal(JSON.stringify(store),saved);
+ let updated={...store,plans:[...store.plans,ppl]};
+ updated=setActiveGymPlan(updated,ppl.id,"2026-10-11");
+ assert.equal(assignmentsOnDate(updated,"2026-10-12")[0].name,"Push");
+ assert.equal(assignmentsOnDate(updated,"2026-10-14")[0].name,"Pull");
+ assert.equal(assignmentsOnDate(updated,"2026-10-16")[0].name,"Lower");
+ assert.equal(parseGymStore(JSON.stringify(updated)).blocked,false);
+});

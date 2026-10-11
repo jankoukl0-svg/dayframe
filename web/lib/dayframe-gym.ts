@@ -216,7 +216,7 @@ export function makeGymPlan(name:string,template:GymTemplate,createdOn?:string):
   const localDay=createdOn??[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
   if(!dateValid(localDay))throw Error("Neplatné datum vytvoření plánu.");
   const templates:Record<GymTemplate,Array<[string,number,string[]]>>={
-    "ppl":[["Push",1,["bench-press","incline-dumbbell","overhead-press","triceps-pushdown"]],["Pull",3,["pull-up","cable-row","biceps-curl"]],["Legs",5,["squat","romanian-deadlift","leg-curl","calf-raise"]]],
+    "ppl":[["Push",1,["bench-press","incline-dumbbell","overhead-press","lateral-raise","triceps-pushdown"]],["Pull",3,["pull-up","cable-row","biceps-curl"]],["Lower",5,["squat","romanian-deadlift","leg-curl","calf-raise"]]],
     "upper-lower":[["Upper",1,["bench-press","lat-pulldown","overhead-press","biceps-curl"]],["Lower",4,["squat","romanian-deadlift","leg-press","calf-raise"]]],
     "full-body":[["Full Body",1,["squat","bench-press","cable-row"]],["Full Body B",4,["romanian-deadlift","overhead-press","lat-pulldown"]]],
     "custom":[["Vlastní trénink",1,[]]]

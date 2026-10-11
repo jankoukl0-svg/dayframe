@@ -181,3 +181,56 @@ test("invalidated completed set cannot silently remain done and historical sessi
   saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.sessions[0].completedAt).toBeNull();
 });
+
+
+test("new user can opt into Push / Pull / Lower without losing original Gym data or adding duplicate tasks",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await expect(root.locator("[data-gym-setup]")).toBeVisible();
+  await expect(root.locator("[data-gym-summary]")).toContainText("Nenastaveno");
+  expect(await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY)).toMatchObject({plans:[],activePlanId:null});
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await expect(root.locator("[data-gym-split]")).toBeVisible();
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.plans).toHaveLength(1);
+  expect(saved.plans[0].days.map(day=>day.name)).toEqual(["Push","Pull","Lower"]);
+  expect(saved.activePlanId).toBe(saved.plans[0].id);
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Bench press");
+  await root.locator('[data-gym-day="Pull"]').click();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Shyby");
+  await root.locator('[data-gym-day="Lower"]').click();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Dřep s činkou");
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await expect(again.locator("[data-gym-split]")).toBeVisible();
+  const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(after.plans).toHaveLength(1);
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await expect(page.locator("[data-gym-checklist]")).toHaveCount(1);
+});
+
+test("clean gym preview is sourced from the real saved plan and starts an editable workout",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Vlastní Upper / Lower");
+  await expect(root.locator("[data-gym-summary]")).toContainText("Vlastní Upper / Lower");
+  await expect(root.locator("[data-gym-day]")).toHaveCount(2);
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Bench press");
+  await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  await expect(root.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
+  await expect(root.locator("[data-gym-log-exercise]").first()).toContainText("Bench press");
+  await root.getByRole("button",{name:"← Zpět na plán"}).click();
+  await expect(root.locator("[data-gym-schedule]")).toBeVisible();
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.sessions).toHaveLength(1);
+  expect(saved.sessions[0].completedAt).toBeNull();
+});
+
+test("mobile Gym dashboard keeps plan selection and the real workout preview readable",async({page})=>{
+  await page.setViewportSize({width:375,height:812});
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await expect(root.locator("[data-gym-day]")).toHaveCount(3);
+  await root.locator('[data-gym-day="Pull"]').click();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Shyby");
+});
