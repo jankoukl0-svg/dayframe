@@ -90,7 +90,10 @@ test("custom exercises, plans and historical progress are retained without gym d
   await modal.getByRole("button",{name:"Uložit cvik"}).click();
   await expect(root).toContainText("Bulharský dřep");
   await root.getByRole("button",{name:"Plány",exact:true}).click();
-  await root.getByRole("combobox",{name:/Přidat cvik do Upper/}).selectOption({label:"Bulharský dřep"});
+  await root.getByRole("button",{name:"Přidat cvik do Upper"}).click();
+  const customChoice=root.getByRole("region",{name:"Výběr cviku – Přidat cvik do Upper"});
+  await customChoice.getByRole("searchbox",{name:"Hledat cvik"}).fill("Bulharský dřep");
+  await customChoice.locator('[data-gym-picker-exercise]').filter({hasText:"Bulharský dřep"}).last().click();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days[0].exercises.some(item=>saved.exercises.find(ex=>ex.id===item.exerciseId)?.name==="Bulharský dřep")).toBe(true);
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
@@ -301,8 +304,10 @@ test("existing saved plans and user exercises gain new standard exercises withou
   await expect(again.locator(".df2-gym-library")).toContainText("Upravená osobní instrukce");
   await expect(again.locator(".df2-gym-library")).toContainText("Pec deck (motýlek)");
   await again.getByRole("button",{name:"Plány",exact:true}).click();
-  const add=again.getByRole("combobox",{name:"Přidat cvik do Upper"});
-  await add.selectOption("pec-deck");
+  await again.getByRole("button",{name:"Přidat cvik do Upper"}).click();
+  const add=again.getByRole("region",{name:"Výběr cviku – Přidat cvik do Upper"});
+  await add.getByRole("searchbox",{name:"Hledat cvik"}).fill("pec deck");
+  await add.locator('[data-gym-picker-exercise="pec-deck"]').click();
   const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(persisted.exercises).toHaveLength(73);
   expect(persisted.plans).toHaveLength(1);
@@ -324,4 +329,99 @@ test("unknown gym data remains blocked and untouched when the catalog expands",a
   await expect(root.getByRole("alert")).toContainText("zablokované");
   await root.getByRole("button",{name:"Cviky",exact:true}).click();
   expect(await page.evaluate(key=>localStorage.getItem(key),KEY)).toBe('{"version":999,"exercises":[]}');
+});
+
+
+test("Push/Pull/Lower plan pickers start in the matching group and allow fast accented or accent-free search",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  const editor=root.locator("[data-gym-plan-editor]");
+  const days=editor.locator(".df2-gym-day-edit");
+  await expect(days).toHaveCount(3);
+
+  const push=days.nth(0);
+  await push.getByRole("button",{name:"Přidat cvik do Push"}).click();
+  const pushPicker=push.getByRole("region",{name:"Výběr cviku – Přidat cvik do Push"});
+  await expect(pushPicker.getByRole("button",{name:"Push",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(pushPicker.locator('[data-gym-picker-exercise="bench-press"]')).toBeVisible();
+  await expect(pushPicker.locator('[data-gym-picker-exercise="pull-up"]')).toHaveCount(0);
+  await pushPicker.getByRole("searchbox",{name:"Hledat cvik"}).fill("rozpazovani");
+  await expect(pushPicker.locator('[data-gym-picker-exercise="cable-chest-fly"]')).toBeVisible();
+  await pushPicker.locator('[data-gym-picker-exercise="cable-chest-fly"]').click();
+  await expect(pushPicker).toHaveCount(0);
+  await expect(push).toContainText("Rozpažování na kladkách");
+
+  const pull=days.nth(1);
+  await pull.getByRole("button",{name:"Přidat cvik do Pull"}).click();
+  const pullPicker=pull.getByRole("region",{name:"Výběr cviku – Přidat cvik do Pull"});
+  await expect(pullPicker.getByRole("button",{name:"Pull",exact:true})).toHaveAttribute("aria-pressed","true");
+  await pullPicker.getByRole("searchbox",{name:"Hledat cvik"}).fill("kladivove");
+  await expect(pullPicker.locator('[data-gym-picker-exercise="hammer-curl"]')).toBeVisible();
+  await pullPicker.locator('[data-gym-picker-exercise="hammer-curl"]').click();
+
+  const lower=days.nth(2);
+  await lower.getByRole("button",{name:"Přidat cvik do Lower"}).click();
+  const lowerPicker=lower.getByRole("region",{name:"Výběr cviku – Přidat cvik do Lower"});
+  await expect(lowerPicker.getByRole("button",{name:"Lower",exact:true})).toHaveAttribute("aria-pressed","true");
+  await lowerPicker.getByRole("searchbox",{name:"Hledat cvik"}).fill("bulharsky");
+  await lowerPicker.locator('[data-gym-picker-exercise="bulgarian-split-squat"]').click();
+
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  const [a,b,c]=saved.plans[0].days;
+  expect(a.exercises.some(ex=>ex.exerciseId==="cable-chest-fly")).toBe(true);
+  expect(b.exercises.some(ex=>ex.exerciseId==="hammer-curl")).toBe(true);
+  expect(c.exercises.some(ex=>ex.exerciseId==="bulgarian-split-squat")).toBe(true);
+  await page.reload({waitUntil:"networkidle"});
+  const reloaded=await gym(page);
+  await reloaded.getByRole("button",{name:"Plány",exact:true}).click();
+  await expect(reloaded.locator("[data-gym-plan-editor]")).toContainText("Rozpažování na kladkách");
+  await expect(reloaded.locator("[data-gym-plan-editor]")).toContainText("Kladivové bicepsové zdvihy");
+});
+
+test("All groups, no-results, keyboard Escape and Enter work in a real plan picker",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page);
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  const day=root.locator(".df2-gym-day-edit").first();
+  const toggle=day.getByRole("button",{name:"Přidat cvik do Upper"});
+  await toggle.click();
+  const picker=day.getByRole("region",{name:"Výběr cviku – Přidat cvik do Upper"});
+  await expect(picker.getByRole("button",{name:"Vše",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(picker.locator(".df2-gym-picker-group")).toHaveCount(4);
+  const search=picker.getByRole("searchbox",{name:"Hledat cvik"});
+  await search.fill("neexistujicicvikXYZ");
+  await expect(picker).toContainText("Žádné odpovídající cviky");
+  await search.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  const again=day.getByRole("region",{name:"Výběr cviku – Přidat cvik do Upper"});
+  await again.getByRole("searchbox",{name:"Hledat cvik"}).fill("face pull");
+  await again.getByRole("searchbox",{name:"Hledat cvik"}).press("Enter");
+  await expect(again).toHaveCount(0);
+  await expect(day).toContainText("Face pull");
+});
+
+test("same searchable picker adds and replaces logged exercises without disturbing completed history",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page);
+  await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
+  const first=root.locator("[data-gym-log-exercise]").first();
+  const original=await first.getAttribute("data-gym-log-exercise");
+  await root.getByRole("button",{name:"Přidat cvik během tréninku"}).click();
+  const add=root.getByRole("region",{name:"Výběr cviku – Přidat cvik během tréninku"});
+  await add.getByRole("searchbox",{name:"Hledat cvik"}).fill("face pull");
+  await add.locator('[data-gym-picker-exercise="face-pull"]').click();
+  await expect(root.locator('[data-gym-log-exercise="face-pull"]')).toBeVisible();
+  await first.getByRole("button",{name:/Vyměnit cvik/}).click();
+  const picker=first.getByRole("region",{name:/Výběr cviku – Vyměnit cvik/});
+  await picker.getByRole("searchbox",{name:"Hledat cvik"}).fill("kladivove zdvihy");
+  await picker.locator('[data-gym-picker-exercise="hammer-curl"]').click();
+  await expect(root.locator('[data-gym-log-exercise="hammer-curl"]')).toBeVisible();
+  await expect(root.locator('[data-gym-log-exercise="'+original+'"]')).toHaveCount(0);
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.sessions[0].exercises.some(ex=>ex.exerciseId==="face-pull")).toBe(true);
+  expect(saved.sessions[0].exercises.some(ex=>ex.exerciseId==="hammer-curl")).toBe(true);
 });
