@@ -14,17 +14,21 @@ async function goHealth(page) {
   return page.getByRole("region", { name: "Zdraví", exact: true });
 }
 
-test("Health navigation is distinct and stage-two modules are clearly marked as future work", async ({ page }) => {
+test("Health navigation contains six active/future tabs without Hydration", async ({ page }) => {
   await fresh(page);
   const health = await goHealth(page);
   await expect(health.getByRole("heading", { name: "Zdraví", exact: true })).toBeVisible();
-  await expect(health.getByRole("tab")).toHaveCount(7);
+  await expect(health.getByRole("tab")).toHaveCount(6);
+  await expect(health.getByRole("tab", { name: "Hydratace" })).toHaveCount(0);
   await expect(health).toContainText("Pro dnešek nejsou naplánované žádné zdravotní návyky");
   await health.getByRole("tab", { name: "Gym & Tréninky" }).click();
-  await expect(health).toContainText("ETAPA 2");
-  await expect(health).not.toContainText("Absolvované tréninky");
+  await expect(health.getByRole("tab", { name: "Gym & Tréninky" })).toHaveAttribute("aria-selected", "true");
   await health.getByRole("tab", { name: "Suplementy" }).click();
-  await expect(health).toContainText("ETAPA 3");
+  await expect(health.getByRole("tab", { name: "Suplementy" })).toHaveAttribute("aria-selected", "true");
+  await health.getByRole("tab", { name: "Spánek & Regenerace" }).click();
+  await expect(health).toContainText("Zatím bez záznamů");
+  await health.getByRole("tab", { name: "Prevence" }).click();
+  await expect(health).toContainText("ETAPA 6");
   await health.getByRole("tab", { name: "Přehled" }).click();
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Hygiena" }).click();
   await expect(page.getByRole("tab", { name: "Moje produkty" })).toBeVisible();

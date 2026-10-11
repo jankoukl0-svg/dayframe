@@ -1,0 +1,40 @@
+/* Stage 5: Sleep & Recovery */
+.df2-sleep{display:grid;gap:17px;min-width:0}
+.df2-sleep-head,.df2-sleep-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.df2-sleep-head>div,.df2-sleep-card-head>div{display:grid;gap:5px}
+.df2-sleep-head span{font-size:10px;letter-spacing:.07em;font-weight:750;color:var(--accent-dark)}
+.df2-sleep-head h2{font-size:22px;margin:0;color:var(--ink)}
+.df2-sleep-head p,.df2-sleep-card p,.df2-sleep-card small,.df2-sleep-kpis small,.df2-sleep-kpis span{margin:0;font-size:11px;color:var(--muted)}
+.df2-sleep button{cursor:pointer}
+.df2-sleep button:disabled{opacity:.5;cursor:not-allowed}
+.df2-sleep-nav{display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:11px}
+.df2-sleep-nav button,.df2-sleep-actions button:not(.df2-primary),.df2-sleep-goal button{border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font-size:11px;font-weight:700;padding:8px 13px}
+.df2-sleep-nav button[aria-current=page]{border-color:var(--accent);color:var(--accent-dark);background:var(--accent-wash)}
+.df2-sleep-content{display:grid;gap:15px;min-width:0}
+.df2-sleep-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.df2-sleep-kpis article,.df2-sleep-card{display:grid;gap:12px;border:1px solid var(--line);border-radius:12px;padding:17px;background:var(--paper);min-width:0}
+.df2-sleep-kpis strong{color:var(--ink);font-size:22px;font-weight:750}
+.df2-sleep-card h3{font-size:16px;color:var(--ink);margin:0}
+.df2-sleep-card-head label,.df2-sleep-fields label,.df2-sleep-goal label,.df2-sleep-note{display:grid;gap:6px;font-size:11px;font-weight:700;color:var(--ink)}
+.df2-sleep input,.df2-sleep select,.df2-sleep textarea{padding:9px 10px;border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);background:var(--paper);min-width:0;font:inherit;font-size:12px}
+.df2-sleep input:focus-visible,.df2-sleep select:focus-visible,.df2-sleep textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.df2-sleep-chart{height:250px;width:100%;min-width:0}
+.df2-sleep-empty,.df2-sleep-error,.df2-sleep-notice{font-size:12px;color:var(--ink)}
+.df2-sleep-error{color:#9d3932}
+.df2-sleep-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.df2-sleep-fields input,.df2-sleep-fields select{width:100%}
+.df2-sleep-note textarea{width:100%;resize:vertical}
+.df2-sleep-duration{background:var(--accent-wash);padding:11px 13px;border-radius:8px}
+.df2-sleep-duration strong{color:var(--ink)}
+.df2-sleep-toggle{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:12px;font-weight:650}
+.df2-sleep-goal{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.df2-sleep-goal input{max-width:180px}
+.df2-sleep-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.df2-sleep-actions .df2-primary{background:var(--accent);color:white;border:1px solid var(--accent-dark);border-radius:8px;padding:8px 14px}
+.df2-sleep-history{display:grid;gap:7px}
+.df2-sleep-history>div{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;padding:12px}
+.df2-sleep-history>div>div:first-child{display:grid;gap:5px}
+.df2-sleep-history strong{font-size:13px;color:var(--ink)}
+.df2-sleep-history time{font-size:11px;color:var(--muted)}
+@media(max-width:850px){.df2-sleep-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.df2-sleep-kpis{grid-template-columns:1fr}.df2-sleep-fields{grid-template-columns:1fr}.df2-sleep-chart{height:220px}.df2-sleep-card{padding:13px}}
