@@ -247,7 +247,7 @@ test("historical schedule browsing does not change today's gym dashboard or the 
   await expect(root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"})).toBeVisible();
   await root.getByLabel("Prohlížet od data").fill("2026-09-28");
   await expect(root.locator("[data-gym-occurrence]")).toHaveCount(0);
-  await expect(summary).toHaveText(initial);
+  expect(await summary.innerText()).toBe(initial);
   await expect(root.locator("[data-gym-week]")).toContainText("Push");
   await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
   await expect(root.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
