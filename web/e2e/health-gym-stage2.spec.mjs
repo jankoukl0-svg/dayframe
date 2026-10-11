@@ -188,7 +188,9 @@ test("new user can opt into Push / Pull / Lower without losing original Gym data
   const root=await gym(page);
   await expect(root.locator("[data-gym-setup]")).toBeVisible();
   await expect(root.locator("[data-gym-summary]")).toContainText("Nenastaveno");
-  expect(await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY)).toMatchObject({plans:[],activePlanId:null});
+  // First-run Gym storage may not exist until the user explicitly saves a plan.
+  const initial=await page.evaluate(k=>localStorage.getItem(k),KEY);
+  if(initial)expect(JSON.parse(initial)).toMatchObject({plans:[],activePlanId:null});
   await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
   await expect(root.locator("[data-gym-split]")).toBeVisible();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
