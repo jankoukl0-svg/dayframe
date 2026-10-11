@@ -124,6 +124,7 @@ for (const file of changed) {
   }
   if (lower.includes("supplement") || lower.includes("health") || lower.includes("daily-checklist") || file === "web/app/dayframe-v2.tsx") {
     add("health-supplements-stage3.spec.mjs");
+    add("health-supplement-autofill.spec.mjs");
   }
   if (lower.includes("gym") || lower.includes("health") || lower.includes("daily-checklist") || file === "web/app/dayframe-v2.tsx") {
     add("health-gym-stage2.spec.mjs");

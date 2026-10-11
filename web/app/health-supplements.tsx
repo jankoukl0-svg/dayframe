@@ -1,6 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import {SupplementPhoto} from "./supplement-photo";
+import {SupplementAutoLookup} from "./supplement-auto-lookup";
+import type {SupplementLookupMatch} from "@/lib/dayframe-supplement-lookup";
 import {deleteSupplementPhoto,saveSupplementPhoto,validSupplementPhoto} from "@/lib/dayframe-supplement-photos";
 import {readSupplementStore} from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
@@ -23,6 +25,9 @@ export function SupplementsPage({today}:{today:string}){
   const [photoFile,setPhotoFile]=useState<File|null>(null);
   const [photoAction,setPhotoAction]=useState<"keep"|"replace"|"remove">("keep");
   const [photoBusy,setPhotoBusy]=useState(false);
+  const [autoPhotoBusy,setAutoPhotoBusy]=useState(false);
+  const [photoManual,setPhotoManual]=useState(false);
+  const [lookupHint,setLookupHint]=useState<string|null>(null);
   const [search,setSearch]=useState("");
   const [editError,setEditError]=useState("");
   const [notice,setNotice]=useState("");
@@ -38,10 +43,25 @@ export function SupplementsPage({today}:{today:string}){
     setScheduleAtOpen({times:[...item.times],weekdays:[...item.weekdays],active:item.active});
     setDraftTimes(item.times.join(", "));
     setPhotoFile(null);setPhotoAction("keep");
+    setPhotoManual(false);setAutoPhotoBusy(false);setLookupHint(null);
+    setEditError("");
+  };
+  const acceptLookup=(match:SupplementLookupMatch)=>{
+    setDraft(current=>{
+      if(!current)return current;
+      const newItem=!store.supplements.some(s=>s.id===current.id);
+      return {...current,name:match.name.slice(0,160),brand:match.brand.slice(0,100),
+        sourceUrl:match.sourceUrl.slice(0,700),
+        packServings:newItem&&current.packServings===30&&match.packServings!==null
+          ?match.packServings:current.packServings,
+        units:newItem&&current.units==="kapsle"&&match.packUnit
+          ?match.packUnit:current.units,
+        packPriceCzk:current.packPriceCzk??match.priceCzk};
+    });
     setEditError("");
   };
   const saveDraft=async()=>{
-    if(!draft||photoBusy||blocked)return;
+    if(!draft||photoBusy||autoPhotoBusy||blocked)return;
     const times=[...new Set(draftTimes.split(/[;,\n]+/).map(s=>s.trim()).filter(Boolean))].sort();
     if(!draft.name.trim()){setEditError("Zadej název suplementu.");return;}
     if(!draft.doseLabel.trim()){setEditError("Doplň dávku přesně podle obalu nebo doporučení odborníka.");return;}
@@ -230,10 +250,13 @@ export function SupplementsPage({today}:{today:string}){
           <strong>{store.supplements.find(x=>x.id===p.supplementId)?.name||"Dřívější suplement"}</strong>
           <span>+ {czNum(p.servings)}{p.paidCzk===null?"":" · "+czNum(p.paidCzk)+" Kč"}</span></div>)}</div></>}
     </div>}
-    {draft&&<div className="df2-modal-backdrop" onMouseDown={e=>{if(!photoBusy&&e.target===e.currentTarget)setDraft(null);}}>
+    {draft&&<div className="df2-modal-backdrop" onMouseDown={e=>{if(!photoBusy&&!autoPhotoBusy&&e.target===e.currentTarget)setDraft(null);}}>
       <section className="df2-modal df2-hygiene-modal df2-supplements-editor" role="dialog" aria-modal="true" aria-label="Editor suplementu">
         <header><div><h2>{store.supplements.some(x=>x.id===draft.id)?"Upravit suplement":"Nový suplement"}</h2></div>
-          <button type="button" aria-label="Zavřít" disabled={photoBusy} onClick={()=>setDraft(null)}>×</button></header>
+          <button type="button" aria-label="Zavřít" disabled={photoBusy||autoPhotoBusy} onClick={()=>setDraft(null)}>×</button></header>
+        <SupplementAutoLookup hint={lookupHint} onApply={acceptLookup}
+          manualPhoto={photoManual} onBusy={setAutoPhotoBusy}
+          onPhoto={file=>{if(!photoManual){setPhotoFile(file);setPhotoAction("replace");}}}/>
         <div className="df2-supplements-photo-editor">
           <SupplementPhoto large photoId={photoAction==="remove"?undefined:draft.photoId} previewFile={photoAction==="replace"?photoFile:null} name={draft.name||"suplementu"}/>
           <div className="df2-supplements-photo-inputs">
@@ -245,17 +268,17 @@ export function SupplementsPage({today}:{today:string}){
                   const file=e.target.files?.[0];e.currentTarget.value="";
                   if(!file)return;
                   if(!validSupplementPhoto(file)){setEditError("Vyber JPG, PNG nebo WebP do 6 MB.");return;}
-                  setPhotoFile(file);setPhotoAction("replace");setEditError("");
+                  setPhotoManual(true);setPhotoFile(file);setPhotoAction("replace");setEditError("");
                 }}/>
             </label>
             {(photoAction==="replace"||photoAction!=="remove"&&!!draft.photoId)&&
               <button type="button" className="df2-supplements-remove-photo" disabled={photoBusy||blocked}
-                onClick={()=>{setPhotoFile(null);setPhotoAction("remove");}}>Odebrat fotografii</button>}
+                onClick={()=>{setPhotoManual(true);setPhotoFile(null);setPhotoAction("remove");}}>Odebrat fotografii</button>}
           </div>
         </div>
         <div className="df2-supplements-editor-fields">
           <label>Název<input autoFocus aria-label="Název suplementu" value={draft.name} maxLength={160}
-            onChange={e=>setDraft({...draft,name:e.target.value})}/></label>
+            onChange={e=>{setDraft({...draft,name:e.target.value});setLookupHint(e.target.value);}}/></label>
           <label>Značka<input aria-label="Značka suplementu" value={draft.brand} maxLength={100}
             onChange={e=>setDraft({...draft,brand:e.target.value})}/></label>
           <label>Dávka dle obalu / odborníka<input aria-label="Dávkování" placeholder="Přepiš dávku, ne automatický návrh" value={draft.doseLabel} maxLength={240}
@@ -285,13 +308,13 @@ export function SupplementsPage({today}:{today:string}){
           <label>Cena balení Kč (nepovinné)<input type="number" min="0" step="1" aria-label="Cena balení"
             value={draft.packPriceCzk??""} onChange={e=>setDraft({...draft,packPriceCzk:e.target.value?fromInput(e.target.value,0,1000000):null})}/></label>
           <label>Odkaz na produkt (nepovinné)<input type="url" aria-label="Odkaz na suplement" value={draft.sourceUrl}
-            onChange={e=>setDraft({...draft,sourceUrl:e.target.value})}/></label>
+            onChange={e=>{setDraft({...draft,sourceUrl:e.target.value});setLookupHint(e.target.value);}}/></label>
           <label>Poznámky a upozornění<textarea aria-label="Poznámky suplementu" rows={2} value={draft.notes} maxLength={1500}
             onChange={e=>setDraft({...draft,notes:e.target.value})}/></label>
         </div>
         <p className="df2-health-helper">Zadávej jen dávkování potvrzené etiketou nebo odborníkem. Změny rozvrhu a pozastavení se projeví od následujícího dne, aby dnešní historie zůstala zachovaná. U interakcí s léky, zdravotních omezení či nejasností se poraď s lékárníkem nebo lékařem.</p>
         {editError&&<p className="df2-hygiene-error" role="alert">{editError}</p>}
-        <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked||photoBusy} type="button" onClick={saveDraft}>{photoBusy?"Ukládám…":"Uložit suplement"}</button></div>
+        <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked||photoBusy||autoPhotoBusy} type="button" onClick={saveDraft}>{photoBusy?"Ukládám…":"Uložit suplement"}</button></div>
       </section>
     </div>}
   </section>;
