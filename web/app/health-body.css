@@ -1,0 +1,65 @@
+/* Body & Progress — Dayframe Stage 4 */
+.df2-body{display:grid;gap:18px;min-width:0}
+.df2-body-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.df2-body-head>div{display:grid;gap:5px}
+.df2-body-head span{font-size:10px;color:var(--accent-dark);font-weight:750;letter-spacing:.08em}
+.df2-body-head h2{margin:0;color:var(--ink);font-size:22px;font-weight:760}
+.df2-body-head p{margin:0;font-size:11px;color:var(--muted)}
+.df2-body-nav{display:flex;flex-wrap:wrap;gap:7px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.df2-body button{cursor:pointer}
+.df2-body button:disabled{opacity:.5;cursor:not-allowed}
+.df2-body-nav button,.df2-body-content button:not(.df2-primary):not(.df2-accent-button),.df2-body-photo-card a{border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none}
+.df2-body-nav button[aria-current=page]{color:var(--accent-dark);background:var(--accent-wash);border-color:var(--accent)}
+.df2-body-notice{color:var(--ink);font-size:12px}
+.df2-body-content{min-width:0;display:grid;gap:18px}
+.df2-body-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.df2-body-kpis article{display:grid;gap:7px;padding:16px;border:1px solid var(--line);background:var(--paper);border-radius:10px}
+.df2-body-kpis small{color:var(--muted);font-size:11px}
+.df2-body-kpis strong{font-size:23px;font-weight:750;color:var(--ink);overflow-wrap:anywhere}
+.df2-body-kpis span{color:var(--muted);font-size:10px;line-height:1.5}
+.df2-body-section{display:grid;gap:14px;min-width:0;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.df2-body-section h3{font-size:16px;font-weight:740;color:var(--ink);margin:0}
+.df2-body-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.df2-body-section-head>div{display:grid;gap:4px}
+.df2-body-section-head p{font-size:11px;color:var(--muted);margin:0}
+.df2-body-filters,.df2-body-inline{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.df2-body-filters label,.df2-body-date,.df2-body-measure-grid label,.df2-body-note,.df2-body-photo-editor label{display:grid;gap:5px;color:var(--ink);font-size:11px;font-weight:650}
+.df2-body input,.df2-body select,.df2-body textarea{background:var(--paper);color:var(--ink);border:1px solid var(--line-strong);border-radius:7px;min-width:0;padding:9px 10px;font:inherit;font-size:12px}
+.df2-body input:focus-visible,.df2-body select:focus-visible,.df2-body textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.df2-body-date{max-width:230px}
+.df2-body-chart{width:100%;height:270px;min-width:0}
+.df2-body-measure-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.df2-body-measure-grid input{width:100%}
+.df2-body-note textarea{width:100%;resize:vertical}
+.df2-body-status{border-top:1px solid var(--line);padding-top:12px;color:var(--muted);font-size:11px;margin:0}
+.df2-body-history,.df2-body-goals-list{display:grid;gap:9px}
+.df2-body-history article,.df2-body-goals-list article{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.df2-body-history article>div:first-child,.df2-body-goals-list article>div:first-child{display:grid;gap:6px;min-width:0;flex:1}
+.df2-body-history time,.df2-body-goals-list small,.df2-body-history small{font-size:10px;color:var(--muted)}
+.df2-body-history strong,.df2-body-goals-list strong{font-size:12px;font-weight:700;color:var(--ink);line-height:1.6}
+.df2-body-goal{display:grid;gap:7px;border:1px solid var(--line);border-radius:9px;padding:12px}
+.df2-body-goal>div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.df2-body-goal strong,.df2-body-goal small{font-size:11px;color:var(--ink)}
+.df2-body-goal small{color:var(--muted)}
+.df2-body progress{width:100%;height:8px;accent-color:var(--accent-dark)}
+.df2-body-photo-editor{display:grid;grid-template-columns:minmax(180px,2fr) minmax(120px,1fr) minmax(160px,2fr) auto;gap:10px;align-items:end}
+.df2-body-photo-editor input{width:100%}
+.df2-body-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:13px}
+.df2-body-photo-card{overflow:hidden;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.df2-body-photo-card img,.df2-body-photo-unavailable{width:100%;height:225px;object-fit:contain;background:var(--accent-wash)}
+.df2-body-photo-unavailable{display:flex;align-items:center;justify-content:center;padding:15px;font-size:11px;color:var(--muted)}
+.df2-body-photo-card>div:last-child{padding:12px;display:grid;gap:7px}
+.df2-body-photo-card time{font-size:11px;color:var(--muted)}
+.df2-body-photo-card strong{font-size:12px;color:var(--ink)}
+.df2-body-photo-card .df2-body-inline{gap:6px}
+.df2-body-photo-card a{display:inline-block}
+@media(max-width:720px){
+.df2-body-kpis{grid-template-columns:1fr}
+.df2-body-measure-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.df2-body-photo-editor{grid-template-columns:1fr}
+.df2-body-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+.df2-body-section{padding:14px}
+.df2-body-nav{flex-wrap:nowrap;overflow-x:auto}
+.df2-body-nav button{white-space:nowrap}
+}
+@media(max-width:410px){.df2-body-gallery{grid-template-columns:1fr}}
