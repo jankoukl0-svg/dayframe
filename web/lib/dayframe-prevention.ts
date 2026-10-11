@@ -159,7 +159,7 @@ export type PreventionTodayRow={item:PreventionItem;status:"done"|"upcoming"|"to
 /** Shows reminders only for user-entered dates, plus completions recorded on this day. */
 export function preventionTodayRows(store:PreventionStore,date:string):PreventionTodayRow[]{
   if(!validPreventionDate(date))return [];
-  return store.items.filter(i=>i.active).flatMap(item=>{
+  return store.items.filter(i=>i.active).flatMap<PreventionTodayRow>(item=>{
     if(item.history.some(h=>h.date===date))return [{item,status:"done" as const,date}];
     if(!item.dueDate)return [];
     if(date<addDaysKey(item.dueDate,-item.reminderDays))return [];
