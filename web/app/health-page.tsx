@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 import { ScheduleEditor } from "./hygiene-page";
 import { GymPage } from "./health-gym";
+import { BodyPage } from "./health-body";
+import { useBodyStore } from "./use-body-store";
+import { latestMetric,latestBodyEntry } from "@/lib/dayframe-body";
 import { SupplementsPage } from "./health-supplements";
 import { useSupplementStore } from "./use-supplement-store";
 import { supplementOccurrences } from "@/lib/dayframe-supplements";
@@ -43,10 +46,11 @@ function newHealthRoutine(): HygieneRoutineDefinition {
   };
 }
 
-export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled }: {
+export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled, focusBodyDate, onBodyFocusHandled }: {
   planningKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
   focusGymKey?: string | null; focusGymDate?: string | null; onGymFocusHandled?: () => void;
   focusSupplements?: boolean; onSupplementsFocusHandled?:()=>void;
+  focusBodyDate?: string | null; onBodyFocusHandled?:()=>void;
 }) {
   const [store, setStore] = useState<HygieneStore>(() => createDefaultHygieneStore(planningKey));
   const [blocked, setBlocked] = useState(false);
@@ -57,6 +61,9 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
   const [showHistory, setShowHistory] = useState(false);
   const gym = useGymStore();
   const supplements = useSupplementStore();
+  const body = useBodyStore();
+  const bodyWeight=latestMetric(body.store,"weightKg",planningKey);
+  const bodyLatest=latestBodyEntry(body.store,planningKey);
   const todaySupplements = useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
   const todayWorkouts = useMemo(() => assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
 
@@ -90,6 +97,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
   }, [hydrated, focusRoutineId, onFocusHandled]);
 
   useEffect(()=>{if(focusGymKey)setTab("gym");},[focusGymKey]);
+  useEffect(()=>{if(focusBodyDate)setTab("body");},[focusBodyDate]);
   useEffect(()=>{if(focusSupplements){setTab("supplements");onSupplementsFocusHandled?.();}},[focusSupplements,onSupplementsFocusHandled]);
   const scoped = useMemo(() => careDomainStore(store, "health"), [store]);
   const summaries = useMemo(() => scheduledRoutineSummaries(scoped, planningKey, planningKey), [scoped, planningKey]);
@@ -164,6 +172,13 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
 
       {tab === "overview" ? (
         <div className="df2-health-content">
+          <section className="df2-health-section" data-health-body-overview>
+            <div className="df2-health-section-heading"><div><span>Tělesná měření</span><h2>Tělo & Progress</h2></div>
+              <button type="button" onClick={()=>setTab("body")}>Otevřít měření →</button></div>
+            <p className="df2-health-helper">{bodyLatest
+              ? "Poslední měření "+bodyLatest.date+(bodyWeight!==null?" · Hmotnost "+bodyWeight.toLocaleString("cs-CZ")+" kg":"")
+              : "Zatím bez měření. Začni jedním dobrovolným záznamem."}</p>
+          </section>
           <section className="df2-health-section" data-health-supplements-overview>
             <div className="df2-health-section-heading"><div><span>Rozpis užívání</span><h2>Dnešní suplementy</h2></div>
               <button type="button" onClick={()=>setTab("supplements")}>Otevřít suplementy →</button></div>
@@ -254,6 +269,8 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
         <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} onFocusHandled={onGymFocusHandled} />
       ) : tab === "supplements" ? (
         <SupplementsPage today={planningKey} />
+      ) : tab === "body" ? (
+        <BodyPage today={planningKey} focusDate={focusBodyDate} onFocusHandled={onBodyFocusHandled} />
       ) : (
         <section className="df2-health-coming-soon">
           <span>ETAPA {activeTab.stage}</span>
