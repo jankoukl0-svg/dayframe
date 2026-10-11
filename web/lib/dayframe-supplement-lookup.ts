@@ -74,3 +74,32 @@ export function plausibleSupplementListing(name:string,category:string,descripti
   if((topical||cosmeticCategory)&&!ingestible)return false;
   return looksLikeSupplementCategory(name+" "+description+" "+category)||ingestible;
 }
+
+
+/** A visibly unverified fallback for product links whose shop blocks robots.
+ * The address only tells us the slug and seller, not pack size, price or dosage.
+ */
+export function supplementSuggestionFromUrl(input:string):SupplementLookupMatch|null{
+  try{
+    const url=new URL(input.trim());
+    if(url.protocol!=="https:"||url.username||url.password||url.port)return null;
+    const hostname=url.hostname.toLowerCase();
+    // The offline fallback never needs IP-literal destinations. Reject every
+    // IPv4/IPv6 literal, not just selected private ranges, plus local hosts.
+    if(!hostname.includes(".")||/^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+      ||hostname.startsWith("[")||hostname==="localhost"
+      ||/\.(?:local|internal|test|invalid)$/.test(hostname))return null;
+    const segments=url.pathname.split("/").filter(Boolean);
+    let slug=decodeURIComponent(segments.at(-1)??"").replace(/\.(?:html?|php|aspx?)$/i,"");
+    slug=slug.replace(/[_-]+/g," ").replace(/[^ \p{L}\p{N}]/gu," ").replace(/\s+/g," ").trim();
+    if(slug.length<4||slug.length>160||!/[\p{L}]/u.test(slug))return null;
+    const hostpart=hostname.replace(/^www\./,"").split(".")[0];
+    const words=slug.split(" ");
+    // Cosmetic formatting only; still not a verified brand or product identity.
+    if(words.length>2&&words.slice(-2).join("").toLowerCase()===hostpart)
+      words.splice(-2,2,hostpart);
+    const name=words.map(w=>/^\d+$/.test(w)?w:w[0].toLocaleUpperCase("cs")+w.slice(1)).join(" ");
+    return {name,brand:"",amount:"",priceCzk:null,imageUrl:"",sourceUrl:url.href,
+      sourceLabel:"Návrh podle odkazu – neověřeno",packServings:null,packUnit:""};
+  }catch{return null;}
+}

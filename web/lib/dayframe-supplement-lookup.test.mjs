@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {packCountFromLabel,looksLikeSupplementCategory,sameSupplementProduct,foodCatalogCandidates,plausibleSupplementListing} from "./dayframe-supplement-lookup.ts";
+import {packCountFromLabel,looksLikeSupplementCategory,sameSupplementProduct,foodCatalogCandidates,plausibleSupplementListing,supplementSuggestionFromUrl} from "./dayframe-supplement-lookup.ts";
 test("extracts package counts but never invents dosing from mg strength or weight",()=>{
   assert.deepEqual(packCountFromLabel("Vitamin C 1000 mg – 60 kapslí"),{count:60,unit:"kapsle"});
   assert.deepEqual(packCountFromLabel("Creatine 120 capsules"),{count:120,unit:"kapsle"});
@@ -43,4 +43,26 @@ test("public web results exclude cosmetic collisions while allowing ingestible s
   assert.equal(plausibleSupplementListing("Creatine Monohydrate 500g","Ostatní","Creatine powder"),true);
   assert.equal(plausibleSupplementListing("Magnesium Citrate 60 capsules","Ostatní","Supplement"),true);
   assert.equal(plausibleSupplementListing("Collagen 60 kapslí","Ostatní",""),true);
+});
+
+test("GymBeam URL produces a clearly unverified, safe fallback without invented photo, pack or dose",()=>{
+  const url="https://gymbeam.cz/omega-3-gym-beam.html";
+  const suggestion=supplementSuggestionFromUrl(url);
+  assert.ok(suggestion);
+  assert.equal(suggestion.name,"Omega 3 Gymbeam");
+  assert.equal(suggestion.sourceUrl,url);
+  assert.match(suggestion.sourceLabel,/neověřeno/);
+  assert.equal(suggestion.imageUrl,"");
+  assert.equal(suggestion.priceCzk,null);
+  assert.equal(suggestion.packServings,null);
+  assert.equal("doseLabel" in suggestion,false);
+  for(const link of ["http://gymbeam.cz/omega-3-gym-beam.html",
+    "https://localhost/omega-3.html","https://192.168.1.1/omega-3.html",
+    "https://172.16.0.1/omega-3.html","https://169.254.169.254/omega-3.html",
+    "https://100.64.0.1/omega-3.html","https://[::1]/omega-3.html",
+    "https://user:password@gymbeam.cz/omega-3.html",
+    "https://gymbeam.cz:8888/omega-3.html",
+    "https://gymbeam.cz/123.html"]){
+    assert.equal(supplementSuggestionFromUrl(link),null,link);
+  }
 });
