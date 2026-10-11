@@ -58,6 +58,8 @@ test("GymBeam URL produces a clearly unverified, safe fallback without invented 
   assert.equal("doseLabel" in suggestion,false);
   for(const link of ["http://gymbeam.cz/omega-3-gym-beam.html",
     "https://localhost/omega-3.html","https://192.168.1.1/omega-3.html",
+    "https://172.16.0.1/omega-3.html","https://169.254.169.254/omega-3.html",
+    "https://100.64.0.1/omega-3.html","https://[::1]/omega-3.html",
     "https://user:password@gymbeam.cz/omega-3.html",
     "https://gymbeam.cz:8888/omega-3.html",
     "https://gymbeam.cz/123.html"]){

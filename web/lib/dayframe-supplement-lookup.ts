@@ -84,7 +84,10 @@ export function supplementSuggestionFromUrl(input:string):SupplementLookupMatch|
     const url=new URL(input.trim());
     if(url.protocol!=="https:"||url.username||url.password||url.port)return null;
     const hostname=url.hostname.toLowerCase();
-    if(!hostname.includes(".")||/^(?:localhost|127\.|10\.|192\.168\.)/.test(hostname)
+    // The offline fallback never needs IP-literal destinations. Reject every
+    // IPv4/IPv6 literal, not just selected private ranges, plus local hosts.
+    if(!hostname.includes(".")||/^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+      ||hostname.startsWith("[")||hostname==="localhost"
       ||/\.(?:local|internal|test|invalid)$/.test(hostname))return null;
     const segments=url.pathname.split("/").filter(Boolean);
     let slug=decodeURIComponent(segments.at(-1)??"").replace(/\.(?:html?|php|aspx?)$/i,"");
