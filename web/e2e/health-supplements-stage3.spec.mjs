@@ -332,3 +332,26 @@ test("an invalid photo or broken photo store never destroys an existing suppleme
   await expect(dialog.getByRole("alert")).toContainText("6 MB");
   expect(await page.evaluate(key=>localStorage.getItem(key),SUP_KEY)).toBe(before);
 });
+
+
+test("corrupt image bytes with a PNG MIME type show a neutral placeholder, not a broken photo icon",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Poškozená fotografie"});
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
+  await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles({
+    name:"corrupted.png",mimeType:"image/png",buffer:Buffer.from("this is not a PNG")
+  });
+  await expect(dialog.locator(".df2-supplement-photo-placeholder")).toBeVisible();
+  await expect(dialog.locator(".df2-supplement-photo img")).toHaveCount(0);
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(root.locator("[data-supplement-id] .df2-supplement-photo-placeholder")).toBeVisible();
+  await expect(root.locator("[data-supplement-id] .df2-supplement-photo img")).toHaveCount(0);
+  await page.reload({waitUntil:"networkidle"});
+  const again=await supplements(page);
+  await again.getByRole("button",{name:"Moje suplementy"}).click();
+  await expect(again.locator("[data-supplement-id] .df2-supplement-photo-placeholder")).toBeVisible();
+  await expect(again.locator("[data-supplement-id] .df2-supplement-photo img")).toHaveCount(0);
+});

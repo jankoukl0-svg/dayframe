@@ -24,7 +24,7 @@ export function SupplementPhoto({photoId,name,previewFile,large=false}:{
     return ()=>{revoked=true;if(objectUrl)URL.revokeObjectURL(objectUrl);};
   },[photoId,previewFile]);
   return <div className={"df2-supplement-photo"+(large?" is-large":"")} data-supplement-photo={photoId??"none"}>
-    {url?<img src={url} alt={"Fotografie produktu "+name} loading="lazy"/>:
+    {url?<img src={url} alt={"Fotografie produktu "+name} loading="lazy" onError={()=>{URL.revokeObjectURL(url);setUrl(null);setFailed(true);}}/>:
       <span className="df2-supplement-photo-placeholder" aria-label={failed?"Fotografie není dostupná":"Bez fotografie"} aria-hidden="true">◻</span>}
   </div>;
 }
