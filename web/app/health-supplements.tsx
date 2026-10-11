@@ -51,10 +51,9 @@ export function SupplementsPage({today}:{today:string}){
       // purchase. Preserve the latest stock unless the user explicitly edited it.
       const explicitlyChangedStock=item.stock!==stockAtOpen;
       const stock=current&&!explicitlyChangedStock?current.stock:item.stock;
-      const unchangedSchedule=!!current && !!scheduleAtOpen
-        && item.active===scheduleAtOpen.active
-        && [...item.weekdays].sort().join(",")===[...scheduleAtOpen.weekdays].sort().join(",")
-        && item.times.join(",")===scheduleAtOpen.times.join(",");
+      const activeEdited=!scheduleAtOpen || item.active!==scheduleAtOpen.active;
+      const weekdaysEdited=!scheduleAtOpen || [...item.weekdays].sort().join(",")!==[...scheduleAtOpen.weekdays].sort().join(",");
+      const timesEdited=!scheduleAtOpen || item.times.join(",")!==[...scheduleAtOpen.times].sort().join(",");
       // Rebase each untouched editor field onto the latest persisted value.
       // A different tab may have changed the shopping flag, pack size, price,
       // notes or dose while this modal was open. Only explicitly edited fields
@@ -68,13 +67,12 @@ export function SupplementsPage({today}:{today:string}){
         }
       }
       // Shopping is changed outside this modal, so always retain latest state.
-      // Likewise keep any newer schedule unless the editor touched its inputs.
+      // Schedule properties must be merged independently: pausing a supplement
+      // in one tab must not revert a newly saved time or weekday in another.
       rebased.stock=stock;
-      if(!current || !unchangedSchedule) {
-        rebased.active=item.active;
-        rebased.weekdays=[...item.weekdays];
-        rebased.times=[...item.times];
-      }
+      if(activeEdited)rebased.active=item.active;
+      if(weekdaysEdited)rebased.weekdays=[...item.weekdays];
+      if(timesEdited)rebased.times=[...item.times];
       const scheduled=withSupplementSchedule(rebased,today,current);
       const resetBaseline=!!current && (explicitlyChangedStock || (current.stock===null)!==(stock===null));
       return {...s,
