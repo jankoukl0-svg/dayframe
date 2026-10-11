@@ -20,6 +20,7 @@ export type Supplement = {
   sourceUrl: string;
   notes: string;
   shopping: boolean;
+  photoId?: string; // Unique key of locally stored IndexedDB product photograph.
 };
 export type SupplementIntake = {
   key: string;
@@ -108,7 +109,8 @@ export function parseSupplementStore(raw:string|null):{store:SupplementStore;blo
         ||!x.times.length||typeof x.active!=="boolean"||!(x.stock===null||isNumber(x.stock,0,1000000))
         ||!isNumber(x.lowStockAt,0,1000000)||!isNumber(x.packServings,.01,1000000)
         ||!isOptionalMoney(x.packPriceCzk)||!isStr(x.sourceUrl,700)||!isStr(x.notes,1500)
-        ||typeof x.shopping!=="boolean")throw Error("supplement");
+        ||typeof x.shopping!=="boolean"
+        ||(x.photoId!==undefined && (typeof x.photoId!=="string" || !/^supp-photo-[a-f0-9-]{20,80}$/.test(x.photoId))))throw Error("supplement");
     }
     for(const x of s.intakes){
       if(!x||!isStr(x.key,300)||!isStr(x.supplementId,100)||!validDate(x.date)

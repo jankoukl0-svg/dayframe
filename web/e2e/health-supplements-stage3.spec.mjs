@@ -235,3 +235,94 @@ test("changing active state in one tab preserves another tab's newer intake time
   expect(saved.supplements[0].scheduleHistory.at(-1).times).toEqual(["10:30"]);
   await context.close();
 });
+
+
+const PACKSHOT_PNG=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9lNqIAAAAASUVORK5CYII=","base64");
+const packshot={name:"supplement.png",mimeType:"image/png",buffer:PACKSHOT_PNG};
+async function photoBlobExists(page,id){
+  return page.evaluate(id=>new Promise((resolve,reject)=>{
+    const req=indexedDB.open("dayframe-supplement-photos-v1",1);
+    req.onerror=()=>reject(req.error);
+    req.onsuccess=()=>{
+      const db=req.result,tx=db.transaction("photos","readonly");
+      const get=tx.objectStore("photos").get(id);
+      get.onsuccess=()=>resolve(get.result instanceof Blob);
+      get.onerror=()=>reject(get.error);
+      tx.oncomplete=()=>db.close();
+    };
+  }),id);
+}
+test("uploading a supplement image saves a real local packshot visible across reloads and tabs",async({page})=>{
+  await fresh(page);
+  const root=await supplements(page);
+  await root.getByRole("button",{name:"+ Přidat suplement"}).click();
+  const modal=page.getByRole("dialog",{name:"Editor suplementu"});
+  await modal.getByRole("textbox",{name:"Název suplementu"}).fill("Vitamin C s fotkou");
+  await modal.getByRole("textbox",{name:"Dávkování"}).fill("Dle etikety");
+  await modal.getByLabel("Nahrát fotografii suplementu").setInputFiles(packshot);
+  await expect(modal.locator(".df2-supplement-photo img")).toBeVisible();
+  await modal.getByRole("button",{name:"Uložit suplement"}).click();
+  await expect(modal).toHaveCount(0);
+  const state=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
+  expect(state.supplements).toHaveLength(1);
+  const photoId=state.supplements[0].photoId;
+  expect(photoId).toMatch(/^supp-photo-/);
+  expect(await photoBlobExists(page,photoId)).toBe(true);
+  expect(JSON.stringify(state)).not.toContain("data:image");
+  await expect(root.locator("[data-supplement-occurrence] .df2-supplement-photo img")).toBeVisible();
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await expect(root.locator("[data-supplement-id] .df2-supplement-photo img")).toBeVisible();
+  await page.reload({waitUntil:"networkidle"});
+  const again=await supplements(page);
+  await again.getByRole("button",{name:"Moje suplementy"}).click();
+  await expect(again.locator("[data-supplement-id] .df2-supplement-photo img")).toBeVisible();
+});
+test("replacing or removing a photo preserves intake records and safely cleans up old image",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page);
+  await root.locator("[data-supplement-occurrence]").first().getByRole("button",{name:"Užito",exact:true}).click();
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
+  await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles(packshot);
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  const state1=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
+  const first=state1.supplements[0].photoId;
+  expect(await photoBlobExists(page,first)).toBe(true);
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles({...packshot,name:"another.png"});
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  const state2=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
+  const second=state2.supplements[0].photoId;
+  expect(second).not.toBe(first);
+  await expect.poll(()=>photoBlobExists(page,first)).toBe(false);
+  expect(await photoBlobExists(page,second)).toBe(true);
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  await dialog.getByRole("button",{name:"Odebrat fotografii"}).click();
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  const state3=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
+  expect(state3.supplements[0].photoId).toBeUndefined();
+  expect(state3.intakes).toEqual(state1.intakes);
+  expect(state3.supplements[0].stock).toBe(state1.supplements[0].stock);
+  await expect.poll(()=>photoBlobExists(page,second)).toBe(false);
+  await expect(root.locator("[data-supplement-id] .df2-supplement-photo img")).toHaveCount(0);
+});
+test("an invalid photo or broken photo store never destroys an existing supplement",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Původní doplněk"});
+  const before=await page.evaluate(key=>localStorage.getItem(key),SUP_KEY);
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
+  await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles({
+    name:"unsafe.svg",mimeType:"image/svg+xml",buffer:Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>")
+  });
+  await expect(dialog.getByRole("alert")).toContainText("JPG, PNG nebo WebP");
+  await expect(dialog.locator(".df2-supplement-photo img")).toHaveCount(0);
+  expect(await page.evaluate(key=>localStorage.getItem(key),SUP_KEY)).toBe(before);
+  await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles({
+    name:"huge.png",mimeType:"image/png",buffer:Buffer.alloc(6*1024*1024+1)
+  });
+  await expect(dialog.getByRole("alert")).toContainText("6 MB");
+  expect(await page.evaluate(key=>localStorage.getItem(key),SUP_KEY)).toBe(before);
+});

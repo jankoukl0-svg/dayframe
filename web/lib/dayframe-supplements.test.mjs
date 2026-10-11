@@ -1,4 +1,5 @@
 import test from "node:test";
+import {validSupplementPhoto,validSupplementPhotoId,SUPPLEMENT_PHOTO_MAX_SIZE} from "./dayframe-supplement-photos.ts";
 import assert from "node:assert/strict";
 import {emptySupplementStore,parseSupplementStore,newSupplement,supplementOccurrences,supplementIntakeKey,
   markSupplementIntake,buySupplement,lowStockSupplements,supplementStats,withSupplementSchedule} from "./dayframe-supplements.ts";
@@ -101,4 +102,27 @@ test("several same-day edits keep already scheduled doses until tomorrow",()=>{
   assert.equal(supplementOccurrences(s,date)[0].time,"09:00");
   assert.equal(supplementOccurrences(s,"2026-10-13").length,0);
   assert.equal(paused.scheduleHistory.length,2);
+});
+
+test("supplement photo references are optional, validated and backwards-compatible",()=>{
+  const {store}=setup();
+  assert.equal(parseSupplementStore(JSON.stringify(store)).blocked,false);
+  const photoId="supp-photo-123e4567-e89b-42d3-a456-426614174000";
+  assert.equal(validSupplementPhotoId(photoId),true);
+  const withPhoto={...store,supplements:store.supplements.map(s=>({...s,photoId}))};
+  assert.equal(parseSupplementStore(JSON.stringify(withPhoto)).blocked,false);
+  assert.equal(parseSupplementStore(JSON.stringify({...store,supplements:[{...store.supplements[0],photoId:"https://example.com/image.png"}]})).blocked,true);
+  assert.equal(parseSupplementStore(JSON.stringify({...store,supplements:[{...store.supplements[0],photoId:"../bad"}]})).blocked,true);
+  assert.equal(parseSupplementStore(JSON.stringify({...store,supplements:[{...store.supplements[0],photoId:null}]})).blocked,true);
+  assert.deepEqual(withPhoto.intakes,store.intakes);
+  assert.deepEqual(withPhoto.purchases,store.purchases);
+  assert.equal(JSON.stringify(withPhoto).includes("data:image"),false);
+});
+test("supplement upload accepts only small nonempty supported images",()=>{
+  assert.equal(validSupplementPhoto(new Blob(["x"],{type:"image/png"})),true);
+  assert.equal(validSupplementPhoto(new Blob(["x"],{type:"image/webp"})),true);
+  assert.equal(validSupplementPhoto(new Blob(["x"],{type:"image/jpeg"})),true);
+  assert.equal(validSupplementPhoto(new Blob(["x"],{type:"image/svg+xml"})),false);
+  assert.equal(validSupplementPhoto(new Blob([""],{type:"image/png"})),false);
+  assert.equal(validSupplementPhoto(new Blob([new Uint8Array(SUPPLEMENT_PHOTO_MAX_SIZE+1)],{type:"image/png"})),false);
 });
