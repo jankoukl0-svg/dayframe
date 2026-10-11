@@ -71,3 +71,12 @@ test("goals use logged baseline and target, not invented medical advice",()=>{
   assert.deepEqual(bodyGoalProgress(s,goal,"2026-10-14"),{current:75,percent:100,reached:true});
   assert.equal(createBodyGoal(s,"weightKg",75,D,"2026-10-01"),s);
 });
+
+test("an initially reached target loses full progress when the next measurement moves away",()=>{
+  let s=upsertBodyEntry(emptyBodyStore(),entry(D,{weightKg:75}));
+  s=createBodyGoal(s,"weightKg",75,D,null);
+  const goal=s.goals[0];
+  assert.deepEqual(bodyGoalProgress(s,goal,D),{current:75,percent:100,reached:true});
+  s=upsertBodyEntry(s,entry("2026-10-13",{weightKg:73},"later"));
+  assert.deepEqual(bodyGoalProgress(s,goal,"2026-10-13"),{current:73,percent:0,reached:false});
+});
