@@ -5,7 +5,7 @@ import { planningDateKey } from "@/lib/dayframe-calendar";
 import { assignmentsOnDate } from "@/lib/dayframe-gym";
 import { bodyCheckInStatus } from "@/lib/dayframe-body";
 import { useBodyStore } from "./use-body-store";
-import {sleepCheckInStatus} from "@/lib/dayframe-sleep";
+import {sleepCalendarDateKey,sleepCheckInStatus} from "@/lib/dayframe-sleep";
 import {useSleepStore} from "./use-sleep-store";
 import { supplementOccurrences } from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
@@ -164,6 +164,7 @@ function weekdayForPlanningDate(key: string) {
 export function DailyChecklist({
   onSummaryChange,
   planningKey: externalPlanningKey,
+  sleepDateKey: externalSleepDateKey,
   onOpenHygiene,
   onOpenHealth,
   onOpenGym,
@@ -173,6 +174,7 @@ export function DailyChecklist({
 }: {
   onSummaryChange?: (summary: DailyChecklistSummary) => void;
   planningKey?: string;
+  sleepDateKey?: string;
   onOpenHygiene?: (routineId: string) => void;
   onOpenHealth?: (routineId: string) => void;
   onOpenGym?: (key: string, date: string) => void;
@@ -204,6 +206,7 @@ export function DailyChecklist({
   const completionFeedbackTimer = useRef<number | null>(null);
 
   const planningKey = externalPlanningKey ?? planningDateKey(now);
+  const sleepDateKey = externalSleepDateKey ?? sleepCalendarDateKey(now);
   const weekday = weekdayForPlanningDate(planningKey);
   const visibleItems = useMemo(
     () => store.items.filter((item) => item.days.includes(weekday)),
@@ -218,7 +221,7 @@ export function DailyChecklist({
   const supplementItems=useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
   const supplementCompletedCount=supplementItems.filter(x=>!!x.intake).length;
   const bodyStatus=useMemo(()=>bodyCheckInStatus(body.store,planningKey),[body.store,planningKey]);
-  const sleepStatus=useMemo(()=>sleepCheckInStatus(sleep.store,planningKey),[sleep.store,planningKey]);
+  const sleepStatus=useMemo(()=>sleepCheckInStatus(sleep.store,sleepDateKey),[sleep.store,sleepDateKey]);
   const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + supplementItems.length + (bodyStatus.due?1:0) + (sleepStatus.due?1:0);
   const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + supplementCompletedCount + (bodyStatus.due&&bodyStatus.complete?1:0) + (sleepStatus.due&&sleepStatus.complete?1:0);
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
@@ -541,11 +544,11 @@ export function DailyChecklist({
               </article>
             )}
             {sleepStatus.due && (
-              <article data-sleep-checklist={planningKey}
+              <article data-sleep-checklist={sleepDateKey}
                 className={"df2-checklist-hygiene-row "+(sleepStatus.complete?"done":"")}>
                 <span className={"df2-checklist-hygiene-indicator "+(sleepStatus.complete?"is-done":"")} aria-hidden="true">{sleepStatus.complete?"✓":""}</span>
                 <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
-                  aria-label="Otevřít záznam spánku ve Zdraví" onClick={()=>onOpenSleep?.(planningKey)}>
+                  aria-label="Otevřít záznam spánku ve Zdraví" onClick={()=>onOpenSleep?.(sleepDateKey)}>
                   <strong>Spánek · záznam noci</strong><small>{sleepStatus.complete?"Zapsáno":"Naplánováno · otevřít spánek"}</small>
                 </button><span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>

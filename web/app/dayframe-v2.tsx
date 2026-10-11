@@ -42,6 +42,7 @@ import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { assignmentsOnDate } from "@/lib/dayframe-gym";
+import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -164,6 +165,7 @@ export function DayframeV2() {
   const completionTimers = useRef<Map<string, number>>(new Map());
   const completionToastTimers = useRef<Map<string, number>>(new Map());
   const todayKey = planningDateKey(now);
+  const sleepTodayKey = sleepCalendarDateKey(now);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(new Date()), 1000);
@@ -587,6 +589,7 @@ export function DayframeV2() {
           {view === "today" && (
             <TodayView
               now={now}
+              sleepDateKey={sleepTodayKey}
               tasks={todayTasks}
               activeTask={activeTask}
               nextTasks={afterActive}
@@ -625,7 +628,7 @@ export function DayframeV2() {
           )}
 
           {view === "health" && (
-            <HealthPage planningKey={todayKey} focusRoutineId={healthRoutineFocus}
+            <HealthPage planningKey={todayKey} sleepTodayKey={sleepTodayKey} focusRoutineId={healthRoutineFocus}
               onFocusHandled={() => setHealthRoutineFocus(null)} focusGymKey={gymFocus?.key} focusGymDate={gymFocus?.date}
               onGymFocusHandled={() => setGymFocus(null)} focusSupplements={supplementsFocus}
               onSupplementsFocusHandled={() => setSupplementsFocus(false)} focusBodyDate={bodyFocusDate}
@@ -835,9 +838,10 @@ function NavButton({ active, onClick, label, shortcut, icon }: { active: boolean
 }
 
 function TodayView({
-  now, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, onOpenSupplements, onOpenBody, onOpenSleep, completingTaskIds,
+  now, sleepDateKey, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, onOpenSupplements, onOpenBody, onOpenSleep, completingTaskIds,
 }: {
   now: Date;
+  sleepDateKey: string;
   tasks: CalendarTask[];
   activeTask: CalendarTask | null;
   nextTasks: CalendarTask[];
@@ -958,7 +962,7 @@ function TodayView({
           </div>
         )}
       </section>
-      <DailyChecklist planningKey={today} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} onOpenSupplements={onOpenSupplements} onOpenBody={onOpenBody} onOpenSleep={onOpenSleep} />
+      <DailyChecklist planningKey={today} sleepDateKey={sleepDateKey} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} onOpenSupplements={onOpenSupplements} onOpenBody={onOpenBody} onOpenSleep={onOpenSleep} />
 
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">

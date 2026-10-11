@@ -24,6 +24,12 @@ export function emptySleepStore(): SleepStore {
   return { version: 1, entries: [], checkInEnabled: false, goalMinutes: null };
 }
 
+/** Local calendar date, intentionally independent of Dayframe's 02:00 planning rollover. */
+export function sleepCalendarDateKey(now: Date): string {
+  return String(now.getFullYear()).padStart(4, "0") + "-"
+    + String(now.getMonth() + 1).padStart(2, "0") + "-"
+    + String(now.getDate()).padStart(2, "0");
+}
 export function validSleepDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + "T12:00:00");

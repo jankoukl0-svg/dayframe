@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptySleepStore,validSleepStore,parseSleepStore,sleepDurationMinutes,upsertSleepEntry,
-  sleepCheckInStatus,sleepSeries,sleepAverageMinutes
+  sleepCheckInStatus,sleepSeries,sleepAverageMinutes,sleepCalendarDateKey
 } from "./dayframe-sleep.ts";
 const day="2026-10-12";
 const entry=(date,bedtime="23:30",wakeTime="07:15")=>({
@@ -50,4 +50,8 @@ test("series and average only include actual nights in the selected date range",
   assert.equal(sleepAverageMinutes(store,day,3),420);
   assert.equal(sleepAverageMinutes(store,day,30),450);
   assert.equal(sleepAverageMinutes(emptySleepStore(),day,30),null);
+});
+
+test("calendar wake date does not use the 02:00 Dayframe planning-day rollover",()=>{
+  assert.equal(sleepCalendarDateKey(new Date(2026,9,13,1,0)), "2026-10-13");
 });

@@ -108,3 +108,40 @@ test("two tabs preserve changes to different fields when editing the same date",
   expect(saved.entries[0].quality).toBe(5);
   await context.close();
 });
+
+test("before 02:00, wake date is the real local date rather than yesterday's planning day",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-13T01:00:00"));
+  await page.goto(ROOT,{waitUntil:"networkidle"});
+  await page.evaluate(()=>localStorage.clear());
+  await page.reload({waitUntil:"networkidle"});
+  const root=await sleep(page);
+  await root.getByRole("button",{name:"+ Zapsat spánek"}).click();
+  await expect(root.getByLabel("Datum probuzení")).toHaveValue("2026-10-13");
+  await expect(root.getByLabel("Datum probuzení")).toHaveAttribute("max","2026-10-13");
+  await root.getByRole("button",{name:"Uložit spánek"}).click();
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.entries.map(e=>e.date)).toEqual(["2026-10-13"]);
+});
+test("invalid merged sleep times warn without losing either tab's already saved record",async({browser})=>{
+  const context=await browser.newContext();
+  const a=await context.newPage(),b=await context.newPage();
+  await fresh(a);
+  const rootA=await sleep(a);
+  await rootA.getByRole("button",{name:"+ Zapsat spánek"}).click();
+  await rootA.getByRole("button",{name:"Uložit spánek"}).click();
+  await b.clock.setFixedTime(new Date("2026-10-12T12:00:00"));
+  await b.goto(ROOT,{waitUntil:"networkidle"});
+  const rootB=await sleep(b);
+  await rootA.getByRole("button",{name:"Záznam",exact:true}).click();
+  await rootB.getByRole("button",{name:"Záznam",exact:true}).click();
+  await rootA.getByLabel("Čas usnutí").fill("07:15");
+  await rootB.getByLabel("Čas probuzení").fill("07:20");
+  await rootA.getByRole("button",{name:"Uložit spánek"}).click();
+  await rootB.getByRole("button",{name:"Uložit spánek"}).click();
+  await expect(rootB.getByRole("alert")).toContainText("současně změněny");
+  await expect(rootB.locator("[data-sleep-editor]")).toBeVisible();
+  const saved=await a.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.entries).toHaveLength(1);
+  expect(saved.entries[0]).toMatchObject({bedtime:"07:15",wakeTime:"07:00"});
+  await context.close();
+});

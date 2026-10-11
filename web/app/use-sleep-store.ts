@@ -18,10 +18,11 @@ export function useSleepStore(){
     window.addEventListener("storage",storage);
     return()=>{window.removeEventListener(SLEEP_SYNC_EVENT,sync);window.removeEventListener("storage",storage);};
   },[]);
-  const persist=useCallback((change:(current:SleepStore)=>SleepStore)=>{
+  const persist=useCallback((change:(current:SleepStore)=>SleepStore|null)=>{
     const current=readSleepStore();
     if(current.blocked){setBlocked(true);setError("Data spánku nelze bezpečně načíst. Ukládání je zablokované.");return false;}
     const next=change(current.store);
+    if(next===null||next===current.store){setError("Časy byly současně změněny v jiné záložce. Zkontroluj je a ulož znovu.");return false;}
     if(!saveSleepStore(next)){setError("Změnu se nepodařilo bezpečně uložit.");return false;}
     setStore(next);setError("");return true;
   },[]);

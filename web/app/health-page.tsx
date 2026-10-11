@@ -48,8 +48,8 @@ function newHealthRoutine(): HygieneRoutineDefinition {
   };
 }
 
-export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled, focusBodyDate, onBodyFocusHandled, focusSleepDate, onSleepFocusHandled }: {
-  planningKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
+export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled, focusBodyDate, onBodyFocusHandled, focusSleepDate, onSleepFocusHandled }: {
+  planningKey: string; sleepTodayKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
   focusGymKey?: string | null; focusGymDate?: string | null; onGymFocusHandled?: () => void;
   focusSupplements?: boolean; onSupplementsFocusHandled?:()=>void;
   focusBodyDate?: string | null; onBodyFocusHandled?:()=>void;
@@ -68,7 +68,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
   const sleep = useSleepStore();
   const bodyWeight=latestMetric(body.store,"weightKg",planningKey);
   const bodyLatest=latestBodyEntry(body.store,planningKey);
-  const sleepLatest=sleep.store.entries.filter(x=>x.date<=planningKey).slice().sort((a,b)=>b.date.localeCompare(a.date))[0]??null;
+  const sleepLatest=sleep.store.entries.filter(x=>x.date<=sleepTodayKey).slice().sort((a,b)=>b.date.localeCompare(a.date))[0]??null;
   const todaySupplements = useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
   const todayWorkouts = useMemo(() => assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
 
@@ -285,7 +285,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
       ) : tab === "body" ? (
         <BodyPage today={planningKey} focusDate={focusBodyDate} onFocusHandled={onBodyFocusHandled} />
       ) : tab === "sleep" ? (
-        <SleepPage today={planningKey} focusDate={focusSleepDate} onFocusHandled={onSleepFocusHandled} />
+        <SleepPage today={sleepTodayKey} focusDate={focusSleepDate} onFocusHandled={onSleepFocusHandled} />
       ) : (
         <section className="df2-health-coming-soon">
           <span>ETAPA {activeTab.stage}</span>
