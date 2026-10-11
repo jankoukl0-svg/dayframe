@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 import { ScheduleEditor } from "./hygiene-page";
 import { GymPage } from "./health-gym";
+import { SupplementsPage } from "./health-supplements";
+import { useSupplementStore } from "./use-supplement-store";
+import { supplementOccurrences } from "@/lib/dayframe-supplements";
 import { useGymStore } from "./use-gym-store";
 import { assignmentsOnDate } from "@/lib/dayframe-gym";
 import {
@@ -40,9 +43,10 @@ function newHealthRoutine(): HygieneRoutineDefinition {
   };
 }
 
-export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled }: {
+export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled }: {
   planningKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
   focusGymKey?: string | null; focusGymDate?: string | null; onGymFocusHandled?: () => void;
+  focusSupplements?: boolean; onSupplementsFocusHandled?:()=>void;
 }) {
   const [store, setStore] = useState<HygieneStore>(() => createDefaultHygieneStore(planningKey));
   const [blocked, setBlocked] = useState(false);
@@ -52,6 +56,8 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
   const [draft, setDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const gym = useGymStore();
+  const supplements = useSupplementStore();
+  const todaySupplements = useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
   const todayWorkouts = useMemo(() => assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
 
   useEffect(() => {
@@ -84,6 +90,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
   }, [hydrated, focusRoutineId, onFocusHandled]);
 
   useEffect(()=>{if(focusGymKey)setTab("gym");},[focusGymKey]);
+  useEffect(()=>{if(focusSupplements){setTab("supplements");onSupplementsFocusHandled?.();}},[focusSupplements,onSupplementsFocusHandled]);
   const scoped = useMemo(() => careDomainStore(store, "health"), [store]);
   const summaries = useMemo(() => scheduledRoutineSummaries(scoped, planningKey, planningKey), [scoped, planningKey]);
   const handled = summaries.reduce((sum, item) => sum + item.handled, 0);
@@ -157,6 +164,13 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
 
       {tab === "overview" ? (
         <div className="df2-health-content">
+          <section className="df2-health-section" data-health-supplements-overview>
+            <div className="df2-health-section-heading"><div><span>Rozpis užívání</span><h2>Dnešní suplementy</h2></div>
+              <button type="button" onClick={()=>setTab("supplements")}>Otevřít suplementy →</button></div>
+            <p className="df2-health-helper">{todaySupplements.length
+              ? todaySupplements.map(x=>x.time+" · "+x.supplement.name+" · "+(x.intake?.status==="taken"?"Užito":x.intake?.status==="skipped"?"Vynecháno":"Čeká")).join(" / ")
+              : "Dnes nemáš naplánované žádné suplementy."}</p>
+          </section>
           <section className="df2-health-section" data-health-gym-overview>
             <div className="df2-health-section-heading"><div><span>Tréninkový plán</span><h2>Dnešní gym</h2></div>
               <button type="button" onClick={()=>setTab("gym")}>Otevřít tréninky →</button></div>
@@ -238,6 +252,8 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
         </div>
       ) : tab === "gym" ? (
         <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} onFocusHandled={onGymFocusHandled} />
+      ) : tab === "supplements" ? (
+        <SupplementsPage today={planningKey} />
       ) : (
         <section className="df2-health-coming-soon">
           <span>ETAPA {activeTab.stage}</span>
