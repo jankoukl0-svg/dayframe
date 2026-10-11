@@ -38,7 +38,7 @@ function PhotoTile({photo,onRemove}:{photo:BodyPhoto;onRemove:(id:string)=>void}
     </div>
   </article>;
 }
-export function BodyPage({today,focusDate}:{today:string;focusDate?:string|null}){
+export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDate?:string|null;onFocusHandled?:()=>void}){
   const {store,hydrated,blocked,error,persist}=useBodyStore();
   const [panel,setPanel]=useState<Panel>("overview");
   const [date,setDate]=useState(today);
@@ -70,7 +70,7 @@ export function BodyPage({today,focusDate}:{today:string;focusDate?:string|null}
     setDraft(row?{...row.metrics}:blankMeasurements());setNote(row?.note??"");setDraftAtOpen(row?{...row,metrics:{...row.metrics}}:null);
     clearFeedback();
   },[store]);
-  useEffect(()=>{if(!focusDate)return;setPanel("measurements");loadDate(focusDate);},[focusDate,loadDate]);
+  useEffect(()=>{if(!hydrated||!focusDate)return;setPanel("measurements");loadDate(focusDate);onFocusHandled?.();},[hydrated,focusDate,loadDate,onFocusHandled]);
   // The day changes only when navigating back into Health. Do not overwrite an
   // in-progress edit when records are synchronized from another tab.
   const setSelectedDate=(key:string)=>{if(validBodyDate(key)&&key<=today)loadDate(key);};
