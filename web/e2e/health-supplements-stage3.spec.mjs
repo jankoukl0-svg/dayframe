@@ -136,3 +136,43 @@ test("editing metadata in another tab does not undo a newly logged dose or resto
   expect(saved.supplements[0].brand).toBe("Nová značka");
   await context.close();
 });
+
+test("an explicit inventory recount does not make earlier dose reversals add phantom stock",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{stock:"3"});
+  await root.locator("[data-supplement-occurrence]").first().getByRole("button",{name:"Užito",exact:true}).click();
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modal=page.getByRole("dialog",{name:"Editor suplementu"});
+  await modal.getByRole("spinbutton",{name:"Aktuální zásoba"}).fill("20");
+  await modal.getByRole("button",{name:"Uložit suplement"}).click();
+  await root.getByRole("button",{name:"Dnes",exact:true}).click();
+  await root.locator("[data-supplement-occurrence]").first().getByRole("button",{name:/Užito/}).click();
+  const latest=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(latest.supplements[0].stock).toBe(20);
+  expect(latest.intakes).toHaveLength(0);
+});
+
+test("concurrent metadata-only edit preserves a newer schedule in another tab",async({browser})=>{
+  const context=await browser.newContext();
+  const a=await context.newPage(),b=await context.newPage();
+  await fresh(a);
+  await b.goto(ROOT,{waitUntil:"networkidle"});
+  const rootA=await addOne(a);
+  const rootB=await supplements(b);
+  await rootB.getByRole("button",{name:"Moje suplementy"}).click();
+  await rootB.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modalB=b.getByRole("dialog",{name:"Editor suplementu"});
+  await modalB.getByRole("textbox",{name:"Značka suplementu"}).fill("Značka upravená v druhém okně");
+  await rootA.getByRole("button",{name:"Moje suplementy"}).click();
+  await rootA.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modalA=a.getByRole("dialog",{name:"Editor suplementu"});
+  await modalA.getByRole("textbox",{name:"Časy užívání"}).fill("10:30");
+  await modalA.getByRole("button",{name:"Uložit suplement"}).click();
+  await modalB.getByRole("button",{name:"Uložit suplement"}).click();
+  const result=await a.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(result.supplements[0].times).toEqual(["10:30"]);
+  expect(result.supplements[0].brand).toBe("Značka upravená v druhém okně");
+  expect(result.supplements[0].scheduleHistory.at(-1).times).toEqual(["10:30"]);
+  await context.close();
+});
