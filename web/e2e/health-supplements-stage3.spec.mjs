@@ -240,11 +240,14 @@ test("changing active state in one tab preserves another tab's newer intake time
 const PACKSHOT_PNG=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9lNqIAAAAASUVORK5CYII=","base64");
 const packshot={name:"supplement.png",mimeType:"image/png",buffer:PACKSHOT_PNG};
 async function photoBlobExists(page,id){
+  if(typeof id!=="string")throw Error("Image metadata was not saved before checking IndexedDB.");
   return page.evaluate(id=>new Promise((resolve,reject)=>{
     const req=indexedDB.open("dayframe-supplement-photos-v1",1);
     req.onerror=()=>reject(req.error);
     req.onsuccess=()=>{
-      const db=req.result,tx=db.transaction("photos","readonly");
+      const db=req.result;
+      if(!db.objectStoreNames.contains("photos")){db.close();reject(Error("Missing IndexedDB photos store."));return;}
+      const tx=db.transaction("photos","readonly");
       const get=tx.objectStore("photos").get(id);
       get.onsuccess=()=>resolve(get.result instanceof Blob);
       get.onerror=()=>reject(get.error);
@@ -286,12 +289,14 @@ test("replacing or removing a photo preserves intake records and safely cleans u
   const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
   await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles(packshot);
   await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  await expect(dialog).toHaveCount(0);
   const state1=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
   const first=state1.supplements[0].photoId;
   expect(await photoBlobExists(page,first)).toBe(true);
   await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
   await dialog.getByLabel("Nahrát fotografii suplementu").setInputFiles({...packshot,name:"another.png"});
   await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  await expect(dialog).toHaveCount(0);
   const state2=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
   const second=state2.supplements[0].photoId;
   expect(second).not.toBe(first);
@@ -300,6 +305,7 @@ test("replacing or removing a photo preserves intake records and safely cleans u
   await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
   await dialog.getByRole("button",{name:"Odebrat fotografii"}).click();
   await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  await expect(dialog).toHaveCount(0);
   const state3=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
   expect(state3.supplements[0].photoId).toBeUndefined();
   expect(state3.intakes).toEqual(state1.intakes);
