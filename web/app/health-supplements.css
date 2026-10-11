@@ -1,0 +1,46 @@
+/* Stage 3 — Supplements */
+.df2-supplements{display:grid;gap:17px;min-width:0}
+.df2-supplements-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:15px}
+.df2-supplements-head>div{display:grid;gap:6px}
+.df2-supplements-head span{font-size:10px;font-weight:750;letter-spacing:.06em;color:var(--accent-dark)}
+.df2-supplements-head h2{color:var(--ink);font-size:22px;font-weight:750;margin:0}
+.df2-supplements-head p{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
+.df2-supplements-nav{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.df2-supplements-nav button,.df2-supplements-card-actions button,.df2-supplements-card-actions a,
+.df2-supplements-due-actions button{font-size:11px;font-weight:700;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:7px;padding:8px 11px;cursor:pointer}
+.df2-supplements-nav button[aria-current=page],.df2-supplements-due-actions button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-wash);color:var(--accent-dark)}
+.df2-supplements-main{display:grid;gap:16px}
+.df2-supplements-main input[type=search]{width:min(100%,530px);padding:11px 12px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);border-radius:8px}
+.df2-supplements-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.df2-supplements-stats article{padding:14px;border-radius:10px;border:1px solid var(--line);display:grid;gap:9px;background:var(--paper)}
+.df2-supplements-stats small{font-size:11px;color:var(--muted)}
+.df2-supplements-stats strong{font-size:22px;color:var(--ink);font-weight:750}
+.df2-supplements-due,.df2-supplements-shopping,.df2-supplements-library{display:grid;gap:10px}
+.df2-supplements-due article,.df2-supplements-shopping article,.df2-supplements-library article{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:15px;
+  border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:15px}
+.df2-supplements-due-copy,.df2-supplements-library article>div:first-child,.df2-supplements-shopping article>div:first-child{display:grid;gap:5px;min-width:0}
+.df2-supplements-due-copy time,.df2-supplements-library article span{color:var(--accent-dark);font-size:10px;font-weight:750}
+.df2-supplements-due-copy strong,.df2-supplements-shopping strong,.df2-supplements-library h3{font-size:14px;font-weight:750;color:var(--ink);margin:0}
+.df2-supplements-due-copy small,.df2-supplements-shopping small,.df2-supplements-library small,.df2-supplements-library p{font-size:11px;color:var(--muted);line-height:1.5}
+.df2-supplements-due-actions,.df2-supplements-card-actions,.df2-supplements-stock-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.df2-supplements-stock-actions{border-left:1px solid var(--line);padding-left:7px}
+.df2-supplements-notice{color:var(--ink);font-size:11px;margin:0}
+.df2-supplements-history{display:grid;border:1px solid var(--line);border-radius:9px;background:var(--paper)}
+.df2-supplements-history>div{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:10px;padding:11px 14px;align-items:center;font-size:11px}
+.df2-supplements-history>div+div{border-top:1px solid var(--line)}
+.df2-supplements-history time,.df2-supplements-history span{color:var(--muted)}
+.df2-supplements-history strong{font-size:11px;color:var(--ink)}
+.df2-supplements-editor .df2-supplements-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.df2-supplements-editor-fields label{display:grid;gap:5px;font-size:11px;font-weight:650;color:var(--ink)}
+.df2-supplements-editor-fields input,.df2-supplements-editor-fields textarea{width:100%;min-width:0;border:1px solid var(--line-strong);border-radius:6px;background:var(--paper);color:var(--ink);padding:9px;font:inherit}
+.df2-supplements-editor .df2-hygiene-switch{display:flex;align-items:center;gap:8px}
+.df2-supplements-weekdays{display:flex;align-items:center;gap:11px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:10px 13px}
+.df2-supplements-weekdays legend{font-size:11px;color:var(--ink);font-weight:700}
+.df2-supplements-weekdays label{display:flex;align-items:center;gap:4px;color:var(--ink);font-size:11px}
+@media(max-width:720px){
+  .df2-supplements-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .df2-supplements-editor .df2-supplements-editor-fields{grid-template-columns:1fr}
+  .df2-supplements-history>div{grid-template-columns:1fr 1fr}
+  .df2-supplements-history>div>span{grid-column:2;justify-self:end}
+}
