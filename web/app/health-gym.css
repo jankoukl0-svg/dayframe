@@ -180,3 +180,95 @@
 }
 
 .df2-gym-exercise-picker.is-open{z-index:90}
+
+/* Redesigned Gym: a single primary workout flow and progressive disclosure. */
+.df2-gym{gap:19px}
+.df2-gym-heading{align-items:end;padding:2px 0 4px}
+.df2-gym-heading>div{gap:3px}
+.df2-gym-heading span{letter-spacing:.11em}
+.df2-gym-heading h2{font-size:24px;letter-spacing:-.035em}
+.df2-gym-heading p{font-size:12px}
+.df2-gym .df2-gym-new-plan{background:var(--paper);border:1px solid var(--line-strong);border-radius:9px;padding:10px 13px;color:var(--ink);font-size:12px;font-weight:700}
+.df2-gym-nav{gap:2px;border:1px solid var(--line);padding:4px;border-radius:11px;width:max-content;max-width:100%;background:var(--paper)}
+.df2-gym-nav button{border:0;background:transparent;padding:10px 15px;border-radius:8px;color:var(--muted)}
+.df2-gym-nav button[aria-current=page]{border-color:transparent;background:var(--accent-wash);color:var(--accent-dark)}
+.df2-gym-nav button:focus-visible,.df2-gym button:focus-visible,.df2-gym summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.df2-gym-summary>div{gap:5px;padding:16px 18px}
+.df2-gym-summary strong{font-size:14px}
+.df2-gym-summary progress{width:100%;height:5px;border:0;border-radius:50px;overflow:hidden;background:var(--line)}
+.df2-gym-summary progress::-webkit-progress-bar{background:var(--line)}
+.df2-gym-summary progress::-webkit-progress-value{background:var(--accent);border-radius:50px}
+.df2-gym-summary progress::-moz-progress-bar{background:var(--accent);border-radius:50px}
+.df2-gym-split{gap:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px}
+.df2-gym-focus-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.df2-gym-focus-head>div{display:grid;gap:3px}
+.df2-gym-focus-head span,.df2-gym-workout-top span{font-size:10px;letter-spacing:.075em;font-weight:750;color:var(--accent-dark)}
+.df2-gym-focus-head h3{font-size:18px}
+.df2-gym .df2-gym-focus-head>button{background:transparent}
+.df2-gym-split-days{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:7px;padding:5px;background:var(--canvas,var(--paper));border:1px solid var(--line);border-radius:11px}
+.df2-gym .df2-gym-panel .df2-gym-split-days>button{min-height:59px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;background:transparent;border-color:transparent;padding:10px 12px;border-radius:8px}
+.df2-gym-split-days>button strong{font-size:14px}
+.df2-gym-split-days>button small{font-size:10px}
+.df2-gym .df2-gym-panel .df2-gym-split-days>button[aria-pressed=true]{background:var(--paper);border-color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.df2-gym-workout-preview{margin-top:17px;border:0;border-top:1px solid var(--line);border-radius:0;padding:17px 0 0;gap:11px}
+.df2-gym-workout-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.df2-gym-workout-top>div:first-child{display:grid;gap:4px}
+.df2-gym-workout-top h3{font-size:21px;letter-spacing:-.025em}
+.df2-gym-workout-top small{font-size:11px;color:var(--muted)}
+.df2-gym-workout-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.df2-gym .df2-gym-workout-actions>.df2-primary{min-height:39px;font-size:12px;padding:10px 16px}
+.df2-gym .df2-gym-workout-actions>button:not(.df2-primary){background:transparent;border-color:transparent;text-decoration:underline;text-underline-offset:3px}
+.df2-gym-preview-row{grid-template-columns:minmax(0,1fr) auto;padding:12px 5px;gap:12px}
+.df2-gym-preview-row:first-child{border-top:1px solid var(--line)}
+.df2-gym-preview-row:last-child{border-bottom:0}
+.df2-gym-preview-row>span{gap:15px}
+.df2-gym-preview-row>span>small{display:inline-grid;place-items:center;width:26px;height:26px;background:var(--accent-wash);border-radius:8px;color:var(--accent-dark)}
+.df2-gym-preview-row strong{font-size:13px;font-weight:700}
+.df2-gym-preview-row .df2-gym-preview-target{font-size:12px;color:var(--muted);white-space:nowrap;text-align:right}
+.df2-gym-week-strip,.df2-gym-history{padding:0;background:var(--paper);border:1px solid var(--line);border-radius:11px;display:block}
+.df2-gym-week-strip>summary,.df2-gym-history>summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;font-size:13px;font-weight:750;color:var(--ink);list-style:none}
+.df2-gym-week-strip>summary::-webkit-details-marker,.df2-gym-history>summary::-webkit-details-marker{display:none}
+.df2-gym-week-strip>summary::after,.df2-gym-history>summary::after{content:"⌄";color:var(--accent-dark);margin-left:7px}
+.df2-gym-week-strip[open]>summary::after,.df2-gym-history[open]>summary::after{transform:rotate(180deg)}
+.df2-gym-week-strip>summary>span,.df2-gym-history>summary>span{margin-left:auto;font-size:11px;font-weight:500;color:var(--muted)}
+.df2-gym-week-days{padding:0 15px 15px}
+.df2-gym-schedule{border-top:1px solid var(--line);padding-top:17px}
+.df2-gym-history-list{display:grid;gap:6px;padding:0 12px 12px}
+.df2-gym-session-progress{height:6px;border-radius:20px;background:var(--line);overflow:hidden}
+.df2-gym-session-progress span{display:block;height:100%;background:var(--accent);border-radius:20px;transition:width .2s ease}
+.df2-gym-rest{padding:12px 15px;gap:10px}
+.df2-gym-rest strong{font-size:21px}
+.df2-gym-rest-settings>summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--accent-dark);padding:7px 4px}
+.df2-gym-rest-buttons{max-width:480px;justify-content:end;margin-top:10px}
+.df2-gym-set-labels,.df2-gym-set{grid-template-columns:65px minmax(0,1fr) minmax(0,1fr) 82px;gap:9px}
+.df2-gym-set-labels{padding:0 2px 6px}
+.df2-gym-set-labels span{font-size:11px}
+.df2-gym-set .df2-gym-set-done{height:36px;font-size:18px}
+.df2-gym-set.done{background:var(--accent-wash);border-radius:9px;padding:4px}
+.df2-gym-set-extras{grid-column:1/-1;font-size:11px;color:var(--muted);padding:0 4px 7px}
+.df2-gym-set-extras>summary{cursor:pointer;width:max-content;max-width:100%;font-size:11px;color:var(--muted);padding:5px 0}
+.df2-gym-set-extra-fields{display:flex;align-items:end;flex-wrap:wrap;gap:8px;padding-top:8px}
+.df2-gym-set-extra-fields label{display:grid;gap:4px;font-size:11px;color:var(--muted)}
+.df2-gym-set-extra-fields label input{width:68px}
+.df2-gym-set-extra-fields .df2-gym-set-note{flex:1 1 190px;min-width:125px}
+.df2-gym-set-extra-fields .df2-gym-delete-set{grid-column:auto}
+@media(max-width:620px){
+ .df2-gym-nav{width:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+ .df2-gym-nav button{min-width:0;padding:10px 3px;font-size:11px}
+ .df2-gym-summary{grid-template-columns:1fr 1fr}
+ .df2-gym-summary>div{padding:12px}
+ .df2-gym-summary>div:first-child{grid-column:1/-1}
+ .df2-gym-summary>div:nth-child(2){border-left:0;border-top:1px solid var(--line)}
+ .df2-gym-summary>div:last-child{grid-column:auto;border-left:1px solid var(--line)}
+ .df2-gym-summary strong{font-size:12px}
+ .df2-gym-split{padding:12px}
+ .df2-gym-split-days{grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px}
+ .df2-gym .df2-gym-panel .df2-gym-split-days>button{padding:11px 6px;min-height:58px}
+ .df2-gym-split-days>button strong{font-size:12px}
+ .df2-gym-workout-actions{width:100%;display:grid;grid-template-columns:1fr auto}
+ .df2-gym-preview-row{grid-template-columns:minmax(0,1fr) auto;gap:7px}
+ .df2-gym-preview-row>span{gap:7px}
+ .df2-gym-preview-row strong{font-size:12px}
+ .df2-gym-preview-row .df2-gym-preview-target{font-size:10px}
+ .df2-gym-set-labels,.df2-gym-set{grid-template-columns:42px minmax(0,1fr) minmax(0,1fr) 62px;gap:5px}
+}
