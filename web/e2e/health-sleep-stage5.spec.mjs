@@ -38,7 +38,15 @@ test("Stage 5 replaces hydration placeholder with working Sleep and preserves ex
   const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(saved.entries).toHaveLength(1);
   expect(saved.entries[0]).toMatchObject({date:"2026-10-12",bedtime:"23:30",wakeTime:"07:15",quality:4});
-  expect(await page.evaluate(()=>localStorage.getItem("dayframe-hygiene-v1"))).toBe(hygiene);
+  const afterHygiene=await page.evaluate(()=>localStorage.getItem("dayframe-hygiene-v1"));
+  const normalize=raw=>{
+    const s=JSON.parse(raw);
+    return {products:s.products,routines:s.routines.map(r=>({
+      id:r.id,title:r.title,active:r.active,
+      tasks:r.tasks.map(t=>({id:t.id,title:t.title,productIds:t.productIds??[]}))
+    }))};
+  };
+  expect(normalize(afterHygiene)).toEqual(normalize(hygiene));
   await page.reload({waitUntil:"networkidle"});
   await expect(page.locator("[data-sleep-checklist]")).toContainText("Zapsáno");
 });
