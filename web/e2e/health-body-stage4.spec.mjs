@@ -138,3 +138,38 @@ test("untouched fields in one tab do not overwrite a newer measurement from anot
   expect(saved.entries[0].metrics.waistCm).toBe(82);
   await context.close();
 });
+
+test("two tabs adding different fields to the same previously empty date preserve both",async({browser})=>{
+  const context=await browser.newContext();
+  const a=await context.newPage(),b=await context.newPage();
+  await fresh(a);await b.goto(ROOT,{waitUntil:"networkidle"});
+  const bodyA=await body(a);
+  const bodyB=await body(b);
+  await bodyA.getByRole("button",{name:"Měření",exact:true}).click();
+  await bodyB.getByRole("button",{name:"Měření",exact:true}).click();
+  await bodyA.getByRole("spinbutton",{name:"Hmotnost",exact:true}).fill("70");
+  await bodyB.getByRole("spinbutton",{name:"Pas",exact:true}).fill("81");
+  await bodyA.getByRole("button",{name:"Uložit měření"}).click();
+  await bodyB.getByRole("button",{name:"Uložit měření"}).click();
+  const data=await a.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(data.entries).toHaveLength(1);
+  expect(data.entries[0].metrics).toMatchObject({weightKg:70,waistCm:81});
+  await context.close();
+});
+test("failed metadata write cannot delete the only locally stored photo blob",async({page})=>{
+  await fresh(page);
+  const root=await body(page);
+  await root.getByRole("button",{name:"Fotografie",exact:true}).click();
+  const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+nmV0AAAAASUVORK5CYII=","base64");
+  await root.getByLabel("Vybrat progresovou fotografii").setInputFiles({name:"progress.png",mimeType:"image/png",buffer:png});
+  await root.getByRole("button",{name:"Uložit fotografii"}).click();
+  const id=await root.locator("[data-body-photo]").getAttribute("data-body-photo");
+  await page.evaluate(k=>localStorage.setItem(k,"{corrupt"),KEY);
+  page.once("dialog",d=>d.accept());
+  await root.locator("[data-body-photo]").getByRole("button",{name:"Odstranit"}).click();
+  const size=await page.evaluate(async id=>{
+    const db=await new Promise((resolve,reject)=>{const r=indexedDB.open("dayframe-body-photos-v1");r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+    return await new Promise((resolve,reject)=>{const r=db.transaction("photos","readonly").objectStore("photos").get(id);r.onsuccess=()=>resolve(r.result?.size??null);r.onerror=()=>reject(r.error);});
+  },id);
+  expect(size).toBe(png.length);
+});
