@@ -61,3 +61,15 @@ test("malformed storage blocks writes rather than replacing user data, valid old
   assert.equal(parseGymStore(JSON.stringify({...s,plans:[{...s.plans[0],days:[{...s.plans[0].days[0],weekday:22}]}]})).blocked,true);
   assert.equal(parseGymStore(null).blocked,false);
 });
+
+test("new plans do not synthesize workouts before the plan activation date",()=>{
+  const s=emptyGymStore();
+  const plan=makeGymPlan("History safe","upper-lower","2026-10-12");
+  const active={...s,plans:[plan],activePlanId:plan.id};
+  assert.equal(assignmentsOnDate(active,"2026-10-05").length,0);
+  assert.equal(assignmentsOnDate(active,"2026-10-12").length,1);
+  assert.equal(assignmentsOnDate(active,"2026-10-19").length,1);
+  const key=occurrenceKey(plan.id,plan.days[0].id,"2026-10-12");
+  assert.equal(moveOccurrence(active,key,"2026-10-05"),active);
+  assert.equal(parseGymStore(JSON.stringify(active)).blocked,false);
+});
