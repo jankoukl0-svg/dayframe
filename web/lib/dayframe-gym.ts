@@ -3,12 +3,12 @@ export const GYM_SYNC_EVENT = "dayframe-gym-sync";
 
 export type GymExercise = { id: string; name: string; muscle: string; equipment: string; kind: string; technique: string; photoUrl?: string; custom?: boolean };
 export type GymPlanExercise = { id: string; exerciseId: string; sets: number; reps: number; restSeconds: number };
-export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[] };
-export type GymPlan = { id: string; name: string; days: GymPlanDay[] };
+export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[]; scheduleHistory?: Array<{effectiveFrom:string;weekday:number}> };
+export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?: string };
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
 export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; exercises: GymSessionExercise[] };
-export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; sessions: GymSession[]; moves: Record<string, string> };
+export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string> };
 export type GymOccurrence = { key: string; planId: string; dayId: string; name: string; date: string; originalDate: string; completed: boolean; session: GymSession | null };
 
 export const EXERCISE_LIBRARY: GymExercise[] = [
@@ -31,7 +31,7 @@ export const EXERCISE_LIBRARY: GymExercise[] = [
 ].map(([id,name,muscle,equipment,kind,technique]) => ({ id,name,muscle,equipment,kind,technique }));
 
 export function emptyGymStore(): GymStore {
-  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, sessions: [], moves: {} };
+  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [], sessions: [], moves: {} };
 }
 const str = (value: unknown, max=300) => typeof value === "string" && value.length <= max;
 const num = (value: unknown, min: number, max: number) => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
@@ -52,9 +52,11 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
     for(const e of s.exercises) if(!e || !str(e.id,100) || !e.id || !str(e.name) || !e.name.trim() || !str(e.muscle) || !str(e.equipment)
       || !str(e.kind) || !str(e.technique,1500) || (e.photoUrl !== undefined && !str(e.photoUrl,600))) throw Error("exercise");
     for(const p of s.plans) {
-      if(!p || !str(p.id,100) || !p.id || !str(p.name) || !p.name.trim() || !Array.isArray(p.days) || !distinct(p.days)) throw Error("plan");
+      if(!p || !str(p.id,100) || !p.id || !str(p.name) || !p.name.trim() || (p.createdOn!==undefined && !dateValid(p.createdOn)) || !Array.isArray(p.days) || !distinct(p.days)) throw Error("plan");
       for(const d of p.days) {
-        if(!d || !str(d.id,100) || !d.id || !str(d.name) || !num(d.weekday,0,6) || !Number.isInteger(d.weekday) || !Array.isArray(d.exercises) || !distinct(d.exercises)) throw Error("day");
+        if(!d || !str(d.id,100) || !d.id || !str(d.name) || !num(d.weekday,0,6) || !Number.isInteger(d.weekday) || !Array.isArray(d.exercises) || !distinct(d.exercises)
+          || (d.scheduleHistory!==undefined && (!Array.isArray(d.scheduleHistory) || !distinct(d.scheduleHistory.map(x=>({id:x.effectiveFrom})))
+            ||d.scheduleHistory.some(x=>!dateValid(x.effectiveFrom)||!num(x.weekday,0,6)||!Number.isInteger(x.weekday))))) throw Error("day");
         for(const e of d.exercises) if(!e || !str(e.id,100) || !str(e.exerciseId,100) || !num(e.sets,1,12) || !Number.isInteger(e.sets) || !num(e.reps,1,100) || !Number.isInteger(e.reps) || !num(e.restSeconds,0,1800)) throw Error("template");
       }
     }
@@ -69,6 +71,9 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
       }
     }
     if(s.activePlanId && !s.plans.some(x=>x.id===s.activePlanId)) throw Error("active plan");
+    if(s.activations!==undefined && (!Array.isArray(s.activations)
+      || !distinct(s.activations.map(x=>({id:x.effectiveFrom})))
+      || s.activations.some(x=>!x||!dateValid(x.effectiveFrom)||!(x.planId===null || str(x.planId,100))))) throw Error("activations");
     for(const [key,date] of Object.entries(s.moves)) if(!str(key,300)||!dateValid(date)) throw Error("move");
     return {store:s,blocked:false};
   }catch{ return {store:emptyGymStore(),blocked:true}; }
@@ -89,30 +94,82 @@ export function dateShift(date:string, offset:number):string {
 }
 export function weekday(date:string):number { return new Date(date+"T12:00:00").getDay(); }
 export function occurrenceKey(planId:string,dayId:string,origin:string){return [planId,dayId,origin].join("|");}
+export function activeGymPlanOnDate(store:GymStore,date:string):GymPlan|null {
+  if(!dateValid(date))return null;
+  const history=store.activations??[];
+  const id=history.length
+    ? history.filter(x=>x.effectiveFrom<=date).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0]?.planId
+    : store.activePlanId; // Backwards-compatible with unversioned preview fixtures.
+  return store.plans.find(p=>p.id===id)??null;
+}
+export function setActiveGymPlan(store:GymStore,planId:string|null,date:string):GymStore {
+  if(!dateValid(date) || (planId!==null && !store.plans.some(p=>p.id===planId && (!p.createdOn || p.createdOn<=date))))return store;
+  const activations=(store.activations??[]).filter(x=>x.effectiveFrom<date);
+  activations.push({planId,effectiveFrom:date});
+  return {...store,activePlanId:planId,activations};
+}
+export function gymDayWeekdayOnDate(day:GymPlanDay,date:string):number|null {
+  if(!dateValid(date))return null;
+  if(!day.scheduleHistory?.length)return day.weekday; // Older unversioned plans.
+  const revision=day.scheduleHistory.filter(x=>x.effectiveFrom<=date)
+    .sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+  return revision?.weekday??null;
+}
+export function setGymDayWeekday(plan:GymPlan,dayId:string,weekdayValue:number,today:string):GymPlan {
+  if(!dateValid(today) || !Number.isInteger(weekdayValue) || weekdayValue<0 || weekdayValue>6)return plan;
+  return {...plan,days:plan.days.map(day=>{
+    if(day.id!==dayId || day.weekday===weekdayValue)return day;
+    // Weekday edits apply from the next day; today's earlier occurrences
+    // and completed workout keys remain at their originally scheduled date.
+    const effectiveFrom=dateShift(today,1);
+    const original=day.scheduleHistory?.length ? day.scheduleHistory
+      : [{effectiveFrom:plan.createdOn??today,weekday:day.weekday}];
+    return {...day,weekday:weekdayValue,scheduleHistory:[
+      ...original.filter(x=>x.effectiveFrom<effectiveFrom),
+      {effectiveFrom,weekday:weekdayValue},
+    ]};
+  })};
+}
 export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
-  const plan=store.plans.find(p=>p.id===store.activePlanId);if(!plan || !dateValid(date))return [];
+  if(!dateValid(date))return [];
   const result:GymOccurrence[]=[];
-  const append=(day:GymPlanDay,origin:string)=>{
+  const append=(plan:GymPlan,day:GymPlanDay,origin:string)=>{
     const key=occurrenceKey(plan.id,day.id,origin);
-    if((store.moves[key]??origin)!==date)return;
+    if((plan.createdOn && origin<plan.createdOn) || (store.moves[key]??origin)!==date
+      ||activeGymPlanOnDate(store,origin)?.id!==plan.id
+      ||gymDayWeekdayOnDate(day,origin)!==weekday(origin))return;
     const session=store.sessions.find(s=>s.occurrenceKey===key)??null;
-    result.push({key,planId:plan.id,dayId:day.id,name:day.name,date,originalDate:origin,completed:!!session?.completedAt,session});
+    if(result.some(x=>x.key===key))return;
+    result.push({key,planId:plan.id,dayId:day.id,name:session?.title??day.name,
+      date,originalDate:origin,completed:!!session?.completedAt,session});
   };
-  for(const d of plan.days)if(d.weekday===weekday(date))append(d,date);
+  const todayPlan=activeGymPlanOnDate(store,date);
+  if(todayPlan && (!todayPlan.createdOn || date>=todayPlan.createdOn))
+    for(const d of todayPlan.days)if(gymDayWeekdayOnDate(d,date)===weekday(date))append(todayPlan,d,date);
   for(const [key,target] of Object.entries(store.moves)){
     if(target!==date)continue;
     const [planId,dayId,origin,...rest]=key.split("|");
-    if(rest.length || planId!==plan.id || !dateValid(origin) || origin===date)continue;
-    const d=plan.days.find(x=>x.id===dayId);
-    if(d && d.weekday===weekday(origin))append(d,origin);
+    if(rest.length || !dateValid(origin) || origin===date)continue;
+    const plan=store.plans.find(p=>p.id===planId), day=plan?.days.find(x=>x.id===dayId);
+    if(plan&&day)append(plan,day,origin);
+  }
+  // Sessions are factual history even when the plan was later deactivated,
+  // removed or assigned a new weekday. Never hide a recorded completion.
+  for(const session of store.sessions.filter(s=>s.date===date)){
+    if(result.some(x=>x.key===session.occurrenceKey))continue;
+    const originalDate=session.occurrenceKey.split("|")[2]??date;
+    result.push({key:session.occurrenceKey,planId:session.planId,dayId:session.dayId,
+      name:session.title,date,originalDate,completed:!!session.completedAt,session});
   }
   return result.sort((a,b)=>a.name.localeCompare(b.name,"cs")||a.key.localeCompare(b.key));
 }
 export function moveOccurrence(store:GymStore,key:string,target:string):GymStore {
-  const plan=store.plans.find(p=>p.id===store.activePlanId);
   const [planId,dayId,origin,...rest]=key.split("|");
-  if(!dateValid(target)||!dateValid(origin)||rest.length||!plan||planId!==plan.id
-    ||!plan.days.some(x=>x.id===dayId&&x.weekday===weekday(origin))
+  const plan=store.plans.find(p=>p.id===planId);
+  if(!dateValid(target)||!dateValid(origin)||rest.length||!plan
+    ||(plan.createdOn && (target<plan.createdOn || origin<plan.createdOn))
+    ||activeGymPlanOnDate(store,origin)?.id!==planId
+    ||!plan.days.some(x=>x.id===dayId && gymDayWeekdayOnDate(x,origin)===weekday(origin))
     ||store.sessions.some(s=>s.occurrenceKey===key))return store;
   const moves={...store.moves};if(target===origin)delete moves[key];else moves[key]=target;
   return {...store,moves};
@@ -154,14 +211,17 @@ export function gymMetrics(store:GymStore) {
   return {workouts,byExercise,totalVolume:workouts.reduce((n,x)=>n+x.volume,0)};
 }
 export type GymTemplate="ppl"|"upper-lower"|"full-body"|"custom";
-export function makeGymPlan(name:string,template:GymTemplate):GymPlan {
+export function makeGymPlan(name:string,template:GymTemplate,createdOn?:string):GymPlan {
+  const now=new Date();
+  const localDay=createdOn??[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+  if(!dateValid(localDay))throw Error("Neplatné datum vytvoření plánu.");
   const templates:Record<GymTemplate,Array<[string,number,string[]]>>={
     "ppl":[["Push",1,["bench-press","incline-dumbbell","overhead-press","triceps-pushdown"]],["Pull",3,["pull-up","cable-row","biceps-curl"]],["Legs",5,["squat","romanian-deadlift","leg-curl","calf-raise"]]],
     "upper-lower":[["Upper",1,["bench-press","lat-pulldown","overhead-press","biceps-curl"]],["Lower",4,["squat","romanian-deadlift","leg-press","calf-raise"]]],
     "full-body":[["Full Body",1,["squat","bench-press","cable-row"]],["Full Body B",4,["romanian-deadlift","overhead-press","lat-pulldown"]]],
     "custom":[["Vlastní trénink",1,[]]]
   };
-  return {id:uid("plan"),name:name.trim()||"Můj plán",days:templates[template].map(([title,weekday,ids])=>({
-    id:uid("day"),name:title,weekday,exercises:ids.map(exerciseId=>({id:uid("plan-ex"),exerciseId,sets:3,reps:10,restSeconds:90}))
+  return {id:uid("plan"),name:name.trim()||"Můj plán",createdOn:localDay,days:templates[template].map(([title,weekday,ids])=>({
+    id:uid("day"),name:title,weekday,scheduleHistory:[{effectiveFrom:localDay,weekday}],exercises:ids.map(exerciseId=>({id:uid("plan-ex"),exerciseId,sets:3,reps:10,restSeconds:90}))
   }))};
 }
