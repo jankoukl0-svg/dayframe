@@ -176,3 +176,35 @@ test("concurrent metadata-only edit preserves a newer schedule in another tab",a
   expect(result.supplements[0].scheduleHistory.at(-1).times).toEqual(["10:30"]);
   await context.close();
 });
+
+test("concurrent brand edit retains newer package, price, notes and shopping selections",async({browser})=>{
+  const context=await browser.newContext();
+  const a=await context.newPage(),b=await context.newPage();
+  await fresh(a);
+  await b.goto(ROOT,{waitUntil:"networkidle"});
+  const rootA=await addOne(a,{name:"Společný suplement"});
+  const rootB=await supplements(b);
+  await rootB.getByRole("button",{name:"Moje suplementy"}).click();
+  await rootB.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modalB=b.getByRole("dialog",{name:"Editor suplementu"});
+  await modalB.getByRole("textbox",{name:"Značka suplementu"}).fill("Značka z B");
+
+  await rootA.getByRole("button",{name:"Moje suplementy"}).click();
+  await rootA.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modalA=a.getByRole("dialog",{name:"Editor suplementu"});
+  await modalA.getByRole("spinbutton",{name:"Velikost balení"}).fill("45");
+  await modalA.getByRole("spinbutton",{name:"Cena balení"}).fill("425");
+  await modalA.getByRole("textbox",{name:"Poznámky suplementu"}).fill("Nová poznámka z A");
+  await modalA.getByRole("button",{name:"Uložit suplement"}).click();
+  await rootA.locator("[data-supplement-id]").getByRole("button",{name:"Přidat k nákupu"}).click();
+
+  await modalB.getByRole("button",{name:"Uložit suplement"}).click();
+  const result=await a.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  const x=result.supplements[0];
+  expect(x.brand).toBe("Značka z B");
+  expect(x.packServings).toBe(45);
+  expect(x.packPriceCzk).toBe(425);
+  expect(x.notes).toBe("Nová poznámka z A");
+  expect(x.shopping).toBe(true);
+  await context.close();
+});
