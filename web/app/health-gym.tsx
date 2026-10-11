@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGymStore } from "./use-gym-store";
 import {GymExercisePicker} from "./gym-exercise-picker";
+import {matchesGymExerciseSearch} from "@/lib/dayframe-gym-exercise-groups";
 import {
   assignmentsOnDate, dateShift, gymMetrics, lastExercisePerformance, weekday,
   makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan, setGymDayWeekday,
@@ -80,8 +81,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const muscleOptions=useMemo(()=>[...new Set(store.exercises.map(e=>e.muscle))]
     .sort((a,b)=>a.localeCompare(b,"cs")),[store.exercises]);
   const library=useMemo(()=>store.exercises.filter(e=>(exerciseMuscle==="all"||e.muscle===exerciseMuscle)
-    &&[e.name,e.muscle,e.equipment].join(" ").toLocaleLowerCase("cs")
-    .includes(exerciseQuery.trim().toLocaleLowerCase("cs"))).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery,exerciseMuscle]);
+    &&matchesGymExerciseSearch(e,exerciseQuery)).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery,exerciseMuscle]);
   const savePlan=(id:string,fn:(plan:GymPlan)=>GymPlan)=>persist(s=>({...s,plans:s.plans.map(p=>p.id===id?fn(p):p)}));
   const saveSession=(id:string,fn:(session:GymSession)=>GymSession)=>persist(s=>({...s,sessions:s.sessions.map(x=>{
     if(x.id!==id)return x;

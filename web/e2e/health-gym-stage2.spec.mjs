@@ -425,3 +425,68 @@ test("same searchable picker adds and replaces logged exercises without disturbi
   expect(saved.sessions[0].exercises.some(ex=>ex.exerciseId==="face-pull")).toBe(true);
   expect(saved.sessions[0].exercises.some(ex=>ex.exerciseId==="hammer-curl")).toBe(true);
 });
+
+
+test("pecdec finds chest and reverse rear delt variants from Pull with correct split and persists to the existing plan",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  const days=root.locator("[data-gym-plan-editor] .df2-gym-day-edit");
+  const pull=days.nth(1);
+  await pull.getByRole("button",{name:"Přidat cvik do Pull"}).click();
+  const chooser=pull.getByRole("region",{name:"Výběr cviku – Přidat cvik do Pull"});
+  await expect(chooser.getByRole("button",{name:"Pull",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]')).toBeVisible();
+  await expect(chooser.locator('[data-gym-picker-exercise="pec-deck"]')).toHaveCount(0);
+  const input=chooser.getByRole("searchbox",{name:"Hledat cvik"});
+  await input.fill("pecdec");
+  // Searching automatically expands all groups, even though this day defaults to Pull.
+  await expect(chooser.getByRole("button",{name:"Vše",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]')).toBeVisible();
+  await expect(chooser.locator('[data-gym-picker-exercise="pec-deck"]')).toBeVisible();
+  // A chip deliberately clicked by the user must remain selected while typing.
+  await chooser.getByRole("button",{name:"Pull",exact:true}).click();
+  await input.fill("");
+  await input.fill("pecdec");
+  await expect(chooser.getByRole("button",{name:"Pull",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(chooser.locator('[data-gym-picker-exercise="pec-deck"]')).toHaveCount(0);
+  await expect(chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]')).toBeVisible();
+  await chooser.getByRole("button",{name:"Vše",exact:true}).click();
+  await input.fill("pecdec na zadni ramena");
+  await expect(chooser.locator('[data-gym-picker-exercise]')).toHaveCount(1);
+  await chooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]').click();
+  await expect(pull).toContainText("Obrácený pec deck");
+
+  const push=days.nth(0);
+  await push.getByRole("button",{name:"Přidat cvik do Push"}).click();
+  const pushChooser=push.getByRole("region",{name:"Výběr cviku – Přidat cvik do Push"});
+  await expect(pushChooser.getByRole("button",{name:"Push",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(pushChooser.locator('[data-gym-picker-exercise="pec-deck"]')).toBeVisible();
+  await expect(pushChooser.locator('[data-gym-picker-exercise="reverse-pec-deck"]')).toHaveCount(0);
+  await pushChooser.getByRole("searchbox",{name:"Hledat cvik"}).fill("pec dec");
+  await expect(pushChooser.locator('[data-gym-picker-exercise="pec-deck"]')).toBeVisible();
+  await pushChooser.locator('[data-gym-picker-exercise="pec-deck"]').click();
+  await expect(push).toContainText("Pec deck (motýlek)");
+
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  const [pushDay,pullDay]=saved.plans[0].days;
+  expect(pushDay.exercises.some(x=>x.exerciseId==="pec-deck")).toBe(true);
+  expect(pullDay.exercises.some(x=>x.exerciseId==="reverse-pec-deck")).toBe(true);
+  expect(saved.exercises.filter(e=>["pec-deck","reverse-pec-deck"].includes(e.id))).toHaveLength(2);
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await again.getByRole("button",{name:"Plány",exact:true}).click();
+  await expect(again.locator("[data-gym-plan-editor]")).toContainText("Obrácený pec deck");
+  await expect(again.locator("[data-gym-plan-editor]")).toContainText("Pec deck (motýlek)");
+});
+
+test("exercise library search accepts pecdec as an alias for both catalog movements",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Cviky",exact:true}).click();
+  await root.getByRole("searchbox",{name:"Hledat cviky"}).fill("pecdec");
+  await expect(root.locator("[data-gym-library-count]")).toContainText("2 z 72 cviků");
+  await expect(root.locator(".df2-gym-library")).toContainText("Pec deck (motýlek)");
+  await expect(root.locator(".df2-gym-library")).toContainText("Obrácený pec deck");
+});
