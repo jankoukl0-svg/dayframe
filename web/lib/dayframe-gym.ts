@@ -4,7 +4,7 @@ export const GYM_SYNC_EVENT = "dayframe-gym-sync";
 export type GymExercise = { id: string; name: string; muscle: string; equipment: string; kind: string; technique: string; photoUrl?: string; custom?: boolean };
 export type GymPlanExercise = { id: string; exerciseId: string; sets: number; reps: number; restSeconds: number };
 export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[] };
-export type GymPlan = { id: string; name: string; days: GymPlanDay[] };
+export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?: string };
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
 export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; exercises: GymSessionExercise[] };
@@ -52,7 +52,7 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
     for(const e of s.exercises) if(!e || !str(e.id,100) || !e.id || !str(e.name) || !e.name.trim() || !str(e.muscle) || !str(e.equipment)
       || !str(e.kind) || !str(e.technique,1500) || (e.photoUrl !== undefined && !str(e.photoUrl,600))) throw Error("exercise");
     for(const p of s.plans) {
-      if(!p || !str(p.id,100) || !p.id || !str(p.name) || !p.name.trim() || !Array.isArray(p.days) || !distinct(p.days)) throw Error("plan");
+      if(!p || !str(p.id,100) || !p.id || !str(p.name) || !p.name.trim() || (p.createdOn!==undefined && !dateValid(p.createdOn)) || !Array.isArray(p.days) || !distinct(p.days)) throw Error("plan");
       for(const d of p.days) {
         if(!d || !str(d.id,100) || !d.id || !str(d.name) || !num(d.weekday,0,6) || !Number.isInteger(d.weekday) || !Array.isArray(d.exercises) || !distinct(d.exercises)) throw Error("day");
         for(const e of d.exercises) if(!e || !str(e.id,100) || !str(e.exerciseId,100) || !num(e.sets,1,12) || !Number.isInteger(e.sets) || !num(e.reps,1,100) || !Number.isInteger(e.reps) || !num(e.restSeconds,0,1800)) throw Error("template");
@@ -90,11 +90,11 @@ export function dateShift(date:string, offset:number):string {
 export function weekday(date:string):number { return new Date(date+"T12:00:00").getDay(); }
 export function occurrenceKey(planId:string,dayId:string,origin:string){return [planId,dayId,origin].join("|");}
 export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
-  const plan=store.plans.find(p=>p.id===store.activePlanId);if(!plan || !dateValid(date))return [];
+  const plan=store.plans.find(p=>p.id===store.activePlanId);if(!plan || !dateValid(date) || (plan.createdOn && date<plan.createdOn))return [];
   const result:GymOccurrence[]=[];
   const append=(day:GymPlanDay,origin:string)=>{
     const key=occurrenceKey(plan.id,day.id,origin);
-    if((store.moves[key]??origin)!==date)return;
+    if((plan.createdOn && origin<plan.createdOn) || (store.moves[key]??origin)!==date)return;
     const session=store.sessions.find(s=>s.occurrenceKey===key)??null;
     result.push({key,planId:plan.id,dayId:day.id,name:day.name,date,originalDate:origin,completed:!!session?.completedAt,session});
   };
@@ -112,6 +112,7 @@ export function moveOccurrence(store:GymStore,key:string,target:string):GymStore
   const plan=store.plans.find(p=>p.id===store.activePlanId);
   const [planId,dayId,origin,...rest]=key.split("|");
   if(!dateValid(target)||!dateValid(origin)||rest.length||!plan||planId!==plan.id
+    ||(plan.createdOn && (target<plan.createdOn || origin<plan.createdOn))
     ||!plan.days.some(x=>x.id===dayId&&x.weekday===weekday(origin))
     ||store.sessions.some(s=>s.occurrenceKey===key))return store;
   const moves={...store.moves};if(target===origin)delete moves[key];else moves[key]=target;
@@ -154,14 +155,17 @@ export function gymMetrics(store:GymStore) {
   return {workouts,byExercise,totalVolume:workouts.reduce((n,x)=>n+x.volume,0)};
 }
 export type GymTemplate="ppl"|"upper-lower"|"full-body"|"custom";
-export function makeGymPlan(name:string,template:GymTemplate):GymPlan {
+export function makeGymPlan(name:string,template:GymTemplate,createdOn?:string):GymPlan {
+  const now=new Date();
+  const localDay=createdOn??[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+  if(!dateValid(localDay))throw Error("Neplatné datum vytvoření plánu.");
   const templates:Record<GymTemplate,Array<[string,number,string[]]>>={
     "ppl":[["Push",1,["bench-press","incline-dumbbell","overhead-press","triceps-pushdown"]],["Pull",3,["pull-up","cable-row","biceps-curl"]],["Legs",5,["squat","romanian-deadlift","leg-curl","calf-raise"]]],
     "upper-lower":[["Upper",1,["bench-press","lat-pulldown","overhead-press","biceps-curl"]],["Lower",4,["squat","romanian-deadlift","leg-press","calf-raise"]]],
     "full-body":[["Full Body",1,["squat","bench-press","cable-row"]],["Full Body B",4,["romanian-deadlift","overhead-press","lat-pulldown"]]],
     "custom":[["Vlastní trénink",1,[]]]
   };
-  return {id:uid("plan"),name:name.trim()||"Můj plán",days:templates[template].map(([title,weekday,ids])=>({
+  return {id:uid("plan"),name:name.trim()||"Můj plán",createdOn:localDay,days:templates[template].map(([title,weekday,ids])=>({
     id:uid("day"),name:title,weekday,exercises:ids.map(exerciseId=>({id:uid("plan-ex"),exerciseId,sets:3,reps:10,restSeconds:90}))
   }))};
 }
