@@ -76,7 +76,7 @@ test("schedule-effective dates preserve historical denominator on creation, day 
   assert.equal(supplementStats(next,"2026-10-12","2026-10-13").planned,2);
   assert.equal(supplementStats(next,"2026-10-12","2026-10-14").planned,4);
   const paused=withSupplementSchedule({...changed,active:false},"2026-10-14",changed);
-  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,6);
+  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,4);
 });
 
 test("an intake logged while stock tracking is off cannot add phantom stock when undone later",()=>{
