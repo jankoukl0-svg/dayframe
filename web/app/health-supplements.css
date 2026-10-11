@@ -66,3 +66,19 @@
   .df2-supplement-photo{width:55px;height:64px;flex-basis:55px}
   .df2-supplement-photo.is-large{width:90px;height:100px;flex-basis:90px}
 }
+
+/* Calm, opt-in product discovery for supplements. */
+.df2-supplement-autofill{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:14px;display:grid;gap:10px}
+.df2-supplement-autofill-intro{display:grid;gap:4px}
+.df2-supplement-autofill-intro strong{font-size:12px;color:var(--ink)}
+.df2-supplement-autofill-intro small,.df2-supplement-autofill>small{color:var(--muted);font-size:11px;line-height:1.45}
+.df2-supplement-autofill-row{display:flex;gap:8px;flex-wrap:wrap}
+.df2-supplement-autofill-row input{flex:1 1 230px;min-width:0;border:1px solid var(--line-strong);border-radius:8px;padding:9px 10px;font-size:12px;color:var(--ink);background:var(--paper)}
+.df2-supplement-autofill-row button,.df2-supplement-autofill-results button{border:1px solid var(--accent);border-radius:8px;padding:8px 12px;color:var(--accent-dark);background:var(--accent-wash);font-size:11px;font-weight:750;cursor:pointer}
+.df2-supplement-autofill-row button:disabled,.df2-supplement-autofill-results button:disabled{opacity:.5;cursor:not-allowed}
+.df2-supplement-autofill-results{display:grid;gap:7px}
+.df2-supplement-autofill-results article{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:10px;border:1px solid var(--line);border-radius:8px}
+.df2-supplement-autofill-results article div{display:grid;gap:4px;min-width:0;flex:1 1 175px}
+.df2-supplement-autofill-results article strong{color:var(--ink);font-size:11px}
+.df2-supplement-autofill-results article small{color:var(--muted);font-size:10px;overflow-wrap:anywhere}
+@media(max-width:620px){.df2-supplement-autofill{padding:11px}.df2-supplement-autofill-row button{flex:1 1 100%}}

@@ -1,0 +1,66 @@
+/**
+ * Server-side product lookup for supplements: Open Food Facts + public product pages.
+ * Reuses Hygiene's validated HTTPS fetcher and web discovery, not cosmetic catalog matches.
+ * Data is limited to product identity/packaging; NO dosage, usage or medical advice.
+ */
+import {readLimited,requestPublic,researchProductPages,fromHtml} from "./hygiene-product-lookup";
+import {foodCatalogCandidates,packCountFromLabel,sameSupplementProduct,
+  type SupplementLookupMatch} from "../lib/dayframe-supplement-lookup";
+
+const str=(v:unknown,max=160)=>typeof v==="string"?v.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,max):"";
+const safeImage=(value:unknown)=>{
+  try{const u=new URL(str(value,2000));return u.protocol==="https:"&&!u.username&&!u.password?u.href:"";}
+  catch{return "";}
+};
+function mapWeb(x:ReturnType<typeof fromHtml>):SupplementLookupMatch|null {
+  if(!x)return null;
+  const pack=packCountFromLabel([x.name,x.amount].join(" "));
+  return {name:x.name,brand:x.brand,amount:x.amount,priceCzk:x.priceCzk,
+    imageUrl:x.imageUrl,sourceUrl:x.sourceUrl,sourceLabel:x.sourceLabel,
+    packServings:pack?.count??null,packUnit:pack?.unit??""};
+}
+async function searchFood(query:string):Promise<SupplementLookupMatch[]>{
+  const url=new URL("https://world.openfoodfacts.org/cgi/search.pl");
+  for(const [k,v] of Object.entries({
+    search_terms:query,search_simple:"1",action:"process",json:"1",page_size:"15",
+    fields:"code,product_name,product_name_cs,product_name_en,brands,quantity,categories,categories_tags,image_front_url,image_url"
+  }))url.searchParams.set(k,v);
+  const response=await requestPublic(url.href,"application/json",5000);
+  const bytes=await readLimited(response,600_000);
+  const parsed=JSON.parse(new TextDecoder().decode(bytes)) as {products?:Record<string,unknown>[]};
+  return foodCatalogCandidates(Array.isArray(parsed.products)?parsed.products:[],query);
+}
+const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+async function handle(request:Request):Promise<Response>{
+  if(request.method!=="GET")return json({error:"Nepodporovaná metoda."},405);
+  const query=(new URL(request.url).searchParams.get("query")??"").trim();
+  if(query.length<3||query.length>500)return json({error:"Zadej název nebo odkaz produktu (3–500 znaků)."},400);
+  try{
+    if(/^https?:\/\//i.test(query)){
+      // All redirects and DNS targets are checked by the existing SSRF-safe fetcher.
+      const response=await requestPublic(query,"text/html",6500);
+      if(!(response.headers.get("content-type")??"").toLowerCase().includes("text/html"))
+        return json({matches:[],notice:"Odkaz neobsahuje veřejnou produktovou stránku."});
+      const html=new TextDecoder().decode(await readLimited(response,1_100_000,true));
+      const found=mapWeb(fromHtml(html,query));
+      return json({matches:found?[found]:[],notice:found
+        ?"Údaje vycházejí z produktové stránky. Zkontroluj značku a konkrétní variantu."
+        :"Nepodařilo se ověřit produkt na uvedeném odkazu."});
+    }
+    let catalog:SupplementLookupMatch[]=[];
+    try{catalog=await searchFood(query);}catch{/* Independent web discovery. */}
+    let pages:SupplementLookupMatch[]=[];
+    try{
+      const web=await researchProductPages(query);
+      pages=web.map(mapWeb).filter((x):x is SupplementLookupMatch=>!!x)
+        .filter(x=>sameSupplementProduct(x.name,x.brand,query)).slice(0,5);
+    }catch{/* Offline catalogs are still useful. */}
+    const distinct=new Map<string,SupplementLookupMatch>();
+    for(const item of [...catalog,...pages])distinct.set(item.sourceUrl,item);
+    const matches=[...distinct.values()].slice(0,6);
+    return json({matches,notice:matches.length
+      ?"Nalezené varianty produktů. Vyber přesný výrobek a zkontroluj jeho balení."
+      :"Produkt se nepodařilo spolehlivě najít. Zkus přesnější název nebo přímý odkaz."});
+  }catch{return json({matches:[],notice:"Zdroj je nedostupný nebo blokuje automatické načítání. Zkus jiný odkaz."});}
+}
+export default {fetch:handle};
