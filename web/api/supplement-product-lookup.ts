@@ -3,7 +3,9 @@
  * Reuses Hygiene's validated HTTPS fetcher and web discovery, not cosmetic catalog matches.
  * Data is limited to product identity/packaging; NO dosage, usage or medical advice.
  */
-import {readLimited,requestPublic,researchProductPages,fromHtml} from "./hygiene-product-lookup";
+import {fromHtml} from "./hygiene-product-lookup";
+import {readLimited,requestPublic} from "./supplement-remote";
+import {bingRssResults,duckDuckGoResults,rankProductLinks,productPageIsRelevant} from "../lib/dayframe-product-discovery.mjs";
 import {foodCatalogCandidates,packCountFromLabel,sameSupplementProduct,
   type SupplementLookupMatch} from "../lib/dayframe-supplement-lookup";
 
@@ -29,6 +31,33 @@ async function searchFood(query:string):Promise<SupplementLookupMatch[]>{
   const bytes=await readLimited(response,600_000);
   const parsed=JSON.parse(new TextDecoder().decode(bytes)) as {products?:Record<string,unknown>[]};
   return foodCatalogCandidates(Array.isArray(parsed.products)?parsed.products:[],query);
+}
+async function researchProductPages(query:string){
+  const bing=new URL("https://www.bing.com/search");
+  bing.searchParams.set("q",query+" supplement");bing.searchParams.set("format","rss");
+  const duck=new URL("https://html.duckduckgo.com/html/");
+  duck.searchParams.set("q",query+" supplement");
+  const [a,b]=await Promise.allSettled([
+    requestPublic(bing.href,"application/rss+xml,application/xml,text/xml",3500)
+      .then(async r=>bingRssResults(new TextDecoder().decode(await readLimited(r,200_000,true)),query)),
+    requestPublic(duck.href,"text/html",3500)
+      .then(async r=>duckDuckGoResults(new TextDecoder().decode(await readLimited(r,300_000,true)),query))
+  ]);
+  const discovered=rankProductLinks([
+    ...(a.status==="fulfilled"?a.value:[]),
+    ...(b.status==="fulfilled"?b.value:[])
+  ],query).slice(0,6);
+  const results=await Promise.all(discovered.map(async link=>{
+    try{
+      const r=await requestPublic(link.url,"text/html",4200);
+      if(!(r.headers.get("content-type")??"").toLowerCase().includes("text/html"))return null;
+      const html=new TextDecoder().decode(await readLimited(r,1_100_000,true));
+      const found=fromHtml(html,link.url);
+      if(!found||!productPageIsRelevant(found.name,query,found.brand,link.title,found.amount))return null;
+      return found;
+    }catch{return null;}
+  }));
+  return results.filter((x):x is NonNullable<typeof x>=>x!==null);
 }
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 async function handle(request:Request):Promise<Response>{

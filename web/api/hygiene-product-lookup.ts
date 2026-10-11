@@ -70,7 +70,7 @@ async function validated(raw: string) {
   return url;
 }
 
-export async function requestPublic(raw: string, accept: string, timeoutMs = 6500): Promise<Response> {
+async function requestPublic(raw: string, accept: string, timeoutMs = 6500): Promise<Response> {
   let url = await validated(raw);
   for (let hop = 0; hop < 3; hop++) {
     const response = await fetch(url, {
@@ -89,7 +89,7 @@ export async function requestPublic(raw: string, accept: string, timeoutMs = 650
   throw new Error("Příliš mnoho přesměrování.");
 }
 
-export async function readLimited(response: Response, max: number, partial = false): Promise<Uint8Array> {
+async function readLimited(response: Response, max: number, partial = false): Promise<Uint8Array> {
   if (!partial && Number(response.headers.get("content-length") || 0) > max) throw new Error("Soubor je příliš velký.");
   if (!response.body) throw new Error("Zdroj neobsahuje data.");
   const reader = response.body.getReader();
@@ -351,7 +351,7 @@ function mergeFromSource(base: Match | null, another: Match): Match {
   return enriched;
 }
 
-export async function researchProductPages(query: string, brand = ""): Promise<Match[]> {
+async function researchProductPages(query: string, brand = ""): Promise<Match[]> {
   // First search the product itself, not instructions/directions: fragrances
   // often have no dedicated how-to-use pages in the public search indexes.
   const links = await searchPublicWeb(query, brand);
