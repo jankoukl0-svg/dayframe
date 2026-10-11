@@ -9,7 +9,7 @@ export function gymExerciseGroup(exercise:Pick<GymExercise,"muscle">):GymExercis
   if(["hrudnik","ramena","triceps"].includes(m))return "Push";
   if(["zada","biceps","trapezy"].includes(m))return "Pull";
   if(["nohy","hamstringy","hyzde","vnitrni stehna","lytka","kvadricepsy"].includes(m))return "Lower";
-  if(["core","brucho","brisni svaly"].includes(m))return "Core";
+  if(["core","bricho","brucho","brisni svaly"].includes(m))return "Core";
   return "Ostatní";
 }
 

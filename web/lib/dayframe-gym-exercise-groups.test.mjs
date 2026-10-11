@@ -34,6 +34,7 @@ test("custom exercises go to a split by muscle or to Ostatní; no existing data 
   const source=[known,unknown];
   assert.equal(gymExerciseGroup(known),"Pull");
   assert.equal(gymExerciseGroup(unknown),"Ostatní");
+  assert.equal(gymExerciseGroup({...unknown,muscle:"Břicho"}),"Core");
   assert.deepEqual(searchGymExercises(source,"muj").map(g=>g.group),["Pull"]);
   assert.deepEqual(searchGymExercises(source,"cvik").map(g=>g.group),["Ostatní"]);
   assert.deepEqual(searchGymExercises(source,"", "Pull")[0].items.map(ex=>ex.id),["my-pull"]);
