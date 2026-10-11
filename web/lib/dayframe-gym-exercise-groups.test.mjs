@@ -24,6 +24,8 @@ test("name, equipment and muscle search ignores case and Czech diacritics",()=>{
   assert.ok(flatten("bulharsky drep").includes("bulgarian-split-squat"));
   assert.ok(flatten("BICEPS").includes("hammer-curl"));
   assert.ok(flatten("jednorucky").includes("dumbbell-bench-press"));
+  assert.ok(flatten("kladivove zdvihy").includes("hammer-curl"));
+  assert.ok(flatten("stroj predkopavani").includes("leg-extension"));
   assert.ok(flatten("BENCH PRESS").includes("bench-press"));
   assert.equal(flatten("bench","Lower").length,0);
   assert.deepEqual(flatten("xyzneexistuje"),[]);

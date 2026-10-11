@@ -32,7 +32,11 @@ export function searchGymExercises(
   return GYM_EXERCISE_GROUPS.map(group=>({
     group,items:exercises.filter(ex=>{
       if(gymExerciseGroup(ex)!==group || (filter!=="Vše" && filter!==group))return false;
-      return !needle || normalize([ex.name,ex.muscle,ex.equipment].join(" ")).includes(needle);
+      if(!needle)return true;
+      const hay=normalize([ex.name,ex.muscle,ex.equipment].join(" "));
+      // Accept both full phrases and individual words separated by other terms:
+      // "kladivove zdvihy" matches "Kladivové bicepsové zdvihy".
+      return needle.split(" ").every(term=>hay.includes(term));
     }).sort((a,b)=>a.name.localeCompare(b.name,"cs")),
   })).filter(bucket=>bucket.items.length>0);
 }
