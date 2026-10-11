@@ -208,3 +208,30 @@ test("concurrent brand edit retains newer package, price, notes and shopping sel
   expect(x.shopping).toBe(true);
   await context.close();
 });
+
+test("changing active state in one tab preserves another tab's newer intake time",async({browser})=>{
+  const context=await browser.newContext();
+  const a=await context.newPage(),b=await context.newPage();
+  await fresh(a);
+  await b.goto(ROOT,{waitUntil:"networkidle"});
+  const rootA=await addOne(a,{name:"Ranní dávka"});
+  const rootB=await supplements(b);
+  await rootB.getByRole("button",{name:"Moje suplementy"}).click();
+  await rootB.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modalB=b.getByRole("dialog",{name:"Editor suplementu"});
+  await modalB.getByRole("checkbox",{name:"Aktivní"}).uncheck();
+
+  await rootA.getByRole("button",{name:"Moje suplementy"}).click();
+  await rootA.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modalA=a.getByRole("dialog",{name:"Editor suplementu"});
+  await modalA.getByRole("textbox",{name:"Časy užívání"}).fill("10:30");
+  await modalA.getByRole("button",{name:"Uložit suplement"}).click();
+  await modalB.getByRole("button",{name:"Uložit suplement"}).click();
+
+  const saved=await a.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].active).toBe(false);
+  expect(saved.supplements[0].times).toEqual(["10:30"]);
+  expect(saved.supplements[0].scheduleHistory.at(-1).active).toBe(false);
+  expect(saved.supplements[0].scheduleHistory.at(-1).times).toEqual(["10:30"]);
+  await context.close();
+});
