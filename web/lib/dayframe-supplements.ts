@@ -29,6 +29,8 @@ export type SupplementIntake = {
   status: "taken" | "skipped";
   recordedAt: string;
   servings: number;
+  /** Portion actually subtracted while inventory tracking was enabled. */
+  stockDeducted?: number;
 };
 export type SupplementPurchase = { id: string; supplementId: string; date: string; servings: number; paidCzk: number | null };
 export type SupplementStore = {
@@ -43,6 +45,10 @@ export type SupplementOccurrence = {
 };
 const timeRx = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const dateRx = /^\d{4}-\d{2}-\d{2}$/;
+const nextDate = (date:string) => {
+  const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+1);
+  return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+};
 const validDate = (s:string) => dateRx.test(s) && !Number.isNaN(Date.parse(s+"T12:00:00"))
   && new Date(s+"T12:00:00").getFullYear() === Number(s.slice(0,4))
   && new Date(s+"T12:00:00").getMonth()+1 === Number(s.slice(5,7))
@@ -69,8 +75,11 @@ export function withSupplementSchedule(next:Supplement,date:string,previous?:Sup
     || previous.weekdays.join(",")!==next.weekdays.join(",") || previous.times.join(",")!==next.times.join(",");
   const history=previous?.scheduleHistory??[];
   if(!changed)return {...next,scheduleHistory:history};
-  const revision:SupplementScheduleRevision={effectiveFrom:date,weekdays:[...next.weekdays],times:[...next.times],active:next.active};
-  return {...next,scheduleHistory:[...history.filter(x=>x.effectiveFrom!==date),revision]
+  // Edits become effective tomorrow. Today's earlier scheduled doses and
+  // completed check-ins must not be removed by later same-day edits/pauses.
+  const effectiveFrom=previous?nextDate(date):date;
+  const revision:SupplementScheduleRevision={effectiveFrom,weekdays:[...next.weekdays],times:[...next.times],active:next.active};
+  return {...next,scheduleHistory:[...history.filter(x=>x.effectiveFrom<effectiveFrom),revision]
     .sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))};
 }
 export function supplementOccurrences(store:SupplementStore,date:string):SupplementOccurrence[]{
@@ -105,7 +114,8 @@ export function parseSupplementStore(raw:string|null):{store:SupplementStore;blo
       if(!x||!isStr(x.key,300)||!isStr(x.supplementId,100)||!validDate(x.date)
         ||!timeRx.test(x.time)||x.key!==supplementIntakeKey(x.supplementId,x.date,x.time)
         ||!["taken","skipped"].includes(x.status)||!isStr(x.recordedAt,70)
-        ||!isNumber(x.servings,.01,10000))throw Error("intake");
+        ||!isNumber(x.servings,.01,10000)
+        ||(x.stockDeducted!==undefined && !isNumber(x.stockDeducted,0,10000)))throw Error("intake");
     }
     for(const x of s.purchases){
       if(!x||!isStr(x.id,100)||!isStr(x.supplementId,100)||!validDate(x.date)
@@ -144,11 +154,12 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
   const nextStatus=isUndo?null:status;
   // Never silently invent stock on an undo when the original intake had
   // already exhausted the inventory. Ask for a manual correction instead.
-  const available=item.stock===null?null:item.stock+(existing?.status==="taken"?existing.servings:0);
+  const restored=existing?.status==="taken"?(existing.stockDeducted??0):0;
+  const available=item.stock===null?null:item.stock+restored;
   if(nextStatus==="taken" && available!==null && available<item.servingsPerIntake)return store;
   let stock=item.stock;
   if(stock!==null){
-    if(existing?.status==="taken") stock+=existing.servings;
+    if(existing?.status==="taken") stock+=restored;
     if(nextStatus==="taken") stock=stock-item.servingsPerIntake;
   }
   const updated={...store,
@@ -156,7 +167,8 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
     intakes:store.intakes.filter(x=>x.key!==key)};
   if(!nextStatus)return updated;
   return {...updated,intakes:[...updated.intakes,{key,supplementId:id,date,time,status:nextStatus,
-    recordedAt:new Date().toISOString(),servings:item.servingsPerIntake}]};
+    recordedAt:new Date().toISOString(),servings:item.servingsPerIntake,
+    stockDeducted:nextStatus==="taken"&&stock!==null?item.servingsPerIntake:0}]};
 }
 export function buySupplement(store:SupplementStore,id:string,date:string):SupplementStore {
   const item=store.supplements.find(x=>x.id===id);
