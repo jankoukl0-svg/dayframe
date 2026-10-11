@@ -86,12 +86,15 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
     const ok=persist(s=>{
       const current=bodyEntryForDate(s,date);
       const combined:BodyMeasurements=current?{...current.metrics}:{...draft};
-      // Preserve measurement fields that were updated in another tab while
-      // this editor remained open; only locally changed fields replace them.
+      // Compare against the original blank form when no record existed at
+      // editor open. A concurrent first-time entry on the same day must not
+      // lose fields which this editor never touched.
+      const original=draftAtOpen?.metrics??blankMeasurements();
       for(const m of BODY_METRICS){
-        if(!current||!draftAtOpen||draft[m.key]!==draftAtOpen.metrics[m.key])combined[m.key]=draft[m.key];
+        if(!current||draft[m.key]!==original[m.key])combined[m.key]=draft[m.key];
       }
-      const mergedNote=current&&draftAtOpen&&note===draftAtOpen.note?current.note:note;
+      const originalNote=draftAtOpen?.note??"";
+      const mergedNote=current&&note===originalNote?current.note:note;
       if(!BODY_METRICS.some(m=>combined[m.key]!==null))return s;
       return upsertBodyEntry(s,{id:current?.id??uid("measurement"),date,metrics:combined,
         note:mergedNote.slice(0,1500),createdAt:current?.createdAt??now,updatedAt:now});
@@ -139,10 +142,18 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
   };
   const removePhoto=async(id:string)=>{
     if(blocked||!window.confirm("Odstranit fotografii z tohoto prohlížeče?"))return;
+    const metadata=store.photos.find(x=>x.id===id);
+    if(!metadata)return;
+    // Never delete the only blob before metadata removal is safely persisted.
+    // If IndexedDB deletion fails, restore the gallery reference to retry.
+    if(!persist(s=>({...s,photos:s.photos.filter(x=>x.id!==id)})))return;
     try{
       await deleteBodyPhoto(id);
-      if(persist(s=>({...s,photos:s.photos.filter(x=>x.id!==id)})))setNotice("Fotografie odstraněna.");
-    }catch{setEditError("Fotografii se nepodařilo odstranit z lokálního úložiště.");}
+      setNotice("Fotografie odstraněna.");
+    }catch{
+      persist(s=>({...s,photos:s.photos.some(x=>x.id===id)?s.photos:[...s.photos,metadata]}));
+      setEditError("Fotografii se nepodařilo odstranit. Ponechali jsme ji pro další pokus.");
+    }
   };
   if(!hydrated)return <section className="df2-body">Načítám Tělo & Progress…</section>;
   return <section className="df2-body" data-body-root aria-label="Tělo a progress">
