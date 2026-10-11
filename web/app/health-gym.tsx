@@ -58,7 +58,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const changeSet=(exId:string,setId:string,patch:Partial<GymSet>)=>{
     if(!session)return;
     saveSession(session.id,s=>({...s,exercises:s.exercises.map(ex=>ex.id!==exId?ex:{
-      ...ex,sets:ex.sets.map(set=>set.id===setId?{...set,...patch}:set)
+      ...ex,sets:ex.sets.map(set=>set.id===setId?{
+        ...set,...patch,
+        done: ((patch.reps===null || patch.weightKg===null) ? false : (patch.done??set.done)),
+      }:set)
     })}));
   };
   const changeSessionExercise=(exId:string,fn:(e:GymSessionExercise)=>GymSessionExercise)=>{
@@ -89,13 +92,13 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   };
   const doneSession=()=>{
     if(!session)return;
-    if(!session.exercises.some(e=>e.sets.some(x=>x.done))){setMessage("Nejdřív dokonči alespoň jednu sérii.");return;}
+    if(!session.completedAt && !session.exercises.some(e=>e.sets.some(x=>x.done))){setMessage("Nejdřív dokonči alespoň jednu sérii.");return;}
     saveSession(session.id,s=>({...s,completedAt:s.completedAt?null:new Date().toISOString(),restUntil:null}));
     setMessage("");
   };
   const submitPlan=()=>{
     if(!newPlanName.trim()){setMessage("Zadej název plánu.");return;}
-    const next=makeGymPlan(newPlanName.trim(),template);
+    const next=makeGymPlan(newPlanName.trim(),template,today);
     if(persist(s=>({...s,plans:[...s.plans,next],activePlanId:s.activePlanId??next.id}))){setEditedPlanId(next.id);setView("plans");setNewPlan(false);setNewPlanName("");setMessage("");}
   };
   const addExercise=()=>{
@@ -315,7 +318,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
       <section className="df2-modal df2-hygiene-modal" role="dialog" aria-modal="true" aria-label="Vlastní cvik">
         <header><h2>Vlastní cvik</h2><button type="button" onClick={()=>setNewExercise(false)} aria-label="Zavřít">×</button></header>
         {([["name","Název cviku"],["muscle","Svalová partie"],["equipment","Vybavení"],["kind","Typ cviku"],["technique","Technika"],["photoUrl","Odkaz na foto či demonstraci"]] as const).map(([key,label])=>
-          <label key={key}>{label}<input aria-label={label} maxLength={key==="technique"?1500:600}
+          <label key={key}>{label}<input aria-label={label} maxLength={key==="technique"?1500:key==="photoUrl"?600:key==="name"?160:300}
             value={exerciseDraft[key]} onChange={e=>setExerciseDraft(s=>({...s,[key]:e.target.value}))}/></label>)}
         <div className="df2-modal-actions"><button className="df2-primary" type="button" onClick={addExercise}>Uložit cvik</button></div>
       </section>
