@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence,
   occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
-  setActiveGymPlan, setGymDayWeekday
+  setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
 
 function active() {
@@ -118,4 +118,46 @@ test("new PPL template is Push / Pull / Lower with real editable exercises, and 
  assert.equal(assignmentsOnDate(updated,"2026-10-14")[0].name,"Pull");
  assert.equal(assignmentsOnDate(updated,"2026-10-16")[0].name,"Lower");
  assert.equal(parseGymStore(JSON.stringify(updated)).blocked,false);
+});
+
+test("curated catalog has stable distinct IDs and broad Push / Pull / Lower / core coverage",()=>{
+  const ids=EXERCISE_LIBRARY.map(e=>e.id);
+  assert.equal(ids.length,72);
+  assert.equal(new Set(ids).size,ids.length);
+  for(const id of ["pec-deck","machine-chest-press","face-pull","hammer-curl",
+    "barbell-row","bulgarian-split-squat","leg-extension","hip-thrust",
+    "hanging-leg-raise","cable-crunch"]){
+    assert.ok(ids.includes(id),"Missing common movement: "+id);
+  }
+  for(const ex of EXERCISE_LIBRARY){
+    assert.ok(ex.name.trim());
+    assert.ok(ex.muscle.trim());
+    assert.ok(ex.equipment.trim());
+    assert.ok(ex.technique.trim());
+  }
+});
+test("older existing gym stores gain new catalog entries without changing plans, sessions or customized exercises",()=>{
+  let old=active();
+  old=startSession(old,assignmentsOnDate(old,"2026-10-12")[0].key,"2026-10-12");
+  const custom={id:"custom-pec-deck",name:"Můj vlastní cvik",muscle:"Hrudník",
+    equipment:"Stroj",kind:"Izolovaný",technique:"Moje vlastní instrukce.",custom:true};
+  old={...old,exercises:[...old.exercises.filter(e=>e.id!=="pec-deck"&&e.id!=="hip-thrust").filter(e=>e.id!=="hammer-curl"),
+    custom].map(e=>e.id==="bench-press"?{...e,technique:"Vlastní poznámka k benchi"}:e)};
+  // Reconstruct the actual 16-exercise library originally stored in old browsers.
+  const originallyBundled=new Set(["bench-press","incline-dumbbell","squat","romanian-deadlift",
+    "deadlift","lat-pulldown","pull-up","cable-row","overhead-press","lateral-raise",
+    "biceps-curl","triceps-pushdown","leg-press","leg-curl","calf-raise","plank"]);
+  old={...old,exercises:old.exercises.filter(e=>originallyBundled.has(e.id)||e.custom)};
+  const raw=JSON.stringify(old);
+  assert.equal(parseGymStore(raw).blocked,false);
+  const enlarged=extendGymExerciseCatalog(old);
+  assert.equal(enlarged.exercises.length,EXERCISE_LIBRARY.length+1);
+  assert.equal(enlarged.exercises.find(e=>e.id==="bench-press").technique,"Vlastní poznámka k benchi");
+  assert.ok(enlarged.exercises.find(e=>e.id==="custom-pec-deck"));
+  assert.deepEqual(enlarged.plans,old.plans);
+  assert.deepEqual(enlarged.sessions,old.sessions);
+  assert.deepEqual(enlarged.moves,old.moves);
+  assert.equal(JSON.stringify(old),raw,"Source store should not be mutated");
+  assert.equal(extendGymExerciseCatalog(enlarged),enlarged,"Repeated hydration must not duplicate entries");
+  assert.equal(parseGymStore(JSON.stringify(enlarged)).blocked,false);
 });

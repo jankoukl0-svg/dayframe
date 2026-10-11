@@ -28,7 +28,75 @@ export const EXERCISE_LIBRARY: GymExercise[] = [
   ["leg-curl","Zakopávání","Hamstringy","Stroj","Izolovaný","Opakování prováděj kontrolovaně."],
   ["calf-raise","Výpony na lýtka","Lýtka","Stroj","Izolovaný","Plynulý pohyb s krátkou pauzou nahoře."],
   ["plank","Plank","Core","Vlastní váha","Stabilizační","Udrž pevný trup a plynule dýchej."],
+
+  // Curated gym staples: chest, back, shoulders, arms, legs, glutes and core.
+  ["dumbbell-bench-press","Tlaky s jednoručkami na rovné lavici","Hrudník","Jednoručky","Silový","Zpevni lopatky, tlač jednoručky kontrolovaně vzhůru a nenech ramena vytáčet."],
+  ["incline-barbell-press","Bench press na šikmé lavici","Hrudník","Velká činka","Silový","Lavici nastav do mírného sklonu a spouštěj činku kontrolovaně k horní části hrudníku."],
+  ["machine-chest-press","Chest press na stroji","Hrudník","Stroj","Silový","Nastav výšku sedadla a drž záda opřená po celou dráhu pohybu."],
+  ["pec-deck","Pec deck (motýlek)","Hrudník","Stroj","Izolovaný","Nastav ramena přístroje tak, aby tah vycházel z hrudníku; pohyb nešvihej."],
+  ["cable-chest-fly","Rozpažování na kladkách","Hrudník","Kladka","Izolovaný","Drž mírně pokrčené lokty a ruce přibližuj plynule před hrudníkem."],
+  ["dumbbell-chest-fly","Rozpažování s jednoručkami","Hrudník","Jednoručky","Izolovaný","Lokty nech lehce pokrčené, váhu spouštěj pouze v pohodlném rozsahu."],
+  ["smith-bench-press","Bench press na Smithově stroji","Hrudník","Smithův stroj","Silový","Lavici nastav podle pevné dráhy osy a udržuj stabilní polohu ramen."],
+  ["push-up","Kliky","Hrudník","Vlastní váha","Silový","Zpevni trup, lokty veď šikmo dozadu a tělo drž v jedné linii."],
+  ["chest-dip","Dipy na bradlech","Hrudník","Bradla","Silový","Ramena drž pod kontrolou; rozsah přizpůsob pohodlí a síle."],
+  ["close-grip-bench","Bench press úzkým úchopem","Triceps","Velká činka","Silový","Udrž zápěstí nad předloktím a lokty pod kontrolou blízko trupu."],
+  ["dumbbell-shoulder-press","Tlaky na ramena s jednoručkami","Ramena","Jednoručky","Silový","Zpevni trup a tlač vzhůru bez prohýbání beder."],
+  ["arnold-press","Arnoldovy tlaky","Ramena","Jednoručky","Silový","Rotuj předloktí plynule a používej kontrolovaný rozsah pohybu."],
+  ["machine-shoulder-press","Tlaky na ramena na stroji","Ramena","Stroj","Silový","Sedadlo uprav tak, aby úchopy začínaly přibližně na úrovni ramen."],
+  ["cable-lateral-raise","Upažování na kladce","Ramena","Kladka","Izolovaný","Paži zvedej bez švihu a trup drž stabilně."],
+  ["reverse-pec-deck","Obrácený pec deck","Ramena","Stroj","Izolovaný","Pohyb veď lokty do stran a nestahuj ramena k uším."],
+  ["dumbbell-front-raise","Předpažování s jednoručkami","Ramena","Jednoručky","Izolovaný","Zvedej činky bez záklonu a kontroluj spouštění."],
+  ["overhead-cable-triceps","Tricepsové extenze nad hlavou na kladce","Triceps","Kladka","Izolovaný","Lokty drž stabilně a protahuj paže bez prudkého propnutí."],
+  ["skull-crusher","Francouzský tlak vleže (skull crusher)","Triceps","EZ osa","Izolovaný","Nadloktí nech stabilní a osu spouštěj kontrolovaně."],
+  ["overhead-dumbbell-triceps","Tricepsové extenze s jednoručkou nad hlavou","Triceps","Jednoručky","Izolovaný","Drž lokty směrem vzhůru a nepřetěžuj bedra."],
+  ["barbell-row","Přítahy velké činky v předklonu","Záda","Velká činka","Silový","Zpevni trup, udrž neutrální záda a veď osu směrem k břichu."],
+  ["one-arm-dumbbell-row","Přítahy jednoručky v předklonu","Záda","Jednoručky","Silový","Opri se o lavici, rameno nepřetáčej a táhni loket k boku."],
+  ["t-bar-row","T-bar row","Záda","T-bar stroj","Silový","Udrž stabilní trup a přitahuj rukojeti bez švihu."],
+  ["chest-supported-row","Přítahy s oporou hrudníku","Záda","Stroj","Silový","Opři hrudník o podložku a táhni lokty dozadu."],
+  ["machine-row","Přítahy na stroji","Záda","Stroj","Silový","Nastav sedadlo a při přítahu kontroluj pohyb lopatek."],
+  ["assisted-pull-up","Shyby s dopomocí","Záda","Stroj","Silový","Nastav dopomoc a přitahuj se plynule bez kopání nohama."],
+  ["chin-up","Shyby podhmatem","Záda","Hrazda","Silový","Drž stabilní lopatky a vyhni se švihu."],
+  ["close-grip-lat-pulldown","Stahování horní kladky úzkým úchopem","Záda","Kladka","Silový","Táhni lokty k trupu bez výrazného záklonu."],
+  ["straight-arm-pulldown","Stahování kladky s nataženými pažemi","Záda","Kladka","Izolovaný","Paže nech mírně pokrčené a pohyb veď ze zad, ne ze švihu."],
+  ["face-pull","Face pull","Ramena","Kladka","Izolovaný","Táhni lano směrem k obličeji a lokty nech do stran."],
+  ["back-extension","Hyperextenze zad","Záda","Lavice","Silový","Pohyb začni v kyčlích a neprohýbej se nad neutrální polohu."],
+  ["dumbbell-shrug","Krčení ramen s jednoručkami","Trapézy","Jednoručky","Izolovaný","Ramena zvedej přímo nahoru, neotáčej je v kruhu."],
+  ["hammer-curl","Kladivové bicepsové zdvihy","Biceps","Jednoručky","Izolovaný","Dlaně drž proti sobě a lokty stabilní u těla."],
+  ["ez-bar-curl","Bicepsový zdvih s EZ osou","Biceps","EZ osa","Izolovaný","Nehoupej trupem a kontroluj negativní fázi."],
+  ["preacher-curl","Bicepsový zdvih na Scottově lavici","Biceps","Scottova lavice","Izolovaný","Lokty nech opřené a nepropínej paže prudce."],
+  ["incline-curl","Bicepsový zdvih na šikmé lavici","Biceps","Jednoručky","Izolovaný","Ramena nech opřená o lavici a nešvihej činkami."],
+  ["cable-biceps-curl","Bicepsový zdvih na kladce","Biceps","Kladka","Izolovaný","Lokty stabilizuj u trupu a činku nebo lano spouštěj pomalu."],
+  ["hack-squat","Hacken dřep na stroji","Nohy","Stroj","Silový","Záda opři a kolena veď ve směru špiček chodidel."],
+  ["front-squat","Přední dřep","Nohy","Velká činka","Silový","Lokty drž vysoko a trup zpevněný po celou dráhu pohybu."],
+  ["goblet-squat","Goblet dřep","Nohy","Jednoručky","Silový","Závaží drž před hrudníkem a sestupuj s pevným trupem."],
+  ["bulgarian-split-squat","Bulharský dřep","Nohy","Jednoručky","Silový","Zadní nohu opři o lavici a přední koleno drž stabilně."],
+  ["walking-lunge","Chůze ve výpadech","Nohy","Jednoručky","Silový","Dělej kontrolované kroky a udrž rovnováhu nad přední nohou."],
+  ["smith-squat","Dřepy na Smithově stroji","Nohy","Smithův stroj","Silový","Postav chodidla tak, aby odpovídala dráze osy, a zpevni trup."],
+  ["leg-extension","Předkopávání na stroji","Nohy","Stroj","Izolovaný","Nastav kloub stroje k ose kolene a pohyb prováděj plynule."],
+  ["seated-leg-curl","Zakopávání vsedě","Hamstringy","Stroj","Izolovaný","Nastav opěrky podle délky nohou a kontroluj návrat závaží."],
+  ["hip-thrust","Hip thrust","Hýždě","Velká činka","Silový","Horní část zad opři o lavici a zvedej pánev bez přehnaného záklonu."],
+  ["glute-bridge","Glute bridge","Hýždě","Vlastní váha","Silový","Zvedej pánev sevřením hýždí a žebra nech stažená."],
+  ["hip-abduction","Roznožování na stroji (abdukce)","Hýždě","Stroj","Izolovaný","Pánev drž na sedadle a nohy odtlačuj bez švihu."],
+  ["hip-adduction","Snožování na stroji (addukce)","Vnitřní stehna","Stroj","Izolovaný","Nastav pohodlný rozsah a nohy přibližuj kontrolovaně."],
+  ["cable-kickback","Zakopávání nohy dozadu na kladce","Hýždě","Kladka","Izolovaný","Trup udrž stabilně a pohyb veď kyčlí bez prohýbání beder."],
+  ["seated-calf-raise","Výpony na lýtka vsedě","Lýtka","Stroj","Izolovaný","Propni kotníky v kontrolovaném rozsahu a na chvíli zastav nahoře."],
+  ["cable-crunch","Zkracovačky na kladce","Core","Kladka","Izolovaný","Zakulat horní část trupu pohybem břicha, netahej pouze pažemi."],
+  ["hanging-leg-raise","Přednožování ve visu","Core","Hrazda","Silový","Zvedej nohy kontrolovaně a omez houpání těla."],
+  ["hanging-knee-raise","Přitahování kolen ve visu","Core","Hrazda","Silový","Přitahuj kolena k trupu bez rozkmitání."],
+  ["ab-wheel","Rollout s kolečkem","Core","Kolečko","Stabilizační","Zpevni břicho a pohybuj se jen do rozsahu, kde udržíš neutrální záda."],
+  ["side-plank","Boční plank","Core","Vlastní váha","Stabilizační","Drž boky nad zemí a tělo v přímé linii."],
+  ["cable-woodchop","Rotace trupu na kladce (woodchopper)","Core","Kladka","Stabilizační","Otáčej trup plynule, bez prudkého škubání pažemi."],
 ].map(([id,name,muscle,equipment,kind,technique]) => ({ id,name,muscle,equipment,kind,technique }));
+
+/** Add missing built-in exercises to valid older stores without replacing any existing entry.
+ * IDs are stable; user-defined exercises, plans and completed sessions are preserved.
+ * Returns the original object when no catalog entry is missing.
+ */
+export function extendGymExerciseCatalog(store: GymStore): GymStore {
+  const ids = new Set(store.exercises.map(ex => ex.id));
+  const missing = EXERCISE_LIBRARY.filter(ex => !ids.has(ex.id));
+  return missing.length ? {...store,exercises:[...store.exercises,...missing.map(ex=>({...ex}))]} : store;
+}
 
 export function emptyGymStore(): GymStore {
   return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [], sessions: [], moves: {} };
@@ -80,7 +148,11 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
 }
 export function readGymStore(): {store:GymStore;blocked:boolean} {
   if(typeof window==="undefined") return {store:emptyGymStore(),blocked:false};
-  try{return parseGymStore(window.localStorage.getItem(GYM_STORAGE_KEY));}
+  try{
+    const value = parseGymStore(window.localStorage.getItem(GYM_STORAGE_KEY));
+    // Valid older saved stores need the new catalog too. Never modify malformed data.
+    return value.blocked ? value : {...value,store:extendGymExerciseCatalog(value.store)};
+  }
   catch{return {store:emptyGymStore(),blocked:true};}
 }
 export function saveGymStore(store:GymStore) {

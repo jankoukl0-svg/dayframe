@@ -28,6 +28,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [planNameDraft,setPlanNameDraft]=useState<{id:string;value:string}|null>(null);
   const [dayNameDrafts,setDayNameDrafts]=useState<Record<string,string>>({});
   const [exerciseQuery,setExerciseQuery]=useState("");
+  const [exerciseMuscle,setExerciseMuscle]=useState("all");
   const [newExercise,setNewExercise]=useState(false);
   const [exerciseDraft,setExerciseDraft]=useState({name:"",muscle:"",equipment:"",kind:"Silový",technique:"",photoUrl:""});
   const [restSeconds,setRestSeconds]=useState(90);
@@ -75,8 +76,11 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
       return setActiveGymPlan({...s,plans:[...s.plans,created]},created.id,today);
     })){setSelectedDayId(created.days[0]?.id??null);setEditedPlanId(null);setMessage("");}
   };
-  const library=useMemo(()=>store.exercises.filter(e=>[e.name,e.muscle,e.equipment].join(" ").toLocaleLowerCase("cs")
-    .includes(exerciseQuery.toLocaleLowerCase("cs"))).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery]);
+  const muscleOptions=useMemo(()=>[...new Set(store.exercises.map(e=>e.muscle))]
+    .sort((a,b)=>a.localeCompare(b,"cs")),[store.exercises]);
+  const library=useMemo(()=>store.exercises.filter(e=>(exerciseMuscle==="all"||e.muscle===exerciseMuscle)
+    &&[e.name,e.muscle,e.equipment].join(" ").toLocaleLowerCase("cs")
+    .includes(exerciseQuery.trim().toLocaleLowerCase("cs"))).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery,exerciseMuscle]);
   const savePlan=(id:string,fn:(plan:GymPlan)=>GymPlan)=>persist(s=>({...s,plans:s.plans.map(p=>p.id===id?fn(p):p)}));
   const saveSession=(id:string,fn:(session:GymSession)=>GymSession)=>persist(s=>({...s,sessions:s.sessions.map(x=>{
     if(x.id!==id)return x;
@@ -371,13 +375,20 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
 
     {view==="exercises" && <div className="df2-gym-panel">
       <div className="df2-gym-section-head"><h3>Knihovna cviků</h3><button type="button" onClick={()=>setNewExercise(true)}>+ Vlastní cvik</button></div>
-      <input type="search" placeholder="Hledat cvik, partii nebo vybavení" aria-label="Hledat cviky"
-        value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)}/>
-      <div className="df2-gym-library">{library.map(ex=><article key={ex.id}>
+      <div className="df2-gym-library-tools">
+        <input type="search" placeholder="Hledat cvik, partii nebo vybavení" aria-label="Hledat cviky"
+          value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)}/>
+        <select aria-label="Filtrovat podle partie" value={exerciseMuscle} onChange={e=>setExerciseMuscle(e.target.value)}>
+          <option value="all">Všechny partie</option>
+          {muscleOptions.map(muscle=><option key={muscle} value={muscle}>{muscle}</option>)}
+        </select>
+        <small data-gym-library-count>{library.length} z {store.exercises.length} cviků</small>
+      </div>
+      {library.length?<div className="df2-gym-library">{library.map(ex=><article key={ex.id}>
         <div><strong>{ex.name}</strong><small>{ex.muscle} · {ex.equipment} · {ex.kind}</small>
           <p>{ex.technique||"Bez popisu techniky"}</p>{ex.photoUrl && /^https:\/\//.test(ex.photoUrl)&&
           <a target="_blank" rel="noreferrer" href={ex.photoUrl}>Demonstrace / fotografie ↗</a>}</div>
-      </article>)}</div>
+      </article>)}</div>:<p className="df2-health-empty" data-gym-library-empty>Žádné cviky neodpovídají hledání. Zkus jinou partii nebo hledaný výraz.</p>}
     </div>}
 
     {view==="progress" && <div className="df2-gym-panel" data-gym-progress>
