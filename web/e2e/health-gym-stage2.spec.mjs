@@ -490,3 +490,30 @@ test("exercise library search accepts pecdec as an alias for both catalog moveme
   await expect(root.locator(".df2-gym-library")).toContainText("Pec deck (motýlek)");
   await expect(root.locator(".df2-gym-library")).toContainText("Obrácený pec deck");
 });
+
+test("simplified Gym shows the chosen workout and keeps advanced set fields optional and persistent",async({page})=>{
+  await page.setViewportSize({width:375,height:812});
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const before=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  await expect(root.locator("[data-gym-split]").getByRole("heading",{name:"Vyber trénink"})).toBeVisible();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("3 série × 10 opak.");
+  await expect(root.locator("[data-gym-week]")).not.toHaveAttribute("open","");
+  await root.locator('[data-gym-day="Pull"]').click();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Shyby");
+  await root.locator('[data-gym-day="Push"]').click();
+  await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
+  await expect(set.getByRole("spinbutton",{name:/Váha v kg série 1/})).toBeVisible();
+  await expect(set.getByRole("spinbutton",{name:/RPE série 1/})).toBeHidden();
+  await set.getByText("Další možnosti série 1").click();
+  await set.getByRole("spinbutton",{name:/RPE série 1/}).fill("8");
+  await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("60");
+  await set.getByRole("spinbutton",{name:/Opakování série 1/}).fill("10");
+  await set.getByRole("button",{name:/Dokončit sérii 1/}).click();
+  await expect(root.getByRole("progressbar",{name:"Dokončené série"})).toHaveAttribute("aria-valuenow","1");
+  const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(after.plans).toEqual(before.plans);
+  expect(after.sessions[0].exercises[0].sets[0]).toMatchObject({weightKg:60,reps:10,rpe:8,done:true});
+});

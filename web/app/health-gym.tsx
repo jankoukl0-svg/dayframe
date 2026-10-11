@@ -151,12 +151,14 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   };
   const restRemaining=session?.restUntil?Math.max(0,Math.ceil((session.restUntil-clock)/1000)):0;
   const history=store.sessions.slice().sort((a,b)=>b.startedAt.localeCompare(a.startedAt));
+  const totalSets=session?.exercises.reduce((sum,ex)=>sum+ex.sets.length,0)??0;
+  const doneSets=session?.exercises.reduce((sum,ex)=>sum+ex.sets.filter(set=>set.done).length,0)??0;
 
   if(!hydrated)return <div className="df2-gym-loading">Načítám tréninkový deník…</div>;
   return <div className="df2-gym" data-gym-root>
-    <header className="df2-gym-heading"><div><span>ETAPA 2 · TRÉNINKOVÝ DENÍK</span><h2>Gym & Tréninky</h2>
-      <p>Tvůj tréninkový plán, záznamy a pokrok na jednom místě.</p></div>
-      <button type="button" disabled={blocked} className="df2-accent-button" onClick={()=>{setNewPlan(true);setMessage("");}}>+ Tréninkový plán</button>
+    <header className="df2-gym-heading"><div><span>TRÉNINKOVÝ DENÍK</span><h2>Gym & Tréninky</h2>
+      <p>Vyber trénink, zapiš série a sleduj pokrok.</p></div>
+      <button type="button" disabled={blocked} className="df2-gym-new-plan" onClick={()=>{setNewPlan(true);setMessage("");}}>+ Tréninkový plán</button>
     </header>
     <nav className="df2-gym-nav" aria-label="Gym navigace">
       {([["workout","Tréninky"],["plans","Plány"],["exercises","Cviky"],["progress","Progres"]] as const).map(([key,label])=>
@@ -166,17 +168,26 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
 
     {view==="workout" && <div className="df2-gym-panel">
       {session ? <section className="df2-gym-session" aria-label="Tréninkový deník">
-        <header className="df2-gym-section-head"><div><span>{session.date} · {session.completedAt?"Dokončeno":"Probíhá"}</span><h3>{session.title}</h3></div>
-          <button type="button" onClick={()=>setSelectedSession(null)}>← Zpět na plán</button></header>
+        <header className="df2-gym-section-head df2-gym-session-heading">
+          <div><span>{pretty(session.date)} · {session.completedAt?"Dokončeno":"Tréninkový deník"}</span>
+            <h3>{session.title}</h3><small>{doneSets} z {totalSets} sérií hotovo</small></div>
+          <button type="button" onClick={()=>setSelectedSession(null)}>← Zpět na plán</button>
+        </header>
+        <div className="df2-gym-session-progress" role="progressbar" aria-label="Dokončené série" aria-valuemin={0}
+          aria-valuemax={totalSets} aria-valuenow={doneSets}>
+          <span style={{width:(totalSets?doneSets/totalSets*100:0)+"%"}}/>
+        </div>
         <div className="df2-gym-rest" role="timer" aria-label="Přestávka mezi sériemi">
-          <div><small>Odpočinek</small><strong>{String(Math.floor(restRemaining/60)).padStart(2,"0")}:{String(restRemaining%60).padStart(2,"0")}</strong></div>
-          <div className="df2-gym-rest-buttons">{[60,90,120,180].map(n=><button type="button" key={n} onClick={()=>
-            saveSession(session.id,s=>({...s,restUntil:Date.now()+n*1000}))}>{n}s</button>)}
-            <input type="number" aria-label="Vlastní přestávka v sekundách" min="10" max="1800" value={restSeconds}
-              onChange={e=>setRestSeconds(Math.max(10,Math.min(1800,Number(e.target.value)||10)))}/>
-            <button type="button" onClick={()=>saveSession(session.id,s=>({...s,restUntil:Date.now()+restSeconds*1000}))}>Spustit</button>
-            <button type="button" onClick={()=>saveSession(session.id,s=>({...s,restUntil:null}))}>Zrušit</button>
-          </div>
+          <div><small>Odpočinek mezi sériemi</small><strong>{String(Math.floor(restRemaining/60)).padStart(2,"0")}:{String(restRemaining%60).padStart(2,"0")}</strong></div>
+          <details className="df2-gym-rest-settings"><summary>Nastavit odpočinek</summary>
+            <div className="df2-gym-rest-buttons">{[60,90,120,180].map(n=><button type="button" key={n} onClick={()=>
+              saveSession(session.id,s=>({...s,restUntil:Date.now()+n*1000}))}>{n}s</button>)}
+              <input type="number" aria-label="Vlastní přestávka v sekundách" min="10" max="1800" value={restSeconds}
+                onChange={e=>setRestSeconds(Math.max(10,Math.min(1800,Number(e.target.value)||10)))}/>
+              <button type="button" onClick={()=>saveSession(session.id,s=>({...s,restUntil:Date.now()+restSeconds*1000}))}>Spustit</button>
+              <button type="button" onClick={()=>saveSession(session.id,s=>({...s,restUntil:null}))}>Zrušit</button>
+            </div>
+          </details>
         </div>
         {session.exercises.map((ex,exIndex)=>{
           const previous=lastExercisePerformance(store,ex.exerciseId,session.date,session.id);
@@ -198,18 +209,27 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 <button type="button" onClick={()=>saveSession(session.id,s=>({...s,exercises:s.exercises.filter(item=>item.id!==ex.id)}))}>Odebrat</button>
               </div></header>
             <div className="df2-gym-set-table">
-              <div className="df2-gym-set-labels"><span>Série</span><span>kg</span><span>Opak.</span><span>RPE</span><span>RIR</span><span>Hotovo</span></div>
+              <div className="df2-gym-set-labels"><span>Série</span><span>Váha (kg)</span><span>Opakování</span><span>Hotovo</span></div>
               {ex.sets.map((set,index)=><div className={"df2-gym-set "+(set.done?"done":"")} key={set.id} data-gym-set>
                 <button type="button" title="Změnit typ série" onClick={()=>changeSet(ex.id,set.id,{kind:set.kind==="work"?"warmup":"work"})}>{set.kind==="warmup"?"W":"#"+(index+1)}</button>
-                {([["weightKg","Váha v kg",2000,.5],["reps","Opakování",1000,1],["rpe","RPE",10,.5],["rir","RIR",10,.5]] as const).map(([field,label,max,step])=>
+                {([["weightKg","Váha v kg",2000,.5],["reps","Opakování",1000,1]] as const).map(([field,label,max,step])=>
                   <input key={field} aria-label={label+" série "+(index+1)+" cviku "+ex.name} type="number" min="0" max={max} step={step}
-                    value={set[field]??""} placeholder="—" onChange={e=>changeSet(ex.id,set.id,{[field]:numberValue(e.target.value,field==="rpe"?1:0,max)})}/>)}
+                    value={set[field]??""} placeholder="—" onChange={e=>changeSet(ex.id,set.id,{[field]:numberValue(e.target.value,0,max)})}/>)}
                 <button type="button" className="df2-gym-set-done" aria-label={"Dokončit sérii "+(index+1)+" cviku "+ex.name}
                   aria-pressed={set.done} onClick={()=>markSet(ex,set)}>{set.done?"✓":"○"}</button>
-                <input className="df2-gym-set-note" aria-label={"Poznámka série "+(index+1)+" cviku "+ex.name} placeholder="Poznámka k sérii"
-                  value={set.note} onChange={e=>changeSet(ex.id,set.id,{note:e.target.value.slice(0,1000)})}/>
-                <button type="button" className="df2-gym-delete-set" aria-label={"Smazat sérii "+(index+1)+" cviku "+ex.name}
-                  onClick={()=>changeSessionExercise(ex.id,e=>({...e,sets:e.sets.filter(item=>item.id!==set.id)}))}>×</button>
+                <details className="df2-gym-set-extras"><summary>Další možnosti série {index+1}</summary>
+                  <div className="df2-gym-set-extra-fields">
+                    {([["rpe","RPE"],["rir","RIR"]] as const).map(([field,label])=>
+                      <label key={field}>{label}<input aria-label={label+" série "+(index+1)+" cviku "+ex.name}
+                        type="number" min={field==="rpe"?1:0} max={10} step=".5" value={set[field]??""}
+                        onChange={e=>changeSet(ex.id,set.id,{[field]:numberValue(e.target.value,field==="rpe"?1:0,10)})}/></label>)}
+                    <input className="df2-gym-set-note" aria-label={"Poznámka série "+(index+1)+" cviku "+ex.name}
+                      placeholder="Poznámka k sérii" value={set.note}
+                      onChange={e=>changeSet(ex.id,set.id,{note:e.target.value.slice(0,1000)})}/>
+                    <button type="button" className="df2-gym-delete-set" aria-label={"Smazat sérii "+(index+1)+" cviku "+ex.name}
+                      onClick={()=>changeSessionExercise(ex.id,e=>({...e,sets:e.sets.filter(item=>item.id!==set.id)}))}>Smazat sérii</button>
+                  </div>
+                </details>
               </div>)}
             </div>
             <div className="df2-gym-inline">
@@ -230,9 +250,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         </div>
       </section> : <>
         <div className="df2-gym-summary" data-gym-summary>
-          <div><small>Aktivní split</small><strong>{activePlan?.name??"Nenastaveno"}</strong></div>
-          <div><small>Tento týden</small><strong>{completedWeek} / {weekTotal} tréninků</strong></div>
-          <div><small>Další trénink</small><strong>{nearest?nearest.name+" · "+pretty(nearest.date):"Zatím neplánováno"}</strong></div>
+          <div><small>Aktivní plán</small><strong>{activePlan?.name??"Nenastaveno"}</strong></div>
+          <div><small>Tento týden</small><strong>{completedWeek} / {weekTotal} tréninků</strong>
+            <progress aria-label="Splnění týdenního plánu" value={Math.min(completedWeek,weekTotal)} max={Math.max(1,weekTotal)}/></div>
+          <div><small>Nejbližší termín</small><strong>{nearest?nearest.name+" · "+pretty(nearest.date):"Zatím neplánováno"}</strong></div>
         </div>
         {!activePlan ? <section className="df2-gym-welcome" data-gym-setup>
           <div><span>ZAČNI JEDNÍM KROKEM</span><h3>Tvůj split: Push / Pull / Lower</h3>
@@ -246,38 +267,37 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
           <button type="button" className="df2-accent-button" disabled={blocked} onClick={createQuickPpl}>Použít split Push / Pull / Lower →</button>
         </section> : <>
           <section className="df2-gym-split" data-gym-split>
-            <div className="df2-gym-section-head">
-              <div><h3>Tréninkový split</h3><small>{activePlan.name} · vyber trénink pro náhled</small></div>
+            <div className="df2-gym-focus-head"><div><span>TVŮJ TRÉNINK</span><h3>Vyber trénink</h3></div>
               <button type="button" onClick={()=>{setEditedPlanId(activePlan.id);setView("plans");}}>Upravit plán</button>
             </div>
-            <div className="df2-gym-split-days">
+            <div className="df2-gym-split-days" role="group" aria-label="Výběr tréninku">
               {activePlan.days.map(day=><button key={day.id} type="button" data-gym-day={day.name}
                 aria-pressed={activeDay?.id===day.id} onClick={()=>setSelectedDayId(day.id)}>
-                <strong>{day.name}</strong><small>{day.exercises.length} cviků</small><span aria-hidden="true">→</span>
+                <strong>{day.name}</strong><small>{day.exercises.length} cviků</small>
               </button>)}
             </div>
-          </section>
-          {activeDay&&<section className="df2-gym-workout-preview" data-gym-workout-preview>
-            <div className="df2-gym-section-head">
-              <div><span>TRÉNINKOVÝ DEN</span><h3>{activeDay.name}</h3>
-                <small>{activeDay.exercises.length} cviků · {WEEKDAYS[activeDay.weekday]}</small></div>
-              <div className="df2-gym-inline">
-                <button type="button" onClick={()=>{setEditedPlanId(activePlan.id);setView("plans");}}>Upravit cviky</button>
-                {activeDayOccurrence&&<button type="button" className="df2-primary" disabled={blocked}
-                  onClick={()=>showSession(activeDayOccurrence.key,activeDayOccurrence.date)}>
-                  {activeDayOccurrence.session?"Pokračovat":"Zahájit trénink"}</button>}
+            {activeDay&&<section className="df2-gym-workout-preview" data-gym-workout-preview>
+              <div className="df2-gym-workout-top">
+                <div><span>VYBRANÝ TRÉNINK</span><h3>{activeDay.name}</h3>
+                  <small>{WEEKDAYS[activeDay.weekday]} · {activeDay.exercises.length} cviků
+                    {activeDayOccurrence?" · další "+pretty(activeDayOccurrence.date):""}</small></div>
+                <div className="df2-gym-workout-actions">
+                  {activeDayOccurrence&&<button type="button" className="df2-primary" disabled={blocked}
+                    onClick={()=>showSession(activeDayOccurrence.key,activeDayOccurrence.date)}>
+                    {activeDayOccurrence.session?"Pokračovat":"Zahájit trénink"} →</button>}
+                  <button type="button" onClick={()=>{setEditedPlanId(activePlan.id);setView("plans");}}>Upravit cviky</button>
+                </div>
               </div>
-            </div>
-            {activeDay.exercises.length?<div className="df2-gym-preview-list">
-              <div className="df2-gym-preview-labels"><span>Cvik</span><span>Série</span><span>Opak.</span></div>
-              {activeDay.exercises.map((ex,i)=><div className="df2-gym-preview-row" key={ex.id}>
-                <span><small>{String(i+1).padStart(2,"0")}</small><strong>{exerciseName(ex.exerciseId)}</strong></span>
-                <b>{ex.sets}</b><b>{ex.reps}</b>
-              </div>)}
-            </div>:<div className="df2-gym-preview-empty">Tento den zatím nemá cviky. Otevři „Upravit cviky“ a sestav si vlastní trénink.</div>}
-          </section>}
-          <section className="df2-gym-week-strip" data-gym-week>
-            <div className="df2-gym-section-head"><h3>Tento týden</h3><small>Jen skutečně naplánované tréninky</small></div>
+              {activeDay.exercises.length?<div className="df2-gym-preview-list" role="list" aria-label={"Cviky "+activeDay.name}>
+                {activeDay.exercises.map((ex,i)=><div className="df2-gym-preview-row" role="listitem" key={ex.id}>
+                  <span><small>{String(i+1).padStart(2,"0")}</small><strong>{exerciseName(ex.exerciseId)}</strong></span>
+                  <small className="df2-gym-preview-target">{ex.sets} série × {ex.reps} opak.</small>
+                </div>)}
+              </div>:<div className="df2-gym-preview-empty">Zatím bez cviků. Přidej první přes „Upravit cviky“.</div>}
+            </section>}
+          </section>
+          <details className="df2-gym-week-strip" data-gym-week>
+            <summary>Rozvrh tohoto týdne <span>Po – Ne</span></summary>
             <div className="df2-gym-week-days">{weekDates.map((date,index)=>{
               const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
               return <div key={date} className={date===today?"is-today":""}>
@@ -285,7 +305,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 <strong>{scheduled.length?scheduled.map(o=>o.name).join(" / "):"—"}</strong>
               </div>;
             })}</div>
-          </section>
+          </details>
         </>}
         <section className="df2-gym-schedule" data-gym-schedule>
           <div className="df2-gym-section-head"><div><h3>Naplánované tréninky</h3><small>Termíny a jejich splnění jsou propojené s Dnes a Týdnem.</small></div>
@@ -303,10 +323,13 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             </article>)}</div>:
             <p className="df2-health-empty">Žádné tréninky v tomto období. {store.plans.length?"Uprav rozvrh nebo změň zobrazené datum.":"Vyber split výše nebo vytvoř vlastní plán."}</p>}
         </section>
-        {!!history.length&&<section className="df2-gym-history" data-gym-history><div className="df2-gym-section-head"><h3>Historie tréninků</h3><small>Skutečné záznamy</small></div>
-          {history.slice(0,20).map(s=><button key={s.id} type="button" onClick={()=>setSelectedSession(s.id)}>
-            <span>{s.date} · {s.title}</span><strong>{s.completedAt?"Dokončeno":"Rozpracováno"}</strong></button>)}
-        </section>}
+        {!!history.length&&<details className="df2-gym-history" data-gym-history>
+          <summary>Historie tréninků <span>{history.length} záznamů</span></summary>
+          <div className="df2-gym-history-list">
+            {history.slice(0,20).map(s=><button key={s.id} type="button" onClick={()=>setSelectedSession(s.id)}>
+              <span>{s.date} · {s.title}</span><strong>{s.completedAt?"Dokončeno":"Rozpracováno"}</strong></button>)}
+          </div>
+        </details>}
       </>}
     </div>}
 
