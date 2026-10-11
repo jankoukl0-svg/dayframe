@@ -13,6 +13,7 @@ export function SupplementsPage({today}:{today:string}){
   const {store,hydrated,blocked,error,persist}=useSupplementStore();
   const [tab,setTab]=useState<Tab>("today");
   const [draft,setDraft]=useState<Supplement|null>(null);
+  const [stockAtOpen,setStockAtOpen]=useState<number|null>(null);
   const [draftTimes,setDraftTimes]=useState("");
   const [search,setSearch]=useState("");
   const [editError,setEditError]=useState("");
@@ -24,6 +25,7 @@ export function SupplementsPage({today}:{today:string}){
     .slice().sort((a,b)=>b.date.localeCompare(a.date)||b.time.localeCompare(a.time));
   const showEdit=(item:Supplement)=>{
     setDraft({...item,weekdays:[...item.weekdays],times:[...item.times]});
+    setStockAtOpen(item.stock);
     setDraftTimes(item.times.join(", "));
     setEditError("");
   };
@@ -39,10 +41,21 @@ export function SupplementsPage({today}:{today:string}){
     if(draft.stock!==null&&draft.stock<0){setEditError("Zásoba nemůže být záporná.");return;}
     const item={...draft,name:draft.name.trim(),brand:draft.brand.trim(),doseLabel:draft.doseLabel.trim(),
       weekdays:[...draft.weekdays].sort(),times};
-    const existing=store.supplements.find(x=>x.id===item.id);
-    const scheduled=withSupplementSchedule(item,today,existing);
-    const ok=persist(s=>({...s,supplements:s.supplements.some(x=>x.id===item.id)
-      ?s.supplements.map(x=>x.id===item.id?scheduled:x):[...s.supplements,scheduled]}));
+    const ok=persist(s=>{
+      const current=s.supplements.find(x=>x.id===item.id);
+      // The editor may have been open while another tab logged an intake or
+      // purchase. Preserve the latest stock unless the user explicitly edited it.
+      const stock=current && item.stock===stockAtOpen?current.stock:item.stock;
+      const scheduled=withSupplementSchedule({...item,stock},today,current);
+      const trackingChanged=!!current && (current.stock===null)!==(stock===null);
+      return {...s,
+        supplements:current?s.supplements.map(x=>x.id===item.id?scheduled:x):[...s.supplements,scheduled],
+        // Manual reinitialization of stock starts a new inventory baseline.
+        // Historical taken doses remain recorded but are not restorable to
+        // the newly entered count.
+        intakes:trackingChanged?s.intakes.map(x=>x.supplementId===item.id?
+          {...x,stockDeducted:0}:x):s.intakes};
+    });
     if(ok){setDraft(null);setEditError("");setNotice("");}
   };
   const mark=(key:string,status:"taken"|"skipped")=>{
@@ -188,7 +201,7 @@ export function SupplementsPage({today}:{today:string}){
           <label>Poznámky a upozornění<textarea aria-label="Poznámky suplementu" rows={2} value={draft.notes} maxLength={1500}
             onChange={e=>setDraft({...draft,notes:e.target.value})}/></label>
         </div>
-        <p className="df2-health-helper">Zadávej jen dávkování potvrzené etiketou nebo odborníkem. U interakcí s léky, zdravotních omezení či nejasností se poraď s lékárníkem nebo lékařem.</p>
+        <p className="df2-health-helper">Zadávej jen dávkování potvrzené etiketou nebo odborníkem. Změny rozvrhu a pozastavení se projeví od následujícího dne, aby dnešní historie zůstala zachovaná. U interakcí s léky, zdravotních omezení či nejasností se poraď s lékárníkem nebo lékařem.</p>
         {editError&&<p className="df2-hygiene-error" role="alert">{editError}</p>}
         <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked} type="button" onClick={saveDraft}>Uložit suplement</button></div>
       </section>
