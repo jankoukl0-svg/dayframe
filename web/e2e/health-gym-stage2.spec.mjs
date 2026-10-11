@@ -151,3 +151,33 @@ test("a Gym deep link is consumed and an ordinary Health click returns to its ov
   await page.locator(".df2-sidebar nav button").filter({hasText:"Zdraví"}).click();
   await expect(page.getByRole("tab",{name:"Přehled"})).toHaveAttribute("aria-selected","true");
 });
+
+test("new plan does not appear in historical past weeks",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Jen ode dne založení");
+  await root.getByLabel("Prohlížet od data").fill("2026-09-28");
+  await expect(root.locator('[data-gym-occurrence]')).toHaveCount(0);
+});
+
+test("invalidated completed set cannot silently remain done and historical session can reopen",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Korekce");
+  await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
+  const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
+  await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("75");
+  await set.getByRole("spinbutton",{name:/Opakování série 1/}).fill("8");
+  await set.getByRole("button",{name:/Dokončit sérii 1/}).click();
+  await root.getByRole("button",{name:"Dokončit trénink",exact:true}).click();
+  await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("");
+  await expect(set.getByRole("button",{name:/Dokončit sérii 1/})).toHaveAttribute("aria-pressed","false");
+  // Clearing the final valid set automatically reopens the completed workout.
+  await expect(root.getByRole("button",{name:"Dokončit trénink"})).toBeVisible();
+  let saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.sessions[0].completedAt).toBeNull();
+  await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("75");
+  await set.getByRole("button",{name:/Dokončit sérii 1/}).click();
+  await root.getByRole("button",{name:"Dokončit trénink"}).click();
+  await root.getByRole("button",{name:"Znovu otevřít trénink"}).click();
+  saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.sessions[0].completedAt).toBeNull();
+});
