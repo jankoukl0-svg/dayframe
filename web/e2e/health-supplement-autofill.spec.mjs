@@ -114,3 +114,49 @@ test("stale URL lookup cannot overwrite a newly typed product name during deboun
   await expect(input).toHaveValue("Nový jiný produkt");
   await expect(dialog.locator(".df2-supplements-photo-editor img")).toHaveCount(0);
 });
+
+
+test("GymBeam link recovers from object-shaped API error via existing product lookup and finds the packshot",async({page})=>{
+  const dialog=await setup(page);
+  const white=await fixture(page,"#ffffff");
+  const url="https://gymbeam.cz/omega-3-gym-beam.html";
+  const match={name:"Omega 3 - GymBeam",brand:"GymBeam",amount:"",
+    priceCzk:null,imageUrl:"https://cdn.example.com/gymbeam-omega3-white.png",
+    sourceUrl:url,sourceLabel:"gymbeam.cz"};
+  await page.route("**/api/supplement-product-lookup?*",route=>route.fulfill({
+    status:500,contentType:"application/json",body:JSON.stringify({error:{message:"FUNCTION_INVOCATION_FAILED",code:"runtime"}})
+  }));
+  await page.route("**/api/hygiene-product-lookup?*",async route=>{
+    const params=new URL(route.request().url()).searchParams;
+    if(params.get("mode")==="photos")return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({candidates:[{url:match.imageUrl,source:"Výrobce",priority:20}]})});
+    if(params.get("mode")==="image")return route.fulfill({status:200,contentType:"image/png",body:white});
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({matches:[match]})});
+  });
+  await dialog.getByRole("textbox",{name:"Název nebo odkaz suplementu"}).fill(url);
+  await expect(dialog.getByRole("textbox",{name:"Název suplementu"})).toHaveValue(match.name);
+  await expect(dialog.getByRole("textbox",{name:"Značka suplementu"})).toHaveValue(match.brand);
+  await expect(dialog.locator(".df2-supplements-photo-editor img")).toBeVisible();
+  await expect(dialog.getByText("[object Object]")).toHaveCount(0);
+  await expect(dialog.getByRole("textbox",{name:"Dávkování"})).toHaveValue("");
+});
+
+test("blocked GymBeam URL offers a clearly marked unverified suggestion instead of object errors",async({page})=>{
+  const dialog=await setup(page);
+  const url="https://gymbeam.cz/omega-3-gym-beam.html";
+  await page.route("**/api/supplement-product-lookup?*",route=>route.fulfill({
+    status:500,contentType:"application/json",body:JSON.stringify({error:{code:"FUNCTION_INVOCATION_FAILED"}})
+  }));
+  await page.route("**/api/hygiene-product-lookup?*",route=>route.fulfill({
+    status:422,contentType:"application/json",body:JSON.stringify({error:"Obchod blokuje automatické načítání"})
+  }));
+  await dialog.getByRole("textbox",{name:"Název nebo odkaz suplementu"}).fill(url);
+  await expect(dialog.getByLabel("Nalezené suplementy")).toContainText("Omega 3 Gymbeam");
+  await expect(dialog.getByText(/neověřený návrh názvu/)).toBeVisible();
+  await expect(dialog.getByText("[object Object]")).toHaveCount(0);
+  await dialog.getByRole("button",{name:"Použít produkt"}).click();
+  await expect(dialog.getByRole("textbox",{name:"Název suplementu"})).toHaveValue("Omega 3 Gymbeam");
+  await expect(dialog.getByLabel("Odkaz na suplement")).toHaveValue(url);
+  await expect(dialog.getByRole("textbox",{name:"Dávkování"})).toHaveValue("");
+  await expect(dialog.locator(".df2-supplements-photo-editor img")).toHaveCount(0);
+});

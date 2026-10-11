@@ -1,9 +1,38 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {findBestProductPackshot,type PackshotCandidate} from "@/lib/dayframe-product-packshots";
-import {sameSupplementProduct,type SupplementLookupMatch} from "@/lib/dayframe-supplement-lookup";
+import {sameSupplementProduct,supplementSuggestionFromUrl,packCountFromLabel,type SupplementLookupMatch} from "@/lib/dayframe-supplement-lookup";
 
-type LookupResponse={matches?:SupplementLookupMatch[];notice?:string;error?:string};
+type LookupResponse={matches?:SupplementLookupMatch[];notice?:string;error?:unknown};
+function safeLookupError(value:unknown,status:number):string{
+  if(typeof value==="string"&&value.trim()&&!value.includes("[object Object]"))return value.slice(0,250);
+  if(value&&typeof value==="object"&&"message" in value){
+    const message=(value as {message?:unknown}).message;
+    if(typeof message==="string"&&message.trim()&&!message.includes("[object Object]"))
+      return message.slice(0,250);
+  }
+  return "Vyhledávání je momentálně nedostupné (HTTP "+status+"). Zkus jiný odkaz nebo doplň údaje ručně.";
+}
+/** Hygiene already indexes product pages independently: safe fallback for a broken supplement function. */
+async function fallbackProductPage(url:string):Promise<SupplementLookupMatch[]>{
+  const response=await fetch("/api/hygiene-product-lookup?query="+encodeURIComponent(url),
+    {signal:AbortSignal.timeout(9000)});
+  if(!response.ok||!response.headers.get("content-type")?.includes("application/json"))return [];
+  const value=await response.json() as {matches?:unknown};
+  if(!Array.isArray(value.matches))return [];
+  const canonical=(s:string)=>{try{const x=new URL(s);return x.hostname+x.pathname.replace(/\/$/,"");}catch{return "";}};
+  return value.matches.filter((x):x is Record<string,unknown>=>!!x&&typeof x==="object")
+    .filter(x=>typeof x.name==="string"&&typeof x.sourceUrl==="string"&&canonical(x.sourceUrl)===canonical(url))
+    .slice(0,4).map(x=>{
+      const name=String(x.name).slice(0,160),amount=typeof x.amount==="string"?x.amount.slice(0,130):"";
+      const pack=packCountFromLabel(name+" "+amount);
+      return {name,brand:typeof x.brand==="string"?x.brand.slice(0,100):"",amount,
+        priceCzk:typeof x.priceCzk==="number"&&Number.isFinite(x.priceCzk)?x.priceCzk:null,
+        imageUrl:typeof x.imageUrl==="string"&&x.imageUrl.startsWith("https://")?x.imageUrl:"",
+        sourceUrl:String(x.sourceUrl),sourceLabel:"Produktová stránka",
+        packServings:pack?.count??null,packUnit:pack?.unit??""};
+    });
+}
 type Props={
   hint:string|null;
   onApply:(match:SupplementLookupMatch)=>void;
@@ -92,19 +121,53 @@ export function SupplementAutoLookup({hint,onApply,onPhoto,onBusy,manualPhoto}:P
     setFindingPhoto(false);callbackRef.current.onBusy(false);
     setBusy(true);setError("");setNotice("");setMatches([]);setPhotoNotice("");
     try{
-      const res=await fetch("/api/supplement-product-lookup?query="+encodeURIComponent(q),
-        {signal:AbortSignal.timeout(20000),headers:{Accept:"application/json"}});
-      if(!res.headers.get("content-type")?.includes("application/json"))
-        throw Error("Vyhledávání produktů není na tomto nasazení dostupné.");
-      const data=await res.json() as LookupResponse;
-      if(!res.ok)throw Error(data.error||"Vyhledávání se nezdařilo.");
+      let choices:SupplementLookupMatch[]=[];
+      let info="";
+      let failure="";
+      try{
+        const res=await fetch("/api/supplement-product-lookup?query="+encodeURIComponent(q),
+          {signal:AbortSignal.timeout(16500),headers:{Accept:"application/json"}});
+        if(!res.headers.get("content-type")?.includes("application/json"))
+          throw Error("Vyhledávací server vrátil neplatnou odpověď.");
+        const data=await res.json() as LookupResponse;
+        if(!res.ok)throw Error(safeLookupError(data?.error,res.status));
+        choices=Array.isArray(data?.matches)?data.matches.filter((x):x is SupplementLookupMatch=>
+          !!x&&typeof x.name==="string"&&!!x.name.trim()
+          &&typeof x.sourceUrl==="string"&&x.sourceUrl.startsWith("https://")).slice(0,6):[];
+        info=typeof data.notice==="string"?data.notice:"";
+      }catch(e){
+        failure=e instanceof Error?e.message:"Vyhledávací server nyní není dostupný.";
+      }
       if(!alive.current||id!==request.current)return;
-      const choices=(data.matches??[]).filter(x=>x&&x.name&&x.sourceUrl?.startsWith("https://")).slice(0,6);
-      setNotice(data.notice??"");
-      if(choices.length===1&&(/^https:\/\//i.test(q)
-        ||(sameSupplementProduct(choices[0].name,choices[0].brand,q)
-          &&[choices[0].name,choices[0].brand+" "+choices[0].name]
-            .some(name=>name.trim().toLocaleLowerCase("cs")===q.toLocaleLowerCase("cs"))))){
+      const isLink=/^https:\/\//i.test(q);
+      if(isLink&&choices.length===0){
+        try{choices=await fallbackProductPage(q);}catch{/* A shop may block both services. */}
+      }
+      if(!alive.current||id!==request.current)return;
+      if(isLink&&choices.length===0){
+        const inferred=supplementSuggestionFromUrl(q);
+        if(inferred){
+          setMatches([inferred]);
+          setNotice("Stránku se nepodařilo načíst. Toto je pouze neověřený návrh názvu podle odkazu; "
+            +"balení, cenu a fotografii je nutné ověřit nebo doplnit ručně.");
+          setError("");
+          return;
+        }
+      }
+      if(choices.length===0&&failure){setError(failure);return;}
+      if(choices.length===0){setNotice(info||"Odpovídající produkt se nepodařilo ověřit.");return;}
+      setNotice(info||"Vyber správný produkt a zkontroluj variantu balení.");
+      const exactLink=isLink&&choices.length===1&&(()=>{
+        try{
+          const a=new URL(choices[0].sourceUrl),b=new URL(q);
+          return a.hostname===b.hostname&&a.pathname.replace(/\/$/,"")===b.pathname.replace(/\/$/,"");
+        }catch{return false;}
+      })();
+      const exactName=!isLink&&choices.length===1
+        &&sameSupplementProduct(choices[0].name,choices[0].brand,q)
+        &&[choices[0].name,choices[0].brand+" "+choices[0].name]
+          .some(name=>name.trim().toLocaleLowerCase("cs")===q.toLocaleLowerCase("cs"));
+      if(exactLink||exactName){
         await apply(choices[0]);
       }else setMatches(choices);
     }catch(e){
