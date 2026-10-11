@@ -168,7 +168,6 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
         <div>
           <p>{new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(planningKey))}</p>
           <h1>Zdraví</h1>
-          <small>Tréninky, návyky, regenerace a péče o tělo — na jednom místě.</small>
         </div>
         <div className="df2-health-today-progress" aria-label={"Zdravotní návyky " + handled + " z " + total}>
           <strong>{handled}/{total}</strong><span>dnešní návyky</span>
