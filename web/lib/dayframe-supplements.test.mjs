@@ -19,7 +19,8 @@ test("schedule creates one occurrence per chosen time and weekday with stable ID
   assert.equal(day[0].key,supplementIntakeKey(item.id,date,"08:00"));
   assert.equal(supplementOccurrences(store,"2026-10-13").length,2);
   const next=withSupplementSchedule({...item,weekdays:[1]},"2026-10-13",item);
-  assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-13").length,0);
+  assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-13").length,2);
+  assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-14").length,0);
   assert.equal(supplementOccurrences({...store,supplements:[next]},date).length,2);
 });
 test("intake is reversible, idempotent, updates stock once and preserves explicit skipped state",()=>{
@@ -72,7 +73,32 @@ test("schedule-effective dates preserve historical denominator on creation, day 
   assert.equal(supplementStats(store,"2026-10-09","2026-10-12").planned,1);
   const changed=withSupplementSchedule({...first,times:["08:00","20:00"]},"2026-10-13",first);
   const next={...store,supplements:[changed]};
-  assert.equal(supplementStats(next,"2026-10-12","2026-10-13").planned,3);
+  assert.equal(supplementStats(next,"2026-10-12","2026-10-13").planned,2);
+  assert.equal(supplementStats(next,"2026-10-12","2026-10-14").planned,4);
   const paused=withSupplementSchedule({...changed,active:false},"2026-10-14",changed);
-  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,3);
+  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,6);
+});
+
+test("an intake logged while stock tracking is off cannot add phantom stock when undone later",()=>{
+  const {store,item}=setup();
+  item.stock=null;
+  const key=supplementOccurrences(store,date)[0].key;
+  const taken=markSupplementIntake(store,key,"taken");
+  assert.equal(taken.intakes[0].stockDeducted,0);
+  const enabled={...taken,supplements:taken.supplements.map(x=>({...x,stock:10}))};
+  const undone=markSupplementIntake(enabled,key,"taken");
+  assert.equal(undone.supplements[0].stock,10);
+  assert.equal(undone.intakes.length,0);
+});
+
+test("several same-day edits keep already scheduled doses until tomorrow",()=>{
+  const item=newSupplement("Zinc test");
+  const initial=withSupplementSchedule(item,date);
+  const changed=withSupplementSchedule({...initial,times:["07:00"],active:true},date,initial);
+  const paused=withSupplementSchedule({...changed,active:false},date,changed);
+  const s={...emptySupplementStore(),supplements:[paused]};
+  assert.equal(supplementOccurrences(s,date).length,1);
+  assert.equal(supplementOccurrences(s,date)[0].time,"09:00");
+  assert.equal(supplementOccurrences(s,"2026-10-13").length,0);
+  assert.equal(paused.scheduleHistory.length,2);
 });
