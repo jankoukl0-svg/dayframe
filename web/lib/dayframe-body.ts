@@ -1,4 +1,4 @@
-import { addDaysKey } from "./dayframe-calendar";
+import { addDaysKey } from "./dayframe-calendar.ts";
 
 export const BODY_STORAGE_KEY = "dayframe-body-v1";
 export const BODY_SYNC_EVENT = "dayframe-body-sync";
