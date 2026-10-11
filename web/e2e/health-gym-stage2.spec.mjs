@@ -236,3 +236,19 @@ test("mobile Gym dashboard keeps plan selection and the real workout preview rea
   await root.locator('[data-gym-day="Pull"]').click();
   await expect(root.locator("[data-gym-workout-preview]")).toContainText("Shyby");
 });
+
+
+test("historical schedule browsing does not change today's gym dashboard or the next actionable training",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const summary=root.locator("[data-gym-summary]");
+  const initial=await summary.innerText();
+  await expect(root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"})).toBeVisible();
+  await root.getByLabel("Prohlížet od data").fill("2026-09-28");
+  await expect(root.locator("[data-gym-occurrence]")).toHaveCount(0);
+  await expect(summary).toHaveText(initial);
+  await expect(root.locator("[data-gym-week]")).toContainText("Push");
+  await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  await expect(root.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
+});

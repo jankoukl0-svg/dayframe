@@ -54,10 +54,13 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const metrics=useMemo(()=>gymMetrics(store),[store]);
   const activePlan=store.plans.find(p=>p.id===store.activePlanId)??null;
   const activeDay=activePlan?.days.find(d=>d.id===selectedDayId)??activePlan?.days[0]??null;
-  const upcomingOccurrences=occurrences.filter(o=>o.date>=today&&!o.completed).sort((a,b)=>a.date.localeCompare(b.date));
+  // The schedule browser can inspect history; the dashboard remains anchored to today.
+  const currentDates=useMemo(()=>Array.from({length:22},(_,i)=>dateShift(today,i)),[today]);
+  const upcomingOccurrences=useMemo(()=>currentDates.flatMap(date=>assignmentsOnDate(store,date))
+    .filter(o=>!o.completed).sort((a,b)=>a.date.localeCompare(b.date)),[currentDates,store]);
   const nearest=upcomingOccurrences[0]??null;
   const activeDayOccurrence=upcomingOccurrences.find(o=>o.dayId===activeDay?.id)??null;
-  const monday=dateShift(selectedDate,-((weekday(selectedDate)+6)%7));
+  const monday=dateShift(today,-((weekday(today)+6)%7));
   const weekDates=Array.from({length:7},(_,i)=>dateShift(monday,i));
   const completedWeek=metrics.workouts.filter(w=>w.date>=monday&&w.date<=weekDates[6]).length;
   const selectedWeekOccurrences=weekDates.flatMap(day=>assignmentsOnDate(store,day));
