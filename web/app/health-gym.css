@@ -143,3 +143,10 @@
  .df2-gym-workout-preview,.df2-gym-week-strip{padding:13px}
  .df2-gym-preview-labels,.df2-gym-preview-row{grid-template-columns:minmax(0,1fr) 44px 52px;gap:6px}
 }
+
+/* Compact controls for an expanded, searchable exercise library. */
+.df2-gym-library-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.df2-gym-library-tools input[type="search"]{flex:1 1 320px}
+.df2-gym-library-tools select{flex:0 1 190px;max-width:100%}
+.df2-gym-library-tools small{color:var(--muted);font-size:11px;white-space:nowrap}
+@media(max-width:640px){.df2-gym-library-tools input[type="search"],.df2-gym-library-tools select{flex:1 1 100%}}

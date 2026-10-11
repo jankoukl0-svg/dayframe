@@ -252,3 +252,76 @@ test("historical schedule browsing does not change today's gym dashboard or the 
   await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
   await expect(root.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
 });
+
+
+test("exercise library includes common new gym movements with working Czech search and muscle filters",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Cviky",exact:true}).click();
+  await expect(root.locator("[data-gym-library-count]")).toContainText("72 z 72 cviků");
+  for(const name of ["Pec deck (motýlek)","Face pull","Bulharský dřep","Hip thrust",
+    "Kladivové bicepsové zdvihy","Předkopávání na stroji","Přednožování ve visu"]){
+    await expect(root.locator(".df2-gym-library")).toContainText(name);
+  }
+  await root.getByRole("searchbox",{name:"Hledat cviky"}).fill("hip thrust");
+  await expect(root.locator("[data-gym-library-count]")).toContainText("1 z 72 cviků");
+  await expect(root.locator(".df2-gym-library article")).toHaveCount(1);
+  await root.getByRole("searchbox",{name:"Hledat cviky"}).fill("");
+  await root.getByRole("combobox",{name:"Filtrovat podle partie"}).selectOption("Hrudník");
+  await expect(root.locator(".df2-gym-library")).toContainText("Pec deck");
+  await expect(root.locator(".df2-gym-library")).not.toContainText("Bulharský dřep");
+  await root.getByRole("searchbox",{name:"Hledat cviky"}).fill("neexistujícícvikxyz");
+  await expect(root.locator("[data-gym-library-empty]")).toBeVisible();
+  await root.getByRole("searchbox",{name:"Hledat cviky"}).fill("");
+  await root.getByRole("combobox",{name:"Filtrovat podle partie"}).selectOption("all");
+  await expect(root.locator("[data-gym-library-count]")).toContainText("72 z 72 cviků");
+});
+
+test("existing saved plans and user exercises gain new standard exercises without losing history",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Původní plán");
+  const original=await page.evaluate(key=>{
+    const state=JSON.parse(localStorage.getItem(key));
+    const ids=new Set(["bench-press","incline-dumbbell","squat","romanian-deadlift",
+      "deadlift","lat-pulldown","pull-up","cable-row","overhead-press",
+      "lateral-raise","biceps-curl","triceps-pushdown","leg-press",
+      "leg-curl","calf-raise","plank"]);
+    state.exercises=state.exercises.filter(ex=>ids.has(ex.id));
+    state.exercises.find(ex=>ex.id==="bench-press").technique="Upravená osobní instrukce";
+    state.exercises.push({id:"user-test-cable",name:"Můj vlastní tah",muscle:"Záda",
+      equipment:"Kladka",kind:"Silový",technique:"Můj vlastní popis",custom:true});
+    localStorage.setItem(key,JSON.stringify(state));
+    return {plans:state.plans,sessions:state.sessions,moves:state.moves};
+  },KEY);
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await again.getByRole("button",{name:"Cviky",exact:true}).click();
+  await expect(again.locator("[data-gym-library-count]")).toContainText("73 z 73 cviků");
+  await expect(again.locator(".df2-gym-library")).toContainText("Můj vlastní tah");
+  await expect(again.locator(".df2-gym-library")).toContainText("Upravená osobní instrukce");
+  await expect(again.locator(".df2-gym-library")).toContainText("Pec deck (motýlek)");
+  await again.getByRole("button",{name:"Plány",exact:true}).click();
+  const add=again.getByRole("combobox",{name:"Přidat cvik do Upper"});
+  await add.selectOption("pec-deck");
+  const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(persisted.exercises).toHaveLength(73);
+  expect(persisted.plans).toHaveLength(1);
+  expect(persisted.plans[0].days[0].exercises.some(e=>e.exerciseId==="pec-deck")).toBe(true);
+  expect(persisted.plans[0].id).toBe(original.plans[0].id);
+  expect(persisted.sessions).toEqual(original.sessions);
+  expect(persisted.moves).toEqual(original.moves);
+  await page.reload({waitUntil:"networkidle"});
+  const loaded=await gym(page);
+  await loaded.getByRole("button",{name:"Cviky",exact:true}).click();
+  await expect(loaded.locator("[data-gym-library-count]")).toContainText("73 z 73 cviků");
+});
+
+test("unknown gym data remains blocked and untouched when the catalog expands",async({page})=>{
+  await fresh(page);
+  await page.evaluate(key=>localStorage.setItem(key,'{"version":999,"exercises":[]}'),KEY);
+  await page.reload({waitUntil:"networkidle"});
+  const root=await gym(page);
+  await expect(root.getByRole("alert")).toContainText("zablokované");
+  await root.getByRole("button",{name:"Cviky",exact:true}).click();
+  expect(await page.evaluate(key=>localStorage.getItem(key),KEY)).toBe('{"version":999,"exercises":[]}');
+});
