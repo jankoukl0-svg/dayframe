@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useGymStore } from "./use-gym-store";
 import {
   assignmentsOnDate, dateShift, gymMetrics, lastExercisePerformance,
-  makeGymPlan, moveOccurrence, newSet, startSession, uid,
+  makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan, setGymDayWeekday,
   type GymExercise, type GymPlan, type GymPlanDay, type GymPlanExercise,
   type GymSession, type GymSessionExercise, type GymSet, type GymTemplate
 } from "@/lib/dayframe-gym";
@@ -54,7 +54,14 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const library=useMemo(()=>store.exercises.filter(e=>[e.name,e.muscle,e.equipment].join(" ").toLocaleLowerCase("cs")
     .includes(exerciseQuery.toLocaleLowerCase("cs"))).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery]);
   const savePlan=(id:string,fn:(plan:GymPlan)=>GymPlan)=>persist(s=>({...s,plans:s.plans.map(p=>p.id===id?fn(p):p)}));
-  const saveSession=(id:string,fn:(session:GymSession)=>GymSession)=>persist(s=>({...s,sessions:s.sessions.map(x=>x.id===id?fn(x):x)}));
+  const saveSession=(id:string,fn:(session:GymSession)=>GymSession)=>persist(s=>({...s,sessions:s.sessions.map(x=>{
+    if(x.id!==id)return x;
+    const updated=fn(x);
+    const validDone=updated.exercises.some(ex=>ex.sets.some(set=>set.done && set.reps!==null && set.weightKg!==null));
+    // Invalidate a completed workout as soon as its final valid done set
+    // is unchecked, edited to empty, removed, or replaced.
+    return !validDone ? {...updated,completedAt:null,restUntil:null} : updated;
+  })}));
   const changeSet=(exId:string,setId:string,patch:Partial<GymSet>)=>{
     if(!session)return;
     saveSession(session.id,s=>({...s,exercises:s.exercises.map(ex=>ex.id!==exId?ex:{
@@ -99,7 +106,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const submitPlan=()=>{
     if(!newPlanName.trim()){setMessage("Zadej název plánu.");return;}
     const next=makeGymPlan(newPlanName.trim(),template,today);
-    if(persist(s=>({...s,plans:[...s.plans,next],activePlanId:s.activePlanId??next.id}))){setEditedPlanId(next.id);setView("plans");setNewPlan(false);setNewPlanName("");setMessage("");}
+    if(persist(s=>{
+      const created={...s,plans:[...s.plans,next]};
+      return s.activePlanId?created:setActiveGymPlan(created,next.id,today);
+    })){setEditedPlanId(next.id);setView("plans");setNewPlan(false);setNewPlanName("");setMessage("");}
   };
   const addExercise=()=>{
     if(!exerciseDraft.name.trim()){setMessage("Zadej název cviku.");return;}
@@ -214,7 +224,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
       <div className="df2-gym-section-head"><h3>Moje plány</h3><button type="button" onClick={()=>setNewPlan(true)}>+ Nový plán</button></div>
       <div className="df2-gym-plan-switch">{store.plans.map(p=><article key={p.id}>
         <button type="button" aria-pressed={plan?.id===p.id} onClick={()=>setEditedPlanId(p.id)}>{p.name}</button>
-        <button type="button" disabled={blocked||store.activePlanId===p.id} onClick={()=>persist(s=>({...s,activePlanId:p.id}))}>
+        <button type="button" disabled={blocked||store.activePlanId===p.id} onClick={()=>persist(s=>setActiveGymPlan(s,p.id,today))}>
           {store.activePlanId===p.id?"✓ Aktivní":"Aktivovat"}</button>
       </article>)}</div>
       {!store.plans.length && <p className="df2-health-empty">Začni vlastní šablonou PPL, Upper / Lower, Full Body nebo od prázdného plánu.</p>}
@@ -230,7 +240,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/></label>
           <button type="button" onClick={()=>{
             if(!window.confirm("Smazat plán? Historické tréninky zůstanou zachované."))return;
-            persist(s=>({...s,plans:s.plans.filter(p=>p.id!==plan.id),activePlanId:s.activePlanId===plan.id?null:s.activePlanId}));
+            persist(s=>{
+              const filtered={...s,plans:s.plans.filter(p=>p.id!==plan.id)};
+              return s.activePlanId===plan.id?setActiveGymPlan(filtered,null,today):filtered;
+            });
             setEditedPlanId(null);
           }}>Smazat plán</button>
         </div>
@@ -245,7 +258,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 setDayNameDrafts(d=>{const next={...d};delete next[day.id];return next;});
               }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/>
             <select aria-label={"Den v týdnu "+day.name} value={day.weekday}
-              onChange={e=>savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,weekday:Number(e.target.value)}:d)}))}>
+              onChange={e=>savePlan(plan.id,p=>setGymDayWeekday(p,day.id,Number(e.target.value),today))}>
               {WEEKDAYS.map((name,index)=><option key={index} value={index}>{name}</option>)}</select>
             <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:p.days.filter(d=>d.id!==day.id)}))}>Odebrat den</button>
           </div>
@@ -269,7 +282,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,exercises:[...d.exercises,{id:uid("plan-ex"),exerciseId,sets:3,reps:10,restSeconds:90}]}:d)}));
           }}><option value="">+ Přidat cvik</option>{store.exercises.map(ex=><option key={ex.id} value={ex.id}>{ex.name}</option>)}</select>
         </article>)}
-        <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:[...p.days,{id:uid("day"),name:"Nový trénink",weekday:1,exercises:[]}]}))}>+ Tréninkový den</button>
+        <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:[...p.days,{id:uid("day"),name:"Nový trénink",weekday:1,scheduleHistory:[{effectiveFrom:today,weekday:1}],exercises:[]}]}))}>+ Tréninkový den</button>
       </section>}
     </div>}
 
