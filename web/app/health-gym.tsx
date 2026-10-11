@@ -60,7 +60,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
     const validDone=updated.exercises.some(ex=>ex.sets.some(set=>set.done && set.reps!==null && set.weightKg!==null));
     // Invalidate a completed workout as soon as its final valid done set
     // is unchecked, edited to empty, removed, or replaced.
-    return !validDone ? {...updated,completedAt:null,restUntil:null} : updated;
+    return updated.completedAt && !validDone ? {...updated,completedAt:null,restUntil:null} : updated;
   })}));
   const changeSet=(exId:string,setId:string,patch:Partial<GymSet>)=>{
     if(!session)return;
