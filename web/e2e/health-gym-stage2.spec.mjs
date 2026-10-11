@@ -170,6 +170,14 @@ test("invalidated completed set cannot silently remain done and historical sessi
   await root.getByRole("button",{name:"Dokončit trénink",exact:true}).click();
   await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("");
   await expect(set.getByRole("button",{name:/Dokončit sérii 1/})).toHaveAttribute("aria-pressed","false");
-  await root.getByRole("button",{name:"Znovu otevřít trénink"}).click();
+  // Clearing the final valid set automatically reopens the completed workout.
   await expect(root.getByRole("button",{name:"Dokončit trénink"})).toBeVisible();
+  let saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.sessions[0].completedAt).toBeNull();
+  await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("75");
+  await set.getByRole("button",{name:/Dokončit sérii 1/}).click();
+  await root.getByRole("button",{name:"Dokončit trénink"}).click();
+  await root.getByRole("button",{name:"Znovu otevřít trénink"}).click();
+  saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.sessions[0].completedAt).toBeNull();
 });
