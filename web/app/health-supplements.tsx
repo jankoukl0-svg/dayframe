@@ -1,5 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
+import {SupplementPhoto} from "./supplement-photo";
+import {deleteSupplementPhoto,saveSupplementPhoto,validSupplementPhoto} from "@/lib/dayframe-supplement-photos";
+import {readSupplementStore} from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
 import { buySupplement, lowStockSupplements, markSupplementIntake, newSupplement, supplementOccurrences,
   supplementStats, withSupplementSchedule, type Supplement } from "@/lib/dayframe-supplements";
@@ -17,6 +20,9 @@ export function SupplementsPage({today}:{today:string}){
   const [fieldsAtOpen,setFieldsAtOpen]=useState<Supplement|null>(null);
   const [scheduleAtOpen,setScheduleAtOpen]=useState<{times:string[];weekdays:number[];active:boolean}|null>(null);
   const [draftTimes,setDraftTimes]=useState("");
+  const [photoFile,setPhotoFile]=useState<File|null>(null);
+  const [photoAction,setPhotoAction]=useState<"keep"|"replace"|"remove">("keep");
+  const [photoBusy,setPhotoBusy]=useState(false);
   const [search,setSearch]=useState("");
   const [editError,setEditError]=useState("");
   const [notice,setNotice]=useState("");
@@ -31,10 +37,11 @@ export function SupplementsPage({today}:{today:string}){
     setFieldsAtOpen({...item,weekdays:[...item.weekdays],times:[...item.times]});
     setScheduleAtOpen({times:[...item.times],weekdays:[...item.weekdays],active:item.active});
     setDraftTimes(item.times.join(", "));
+    setPhotoFile(null);setPhotoAction("keep");
     setEditError("");
   };
-  const saveDraft=()=>{
-    if(!draft)return;
+  const saveDraft=async()=>{
+    if(!draft||photoBusy||blocked)return;
     const times=[...new Set(draftTimes.split(/[;,\n]+/).map(s=>s.trim()).filter(Boolean))].sort();
     if(!draft.name.trim()){setEditError("Zadej název suplementu.");return;}
     if(!draft.doseLabel.trim()){setEditError("Doplň dávku přesně podle obalu nebo doporučení odborníka.");return;}
@@ -43,10 +50,22 @@ export function SupplementsPage({today}:{today:string}){
     }
     if(!draft.weekdays.length){setEditError("Vyber alespoň jeden den v týdnu.");return;}
     if(draft.stock!==null&&draft.stock<0){setEditError("Zásoba nemůže být záporná.");return;}
+    if(photoAction==="replace"&&(!photoFile||!validSupplementPhoto(photoFile))){
+      setEditError("Vyber JPG, PNG nebo WebP do 6 MB.");return;
+    }
     const item={...draft,name:draft.name.trim(),brand:draft.brand.trim(),doseLabel:draft.doseLabel.trim(),
       weekdays:[...draft.weekdays].sort(),times};
-    const ok=persist(s=>{
+    let newPhotoId:string|undefined;
+    let committed=false;
+    setPhotoBusy(true);setEditError("");
+    try{
+      if(photoAction==="replace"&&photoFile){
+        newPhotoId="supp-photo-"+crypto.randomUUID();
+        await saveSupplementPhoto(newPhotoId,photoFile);
+      }
+      const ok=persist(s=>{
       const current=s.supplements.find(x=>x.id===item.id);
+      if(photoAction!=="keep" && (current?.photoId??undefined)!==(fieldsAtOpen?.photoId??undefined))return null;
       // The editor may have been open while another tab logged an intake or
       // purchase. Preserve the latest stock unless the user explicitly edited it.
       const explicitlyChangedStock=item.stock!==stockAtOpen;
@@ -66,6 +85,8 @@ export function SupplementsPage({today}:{today:string}){
           Object.assign(rebased,{[field]:item[field]});
         }
       }
+      if(photoAction==="replace")rebased.photoId=newPhotoId;
+      if(photoAction==="remove")delete rebased.photoId;
       // Shopping is changed outside this modal, so always retain latest state.
       // Schedule properties must be merged independently: pausing a supplement
       // in one tab must not revert a newly saved time or weekday in another.
@@ -81,8 +102,27 @@ export function SupplementsPage({today}:{today:string}){
         // undoing an older intake must not add a phantom serving to it.
         intakes:resetBaseline?s.intakes.map(x=>x.supplementId===item.id?
           {...x,stockDeducted:0}:x):s.intakes};
-    });
-    if(ok){setDraft(null);setEditError("");setNotice("");}
+      });
+      if(!ok){
+        setEditError("Suplement nebo fotografii se nepodařilo uložit. Záznam zůstal zachovaný.");
+        return;
+      }
+      committed=true;
+      setDraft(null);setPhotoFile(null);setPhotoAction("keep");setEditError("");setNotice("");
+      const oldId=fieldsAtOpen?.photoId;
+      if(photoAction!=="keep"&&oldId&&oldId!==newPhotoId){
+        const current=readSupplementStore();
+        if(!current.blocked&&!current.store.supplements.some(x=>x.photoId===oldId)){
+          try{await deleteSupplementPhoto(oldId);}
+          catch{setNotice("Změna je uložená, starou kopii fotografie se nepodařilo odstranit.");}
+        }
+      }
+    }catch{
+      if(!committed)setEditError("Fotografii nelze uložit. Zkus menší JPG, PNG nebo WebP; uložené údaje zůstaly zachované.");
+    }finally{
+      if(!committed&&newPhotoId){try{await deleteSupplementPhoto(newPhotoId);}catch{/* Unreferenced upload. */}}
+      setPhotoBusy(false);
+    }
   };
   const mark=(key:string,status:"taken"|"skipped")=>{
     const before=store.intakes.find(x=>x.key===key);
@@ -114,6 +154,7 @@ export function SupplementsPage({today}:{today:string}){
         <article><small>K nákupu</small><strong>{low.length}</strong></article></div>
       {due.length?<div className="df2-supplements-due">
         {due.map(x=><article key={x.key} data-supplement-occurrence={x.key}>
+          <SupplementPhoto photoId={x.supplement.photoId} name={x.supplement.name}/>
           <div className="df2-supplements-due-copy">
             <time dateTime={today+"T"+x.time}>{x.time}</time><strong>{x.supplement.name}</strong>
             <small>{x.supplement.brand||"Bez značky"} · {x.supplement.doseLabel}</small>
@@ -135,6 +176,7 @@ export function SupplementsPage({today}:{today:string}){
       <div className="df2-supplements-library">
         {store.supplements.filter(x=>(x.name+" "+x.brand).toLocaleLowerCase("cs").includes(search.toLocaleLowerCase("cs")))
           .sort((a,b)=>a.name.localeCompare(b.name,"cs")).map(item=><article key={item.id} data-supplement-id={item.id}>
+            <SupplementPhoto photoId={item.photoId} name={item.name}/>
             <div><span>{item.active?"Aktivní":"Pozastaveno"}</span><h3>{item.name}</h3><p>{item.brand||"Bez značky"}</p>
               <small>{item.doseLabel} · {item.times.join(", ")}</small>
               <small>{item.stock===null?"Zásoby nejsou sledované":"Na skladě "+czNum(item.stock)+" "+item.units}</small>
@@ -160,6 +202,7 @@ export function SupplementsPage({today}:{today:string}){
       <div className="df2-gym-section-head"><h3>K nákupu a zásoby</h3></div>
       {low.length?<div className="df2-supplements-shopping">
         {low.map(item=><article key={item.id}>
+          <SupplementPhoto photoId={item.photoId} name={item.name}/>
           <div><strong>{item.name}</strong><small>{item.stock===null?"Ruční seznam":"Na skladě "+czNum(item.stock)+" / minimum "+item.lowStockAt}</small>
             <small>Balení: {item.packServings} {item.units}{item.packPriceCzk!==null?" · "+czNum(item.packPriceCzk)+" Kč":""}</small></div>
           <div className="df2-supplements-card-actions">
@@ -187,10 +230,29 @@ export function SupplementsPage({today}:{today:string}){
           <strong>{store.supplements.find(x=>x.id===p.supplementId)?.name||"Dřívější suplement"}</strong>
           <span>+ {czNum(p.servings)}{p.paidCzk===null?"":" · "+czNum(p.paidCzk)+" Kč"}</span></div>)}</div></>}
     </div>}
-    {draft&&<div className="df2-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDraft(null);}}>
+    {draft&&<div className="df2-modal-backdrop" onMouseDown={e=>{if(!photoBusy&&e.target===e.currentTarget)setDraft(null);}}>
       <section className="df2-modal df2-hygiene-modal df2-supplements-editor" role="dialog" aria-modal="true" aria-label="Editor suplementu">
         <header><div><h2>{store.supplements.some(x=>x.id===draft.id)?"Upravit suplement":"Nový suplement"}</h2></div>
-          <button type="button" aria-label="Zavřít" onClick={()=>setDraft(null)}>×</button></header>
+          <button type="button" aria-label="Zavřít" disabled={photoBusy} onClick={()=>setDraft(null)}>×</button></header>
+        <div className="df2-supplements-photo-editor">
+          <SupplementPhoto large photoId={photoAction==="remove"?undefined:draft.photoId} previewFile={photoAction==="replace"?photoFile:null} name={draft.name||"suplementu"}/>
+          <div className="df2-supplements-photo-inputs">
+            <strong>Fotografie produktu</strong>
+            <small>Přidej vlastní fotku balení. JPG, PNG nebo WebP do 6 MB. Zůstane jen v tomto prohlížeči.</small>
+            <label className="df2-supplements-upload">Vybrat fotografii
+              <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Nahrát fotografii suplementu"
+                disabled={photoBusy||blocked} onChange={e=>{
+                  const file=e.target.files?.[0];e.currentTarget.value="";
+                  if(!file)return;
+                  if(!validSupplementPhoto(file)){setEditError("Vyber JPG, PNG nebo WebP do 6 MB.");return;}
+                  setPhotoFile(file);setPhotoAction("replace");setEditError("");
+                }}/>
+            </label>
+            {(photoAction==="replace"||photoAction!=="remove"&&!!draft.photoId)&&
+              <button type="button" className="df2-supplements-remove-photo" disabled={photoBusy||blocked}
+                onClick={()=>{setPhotoFile(null);setPhotoAction("remove");}}>Odebrat fotografii</button>}
+          </div>
+        </div>
         <div className="df2-supplements-editor-fields">
           <label>Název<input autoFocus aria-label="Název suplementu" value={draft.name} maxLength={160}
             onChange={e=>setDraft({...draft,name:e.target.value})}/></label>
@@ -229,7 +291,7 @@ export function SupplementsPage({today}:{today:string}){
         </div>
         <p className="df2-health-helper">Zadávej jen dávkování potvrzené etiketou nebo odborníkem. Změny rozvrhu a pozastavení se projeví od následujícího dne, aby dnešní historie zůstala zachovaná. U interakcí s léky, zdravotních omezení či nejasností se poraď s lékárníkem nebo lékařem.</p>
         {editError&&<p className="df2-hygiene-error" role="alert">{editError}</p>}
-        <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked} type="button" onClick={saveDraft}>Uložit suplement</button></div>
+        <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked||photoBusy} type="button" onClick={saveDraft}>{photoBusy?"Ukládám…":"Uložit suplement"}</button></div>
       </section>
     </div>}
   </section>;

@@ -19,7 +19,7 @@
 .df2-supplements-due article,.df2-supplements-shopping article,.df2-supplements-library article{
   display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:15px;
   border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:15px}
-.df2-supplements-due-copy,.df2-supplements-library article>div:first-child,.df2-supplements-shopping article>div:first-child{display:grid;gap:5px;min-width:0}
+.df2-supplements-due-copy,.df2-supplements-library article>div:nth-child(2),.df2-supplements-shopping article>div:nth-child(2){display:grid;gap:5px;min-width:0}
 .df2-supplements-due-copy time,.df2-supplements-library article span{color:var(--accent-dark);font-size:10px;font-weight:750}
 .df2-supplements-due-copy strong,.df2-supplements-shopping strong,.df2-supplements-library h3{font-size:14px;font-weight:750;color:var(--ink);margin:0}
 .df2-supplements-due-copy small,.df2-supplements-shopping small,.df2-supplements-library small,.df2-supplements-library p{font-size:11px;color:var(--muted);line-height:1.5}
@@ -43,4 +43,26 @@
   .df2-supplements-editor .df2-supplements-editor-fields{grid-template-columns:1fr}
   .df2-supplements-history>div{grid-template-columns:1fr 1fr}
   .df2-supplements-history>div>span{grid-column:2;justify-self:end}
+}
+
+/* Product photographs: local IndexedDB packshots with neutral placeholders. */
+.df2-supplement-photo{width:64px;height:72px;flex:0 0 64px;border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden;display:grid;place-items:center}
+.df2-supplement-photo img{width:100%;height:100%;display:block;object-fit:contain}
+.df2-supplement-photo-placeholder{display:grid;place-items:center;color:#b5ada5;font-size:23px;background:#f7f5f2;width:100%;height:100%}
+.df2-supplement-photo.is-large{width:104px;height:112px;flex:0 0 104px;border-radius:11px}
+.df2-supplements-due-copy,.df2-supplements-library article>div:nth-child(2),.df2-supplements-shopping article>div:nth-child(2){flex:1 1 200px}
+.df2-supplements-photo-editor{display:flex;align-items:center;gap:16px;padding:12px 0 15px;border-bottom:1px solid var(--line);min-width:0}
+.df2-supplements-photo-inputs{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
+.df2-supplements-photo-inputs>strong{font-size:12px;color:var(--ink)}
+.df2-supplements-photo-inputs>small{font-size:11px;line-height:1.55;color:var(--muted);max-width:290px}
+.df2-supplements-upload{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);background:var(--paper);font-size:11px;font-weight:700;cursor:pointer;position:relative;overflow:hidden}
+.df2-supplements-upload:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.df2-supplements-upload input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.df2-supplements-remove-photo{border:0;background:transparent;color:var(--accent-dark);font-size:11px;font-weight:700;cursor:pointer;padding:2px 0}
+.df2-supplements-editor .df2-supplements-photo-editor{margin-bottom:3px}
+@media(max-width:640px){
+  .df2-supplements-photo-editor{align-items:flex-start}
+  .df2-supplements-due article,.df2-supplements-library article,.df2-supplements-shopping article{gap:10px}
+  .df2-supplement-photo{width:55px;height:64px;flex-basis:55px}
+  .df2-supplement-photo.is-large{width:90px;height:100px;flex-basis:90px}
 }

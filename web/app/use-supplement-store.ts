@@ -16,10 +16,11 @@ export function useSupplementStore(){
     window.addEventListener("storage",onStorage);
     return ()=>{window.removeEventListener(SUPPLEMENTS_SYNC_EVENT,sync);window.removeEventListener("storage",onStorage);};
   },[]);
-  const persist=useCallback((fn:(store:SupplementStore)=>SupplementStore)=>{
+  const persist=useCallback((fn:(store:SupplementStore)=>SupplementStore|null)=>{
     const previous=readSupplementStore();
     if(previous.blocked){setBlocked(true);setError("Data nelze bezpečně načíst. Ukládání je zablokované.");return false;}
     const next=fn(previous.store);
+    if(!next){setError("Fotografie nebo údaje se změnily v jiné záložce. Zkontroluj je a ulož znovu.");return false;}
     if(!saveSupplementStore(next)){setError("Změnu se nepodařilo uložit. Zkontroluj údaje nebo místo v úložišti.");return false;}
     setStore(next);setError("");return true;
   },[]);
