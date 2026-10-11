@@ -317,7 +317,7 @@ test("today can replan only the flexible remainder of the day", async ({ page })
 });
 
 test("week view shows the current-time line on today", async ({ page }) => {
-  await page.getByRole("button", { name: "Týden" }).click();
+  await page.getByRole("button", { name: "Týden", exact: true }).click();
   const line = page.locator(".df2-current-time-line");
   await expect(line).toHaveCount(1);
   const minute = await page.evaluate(() => {

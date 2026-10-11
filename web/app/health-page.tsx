@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 import { ScheduleEditor } from "./hygiene-page";
+import { GymPage } from "./health-gym";
+import { useGymStore } from "./use-gym-store";
+import { assignmentsOnDate } from "@/lib/dayframe-gym";
 import {
   HYGIENE_STORAGE_KEY, HYGIENE_SYNC_EVENT,
   careDomainStore, createDefaultHygieneStore, createRoutineId, createTaskId,
@@ -37,8 +40,9 @@ function newHealthRoutine(): HygieneRoutineDefinition {
   };
 }
 
-export function HealthPage({ planningKey, focusRoutineId, onFocusHandled }: {
+export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled }: {
   planningKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
+  focusGymKey?: string | null; focusGymDate?: string | null; onGymFocusHandled?: () => void;
 }) {
   const [store, setStore] = useState<HygieneStore>(() => createDefaultHygieneStore(planningKey));
   const [blocked, setBlocked] = useState(false);
@@ -47,6 +51,8 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled }: {
   const [tab, setTab] = useState<HealthTab>("overview");
   const [draft, setDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const gym = useGymStore();
+  const todayWorkouts = useMemo(() => assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
 
   useEffect(() => {
     const sync = () => {
@@ -77,6 +83,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled }: {
     return () => window.clearTimeout(timer);
   }, [hydrated, focusRoutineId, onFocusHandled]);
 
+  useEffect(()=>{if(focusGymKey)setTab("gym");},[focusGymKey]);
   const scoped = useMemo(() => careDomainStore(store, "health"), [store]);
   const summaries = useMemo(() => scheduledRoutineSummaries(scoped, planningKey, planningKey), [scoped, planningKey]);
   const handled = summaries.reduce((sum, item) => sum + item.handled, 0);
@@ -150,6 +157,13 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled }: {
 
       {tab === "overview" ? (
         <div className="df2-health-content">
+          <section className="df2-health-section" data-health-gym-overview>
+            <div className="df2-health-section-heading"><div><span>Tréninkový plán</span><h2>Dnešní gym</h2></div>
+              <button type="button" onClick={()=>setTab("gym")}>Otevřít tréninky →</button></div>
+            <p className="df2-health-helper">{todayWorkouts.length
+              ? todayWorkouts.map(x=>x.name+(x.completed?" · Hotovo":x.session?" · Rozpracováno":" · Plánováno")).join(" / ")
+              : "Dnes není plánovaný trénink. V Gymu můžeš aktivovat vlastní plán."}</p>
+          </section>
           <section className="df2-health-section">
             <div className="df2-health-section-heading">
               <div><span>Společný plánovač Dayframe</span><h2>Moje zdravotní návyky</h2></div>
@@ -222,6 +236,8 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled }: {
             </div>}
           </section>
         </div>
+      ) : tab === "gym" ? (
+        <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} onFocusHandled={onGymFocusHandled} />
       ) : (
         <section className="df2-health-coming-soon">
           <span>ETAPA {activeTab.stage}</span>

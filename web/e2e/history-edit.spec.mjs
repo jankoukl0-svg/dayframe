@@ -48,7 +48,7 @@ test("completed history duration correction resizes the Week block", async ({ pa
   });
 
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Týden" }).click();
+  await page.getByRole("button", { name: "Týden", exact: true }).click();
   await page.locator(".df2-week-controls button").first().click();
 
   const block = page.locator(".df2-week-task.done").filter({ hasText: "Čtení knihy historie" });
@@ -83,7 +83,7 @@ test("completed history duration correction resizes the Week block", async ({ pa
   await expect.poll(async () => resized.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(28.8, 0);
 
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Týden" }).click();
+  await page.getByRole("button", { name: "Týden", exact: true }).click();
   await page.locator(".df2-week-controls button").first().click();
 
   const persisted = page.locator(".df2-week-task.done").filter({ hasText: "Čtení knihy historie" });

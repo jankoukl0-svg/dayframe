@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { planningDateKey } from "@/lib/dayframe-calendar";
+import { assignmentsOnDate } from "@/lib/dayframe-gym";
+import { useGymStore } from "./use-gym-store";
 import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
@@ -158,11 +160,13 @@ export function DailyChecklist({
   planningKey: externalPlanningKey,
   onOpenHygiene,
   onOpenHealth,
+  onOpenGym,
 }: {
   onSummaryChange?: (summary: DailyChecklistSummary) => void;
   planningKey?: string;
   onOpenHygiene?: (routineId: string) => void;
   onOpenHealth?: (routineId: string) => void;
+  onOpenGym?: (key: string, date: string) => void;
 } = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
@@ -180,6 +184,7 @@ export function DailyChecklist({
   const [hygieneItems, setHygieneItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
   const [healthItems, setHealthItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
   const [hygieneHydrated, setHygieneHydrated] = useState(false);
+  const gym=useGymStore();
   const [hygieneBlocked, setHygieneBlocked] = useState(false);
   const completionFeedbackTimer = useRef<number | null>(null);
 
@@ -193,8 +198,10 @@ export function DailyChecklist({
   const completedCount = visibleItems.filter((item) => completedIds.has(item.id)).length;
   const hygieneCompletedCount = hygieneItems.filter((item) => item.complete).length;
   const healthCompletedCount = healthItems.filter((item) => item.complete).length;
-  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length;
-  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount;
+  const gymItems = useMemo(()=>assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
+  const gymCompletedCount = gymItems.filter(x=>x.completed).length;
+  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length;
+  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount;
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
   const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
@@ -253,10 +260,10 @@ export function DailyChecklist({
       planningKey,
       completed: totalCompletedCount,
       total: totalVisibleCount,
-      hydrated: hydrated && hygieneHydrated,
-      blocked: storageBlocked || hygieneBlocked,
+      hydrated: hydrated && hygieneHydrated && gym.hydrated,
+      blocked: storageBlocked || hygieneBlocked || gym.blocked,
     });
-  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, onSummaryChange]);
+  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, gym.hydrated, gym.blocked, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
@@ -482,6 +489,17 @@ export function DailyChecklist({
                 <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>
             ))}
+            {gymItems.map((item) => (
+              <article key={"gym-"+item.key} data-gym-checklist={item.key}
+                className={"df2-checklist-hygiene-row "+(item.completed?"done":"")}>
+                <span className={"df2-checklist-hygiene-indicator "+(item.completed?"is-done":"")} aria-hidden="true">{item.completed?"✓":""}</span>
+                <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
+                  onClick={()=>onOpenGym?.(item.key,planningKey)} aria-label={"Otevřít trénink "+item.name+" ve Zdraví"}>
+                  <strong>Gym – {item.name}</strong><small>{item.completed?"Hotovo":item.session?"Rozpracováno":"Plánováno · otevřít trénink"}</small>
+                </button>
+                <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
+              </article>
+            ))}
             {visibleItems.map((item) => {
               const done = completedIds.has(item.id);
               return (
@@ -533,13 +551,13 @@ export function DailyChecklist({
           </div>
         ) : (
           <div className="df2-checklist-empty">
-            {store.items.length || hygieneItems.length || healthItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
+            {store.items.length || hygieneItems.length || healthItems.length || gymItems.length ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
         {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}
-        {(storageBlocked || storageError || hygieneBlocked) && (
+        {(storageBlocked || storageError || hygieneBlocked || gym.blocked) && (
           <p className="df2-checklist-error">
-            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : storageError}
+            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : storageError}
           </p>
         )}
       </section>
