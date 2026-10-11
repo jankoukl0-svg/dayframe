@@ -150,3 +150,33 @@
 .df2-gym-library-tools select{flex:0 1 190px;max-width:100%}
 .df2-gym-library-tools small{color:var(--muted);font-size:11px;white-space:nowrap}
 @media(max-width:640px){.df2-gym-library-tools input[type="search"],.df2-gym-library-tools select{flex:1 1 100%}}
+
+
+/* Compact searchable exercise picker shared by plan editing and workout logging. */
+.df2-gym-exercise-picker{position:relative;min-width:min(100%,225px);width:min(100%,510px);flex:1 1 235px}
+.df2-gym-day-edit>.df2-gym-exercise-picker{width:100%}
+.df2-gym .df2-gym-picker-toggle{display:flex!important;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:38px!important;text-align:left!important;background:var(--paper)!important;color:var(--ink)!important;border:1px solid var(--line-strong)!important;border-radius:8px!important;padding:9px 12px!important;font-size:12px!important;font-weight:650!important}
+.df2-gym .df2-gym-picker-toggle[aria-expanded=true]{border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent)}
+.df2-gym-picker-toggle span:last-child{color:var(--muted)}
+.df2-gym-picker-panel{position:absolute;bottom:calc(100% + 6px);left:0;z-index:60;width:min(500px,calc(100vw - 45px));max-width:100%;display:grid;gap:10px;padding:12px;background:var(--paper);border:1px solid var(--line-strong);border-radius:11px;box-shadow:0 12px 32px rgba(33,31,27,.16)}
+.df2-gym-exercise-picker[data-placement=down] .df2-gym-picker-panel{bottom:auto;top:calc(100% + 6px)}
+.df2-gym-picker-panel>input[type=search]{width:100%;font-size:12px;padding:10px}
+.df2-gym-picker-filters{display:flex;gap:5px;overflow-x:auto;flex-wrap:nowrap;padding:1px 0 3px}
+.df2-gym .df2-gym-picker-filters>button{flex:0 0 auto;border:1px solid var(--line)!important;background:transparent!important;color:var(--ink)!important;min-height:30px!important;padding:6px 10px!important;font-size:11px!important;border-radius:7px!important;font-weight:650!important}
+.df2-gym .df2-gym-picker-filters>button[aria-pressed=true]{background:var(--accent-wash)!important;color:var(--accent-dark)!important;border-color:var(--accent)!important}
+.df2-gym-picker-results{display:grid;gap:13px;max-height:min(320px,43vh);overflow-y:auto;overscroll-behavior:contain;padding-right:3px}
+.df2-gym-picker-group{display:grid;gap:2px}
+.df2-gym-picker-group h4{margin:0 0 4px;font-size:10px;letter-spacing:.03em;font-weight:750;text-transform:uppercase;color:var(--accent-dark)}
+.df2-gym-picker-group h4 small{font-size:10px;color:var(--muted);font-weight:600}
+.df2-gym .df2-gym-picker-group>button{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:3px 12px;min-width:0;width:100%;text-align:left;border:0!important;background:transparent!important;color:var(--ink)!important;border-radius:6px!important;padding:8px 9px!important;min-height:36px!important;font-size:12px!important;font-weight:600!important}
+.df2-gym .df2-gym-picker-group>button:hover,.df2-gym .df2-gym-picker-group>button:focus-visible{background:var(--accent-wash)!important;outline:1px solid var(--accent)}
+.df2-gym-picker-group>button>small{color:var(--muted);font-size:10px;font-weight:400}
+.df2-gym-picker-empty{margin:0;padding:13px 4px;color:var(--muted);font-size:12px}
+.df2-gym-picker-hint{margin:0;color:var(--muted);font-size:10px}
+@media(max-width:640px){
+ .df2-gym-exercise-picker{width:100%;flex-basis:100%}
+ .df2-gym-picker-panel{max-width:100%;padding:10px}
+ .df2-gym-picker-results{max-height:min(270px,38vh)}
+}
+
+.df2-gym-exercise-picker.is-open{z-index:90}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useGymStore } from "./use-gym-store";
+import {GymExercisePicker} from "./gym-exercise-picker";
 import {
   assignmentsOnDate, dateShift, gymMetrics, lastExercisePerformance, weekday,
   makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan, setGymDayWeekday,
@@ -183,11 +184,13 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             <header><div><small>CVIK {exIndex+1}</small><h4>{ex.name}</h4>
               <p>{previous.length?"Minule: "+previous.map(x=>x.weightKg+" kg × "+x.reps).join(" · "):"Zatím bez historických výkonů"}</p></div>
               <div className="df2-gym-inline">
-                <select aria-label={"Vyměnit cvik "+ex.name} value={ex.exerciseId} onChange={e=>{
-                  const next=store.exercises.find(x=>x.id===e.target.value);if(!next)return;
-                  changeSessionExercise(ex.id,x=>({...x,exerciseId:next.id,name:next.name,note:"",
-                    sets:x.sets.map(set=>({...set,weightKg:null,reps:null,rpe:null,rir:null,done:false,note:""}))}));
-                }}>{store.exercises.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select>
+                <GymExercisePicker exercises={store.exercises} label={"Vyměnit cvik "+ex.name}
+                  dayName={session.title} placement="down" disabled={blocked} onSelect={next=>{
+                    if(next.id===ex.exerciseId)return true;
+                    return saveSession(session.id,s=>({...s,exercises:s.exercises.map(x=>x.id===ex.id?
+                      {...x,exerciseId:next.id,name:next.name,note:"",
+                        sets:x.sets.map(set=>({...set,weightKg:null,reps:null,rpe:null,rir:null,done:false,note:""}))}:x)}));
+                  }}/>
                 <button type="button" aria-label={"Posunout "+ex.name+" nahoru"} disabled={!exIndex} onClick={()=>
                   saveSession(session.id,s=>{const list=[...s.exercises];[list[exIndex-1],list[exIndex]]=[list[exIndex],list[exIndex-1]];return {...s,exercises:list};})}>↑</button>
                 <button type="button" aria-label={"Posunout "+ex.name+" dolů"} disabled={exIndex===session.exercises.length-1} onClick={()=>
@@ -218,11 +221,11 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
           </section>;
         })}
         <div className="df2-gym-inline">
-          <select aria-label="Přidat cvik během tréninku" defaultValue="" onChange={e=>{
-            const x=store.exercises.find(item=>item.id===e.target.value);if(!x)return;
-            saveSession(session.id,s=>({...s,exercises:[...s.exercises,{id:uid("log-ex"),exerciseId:x.id,name:x.name,sets:[newSet(),newSet(),newSet()],note:""}]}));
-            e.target.value="";
-          }}><option value="">+ Přidat cvik</option>{store.exercises.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+          <GymExercisePicker exercises={store.exercises} label="Přidat cvik během tréninku"
+            dayName={session.title} disabled={blocked} onSelect={exercise=>
+              saveSession(session.id,s=>({...s,exercises:[...s.exercises,
+                {id:uid("log-ex"),exerciseId:exercise.id,name:exercise.name,sets:[newSet(),newSet(),newSet()],note:""}]}))
+            }/>
           <button className="df2-primary" type="button" onClick={doneSession}>{session.completedAt?"Znovu otevřít trénink":"Dokončit trénink"}</button>
         </div>
       </section> : <>
@@ -364,10 +367,13 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,exercises:d.exercises.filter(x=>x.id!==item.id)}:d)}))}>×</button>
             </div>
           </div>)}
-          <select aria-label={"Přidat cvik do "+day.name} value="" onChange={e=>{
-            if(!e.target.value)return;const exerciseId=e.target.value;
-            savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{...d,exercises:[...d.exercises,{id:uid("plan-ex"),exerciseId,sets:3,reps:10,restSeconds:90}]}:d)}));
-          }}><option value="">+ Přidat cvik</option>{store.exercises.map(ex=><option key={ex.id} value={ex.id}>{ex.name}</option>)}</select>
+          <GymExercisePicker exercises={store.exercises} label={"Přidat cvik do "+day.name}
+            dayName={day.name} disabled={blocked} onSelect={exercise=>
+              savePlan(plan.id,p=>({...p,days:p.days.map(d=>d.id===day.id?{
+                ...d,exercises:[...d.exercises,
+                  {id:uid("plan-ex"),exerciseId:exercise.id,sets:3,reps:10,restSeconds:90}]
+              }:d)}))
+            }/>
         </article>)}
         <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:[...p.days,{id:uid("day"),name:"Nový trénink",weekday:1,scheduleHistory:[{effectiveFrom:today,weekday:1}],exercises:[]}]}))}>+ Tréninkový den</button>
       </section>}
@@ -416,7 +422,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         <header><h2>Nový tréninkový plán</h2><button type="button" onClick={()=>setNewPlan(false)} aria-label="Zavřít">×</button></header>
         <label>Název<input autoFocus aria-label="Název nového plánu" value={newPlanName} maxLength={100} onChange={e=>setNewPlanName(e.target.value)}/></label>
         <label>Šablona<select aria-label="Šablona plánu" value={template} onChange={e=>setTemplate(e.target.value as GymTemplate)}>
-          <option value="upper-lower">Upper / Lower</option><option value="ppl">Push / Pull / Legs</option>
+          <option value="upper-lower">Upper / Lower</option><option value="ppl">Push / Pull / Lower</option>
           <option value="full-body">Full Body</option><option value="custom">Vlastní split</option></select></label>
         <div className="df2-modal-actions"><button type="button" className="df2-primary" onClick={submitPlan}>Vytvořit plán</button></div>
       </section>
