@@ -14,6 +14,7 @@ export function SupplementsPage({today}:{today:string}){
   const [tab,setTab]=useState<Tab>("today");
   const [draft,setDraft]=useState<Supplement|null>(null);
   const [stockAtOpen,setStockAtOpen]=useState<number|null>(null);
+  const [scheduleAtOpen,setScheduleAtOpen]=useState<{times:string[];weekdays:number[];active:boolean}|null>(null);
   const [draftTimes,setDraftTimes]=useState("");
   const [search,setSearch]=useState("");
   const [editError,setEditError]=useState("");
@@ -26,6 +27,7 @@ export function SupplementsPage({today}:{today:string}){
   const showEdit=(item:Supplement)=>{
     setDraft({...item,weekdays:[...item.weekdays],times:[...item.times]});
     setStockAtOpen(item.stock);
+    setScheduleAtOpen({times:[...item.times],weekdays:[...item.weekdays],active:item.active});
     setDraftTimes(item.times.join(", "));
     setEditError("");
   };
@@ -45,15 +47,24 @@ export function SupplementsPage({today}:{today:string}){
       const current=s.supplements.find(x=>x.id===item.id);
       // The editor may have been open while another tab logged an intake or
       // purchase. Preserve the latest stock unless the user explicitly edited it.
-      const stock=current && item.stock===stockAtOpen?current.stock:item.stock;
-      const scheduled=withSupplementSchedule({...item,stock},today,current);
-      const trackingChanged=!!current && (current.stock===null)!==(stock===null);
+      const explicitlyChangedStock=item.stock!==stockAtOpen;
+      const stock=current&&!explicitlyChangedStock?current.stock:item.stock;
+      const unchangedSchedule=!!current && !!scheduleAtOpen
+        && item.active===scheduleAtOpen.active
+        && [...item.weekdays].sort().join(",")===[...scheduleAtOpen.weekdays].sort().join(",")
+        && item.times.join(",")===scheduleAtOpen.times.join(",");
+      // Do not overwrite another tab's newer schedule when editing only the
+      // brand, notes or dose. An intentional schedule change still applies.
+      const rebased=current&&unchangedSchedule
+        ? {...item,stock,active:current.active,weekdays:[...current.weekdays],times:[...current.times]}
+        : {...item,stock};
+      const scheduled=withSupplementSchedule(rebased,today,current);
+      const resetBaseline=!!current && (explicitlyChangedStock || (current.stock===null)!==(stock===null));
       return {...s,
         supplements:current?s.supplements.map(x=>x.id===item.id?scheduled:x):[...s.supplements,scheduled],
-        // Manual reinitialization of stock starts a new inventory baseline.
-        // Historical taken doses remain recorded but are not restorable to
-        // the newly entered count.
-        intakes:trackingChanged?s.intakes.map(x=>x.supplementId===item.id?
+        // Absolute recounts and tracking changes create a new stock baseline:
+        // undoing an older intake must not add a phantom serving to it.
+        intakes:resetBaseline?s.intakes.map(x=>x.supplementId===item.id?
           {...x,stockDeducted:0}:x):s.intakes};
     });
     if(ok){setDraft(null);setEditError("");setNotice("");}
