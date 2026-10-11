@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence,
-  occurrenceKey, startSession, gymMetrics, lastExercisePerformance
+  occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
+  setActiveGymPlan, setGymDayWeekday
 } from "./dayframe-gym.ts";
 
 function active() {
@@ -72,4 +73,32 @@ test("new plans do not synthesize workouts before the plan activation date",()=>
   const key=occurrenceKey(plan.id,plan.days[0].id,"2026-10-12");
   assert.equal(moveOccurrence(active,key,"2026-10-05"),active);
   assert.equal(parseGymStore(JSON.stringify(active)).blocked,false);
+});
+
+test("switching active plans preserves the earlier activation timeline without phantom workouts",()=>{
+  const a=makeGymPlan("Plan A","upper-lower","2026-10-12");
+  const b=makeGymPlan("Plan B","upper-lower","2026-10-12");
+  let store={...emptyGymStore(),plans:[a,b]};
+  store=setActiveGymPlan(store,a.id,"2026-10-12");
+  assert.equal(assignmentsOnDate(store,"2026-10-05").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-12")[0].planId,a.id);
+  store=setActiveGymPlan(store,b.id,"2026-10-19");
+  assert.equal(assignmentsOnDate(store,"2026-10-12")[0].planId,a.id);
+  assert.equal(assignmentsOnDate(store,"2026-10-19")[0].planId,b.id);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});
+test("weekday changes keep historical scheduled keys and actual logged completions",()=>{
+  const a=makeGymPlan("Plan","upper-lower","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[a]},a.id,"2026-10-12");
+  const original=assignmentsOnDate(store,"2026-10-12")[0];
+  store=startSession(store,original.key,"2026-10-12","2026-10-12T10:00:00Z");
+  const session={...store.sessions[0],completedAt:"2026-10-12T12:00:00Z"};
+  store={...store,sessions:[session]};
+  const edited=setGymDayWeekday(a,a.days[0].id,2,"2026-10-12");
+  store={...store,plans:[edited]};
+  const old=assignmentsOnDate(store,"2026-10-12");
+  assert.equal(old.find(x=>x.key===original.key)?.completed,true);
+  assert.equal(assignmentsOnDate(store,"2026-10-13").some(x=>x.dayId===a.days[0].id),true);
+  assert.equal(assignmentsOnDate(store,"2026-10-19").some(x=>x.dayId===a.days[0].id),false);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
 });
