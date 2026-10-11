@@ -116,3 +116,23 @@ test("supplement views and modal stay usable on narrow screens",async({page})=>{
   await expect(page.getByRole("dialog",{name:"Editor suplementu"})).toBeVisible();
   await expect(page.getByRole("textbox",{name:"Časy užívání"})).toBeVisible();
 });
+test("editing metadata in another tab does not undo a newly logged dose or restore stale stock",async({browser})=>{
+  const context=await browser.newContext();
+  const a=await context.newPage();
+  const b=await context.newPage();
+  await fresh(a);
+  await b.goto(ROOT,{waitUntil:"networkidle"});
+  await b.reload({waitUntil:"networkidle"});
+  const primary=await addOne(a,{stock:"3"});
+  const second=await supplements(b);
+  await second.getByRole("button",{name:"Moje suplementy"}).click();
+  await second.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  await b.getByRole("dialog",{name:"Editor suplementu"}).getByRole("textbox",{name:"Značka suplementu"}).fill("Nová značka");
+  await primary.locator("[data-supplement-occurrence]").getByRole("button",{name:"Užito",exact:true}).click();
+  await b.getByRole("dialog",{name:"Editor suplementu"}).getByRole("button",{name:"Uložit suplement"}).click();
+  const saved=await a.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.intakes).toHaveLength(1);
+  expect(saved.supplements[0].stock).toBe(2);
+  expect(saved.supplements[0].brand).toBe("Nová značka");
+  await context.close();
+});
