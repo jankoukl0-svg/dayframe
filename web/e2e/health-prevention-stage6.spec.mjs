@@ -60,6 +60,16 @@ test("completing a recurring checkup preserves history and sets next due from ac
   const row=page.locator("[data-prevention-checklist]");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("Splněno");
+  // A second, older completion must not rewind the next six-month appointment.
+  await goPrevention(page);
+  await root.locator("[data-prevention-item]").getByRole("button",{name:"Zapsat splnění"}).click();
+  const backdated=page.getByRole("dialog",{name:"Zapsat absolvovanou prevenci"});
+  await backdated.getByLabel("Skutečné datum splnění").fill("2026-10-11");
+  await backdated.getByRole("button",{name:"Uložit splnění"}).click();
+  await expect(root.getByRole("alert")).toContainText("Změnu nelze bezpečně uložit");
+  const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(after.items[0].dueDate).toBe("2027-04-12");
+  expect(after.items[0].history).toHaveLength(1);
 });
 test("editing in another tab must not erase a completion from the first tab",async({browser})=>{
   const context=await browser.newContext();

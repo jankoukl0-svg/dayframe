@@ -47,6 +47,8 @@ test("completion is idempotent and retains history while recurring due date adva
   assert.equal(preventionTodayRows(store,D)[0].status,"done");
   assert.equal(preventionTodayRows(store,"2026-10-11").length,0);
   assert.equal(completePrevention(store,id,D),null);
+  assert.equal(completePrevention(store,id,"2026-09-30"),null);
+  assert.equal(store.items[0].dueDate,"2027-04-10");
   assert.equal(preventionHistory(store).length,1);
 });
 test("one-off completion clears only next due date while preserving its history",()=>{

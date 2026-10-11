@@ -145,7 +145,8 @@ export function completePrevention(store:PreventionStore,id:string,date:string,n
   const item=store.items.find(i=>i.id===id);
   if(!item||!item.active||!item.dueDate||date>new Date().toLocaleDateString("sv-SE"))return null;
   // One entry per appointment; rapid double clicks cannot complete the next cycle ahead of time.
-  if(item.history.some(h=>h.date===date))return null;
+  // A backdated completion cannot rewind an already advanced recurrence.
+  if(item.history.some(h=>h.date>=date))return null;
   const due=item.dueDate;
   const nextDate=item.repeatMonths?addPreventionMonths(date,item.repeatMonths):null;
   if(item.repeatMonths&&nextDate===null)return null;
