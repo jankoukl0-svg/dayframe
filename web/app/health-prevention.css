@@ -1,0 +1,43 @@
+/* Health Manager, stage 6: compact prevention timeline */
+.df2-prevention{min-width:0;display:grid;gap:17px}
+.df2-prevention-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.df2-prevention-head>div{display:grid;gap:5px}
+.df2-prevention-head span,.df2-prevention-category{font-size:10px;font-weight:750;letter-spacing:.06em;color:var(--accent-dark)}
+.df2-prevention-head h2{margin:0;color:var(--ink);font-size:23px}
+.df2-prevention-head p,.df2-prevention-card small,.df2-prevention-stats small,.df2-prevention-stats span{margin:0;color:var(--muted);font-size:11px}
+.df2-prevention button{cursor:pointer}
+.df2-prevention button:disabled{cursor:not-allowed;opacity:.45}
+.df2-prevention-nav{display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:11px}
+.df2-prevention-nav button,.df2-prevention-actions button:not(.df2-primary),.df2-prevention-section-head>button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:11px;font-weight:700}
+.df2-prevention-nav button[aria-current=page]{background:var(--accent-wash);border-color:var(--accent);color:var(--accent-dark)}
+.df2-prevention-content{display:grid;gap:15px;min-width:0}
+.df2-prevention-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.df2-prevention-stats article,.df2-prevention-card{display:grid;gap:10px;border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:17px;min-width:0}
+.df2-prevention-stats strong{font-size:23px;color:var(--ink)}
+.df2-prevention-card h3{font-size:16px;color:var(--ink);margin:0}
+.df2-prevention-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.df2-prevention-section-head>div{display:grid;gap:5px}
+.df2-prevention-items,.df2-prevention-history{display:grid;gap:8px}
+.df2-prevention-items>article,.df2-prevention-history>article{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;padding:13px}
+.df2-prevention-item-main,.df2-prevention-history>article>div{min-width:0;flex:1 1 200px;display:grid;gap:5px}
+.df2-prevention-item-main strong,.df2-prevention-history strong{color:var(--ink);font-size:13px}
+.df2-prevention-date{font-size:11px;color:var(--ink)}
+.df2-prevention-item-main p,.df2-prevention-history p{font-size:11px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.df2-prevention-history time,.df2-prevention-history>article>span{font-size:11px;color:var(--muted)}
+.df2-prevention-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.df2-prevention-actions .df2-primary{border:1px solid var(--accent-dark);background:var(--accent);color:white;border-radius:8px;padding:8px 14px;font-size:11px;font-weight:750}
+.df2-prevention-actions .df2-prevention-danger{color:#9d3932!important;border-color:#e1b5b1!important}
+.df2-prevention-empty{padding:12px 0;font-size:12px;color:var(--muted)}
+.df2-prevention-disclaimer{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
+.df2-prevention-error{font-size:12px;color:#9d3932;margin:0}
+.df2-prevention-notice{font-size:12px;color:var(--ink);margin:0}
+.df2-prevention-modal{display:grid;gap:14px;max-width:650px;max-height:calc(100vh - 30px);overflow-y:auto}
+.df2-prevention-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.df2-prevention-fields label,.df2-prevention-note{display:grid;gap:5px;font-size:11px;font-weight:650;color:var(--ink)}
+.df2-prevention-modal input,.df2-prevention-modal select,.df2-prevention-modal textarea{background:var(--paper);color:var(--ink);border:1px solid var(--line-strong);border-radius:7px;padding:9px 10px;min-width:0;font:inherit;font-size:12px}
+.df2-prevention-modal textarea{resize:vertical;width:100%}
+.df2-prevention-modal input:focus-visible,.df2-prevention-modal select:focus-visible,.df2-prevention-modal textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.df2-prevention-modal header h2{font-size:19px;color:var(--ink);margin:0}
+.df2-prevention-modal>p{font-size:12px;color:var(--muted);margin:0}
+.df2-prevention-toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink)}
+@media(max-width:690px){.df2-prevention-stats{grid-template-columns:1fr}.df2-prevention-fields{grid-template-columns:1fr}.df2-prevention-card{padding:13px}.df2-prevention-modal{width:100%}}

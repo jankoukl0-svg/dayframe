@@ -160,6 +160,7 @@ export function DayframeV2() {
   const [supplementsFocus,setSupplementsFocus] = useState(false);
   const [bodyFocusDate,setBodyFocusDate]=useState<string|null>(null);
   const [sleepFocusDate,setSleepFocusDate]=useState<string|null>(null);
+  const [preventionFocusId,setPreventionFocusId]=useState<string|null>(null);
   const gym = useGymStore();
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
@@ -579,7 +580,7 @@ export function DayframeV2() {
             <NavButton active={view === "week"} onClick={() => setView("week")} label="Týden" shortcut="W" />
             <NavButton active={view === "milestones"} onClick={() => setView("milestones")} label="Milníky" shortcut="4" />
             <NavButton active={view === "hygiene"} onClick={() => { setHygieneRoutineFocus(null); setView("hygiene"); }} label="Hygiena" shortcut="6" icon={<Droplets size={14} aria-hidden="true" />} />
-            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setGymFocus(null); setSupplementsFocus(false); setBodyFocusDate(null); setSleepFocusDate(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
+            <NavButton active={view === "health"} onClick={() => { setHealthRoutineFocus(null); setGymFocus(null); setSupplementsFocus(false); setBodyFocusDate(null); setSleepFocusDate(null); setPreventionFocusId(null); setView("health"); }} label="Zdraví" shortcut="7" icon={<HeartPulse size={14} aria-hidden="true" />} />
             <NavButton active={view === "settings"} onClick={() => setView("settings")} label="Nastavení" shortcut="5" />
           </nav>
           <div className="df2-sidebar-bottom"><span>Den končí</span><strong>02:00</strong></div>
@@ -616,6 +617,7 @@ export function DayframeV2() {
               onOpenSupplements={() => {setSupplementsFocus(true);setView("health");}}
               onOpenBody={(date) => {setBodyFocusDate(date);setView("health");}}
               onOpenSleep={(date) => {setSleepFocusDate(date);setView("health");}}
+              onOpenPrevention={(id) => {setPreventionFocusId(id);setView("health");}}
             />
           )}
 
@@ -633,7 +635,8 @@ export function DayframeV2() {
               onGymFocusHandled={() => setGymFocus(null)} focusSupplements={supplementsFocus}
               onSupplementsFocusHandled={() => setSupplementsFocus(false)} focusBodyDate={bodyFocusDate}
               onBodyFocusHandled={()=>setBodyFocusDate(null)} focusSleepDate={sleepFocusDate}
-              onSleepFocusHandled={()=>setSleepFocusDate(null)} />
+              onSleepFocusHandled={()=>setSleepFocusDate(null)} focusPreventionId={preventionFocusId}
+              onPreventionFocusHandled={()=>setPreventionFocusId(null)} />
           )}
 
           {view === "week" && (
@@ -838,7 +841,7 @@ function NavButton({ active, onClick, label, shortcut, icon }: { active: boolean
 }
 
 function TodayView({
-  now, sleepDateKey, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, onOpenSupplements, onOpenBody, onOpenSleep, completingTaskIds,
+  now, sleepDateKey, tasks, activeTask, nextTasks, nextPlannedTask, missed, milestones, onAdd, onEdit, onDone, onTomorrow, onDelete, onFocus, onMilestones, onOpenHygiene, onOpenHealth, onOpenGym, onOpenSupplements, onOpenBody, onOpenSleep, onOpenPrevention, completingTaskIds,
 }: {
   now: Date;
   sleepDateKey: string;
@@ -861,6 +864,7 @@ function TodayView({
   onOpenSupplements:()=>void;
   onOpenBody:(date:string)=>void;
   onOpenSleep:(date:string)=>void;
+  onOpenPrevention:(id:string)=>void;
   completingTaskIds: ReadonlySet<string>;
 }) {
   const [checklistSummary, setChecklistSummary] = useState({ planningKey: "", completed: 0, total: 0, hydrated: false, blocked: false });
@@ -962,7 +966,7 @@ function TodayView({
           </div>
         )}
       </section>
-      <DailyChecklist planningKey={today} sleepDateKey={sleepDateKey} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} onOpenSupplements={onOpenSupplements} onOpenBody={onOpenBody} onOpenSleep={onOpenSleep} />
+      <DailyChecklist planningKey={today} sleepDateKey={sleepDateKey} onSummaryChange={setChecklistSummary} onOpenHygiene={onOpenHygiene} onOpenHealth={onOpenHealth} onOpenGym={onOpenGym} onOpenSupplements={onOpenSupplements} onOpenBody={onOpenBody} onOpenSleep={onOpenSleep} onOpenPrevention={onOpenPrevention} />
 
       {dayComplete && (
         <section className="df2-day-complete" aria-live="polite">

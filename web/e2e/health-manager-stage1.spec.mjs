@@ -28,7 +28,7 @@ test("Health navigation contains six active/future tabs without Hydration", asyn
   await health.getByRole("tab", { name: "Spánek & Regenerace" }).click();
   await expect(health).toContainText("Zatím bez záznamů");
   await health.getByRole("tab", { name: "Prevence" }).click();
-  await expect(health).toContainText("ETAPA 6");
+  await expect(health.locator("[data-prevention-root]")).toContainText("Moje preventivní termíny");
   await health.getByRole("tab", { name: "Přehled" }).click();
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Hygiena" }).click();
   await expect(page.getByRole("tab", { name: "Moje produkty" })).toBeVisible();
@@ -119,7 +119,7 @@ test("Health menu and future-module tabs are usable at mobile width", async ({ p
   const health = await goHealth(page);
   await expect(health.getByRole("tab", { name: "Prevence" })).toBeVisible();
   await health.getByRole("tab", { name: "Prevence" }).click();
-  await expect(health).toContainText("ETAPA 6");
+  await expect(health.locator("[data-prevention-root]")).toContainText("Moje preventivní termíny");
 });
 
 test("deactivating a completed Health habit keeps its actual completion in history", async ({ page }) => {
