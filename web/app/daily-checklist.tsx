@@ -5,6 +5,8 @@ import { planningDateKey } from "@/lib/dayframe-calendar";
 import { assignmentsOnDate } from "@/lib/dayframe-gym";
 import { bodyCheckInStatus } from "@/lib/dayframe-body";
 import { useBodyStore } from "./use-body-store";
+import {sleepCheckInStatus} from "@/lib/dayframe-sleep";
+import {useSleepStore} from "./use-sleep-store";
 import { supplementOccurrences } from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
 import { useGymStore } from "./use-gym-store";
@@ -167,6 +169,7 @@ export function DailyChecklist({
   onOpenGym,
   onOpenSupplements,
   onOpenBody,
+  onOpenSleep,
 }: {
   onSummaryChange?: (summary: DailyChecklistSummary) => void;
   planningKey?: string;
@@ -175,6 +178,7 @@ export function DailyChecklist({
   onOpenGym?: (key: string, date: string) => void;
   onOpenSupplements?:()=>void;
   onOpenBody?:(date:string)=>void;
+  onOpenSleep?:(date:string)=>void;
 } = {}) {
   const [store, setStore] = useState<ChecklistStore>(() => emptyStore());
   const [hydrated, setHydrated] = useState(false);
@@ -195,6 +199,7 @@ export function DailyChecklist({
   const gym=useGymStore();
   const supplements=useSupplementStore();
   const body=useBodyStore();
+  const sleep=useSleepStore();
   const [hygieneBlocked, setHygieneBlocked] = useState(false);
   const completionFeedbackTimer = useRef<number | null>(null);
 
@@ -213,8 +218,9 @@ export function DailyChecklist({
   const supplementItems=useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
   const supplementCompletedCount=supplementItems.filter(x=>!!x.intake).length;
   const bodyStatus=useMemo(()=>bodyCheckInStatus(body.store,planningKey),[body.store,planningKey]);
-  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + supplementItems.length + (bodyStatus.due?1:0);
-  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + supplementCompletedCount + (bodyStatus.due&&bodyStatus.complete?1:0);
+  const sleepStatus=useMemo(()=>sleepCheckInStatus(sleep.store,planningKey),[sleep.store,planningKey]);
+  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + supplementItems.length + (bodyStatus.due?1:0) + (sleepStatus.due?1:0);
+  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + supplementCompletedCount + (bodyStatus.due&&bodyStatus.complete?1:0) + (sleepStatus.due&&sleepStatus.complete?1:0);
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
   const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
@@ -273,10 +279,10 @@ export function DailyChecklist({
       planningKey,
       completed: totalCompletedCount,
       total: totalVisibleCount,
-      hydrated: hydrated && hygieneHydrated && gym.hydrated && supplements.hydrated && body.hydrated,
-      blocked: storageBlocked || hygieneBlocked || gym.blocked || supplements.blocked || body.blocked,
+      hydrated: hydrated && hygieneHydrated && gym.hydrated && supplements.hydrated && body.hydrated && sleep.hydrated,
+      blocked: storageBlocked || hygieneBlocked || gym.blocked || supplements.blocked || body.blocked || sleep.blocked,
     });
-  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, gym.hydrated, gym.blocked, supplements.hydrated, supplements.blocked, body.hydrated, body.blocked, onSummaryChange]);
+  }, [planningKey, totalCompletedCount, totalVisibleCount, hydrated, hygieneHydrated, storageBlocked, hygieneBlocked, gym.hydrated, gym.blocked, supplements.hydrated, supplements.blocked, body.hydrated, body.blocked, sleep.hydrated, sleep.blocked, onSummaryChange]);
 
   useEffect(() => () => {
     if (completionFeedbackTimer.current) window.clearTimeout(completionFeedbackTimer.current);
@@ -534,6 +540,16 @@ export function DailyChecklist({
                 </button><span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>
             )}
+            {sleepStatus.due && (
+              <article data-sleep-checklist={planningKey}
+                className={"df2-checklist-hygiene-row "+(sleepStatus.complete?"done":"")}>
+                <span className={"df2-checklist-hygiene-indicator "+(sleepStatus.complete?"is-done":"")} aria-hidden="true">{sleepStatus.complete?"✓":""}</span>
+                <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
+                  aria-label="Otevřít záznam spánku ve Zdraví" onClick={()=>onOpenSleep?.(planningKey)}>
+                  <strong>Spánek · záznam noci</strong><small>{sleepStatus.complete?"Zapsáno":"Naplánováno · otevřít spánek"}</small>
+                </button><span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
+              </article>
+            )}
             {visibleItems.map((item) => {
               const done = completedIds.has(item.id);
               return (
@@ -585,13 +601,13 @@ export function DailyChecklist({
           </div>
         ) : (
           <div className="df2-checklist-empty">
-            {store.items.length || hygieneItems.length || healthItems.length || gymItems.length || supplementItems.length || bodyStatus.due ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
+            {store.items.length || hygieneItems.length || healthItems.length || gymItems.length || supplementItems.length || bodyStatus.due || sleepStatus.due ? "Na dnešek tu nic není." : "Přidej malé věci, které chceš každý den jen odškrtnout."}
           </div>
         )}
         {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}
-        {(storageBlocked || storageError || hygieneBlocked || gym.blocked || supplements.blocked || body.blocked) && (
+        {(storageBlocked || storageError || hygieneBlocked || gym.blocked || supplements.blocked || body.blocked || sleep.blocked) && (
           <p className="df2-checklist-error">
-            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : supplements.blocked ? "Data suplementů nelze bezpečně načíst." : body.blocked ? "Data měření nelze bezpečně načíst." : storageError}
+            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : supplements.blocked ? "Data suplementů nelze bezpečně načíst." : body.blocked ? "Data měření nelze bezpečně načíst." : sleep.blocked ? "Data spánku nelze bezpečně načíst." : storageError}
           </p>
         )}
       </section>

@@ -5,6 +5,9 @@ import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
 import { ScheduleEditor } from "./hygiene-page";
 import { GymPage } from "./health-gym";
 import { BodyPage } from "./health-body";
+import { SleepPage } from "./health-sleep";
+import { useSleepStore } from "./use-sleep-store";
+import {sleepDurationMinutes,formatSleepDuration} from "@/lib/dayframe-sleep";
 import { useBodyStore } from "./use-body-store";
 import { latestMetric,latestBodyEntry } from "@/lib/dayframe-body";
 import { SupplementsPage } from "./health-supplements";
@@ -20,14 +23,13 @@ import {
   toggleManualRoutine, type HygieneRoutineDefinition, type HygieneSchedule, type HygieneStore,
 } from "@/lib/dayframe-hygiene";
 
-type HealthTab = "overview" | "gym" | "supplements" | "body" | "sleep" | "water" | "prevention";
+type HealthTab = "overview" | "gym" | "supplements" | "body" | "sleep" | "prevention";
 const TABS: { id: HealthTab; name: string; stage: string }[] = [
   { id: "overview", name: "Přehled", stage: "1" },
   { id: "gym", name: "Gym & Tréninky", stage: "2" },
   { id: "supplements", name: "Suplementy", stage: "3" },
   { id: "body", name: "Tělo & Progress", stage: "4" },
   { id: "sleep", name: "Spánek & Regenerace", stage: "5" },
-  { id: "water", name: "Hydratace", stage: "5" },
   { id: "prevention", name: "Prevence", stage: "6" },
 ];
 
@@ -46,11 +48,12 @@ function newHealthRoutine(): HygieneRoutineDefinition {
   };
 }
 
-export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled, focusBodyDate, onBodyFocusHandled }: {
+export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusGymKey, focusGymDate, onGymFocusHandled, focusSupplements, onSupplementsFocusHandled, focusBodyDate, onBodyFocusHandled, focusSleepDate, onSleepFocusHandled }: {
   planningKey: string; focusRoutineId?: string | null; onFocusHandled?: () => void;
   focusGymKey?: string | null; focusGymDate?: string | null; onGymFocusHandled?: () => void;
   focusSupplements?: boolean; onSupplementsFocusHandled?:()=>void;
   focusBodyDate?: string | null; onBodyFocusHandled?:()=>void;
+  focusSleepDate?: string | null; onSleepFocusHandled?:()=>void;
 }) {
   const [store, setStore] = useState<HygieneStore>(() => createDefaultHygieneStore(planningKey));
   const [blocked, setBlocked] = useState(false);
@@ -62,8 +65,10 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
   const gym = useGymStore();
   const supplements = useSupplementStore();
   const body = useBodyStore();
+  const sleep = useSleepStore();
   const bodyWeight=latestMetric(body.store,"weightKg",planningKey);
   const bodyLatest=latestBodyEntry(body.store,planningKey);
+  const sleepLatest=sleep.store.entries.filter(x=>x.date<=planningKey).slice().sort((a,b)=>b.date.localeCompare(a.date))[0]??null;
   const todaySupplements = useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
   const todayWorkouts = useMemo(() => assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
 
@@ -98,6 +103,7 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
 
   useEffect(()=>{if(focusGymKey)setTab("gym");},[focusGymKey]);
   useEffect(()=>{if(focusBodyDate)setTab("body");},[focusBodyDate]);
+  useEffect(()=>{if(focusSleepDate)setTab("sleep");},[focusSleepDate]);
   useEffect(()=>{if(focusSupplements){setTab("supplements");onSupplementsFocusHandled?.();}},[focusSupplements,onSupplementsFocusHandled]);
   const scoped = useMemo(() => careDomainStore(store, "health"), [store]);
   const summaries = useMemo(() => scheduledRoutineSummaries(scoped, planningKey, planningKey), [scoped, planningKey]);
@@ -172,6 +178,13 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
 
       {tab === "overview" ? (
         <div className="df2-health-content">
+          <section className="df2-health-section" data-health-sleep-overview>
+            <div className="df2-health-section-heading"><div><span>Regenerace</span><h2>Spánek & Regenerace</h2></div>
+              <button type="button" onClick={()=>setTab("sleep")}>Otevřít spánek →</button></div>
+            <p className="df2-health-helper">{sleepLatest
+              ? "Poslední noc "+sleepLatest.date+" · "+formatSleepDuration(sleepDurationMinutes(sleepLatest.date,sleepLatest.bedtime,sleepLatest.wakeTime)!)
+              : "Zatím bez záznamu spánku. Můžeš přidat svou první noc."}</p>
+          </section>
           <section className="df2-health-section" data-health-body-overview>
             <div className="df2-health-section-heading"><div><span>Tělesná měření</span><h2>Tělo & Progress</h2></div>
               <button type="button" onClick={()=>setTab("body")}>Otevřít měření →</button></div>
@@ -271,6 +284,8 @@ export function HealthPage({ planningKey, focusRoutineId, onFocusHandled, focusG
         <SupplementsPage today={planningKey} />
       ) : tab === "body" ? (
         <BodyPage today={planningKey} focusDate={focusBodyDate} onFocusHandled={onBodyFocusHandled} />
+      ) : tab === "sleep" ? (
+        <SleepPage today={planningKey} focusDate={focusSleepDate} onFocusHandled={onSleepFocusHandled} />
       ) : (
         <section className="df2-health-coming-soon">
           <span>ETAPA {activeTab.stage}</span>
