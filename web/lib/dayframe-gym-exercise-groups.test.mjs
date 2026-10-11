@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {EXERCISE_LIBRARY} from "./dayframe-gym.ts";
-import {defaultGymExerciseFilter,gymExerciseGroup,searchGymExercises,
+import {defaultGymExerciseFilter,gymExerciseGroup,searchGymExercises,matchesGymExerciseSearch,
   GYM_EXERCISE_GROUPS} from "./dayframe-gym-exercise-groups.ts";
 
 test("standard movements are grouped by split and remain alphabetized inside each group",()=>{
@@ -49,4 +49,29 @@ test("default filter follows the actual day name, with a safe All fallback for c
   assert.equal(defaultGymExerciseFilter("Nohy"),"Lower");
   assert.equal(defaultGymExerciseFilter("Upper"),"Vše");
   assert.equal(defaultGymExerciseFilter(""),"Vše");
+});
+
+
+test("pec deck chest and reverse rear-delt deck are distinct existing exercises and searchable by gym spellings",()=>{
+  const chest=EXERCISE_LIBRARY.find(e=>e.id==="pec-deck");
+  const rear=EXERCISE_LIBRARY.find(e=>e.id==="reverse-pec-deck");
+  assert.ok(chest);assert.ok(rear);
+  assert.equal(gymExerciseGroup(chest),"Push");
+  assert.equal(gymExerciseGroup(rear),"Pull");
+  const ids=(q,group="Vše")=>searchGymExercises(EXERCISE_LIBRARY,q,group)
+    .flatMap(x=>x.items.map(e=>e.id));
+  for(const spelling of ["pec deck","pec dec","pecdec","pecdeck","peck deck"]){
+    assert.ok(ids(spelling).includes("pec-deck"),spelling+" should match chest");
+    assert.ok(ids(spelling).includes("reverse-pec-deck"),spelling+" should match rear delts");
+    assert.deepEqual(ids(spelling,"Push").includes("reverse-pec-deck"),false);
+    assert.deepEqual(ids(spelling,"Pull").includes("pec-deck"),false);
+  }
+  for(const spelling of ["pecdec na zadni ramena","pec dec na zadni ramena","rear delt fly","obraceny motylek"]){
+    assert.deepEqual(ids(spelling),["reverse-pec-deck"],spelling);
+  }
+  assert.ok(ids("pecdec","Pull").includes("reverse-pec-deck"));
+  assert.ok(ids("pecdec","Push").includes("pec-deck"));
+  assert.equal(gymExerciseGroup(EXERCISE_LIBRARY.find(e=>e.id==="face-pull")),"Pull");
+  assert.equal(matchesGymExerciseSearch(rear,"zadni ramena"),true);
+  assert.equal(gymExerciseGroup({...rear,id:"user-rear",muscle:"Zadní ramena"}),"Pull");
 });

@@ -58,7 +58,13 @@ export function GymExercisePicker({exercises,label,dayName="",disabled=false,pla
         }
       }}>
       <input ref={search} type="search" aria-label="Hledat cvik" placeholder="Hledat cvik nebo partii…"
-        value={query} onChange={event=>setQuery(event.target.value)}/>
+        value={query} onChange={event=>{
+          const value=event.target.value;
+          // Typing searches every group so even a Push exercise can be found
+          // from a Pull day's default view; chips still narrow results on demand.
+          if(value.trim()&&!query.trim())setFilter("Vše");
+          setQuery(value);
+        }}/>
       <div className="df2-gym-picker-filters" role="group" aria-label="Skupina cviků">
         {(["Vše",...GYM_EXERCISE_GROUPS] as GymExerciseFilter[]).map(g=><button
           type="button" key={g} aria-pressed={filter===g} onClick={()=>setFilter(g)}>{g}</button>)}
