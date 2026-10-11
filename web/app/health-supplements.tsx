@@ -14,6 +14,7 @@ export function SupplementsPage({today}:{today:string}){
   const [tab,setTab]=useState<Tab>("today");
   const [draft,setDraft]=useState<Supplement|null>(null);
   const [stockAtOpen,setStockAtOpen]=useState<number|null>(null);
+  const [fieldsAtOpen,setFieldsAtOpen]=useState<Supplement|null>(null);
   const [scheduleAtOpen,setScheduleAtOpen]=useState<{times:string[];weekdays:number[];active:boolean}|null>(null);
   const [draftTimes,setDraftTimes]=useState("");
   const [search,setSearch]=useState("");
@@ -27,6 +28,7 @@ export function SupplementsPage({today}:{today:string}){
   const showEdit=(item:Supplement)=>{
     setDraft({...item,weekdays:[...item.weekdays],times:[...item.times]});
     setStockAtOpen(item.stock);
+    setFieldsAtOpen({...item,weekdays:[...item.weekdays],times:[...item.times]});
     setScheduleAtOpen({times:[...item.times],weekdays:[...item.weekdays],active:item.active});
     setDraftTimes(item.times.join(", "));
     setEditError("");
@@ -53,11 +55,26 @@ export function SupplementsPage({today}:{today:string}){
         && item.active===scheduleAtOpen.active
         && [...item.weekdays].sort().join(",")===[...scheduleAtOpen.weekdays].sort().join(",")
         && item.times.join(",")===scheduleAtOpen.times.join(",");
-      // Do not overwrite another tab's newer schedule when editing only the
-      // brand, notes or dose. An intentional schedule change still applies.
-      const rebased=current&&unchangedSchedule
-        ? {...item,stock,active:current.active,weekdays:[...current.weekdays],times:[...current.times]}
-        : {...item,stock};
+      // Rebase each untouched editor field onto the latest persisted value.
+      // A different tab may have changed the shopping flag, pack size, price,
+      // notes or dose while this modal was open. Only explicitly edited fields
+      // should win; never write the stale full draft over concurrent changes.
+      const rebased:Supplement=current?{...current}:{...item};
+      const editableFields=["name","brand","doseLabel","servingsPerIntake","units",
+        "lowStockAt","packServings","packPriceCzk","sourceUrl","notes"] as const;
+      for(const field of editableFields) {
+        if(!fieldsAtOpen || item[field]!==fieldsAtOpen[field]) {
+          Object.assign(rebased,{[field]:item[field]});
+        }
+      }
+      // Shopping is changed outside this modal, so always retain latest state.
+      // Likewise keep any newer schedule unless the editor touched its inputs.
+      rebased.stock=stock;
+      if(!current || !unchangedSchedule) {
+        rebased.active=item.active;
+        rebased.weekdays=[...item.weekdays];
+        rebased.times=[...item.times];
+      }
       const scheduled=withSupplementSchedule(rebased,today,current);
       const resetBaseline=!!current && (explicitlyChangedStock || (current.stock===null)!==(stock===null));
       return {...s,
