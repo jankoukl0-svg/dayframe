@@ -155,7 +155,7 @@ test("a Gym deep link is consumed and an ordinary Health click returns to its ov
 test("new plan does not appear in historical past weeks",async({page})=>{
   await fresh(page);
   const root=await createPlan(page,"Jen ode dne založení");
-  await root.getByRole("textbox",{name:"Prohlížet od data"}).fill("2026-09-28");
+  await root.getByLabel("Prohlížet od data").fill("2026-09-28");
   await expect(root.locator('[data-gym-occurrence]')).toHaveCount(0);
 });
 
