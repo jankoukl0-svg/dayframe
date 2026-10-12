@@ -63,8 +63,8 @@ test("existing manually moved workouts survive removal of the date browser",asyn
   await fresh(page);
   const root=await createPlan(page,"Dřívější přesuny");
   await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
-  const movedKey=await page.evaluate(key=>{
-    const data=JSON.parse(localStorage.getItem(key));
+  const movedKey=await page.evaluate(storageKey=>{
+    const data=JSON.parse(localStorage.getItem(storageKey));
     const plan=data.plans[0],day=plan.days[0];
     const key=[plan.id,day.id,"2026-10-12"].join("|");
     data.moves[key]="2026-10-13";
