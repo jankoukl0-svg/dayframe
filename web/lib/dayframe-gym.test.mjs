@@ -209,3 +209,29 @@ test("legacy stores stay valid, invalid schedule and goal are blocked",()=>{
   assert.equal(parseGymStore(JSON.stringify({...old,weeklyGoal:5,scheduledWorkouts:[]})).blocked,false);
 });
 function dateShiftForTest(date,days){const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
+
+test("weekly additions reject collisions hidden by moves and future one-off bookings",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  const native=assignmentsOnDate(store,"2026-10-12")[0];
+  store=moveOccurrence(store,native.key,"2026-10-13");
+  assert.equal(assignmentsOnDate(store,"2026-10-12").length,0);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-12","weekly"),store);
+  assert.equal(assignmentsOnDate(store,"2026-10-19").length,1,"Native Monday still repeats");
+
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-20","once");
+  assert.equal(assignmentsOnDate(store,"2026-10-20").length,1);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-13","weekly"),store,
+    "A future one-off date also blocks a weekly recurrence");
+});
+
+test("a moved recurring slot cannot be duplicated from its temporarily empty weekday",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-13","weekly");
+  const tuesday=assignmentsOnDate(store,"2026-10-20")[0];
+  store=moveOccurrence(store,tuesday.key,"2026-10-22");
+  assert.equal(assignmentsOnDate(store,"2026-10-20").length,0);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-20","weekly"),store);
+  assert.equal(assignmentsOnDate(store,"2026-10-27").length,1);
+});

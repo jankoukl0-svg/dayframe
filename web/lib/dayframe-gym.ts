@@ -218,6 +218,16 @@ export function addGymScheduledWorkout(store:GymStore,planId:string,dayId:string
   const plan=store.plans.find(p=>p.id===planId);
   if(!plan || !plan.days.some(x=>x.id===dayId) || (plan.createdOn && date<plan.createdOn)
     || activeGymPlanOnDate(store,date)?.id!==planId || assignmentsOnDate(store,date).length)return store;
+  // A one-off move can hide a recurring slot on this date while the underlying
+  // template still recurs next week. Reject weekly additions that would collide
+  // with future native days, weekly slots or already-booked one-off dates.
+  if(repeat==="weekly"){
+    const targetWeekday=weekday(date);
+    if(plan.days.some(day=>gymDayWeekdayOnDate(day,date)===targetWeekday
+      || day.scheduleHistory?.some(change=>change.effectiveFrom>date && change.weekday===targetWeekday)))return store;
+    if((store.scheduledWorkouts??[]).some(slot=>slot.planId===planId && weekday(slot.date)===targetWeekday
+      && (slot.repeat==="weekly" ? (!slot.until || slot.until>date) : slot.date>=date)))return store;
+  }
   const slot:GymScheduledWorkout={id:uid("slot"),planId,dayId,date,repeat};
   return {...store,scheduledWorkouts:[...(store.scheduledWorkouts??[]),slot]};
 }
