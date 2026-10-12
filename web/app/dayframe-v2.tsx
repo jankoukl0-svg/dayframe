@@ -42,6 +42,7 @@ import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { assignmentsOnDate, gymOccurrenceTime } from "@/lib/dayframe-gym";
+import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 
 const STORAGE_KEY = "dayframe-v1";
@@ -661,6 +662,14 @@ export function DayframeV2() {
                     const timedGym=assignmentsOnDate(gym.store,key)
                       .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
                       .filter(item=>item.time.start!==null);
+                    const lanePositions=placeWeekGymCollisions([
+                      ...timedGym.map(({occ,time})=>({
+                        id:"gym:"+occ.key,start:timeToMinutes(time.start??undefined),
+                        end:timeToMinutes(time.start??undefined)+time.duration,gym:true})),
+                      ...scheduled.map(task=>({
+                        id:"task:"+task.id,start:timeToMinutes(task.start),
+                        end:timeToMinutes(task.start)+task.duration,gym:false})),
+                    ]);
                     return (
                       <article className={`df2-week-day ${key === todayKey ? "today" : ""}`} key={key}>
                         <header className="df2-week-day-head" onClick={() => key >= todayKey && openAdd(key)}>
@@ -702,7 +711,7 @@ export function DayframeV2() {
                             const end=minutesToTime(timeToMinutes(time.start)+time.duration);
                             return <button key={occ.key} type="button" data-week-gym={occ.key}
                               className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
-                              style={{top:`${top}px`,height:`${height}px`}}
+                              style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
                               title="Otevřít trénink v Gymu"
                               onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}>
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
@@ -716,7 +725,7 @@ export function DayframeV2() {
                               <button
                                 key={task.id}
                                 className={`df2-week-task ${task.completed ? "done" : ""}`}
-                                style={{ top: `${top}px`, height: `${height}px` }}
+                                style={{ top: `${top}px`, height: `${height}px`, ...(lanePositions["task:"+task.id]??{}) }}
                                 draggable={!task.completed}
                                 onDragStart={(event) => {
                                   const rect = event.currentTarget.getBoundingClientRect();

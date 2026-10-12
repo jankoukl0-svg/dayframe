@@ -155,7 +155,8 @@ test("renaming a plan or day cannot store a transient blank name and block exist
 
 test("a Gym deep link is consumed and an ordinary Health click returns to its overview",async({page})=>{
   await fresh(page);
-  await createPlan(page);
+  const root=await createPlan(page);
+  await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
   await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
   await page.locator("[data-week-gym]").first().click();
   await expect(page.getByRole("tab",{name:"Gym & Tréninky"})).toHaveAttribute("aria-selected","true");
@@ -573,8 +574,8 @@ test("a repeated template can start its nearest weekday and new templates do not
   expect(updated.sessions[0].date).toBe("2026-10-13");
   await again.getByRole("button",{name:"← Zpět na plán"}).click();
   const monday=again.locator('[data-gym-weekday="1"]');
-  await expect(monday.getByRole("combobox")).toBeEnabled();
-  await monday.getByRole("combobox").selectOption({label:"Volno"});
+  await expect(monday.getByRole("combobox",{name:"Pondělí – typ tréninku"})).toBeEnabled();
+  await monday.getByRole("combobox",{name:"Pondělí – typ tréninku"}).selectOption({label:"Volno"});
   const following=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(following.sessions).toHaveLength(1);
   expect(following.sessions[0].date).toBe("2026-10-13");
@@ -620,5 +621,32 @@ test("Gym workouts appear on Week only once an actual start time has been chosen
   await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
   await expect(page.locator("[data-week-gym]")).toHaveCount(1);
   await page.locator("[data-week-gym]").click();
+  await expect(page.locator("[data-gym-root]")).toBeVisible();
+});
+
+test("Gym and an overlapping calendar task have separate visible and clickable lanes",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
+  await page.evaluate(()=>{
+    const key="dayframe-v1",state=JSON.parse(localStorage.getItem(key));
+    state.plans["2026-10-12"]=[...(state.plans["2026-10-12"]??[]),{
+      id:"gym-calendar-overlap",title:"Překryv s Gym",date:"2026-10-12",
+      duration:60,start:"17:00",end:"18:00",requestedStart:"17:00",
+      priority:"normal",category:"Studium",mode:"fixed",completed:false,
+      source:"user",createdAt:"2026-10-12T09:00:00Z",
+    }];
+    localStorage.setItem(key,JSON.stringify(state));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  const gymTile=page.locator("[data-week-gym]").first();
+  const taskTile=page.locator(".df2-week-task").filter({hasText:"Překryv s Gym"}).first();
+  await expect(gymTile).toBeVisible();
+  await expect(taskTile).toBeVisible();
+  const gymRect=await gymTile.boundingBox(),taskRect=await taskTile.boundingBox();
+  expect(gymRect.x+gymRect.width).toBeLessThanOrEqual(taskRect.x+2);
+  await gymTile.click();
   await expect(page.locator("[data-gym-root]")).toBeVisible();
 });
