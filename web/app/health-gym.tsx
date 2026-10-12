@@ -404,7 +404,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 setDayNameDrafts(d=>{const next={...d};delete next[day.id];return next;});
               }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/>
             <small>Týdenní rozvrh nastavíš v záložce Tréninky</small>
-            <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:p.days.filter(d=>d.id!==day.id)}))}>Odebrat den</button>
+            <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:p.days.filter(d=>d.id!==day.id&&d.templateDayId!==day.id)}))}>Odebrat den</button>
           </div>
           {day.exercises.map((item,idx)=><div className="df2-gym-plan-exercise" key={item.id}>
             <strong>{store.exercises.find(e=>e.id===item.exerciseId)?.name??"Neznámý cvik"}</strong>
