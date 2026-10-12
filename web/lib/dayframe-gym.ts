@@ -7,7 +7,7 @@ export type GymPlanDay = { id: string; name: string; weekday: number; exercises:
 export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?: string };
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
-export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; exercises: GymSessionExercise[] };
+export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; scheduledTime?:GymTime; exercises: GymSessionExercise[] };
 export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string> };
 export type GymOccurrence = { key: string; planId: string; dayId: string; name: string; date: string; originalDate: string; completed: boolean; session: GymSession | null };
 export type GymTime = {start:string|null;duration:number};
@@ -141,7 +141,11 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
     for(const s0 of s.sessions) {
       if(!s0 || !str(s0.id,100) || !str(s0.occurrenceKey,300) || !str(s0.planId,100) || !str(s0.dayId,100) || !str(s0.title)
         || !dateValid(s0.date) || !str(s0.startedAt,70) || (s0.completedAt!==null && !str(s0.completedAt,70))
-        || (s0.restUntil!==null && !num(s0.restUntil,0,4e15)) || !Array.isArray(s0.exercises) || !distinct(s0.exercises)) throw Error("session");
+        || (s0.restUntil!==null && !num(s0.restUntil,0,4e15))
+        || (s0.scheduledTime!==undefined && (!s0.scheduledTime||!gymTimeValid(s0.scheduledTime.start)
+            ||!gymDurationValid(s0.scheduledTime.duration)
+            ||(s0.scheduledTime.start!==null&&gymClockMinutes(s0.scheduledTime.start)+s0.scheduledTime.duration>26*60)))
+        || !Array.isArray(s0.exercises) || !distinct(s0.exercises)) throw Error("session");
       for(const ex of s0.exercises) {
         if(!ex || !str(ex.id,100) || !str(ex.exerciseId,100) || !str(ex.name) || !str(ex.note,1500) || !Array.isArray(ex.sets) || !distinct(ex.sets)) throw Error("logged exercise");
         for(const set of ex.sets) if(!set || !str(set.id,100) || !["work","warmup"].includes(set.kind) || !nullable(set.reps,0,1000)
@@ -205,6 +209,8 @@ export function gymDayTimeOnDate(day:GymPlanDay,date:string):GymTime {
   return revision?{start:revision.start,duration:revision.duration}:{start:null,duration:60};
 }
 export function gymOccurrenceTime(store:GymStore,occ:GymOccurrence):GymTime {
+  // A started session is factual history even after deleting/editing its plan.
+  if(occ.session?.scheduledTime)return occ.session.scheduledTime;
   const day=store.plans.find(p=>p.id===occ.planId)?.days.find(d=>d.id===occ.dayId);
   return day?gymDayTimeOnDate(day,occ.originalDate):{start:null,duration:60};
 }
@@ -339,7 +345,8 @@ export function startSession(store:GymStore,key:string,date:string,now=new Date(
     name:store.exercises.find(e=>e.id===x.exerciseId)?.name??"Neznámý cvik",
     sets:Array.from({length:x.sets},()=>newSet()),note:""}));
   return {...store,sessions:[...store.sessions,{id:uid("session"),occurrenceKey:key,planId:found.planId,dayId:found.dayId,
-    date,title:found.name,startedAt:now,completedAt:null,restUntil:null,exercises}]};
+    date,title:found.name,startedAt:now,completedAt:null,restUntil:null,
+    scheduledTime:gymOccurrenceTime(store,found),exercises}]};
 }
 export function lastExercisePerformance(store:GymStore,exerciseId:string,beforeDate:string,excludeId?:string):GymSet[] {
   for(const session of store.sessions.filter(s=>s.completedAt && s.date<=beforeDate && s.id!==excludeId)

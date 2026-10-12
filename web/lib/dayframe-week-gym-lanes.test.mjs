@@ -31,14 +31,11 @@ test("three simultaneous blocks use three lanes and subsequent intervals reuse l
   assert.equal(p.b.width,p.c.width);
 });
 
-test("past-day hidden unfinished blocks must not reserve horizontal space",()=>{
-  const blocks=[
-    {id:"gym",gym:true,start:1020,end:1110,completed:false},
-    {id:"task",gym:false,start:1020,end:1080,completed:true},
-  ];
-  assert.deepEqual(placeWeekGymCollisions(blocks,true),{});
-  assert.notDeepEqual(placeWeekGymCollisions(blocks,false),{});
-  assert.notDeepEqual(placeWeekGymCollisions([
-    {...blocks[0],completed:true},blocks[1],
-  ],true),{});
+test("retroactively editable past events retain both lanes even if unfinished",()=>{
+  const lanes=placeWeekGymCollisions([
+    {id:"gym",gym:true,start:1020,end:1110},
+    {id:"task",gym:false,start:1020,end:1080},
+  ]);
+  assert.notEqual(lanes.gym.left,lanes.task.left);
+  assert.equal(lanes.gym.width,lanes.task.width);
 });

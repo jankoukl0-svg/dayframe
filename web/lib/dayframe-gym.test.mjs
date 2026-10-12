@@ -260,3 +260,18 @@ test("Replacing workout type carries assigned time; moving the workout retains t
   assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-20").find(o=>o.key===occ.key)),{start:"16:15",duration:75});
   assert.equal(parseGymStore(JSON.stringify(s)).blocked,false);
 });
+
+test("a started timed workout keeps its calendar hour after the source plan is deleted",()=>{
+  let state=active();const id=state.plans[0].id;
+  state=setGymWeekdayTime(state,id,1,"17:30",75,"2026-10-12");
+  const original=assignmentsOnDate(state,"2026-10-12")[0];
+  state=startSession(state,original.key,original.date);
+  assert.deepEqual(state.sessions[0].scheduledTime,{start:"17:30",duration:75});
+  state={...state,plans:[],activePlanId:null,activations:[]};
+  const historical=assignmentsOnDate(state,"2026-10-12")[0];
+  assert.equal(historical.key,original.key);
+  assert.deepEqual(gymOccurrenceTime(state,historical),{start:"17:30",duration:75});
+  assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
+  const older={...state,sessions:state.sessions.map(({scheduledTime,...session})=>session)};
+  assert.equal(parseGymStore(JSON.stringify(older)).blocked,false,"Old session shapes stay valid");
+});

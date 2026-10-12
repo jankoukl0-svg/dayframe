@@ -665,13 +665,11 @@ export function DayframeV2() {
                     const lanePositions=placeWeekGymCollisions([
                       ...timedGym.map(({occ,time})=>({
                         id:"gym:"+occ.key,start:timeToMinutes(time.start??undefined),
-                        end:timeToMinutes(time.start??undefined)+time.duration,
-                        gym:true,completed:occ.completed})),
+                        end:timeToMinutes(time.start??undefined)+time.duration,gym:true})),
                       ...scheduled.map(task=>({
                         id:"task:"+task.id,start:timeToMinutes(task.start),
-                        end:timeToMinutes(task.start)+task.duration,
-                        gym:false,completed:task.completed})),
-                    ],key<todayKey);
+                        end:timeToMinutes(task.start)+task.duration,gym:false})),
+                    ]);
                     return (
                       <article className={`df2-week-day ${key === todayKey ? "today" : ""}`} key={key}>
                         <header className="df2-week-day-head" onClick={() => key >= todayKey && openAdd(key)}>
