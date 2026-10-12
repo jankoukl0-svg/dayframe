@@ -98,7 +98,9 @@ test("custom exercises, plans and historical progress are retained without gym d
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days[0].exercises.some(item=>saved.exercises.find(ex=>ex.id===item.exerciseId)?.name==="Bulharský dřep")).toBe(true);
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
-  await root.locator("[data-gym-schedule] > summary").click();
+  // A collapsed advanced schedule is optional UI. Switching views can preserve its open state.
+  const schedule=root.locator("[data-gym-schedule]");
+  if(!(await schedule.evaluate(element=>element.open)))await schedule.locator("summary").click();
   await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
   const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
   await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("90");
