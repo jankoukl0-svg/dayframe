@@ -181,3 +181,19 @@ test("five-day weekly split repeats and leaves historical sessions and exercise 
   assert.equal(assignmentsOnDate(state,"2026-10-16").length,0);
   assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
 });
+
+test("recurring copies reflect later edits to shared workout templates",()=>{
+  let store=active();
+  const plan=store.plans[0],template=plan.days[0];
+  store=setGymWeekdayAssignment(store,plan.id,2,template.id,"2026-10-12");
+  const copy=store.plans[0].days.find(d=>d.templateDayId===template.id);
+  assert.ok(copy);
+  assert.equal(copy.exercises.length,0);
+  store={...store,plans:store.plans.map(p=>({...p,days:p.days.map(d=>d.id===template.id?
+    {...d,exercises:[{...template.exercises[0],sets:5,reps:7}]}:d)}))};
+  const occ=assignmentsOnDate(store,"2026-10-13")[0];
+  store=startSession(store,occ.key,occ.date);
+  assert.equal(store.sessions[0].exercises.length,1);
+  assert.equal(store.sessions[0].exercises[0].sets.length,5);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});

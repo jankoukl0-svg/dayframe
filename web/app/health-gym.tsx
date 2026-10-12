@@ -5,7 +5,7 @@ import {GymExercisePicker} from "./gym-exercise-picker";
 import {matchesGymExerciseSearch} from "@/lib/dayframe-gym-exercise-groups";
 import {
   assignmentsOnDate, dateShift, gymMetrics, gymDayWeekdayOnDate, setGymWeekdayAssignment, lastExercisePerformance, weekday,
-  makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan, setGymDayWeekday,
+  makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan,
   type GymExercise, type GymPlan, type GymPlanDay, type GymPlanExercise,
   type GymSession, type GymSessionExercise, type GymSet, type GymTemplate
 } from "@/lib/dayframe-gym";
@@ -68,7 +68,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const completedWeek=metrics.workouts.filter(w=>w.date>=monday&&w.date<=weekDates[6]).length;
   const selectedWeekOccurrences=weekDates.flatMap(day=>assignmentsOnDate(store,day));
   // One reusable template per named workout: duplicates in the week are intentional.
-  const gymTemplates=activePlan?.days.filter((day,index,list)=>list.findIndex(x=>x.name===day.name)===index)??[];
+  const gymTemplates=activePlan?.days.filter(d=>!d.templateDayId)??[];
   const scheduleLabels=["Neděle","Pondělí","Úterý","Středa","Čtvrtek","Pátek","Sobota"];
   const weekTotal=selectedWeekOccurrences.length;
   const weekDayShort=["Po","Út","St","Čt","Pá","So","Ne"];
@@ -124,7 +124,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
     if(set.done){changeSet(ex.id,set.id,{done:false});return;}
     if(set.reps===null || set.weightKg===null){setMessage("Před dokončením série vyplň opakování a váhu (u cviků s vlastní vahou může být 0 kg).");return;}
     if(!session)return;
-    const rest=store.plans.find(p=>p.id===session.planId)?.days.find(d=>d.id===session.dayId)?.exercises.find(e=>e.exerciseId===ex.exerciseId)?.restSeconds??90;
+    const sessionPlan=store.plans.find(p=>p.id===session.planId);
+    const assignedDay=sessionPlan?.days.find(d=>d.id===session.dayId);
+    const sourceDay=assignedDay?.templateDayId?sessionPlan?.days.find(d=>d.id===assignedDay.templateDayId):assignedDay;
+    const rest=sourceDay?.exercises.find(e=>e.exerciseId===ex.exerciseId)?.restSeconds??90;
     saveSession(session.id,s=>({...s,restUntil:rest?Date.now()+rest*1000:null,
       exercises:s.exercises.map(item=>item.id!==ex.id?item:{...item,sets:item.sets.map(x=>x.id===set.id?{...x,done:true}:x)})}));
     setMessage("");
@@ -309,7 +312,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               const isPast=date<today;
               const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
               const hasSession=scheduled.some(o=>o.session);
-              const matchingTemplate=gymTemplates.find(d=>d.name===configured?.name);
+              const matchingTemplate=gymTemplates.find(d=>d.id===(configured?.templateDayId??configured?.id));
               return <div key={date} className={"df2-gym-week-planner-day "+(date===today?"is-today":"")}
                 data-gym-weekday={dayOfWeek}>
                 <div><strong>{weekDayShort[index]}</strong><small>{date.slice(8)}.{date.slice(5,7)}.</small></div>
@@ -388,7 +391,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             setEditedPlanId(null);
           }}>Smazat plán</button>
         </div>
-        {plan.days.map((day,dayIndex)=><article key={day.id} className="df2-gym-day-edit">
+        {plan.days.filter(d=>!d.templateDayId).map((day,dayIndex)=><article key={day.id} className="df2-gym-day-edit">
           <div className="df2-gym-inline">
             <input aria-label={"Název tréninkového dne "+(dayIndex+1)} value={dayNameDrafts[day.id]??day.name} maxLength={100}
               onChange={e=>setDayNameDrafts(d=>({...d,[day.id]:e.target.value}))}
@@ -398,9 +401,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 else setMessage("Název tréninkového dne nesmí být prázdný.");
                 setDayNameDrafts(d=>{const next={...d};delete next[day.id];return next;});
               }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/>
-            <select aria-label={"Den v týdnu "+day.name} value={day.weekday}
-              onChange={e=>savePlan(plan.id,p=>setGymDayWeekday(p,day.id,Number(e.target.value),today))}>
-              {WEEKDAYS.map((name,index)=><option key={index} value={index}>{name}</option>)}</select>
+            <small>Týdenní rozvrh nastavíš v záložce Tréninky</small>
             <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:p.days.filter(d=>d.id!==day.id)}))}>Odebrat den</button>
           </div>
           {day.exercises.map((item,idx)=><div className="df2-gym-plan-exercise" key={item.id}>

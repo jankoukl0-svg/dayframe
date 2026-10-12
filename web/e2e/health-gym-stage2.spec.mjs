@@ -529,6 +529,9 @@ test("a gym user can build five recurring Push Pull Lower sessions from the week
   await expect(week).toContainText("5 tréninků týdně");
   // Adding recurring instances does not clutter the workout-template switcher.
   await expect(root.locator("[data-gym-day]")).toHaveCount(3);
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  await expect(root.locator("[data-gym-plan-editor] .df2-gym-day-edit")).toHaveCount(3);
+  await root.getByRole("button",{name:"Tréninky",exact:true}).click();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days.filter(day=>day.scheduleHistory?.at(-1)?.weekday!==null)).toHaveLength(5);
   await page.reload({waitUntil:"networkidle"});
