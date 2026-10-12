@@ -534,5 +534,6 @@ test("a gym user can build five recurring Push Pull Lower sessions from the week
   await expect(again.locator("[data-gym-week]")).toContainText("5 tréninků týdně");
   await expect(again.locator("[data-gym-schedule]")).not.toHaveAttribute("open","");
   await again.locator("[data-gym-schedule] summary").click();
-  await expect(again.locator("[data-gym-occurrence]")).toHaveCount(10);
+  // The 14-day browser window runs from today - 3 to today + 10, not two full calendar weeks.
+  await expect(again.locator("[data-gym-occurrence]")).toHaveCount(9);
 });
