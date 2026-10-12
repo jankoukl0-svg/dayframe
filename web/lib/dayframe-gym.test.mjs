@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence,
   occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
-  setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
+  setActiveGymPlan, setGymDayWeekday, addGymScheduledWorkout, removeGymScheduledWorkout, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
 
 function active() {
@@ -160,4 +160,118 @@ test("older existing gym stores gain new catalog entries without changing plans,
   assert.equal(JSON.stringify(old),raw,"Source store should not be mutated");
   assert.equal(extendGymExerciseCatalog(enlarged),enlarged,"Repeated hydration must not duplicate entries");
   assert.equal(parseGymStore(JSON.stringify(enlarged)).blocked,false);
+});
+
+test("weekly workout templates let a three-day PPL split become five without copying exercises",()=>{
+  const plan=makeGymPlan("Push / Pull / Lower","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  assert.equal(assignmentsOnDate(store,"2026-10-12").length,1);
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-13","weekly");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly");
+  assert.equal((store.scheduledWorkouts??[]).length,2);
+  assert.equal(store.plans[0].days.length,3);
+  assert.equal(Array.from({length:7},(_,i)=>assignmentsOnDate(store,dateShiftForTest("2026-10-12",i)).length).reduce((a,b)=>a+b,0),5);
+  const tuesday=assignmentsOnDate(store,"2026-10-13")[0];
+  assert.equal(tuesday.name,"Pull");
+  assert.ok(tuesday.key.split("|").length===4);
+  assert.equal(assignmentsOnDate(store,"2026-10-20")[0].dayId,plan.days[1].id);
+  assert.deepEqual(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-13","weekly"),store,"No duplicate date");
+  assert.equal(parseGymStore(JSON.stringify({...store,weeklyGoal:5})).blocked,false);
+  const started=startSession(store,tuesday.key,tuesday.date,"2026-10-13T12:00:00Z");
+  assert.equal(started.sessions[0].exercises.length,plan.days[1].exercises.length);
+  assert.equal(removeGymScheduledWorkout(started,tuesday.key,tuesday.date),started,"A started occurrence is immutable");
+});
+
+test("stopping a recurring workout preserves completed history, and one-off dates never repeat",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-13","weekly");
+  const first=assignmentsOnDate(store,"2026-10-13")[0];
+  store=startSession(store,first.key,first.date,"2026-10-13T09:00:00Z");
+  store={...store,sessions:store.sessions.map(s=>({...s,completedAt:"2026-10-13T10:00:00Z"}))};
+  const later=assignmentsOnDate(store,"2026-10-20")[0];
+  store=removeGymScheduledWorkout(store,later.key,later.date);
+  assert.equal(assignmentsOnDate(store,"2026-10-20").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-27").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-13")[0].completed,true);
+  store=addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","once");
+  assert.equal(assignmentsOnDate(store,"2026-10-15").length,1);
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,0);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});
+
+test("legacy stores stay valid, invalid schedule and goal are blocked",()=>{
+  const old=active();
+  assert.equal(parseGymStore(JSON.stringify(old)).blocked,false);
+  assert.equal(parseGymStore(JSON.stringify({...old,weeklyGoal:8})).blocked,true);
+  assert.equal(parseGymStore(JSON.stringify({...old,scheduledWorkouts:[{id:"x",planId:"p",dayId:"d",date:"bad",repeat:"weekly"}]})).blocked,true);
+  assert.equal(parseGymStore(JSON.stringify({...old,scheduledWorkouts:[{id:"x",planId:"p",dayId:"d",date:"2026-10-12",repeat:"weekly",until:"2026-10-12"}]})).blocked,true);
+  assert.equal(parseGymStore(JSON.stringify({...old,weeklyGoal:5,scheduledWorkouts:[]})).blocked,false);
+});
+function dateShiftForTest(date,days){const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
+
+test("weekly additions reject collisions hidden by moves and future one-off bookings",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  const native=assignmentsOnDate(store,"2026-10-12")[0];
+  store=moveOccurrence(store,native.key,"2026-10-13");
+  assert.equal(assignmentsOnDate(store,"2026-10-12").length,0);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-12","weekly"),store);
+  assert.equal(assignmentsOnDate(store,"2026-10-19").length,1,"Native Monday still repeats");
+
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-22","once");
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,1);
+  assert.equal(assignmentsOnDate(store,"2026-10-15").length,0);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-15","weekly"),store,
+    "A future one-off date blocks recurrence even though the initial date is empty");
+});
+
+test("a moved recurring slot cannot be duplicated from its temporarily empty weekday",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-13","weekly");
+  const tuesday=assignmentsOnDate(store,"2026-10-20")[0];
+  store=moveOccurrence(store,tuesday.key,"2026-10-22");
+  assert.equal(assignmentsOnDate(store,"2026-10-20").length,0);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-20","weekly"),store);
+  assert.equal(assignmentsOnDate(store,"2026-10-27").length,1);
+});
+
+test("future appointments moved onto a different weekday block colliding recurrences",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  const native=assignmentsOnDate(store,"2026-10-19")[0];
+  store=moveOccurrence(store,native.key,"2026-10-22");
+  assert.equal(assignmentsOnDate(store,"2026-10-15").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,1);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-15","weekly"),store,
+    "The future moved Push prevents overlapping weekly Pull");
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,1);
+});
+
+test("recorded future sessions also block a new overlapping weekly appointment",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-22","once");
+  const occ=assignmentsOnDate(store,"2026-10-22")[0];
+  store=startSession(store,occ.key,occ.date);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly"),store);
+  assert.equal(store.sessions.length,1);
+});
+
+test("a one-off moved off Thursday frees Thursday for a new weekly recurrence",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-22","once");
+  const once=assignmentsOnDate(store,"2026-10-22")[0];
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly"),store,
+    "The still-booked future Thursday prevents recurring Thursday");
+  store=moveOccurrence(store,once.key,"2026-10-23");
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-23").length,2,"Moved one-off coexists with native Friday");
+  const added=addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly");
+  assert.notEqual(added,store,"Thursday is now available");
+  assert.equal(assignmentsOnDate(added,"2026-10-22").length,1);
+  assert.equal(assignmentsOnDate(added,"2026-10-23").length,2);
+  assert.equal(parseGymStore(JSON.stringify(added)).blocked,false);
 });

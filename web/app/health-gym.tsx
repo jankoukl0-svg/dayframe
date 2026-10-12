@@ -4,7 +4,7 @@ import { useGymStore } from "./use-gym-store";
 import {GymExercisePicker} from "./gym-exercise-picker";
 import {matchesGymExerciseSearch} from "@/lib/dayframe-gym-exercise-groups";
 import {
-  assignmentsOnDate, dateShift, gymMetrics, lastExercisePerformance, weekday,
+  assignmentsOnDate, addGymScheduledWorkout, removeGymScheduledWorkout, dateShift, gymMetrics, lastExercisePerformance, weekday,
   makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan, setGymDayWeekday,
   type GymExercise, type GymPlan, type GymPlanDay, type GymPlanExercise,
   type GymSession, type GymSessionExercise, type GymSet, type GymTemplate
@@ -21,6 +21,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [view,setView]=useState<GymView>("workout");
   const [selectedDayId,setSelectedDayId]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState(today);
+  const [scheduleOpen,setScheduleOpen]=useState(false);
+  const [weekOffset,setWeekOffset]=useState(0);
+  const [addingOn,setAddingOn]=useState<string|null>(null);
+  const [repeatWeekly,setRepeatWeekly]=useState(true);
   const [selectedSession,setSelectedSession]=useState<string|null>(null);
   const [highlightKey,setHighlightKey]=useState<string|null>(null);
   const [newPlanName,setNewPlanName]=useState("");
@@ -38,6 +42,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [message,setMessage]=useState("");
 
   useEffect(()=>{if(!hydrated||!focusKey)return;setView("workout");setHighlightKey(focusKey);setSelectedDate(focusDate||today);
+    setScheduleOpen(true);
     const current=store.sessions.find(s=>s.occurrenceKey===focusKey);
     if(current)setSelectedSession(current.id);
     onFocusHandled?.();
@@ -64,12 +69,31 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const nearest=upcomingOccurrences[0]??null;
   const activeDayOccurrence=upcomingOccurrences.find(o=>o.dayId===activeDay?.id)??null;
   const monday=dateShift(today,-((weekday(today)+6)%7));
-  const weekDates=Array.from({length:7},(_,i)=>dateShift(monday,i));
-  const completedWeek=metrics.workouts.filter(w=>w.date>=monday&&w.date<=weekDates[6]).length;
+  const weekStart=dateShift(monday,weekOffset*7);
+  const weekDates=Array.from({length:7},(_,i)=>dateShift(weekStart,i));
+  const weeklyGoal=store.weeklyGoal??5;
+  const completedWeek=metrics.workouts.filter(w=>w.date>=monday&&w.date<=dateShift(monday,6)).length;
+  const plannedThisWeek=Array.from({length:7},(_,i)=>assignmentsOnDate(store,dateShift(monday,i))).flat().length;
   const selectedWeekOccurrences=weekDates.flatMap(day=>assignmentsOnDate(store,day));
-  const weekTotal=selectedWeekOccurrences.length;
+  const viewedWeekCompleted=selectedWeekOccurrences.filter(o=>o.completed).length;
+  const weekTotal=weeklyGoal;
   const weekDayShort=["Po","Út","St","Čt","Pá","So","Ne"];
   const exerciseName=(id:string)=>store.exercises.find(ex=>ex.id===id)?.name??"Neznámý cvik";
+  const addToWeek=(date:string,dayId:string)=>{
+    if(!activePlan || blocked || date<today)return;
+    let wasScheduled=false;
+    const saved=persist(current=>{
+      const next=addGymScheduledWorkout(current,activePlan.id,dayId,date,repeatWeekly?"weekly":"once");
+      wasScheduled=next!==current;
+      return next;
+    });
+    if(!wasScheduled){setMessage("Na tento den již připadá jiný trénink v některém z dalších týdnů. Uprav nejprve jeho termín.");return;}
+    if(saved){setSelectedDayId(dayId);setAddingOn(null);setRepeatWeekly(true);setMessage("");}
+  };
+  const removeFromWeek=(key:string,date:string)=>{
+    if(blocked || date<today || !window.confirm("Odebrat tento trénink? Opakované tréninky tím skončí od zvoleného týdne. Historie zůstane zachovaná."))return;
+    persist(current=>removeGymScheduledWorkout(current,key,date));
+  };
   const createQuickPpl=()=>{
     if(blocked||store.activePlanId)return;
     const created=makeGymPlan("Push / Pull / Lower","ppl",today);
@@ -251,13 +275,67 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
       </section> : <>
         <div className="df2-gym-summary" data-gym-summary>
           <div><small>Aktivní plán</small><strong>{activePlan?.name??"Nenastaveno"}</strong></div>
-          <div><small>Tento týden</small><strong>{completedWeek} / {weekTotal} tréninků</strong>
-            <progress aria-label="Splnění týdenního plánu" value={Math.min(completedWeek,weekTotal)} max={Math.max(1,weekTotal)}/></div>
+          <div><small>Splněno tento týden</small><strong>{completedWeek} / {weekTotal} tréninků</strong>
+            <progress aria-label="Splnění týdenního plánu" value={Math.min(completedWeek,weekTotal)} max={weekTotal}/>
+            <small>{plannedThisWeek} z {weeklyGoal} naplánováno</small></div>
           <div><small>Nejbližší termín</small><strong>{nearest?nearest.name+" · "+pretty(nearest.date):"Zatím neplánováno"}</strong></div>
         </div>
+        {activePlan && <section className="df2-gym-week-planner" data-gym-week>
+            <div className="df2-gym-week-header">
+              <div><span>ROZVRH</span><h3>Týdenní plán</h3>
+                <small>{selectedWeekOccurrences.length} z {weeklyGoal} naplánováno · {viewedWeekCompleted} hotovo</small></div>
+              <div className="df2-gym-week-toolbar">
+                <label>Týdenní cíl
+                  <select aria-label="Týdenní cíl" disabled={blocked} value={weeklyGoal}
+                    onChange={e=>persist(current=>({...current,weeklyGoal:Number(e.target.value)}))}>
+                    {Array.from({length:7},(_,i)=>i+1).map(count=>
+                      <option key={count} value={count}>{count} {count===1?"trénink":count<5?"tréninky":"tréninků"}</option>)}
+                  </select>
+                </label>
+                <div className="df2-gym-week-navigation" aria-label="Procházení týdnů">
+                  <button type="button" aria-label="Předchozí týden" onClick={()=>{setWeekOffset(n=>n-1);setAddingOn(null);}}>←</button>
+                  <strong>{weekStart.slice(8)}.{weekStart.slice(5,7)}. – {weekDates[6].slice(8)}.{weekDates[6].slice(5,7)}.</strong>
+                  <button type="button" aria-label="Další týden" onClick={()=>{setWeekOffset(n=>n+1);setAddingOn(null);}}>→</button>
+                </div>
+                {weekOffset!==0&&<button type="button" onClick={()=>{setWeekOffset(0);setAddingOn(null);}}>Aktuální týden</button>}
+              </div>
+            </div>
+            <div className="df2-gym-week-grid">{weekDates.map((date,index)=>{
+              const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
+              const canEdit=!!activePlan && date>=today && !blocked;
+              return <article className={"df2-gym-week-card"+(date===today?" is-today":"")} key={date}
+                data-gym-week-date={date}>
+                <div className="df2-gym-week-card-top">
+                  <span>{weekDayShort[index]}</span><time dateTime={date}>{Number(date.slice(8))}.{Number(date.slice(5,7))}.</time>
+                </div>
+                {scheduled.length ? <div className="df2-gym-week-entries">{scheduled.map(occ=>
+                  <div className="df2-gym-week-entry" key={occ.key} data-gym-week-workout={occ.key}>
+                    <strong>{occ.name}</strong><small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Naplánováno"}</small>
+                    <button type="button" disabled={blocked} onClick={()=>{setSelectedDayId(occ.dayId);showSession(occ.key,occ.date);}}>
+                      {occ.completed?"Zobrazit":occ.session?"Pokračovat":"Zahájit"}
+                    </button>
+                    {occ.key.split("|").length===4&&!occ.session&&canEdit&&
+                      <button type="button" aria-label={"Odebrat "+occ.name+" "+date} className="df2-gym-week-remove"
+                        onClick={()=>removeFromWeek(occ.key,date)}>Odebrat</button>}
+                  </div>)}</div> : <small className="df2-gym-week-rest">Volno</small>}
+                {!scheduled.length && canEdit && (addingOn===date ?
+                  <div className="df2-gym-week-chooser" data-gym-week-chooser>
+                    <strong>Vyber trénink</strong>
+                    {activePlan.days.map(day=><button type="button" key={day.id}
+                      onClick={()=>addToWeek(date,day.id)}>{day.name}</button>)}
+                    <label><input type="checkbox" checked={repeatWeekly}
+                      onChange={e=>setRepeatWeekly(e.target.checked)}/> Opakovat každý týden</label>
+                    <button type="button" onClick={()=>setAddingOn(null)}>Zrušit</button>
+                  </div> :
+                  <button type="button" className="df2-gym-week-add" onClick={()=>{setAddingOn(date);setRepeatWeekly(true);}}>
+                    + Přidat trénink</button>)}
+              </article>;
+            })}</div>
+            <p className="df2-gym-week-footnote">Přidávej Push, Pull nebo Lower přímo do vybraného dne. Opakování lze kdykoli ukončit bez smazání historie.</p>
+          </section>}
         {!activePlan ? <section className="df2-gym-welcome" data-gym-setup>
           <div><span>ZAČNI JEDNÍM KROKEM</span><h3>Tvůj split: Push / Pull / Lower</h3>
-            <p>Tři tréninkové dny. Cviky, série a rozvrh si můžeš kdykoli upravit. Žádný plán se nevytvoří bez tvého potvrzení.</p>
+            <p>Začni se splitem Push / Pull / Lower. Další tréninky si přidáš přímo do týdenního rozvrhu.</p>
             <div className="df2-gym-welcome-split">
               <span><strong>Push</strong><small>Hrudník · ramena · triceps</small></span>
               <span><strong>Pull</strong><small>Záda · biceps</small></span>
@@ -296,18 +374,9 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               </div>:<div className="df2-gym-preview-empty">Zatím bez cviků. Přidej první přes „Upravit cviky“.</div>}
             </section>}
           </section>
-          <details className="df2-gym-week-strip" data-gym-week>
-            <summary>Rozvrh tohoto týdne <span>Po – Ne</span></summary>
-            <div className="df2-gym-week-days">{weekDates.map((date,index)=>{
-              const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
-              return <div key={date} className={date===today?"is-today":""}>
-                <small>{weekDayShort[index]} · {date.slice(8)}.{date.slice(5,7)}.</small>
-                <strong>{scheduled.length?scheduled.map(o=>o.name).join(" / "):"—"}</strong>
-              </div>;
-            })}</div>
-          </details>
         </>}
-        <section className="df2-gym-schedule" data-gym-schedule>
+        <details className="df2-gym-schedule" data-gym-schedule open={scheduleOpen}>
+          <summary onClick={e=>{e.preventDefault();setScheduleOpen(open=>!open);}}>Podrobnosti a přesuny tréninků</summary>
           <div className="df2-gym-section-head"><div><h3>Naplánované tréninky</h3><small>Termíny a jejich splnění jsou propojené s Dnes a Týdnem.</small></div>
             <div className="df2-gym-inline"><label>Prohlížet od data <input aria-label="Prohlížet od data" type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value||today)}/></label>
             <button type="button" onClick={()=>setSelectedDate(today)}>Tento týden</button></div></div>
@@ -322,7 +391,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               </div>
             </article>)}</div>:
             <p className="df2-health-empty">Žádné tréninky v tomto období. {store.plans.length?"Uprav rozvrh nebo změň zobrazené datum.":"Vyber split výše nebo vytvoř vlastní plán."}</p>}
-        </section>
+        </details>
         {!!history.length&&<details className="df2-gym-history" data-gym-history>
           <summary>Historie tréninků <span>{history.length} záznamů</span></summary>
           <div className="df2-gym-history-list">
