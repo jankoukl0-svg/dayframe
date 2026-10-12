@@ -599,3 +599,30 @@ test("invalid saved Gym data still blocks direct weekly scheduling without overw
   await expect(root.locator("[data-gym-week]")).toHaveCount(0);
   expect(await page.evaluate(key=>localStorage.getItem(key),KEY)).toBe('{"version":999,"scheduledWorkouts":[]}');
 });
+
+test("future calendar collision shows a clear warning and lets the user choose a one-off instead",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const week=root.locator("[data-gym-week]");
+  await week.getByRole("button",{name:"Další týden"}).click();
+  const future=week.locator('[data-gym-week-date="2026-10-22"]');
+  await future.getByRole("button",{name:"+ Přidat trénink"}).click();
+  await future.getByRole("checkbox",{name:"Opakovat každý týden"}).uncheck();
+  await future.locator("[data-gym-week-chooser]").getByRole("button",{name:"Pull",exact:true}).click();
+  await week.getByRole("button",{name:"Předchozí týden"}).click();
+  const thursday=week.locator('[data-gym-week-date="2026-10-15"]');
+  await thursday.getByRole("button",{name:"+ Přidat trénink"}).click();
+  await thursday.locator("[data-gym-week-chooser]").getByRole("button",{name:"Push",exact:true}).click();
+  await expect(thursday.locator("[data-gym-week-chooser]")).toBeVisible();
+  await expect(root.getByRole("alert")).toContainText("v některém z dalších týdnů");
+  const before=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).scheduledWorkouts,KEY);
+  expect(before).toHaveLength(1);
+  await thursday.getByRole("checkbox",{name:"Opakovat každý týden"}).uncheck();
+  await thursday.locator("[data-gym-week-chooser]").getByRole("button",{name:"Push",exact:true}).click();
+  await expect(thursday.locator("[data-gym-week-chooser]")).toHaveCount(0);
+  await expect(thursday).toContainText("Push");
+  const after=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).scheduledWorkouts,KEY);
+  expect(after).toHaveLength(2);
+  expect(after.every(slot=>slot.repeat==="once")).toBe(true);
+});
