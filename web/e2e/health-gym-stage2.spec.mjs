@@ -653,3 +653,35 @@ test("Gym and an overlapping calendar task have separate visible and clickable l
   await gymTile.click();
   await expect(page.locator("[data-gym-root]")).toBeVisible();
 });
+
+test("a historical unstarted Week workout opens its original plan after switching the active plan",async({page})=>{
+  await fresh(page);
+  const original=await createPlan(page,"Původní Upper");
+  await original.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
+  const previousId=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)).plans[0].id,KEY);
+  await page.clock.setFixedTime(new Date("2026-10-13T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  const switched=await gym(page);
+  await switched.getByRole("button",{name:"+ Tréninkový plán"}).click();
+  const modal=page.getByRole("dialog",{name:"Nový tréninkový plán"});
+  await modal.getByRole("textbox",{name:"Název nového plánu"}).fill("Nový Pull");
+  await modal.getByRole("combobox",{name:"Šablona plánu"}).selectOption("ppl");
+  await modal.getByRole("button",{name:"Vytvořit plán"}).click();
+  await switched.locator(".df2-gym-plan-switch article").last().getByRole("button",{name:"Aktivovat"}).click();
+  const activeId=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)).activePlanId,KEY);
+  expect(activeId).not.toBe(previousId);
+  await page.clock.setFixedTime(new Date("2026-10-14T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await page.locator("[data-week-gym]").first().click();
+  const root=page.locator("[data-gym-root]");
+  const preview=root.locator("[data-gym-workout-preview]");
+  await expect(preview).toContainText("Původní Upper");
+  await expect(preview).toContainText("Upper");
+  await expect(preview).toContainText("po 12.");
+  await preview.getByRole("button",{name:"Zahájit trénink"}).click();
+  const state=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(state.sessions).toHaveLength(1);
+  expect(state.sessions[0]).toMatchObject({planId:previousId,date:"2026-10-12"});
+  expect(state.activePlanId).toBe(activeId);
+});
