@@ -49,7 +49,7 @@ test("active plan appears once in Today and Week, with one shared completion and
   await expect(week.first()).toContainText("Hotovo");
   await week.first().click();
   await expect(page.locator("[data-gym-root]")).toBeVisible();
-  await expect(page.locator("[data-gym-schedule]")).toHaveAttribute("open","");
+  // A completed occurrence opens its actual session rather than the calendar.
   await expect(page.locator("[data-gym-log-exercise]").first()).toBeVisible();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.sessions).toHaveLength(1);
@@ -100,7 +100,9 @@ test("custom exercises, plans and historical progress are retained without gym d
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days[0].exercises.some(item=>saved.exercises.find(ex=>ex.id===item.exerciseId)?.name==="Bulharský dřep")).toBe(true);
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
-  await root.locator("[data-gym-schedule] summary").click();
+  // This section may stay open across in-page view switches.
+  if(!await root.getByLabel("Prohlížet od data").isVisible())
+    await root.locator("[data-gym-schedule] summary").click();
   await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
   const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
   await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("90");
