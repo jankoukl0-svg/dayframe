@@ -21,6 +21,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [view,setView]=useState<GymView>("workout");
   const [selectedDayId,setSelectedDayId]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState(today);
+  const [scheduleOpen,setScheduleOpen]=useState(false);
   const [weekOffset,setWeekOffset]=useState(0);
   const [addingOn,setAddingOn]=useState<string|null>(null);
   const [repeatWeekly,setRepeatWeekly]=useState(true);
@@ -41,6 +42,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [message,setMessage]=useState("");
 
   useEffect(()=>{if(!hydrated||!focusKey)return;setView("workout");setHighlightKey(focusKey);setSelectedDate(focusDate||today);
+    setScheduleOpen(true);
     const current=store.sessions.find(s=>s.occurrenceKey===focusKey);
     if(current)setSelectedSession(current.id);
     onFocusHandled?.();
@@ -367,8 +369,8 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             </section>}
           </section>
         </>}
-        <details className="df2-gym-schedule" data-gym-schedule defaultOpen={!!focusKey}>
-          <summary>Podrobnosti a přesuny tréninků</summary>
+        <details className="df2-gym-schedule" data-gym-schedule open={scheduleOpen}>
+          <summary onClick={e=>{e.preventDefault();setScheduleOpen(open=>!open);}}>Podrobnosti a přesuny tréninků</summary>
           <div className="df2-gym-section-head"><div><h3>Naplánované tréninky</h3><small>Termíny a jejich splnění jsou propojené s Dnes a Týdnem.</small></div>
             <div className="df2-gym-inline"><label>Prohlížet od data <input aria-label="Prohlížet od data" type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value||today)}/></label>
             <button type="button" onClick={()=>setSelectedDate(today)}>Tento týden</button></div></div>
