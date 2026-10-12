@@ -21,6 +21,7 @@ async function createPlan(page,name="Můj Upper / Lower"){
   await modal.getByRole("combobox",{name:"Šablona plánu"}).selectOption("upper-lower");
   await modal.getByRole("button",{name:"Vytvořit plán"}).click();
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator("[data-gym-schedule] summary").click();
   return root;
 }
 test("active plan appears once in Today and Week, with one shared completion and persistent gym records",async({page})=>{
@@ -48,6 +49,7 @@ test("active plan appears once in Today and Week, with one shared completion and
   await expect(week.first()).toContainText("Hotovo");
   await week.first().click();
   await expect(page.locator("[data-gym-root]")).toBeVisible();
+  // A completed occurrence opens its actual session rather than the calendar.
   await expect(page.locator("[data-gym-log-exercise]").first()).toBeVisible();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.sessions).toHaveLength(1);
@@ -70,6 +72,7 @@ test("workout can be moved between dates, shows once and cannot move a started o
   const moves=page.locator('[data-week-gym="'+key+'"]');
   await expect(moves).toHaveCount(1);
   await moves.click();
+  await expect(page.locator("[data-gym-schedule]")).toHaveAttribute("open","");
   const selected=page.locator('[data-gym-occurrence="'+key+'"]');
   await expect(selected).toBeVisible();
   await selected.getByRole("button",{name:"Zahájit"}).click();
@@ -97,6 +100,9 @@ test("custom exercises, plans and historical progress are retained without gym d
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days[0].exercises.some(item=>saved.exercises.find(ex=>ex.id===item.exerciseId)?.name==="Bulharský dřep")).toBe(true);
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  // This section may stay open across in-page view switches.
+  if(!await root.getByLabel("Prohlížet od data").isVisible())
+    await root.locator("[data-gym-schedule] summary").click();
   await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
   const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
   await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("90");
@@ -248,6 +254,7 @@ test("historical schedule browsing does not change today's gym dashboard or the 
   const summary=root.locator("[data-gym-summary]");
   const initial=await summary.innerText();
   await expect(root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"})).toBeVisible();
+  await root.locator("[data-gym-schedule] summary").click();
   await root.getByLabel("Prohlížet od data").fill("2026-09-28");
   await expect(root.locator("[data-gym-occurrence]")).toHaveCount(0);
   expect(await summary.innerText()).toBe(initial);
@@ -516,4 +523,69 @@ test("simplified Gym shows the chosen workout and keeps advanced set fields opti
   const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(after.plans).toEqual(before.plans);
   expect(after.sessions[0].exercises[0].sets[0]).toMatchObject({weightKg:60,reps:10,rpe:8,done:true});
+});
+
+test("a gym user can build five recurring Push Pull Lower sessions from the weekly section without date fields",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const week=root.locator("[data-gym-week]");
+  await expect(week).toBeVisible();
+  await week.getByRole("combobox",{name:"Úterý – typ tréninku"}).selectOption({label:"Push"});
+  await week.getByRole("combobox",{name:"Čtvrtek – typ tréninku"}).selectOption({label:"Pull"});
+  await expect(week).toContainText("5 tréninků týdně");
+  // Adding recurring instances does not clutter the workout-template switcher.
+  await expect(root.locator("[data-gym-day]")).toHaveCount(3);
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  await expect(root.locator("[data-gym-plan-editor] .df2-gym-day-edit")).toHaveCount(3);
+  await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.plans[0].days.filter(day=>day.scheduleHistory?.at(-1)?.weekday!==null)).toHaveLength(5);
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await expect(again.locator("[data-gym-week]")).toContainText("5 tréninků týdně");
+  await expect(again.locator("[data-gym-schedule]")).not.toHaveAttribute("open","");
+  await again.locator("[data-gym-schedule] summary").click();
+  // The 14-day browser window runs from today - 3 to today + 10, not two full calendar weeks.
+  await expect(again.locator("[data-gym-occurrence]")).toHaveCount(9);
+});
+
+test("a repeated template can start its nearest weekday and new templates do not create extra Monday workouts",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.locator("[data-gym-week]").getByRole("combobox",{name:"Úterý – typ tréninku"}).selectOption({label:"Push"});
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  await root.locator("[data-gym-plan-editor]").getByRole("button",{name:"+ Tréninkový den"}).click();
+  const before=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(before.plans[0].days.at(-1).scheduleHistory.at(-1).weekday).toBeNull();
+  await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await expect(root.locator("[data-gym-week]")).toContainText("4 tréninků týdně");
+  await page.clock.setFixedTime(new Date("2026-10-13T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await expect(again.locator("[data-gym-workout-preview]")).toContainText("další út 13.");
+  await again.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  const updated=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(updated.sessions[0].date).toBe("2026-10-13");
+  await again.getByRole("button",{name:"← Zpět na plán"}).click();
+  const monday=again.locator('[data-gym-weekday="1"]');
+  await expect(monday.getByRole("combobox")).toBeEnabled();
+  await monday.getByRole("combobox").selectOption({label:"Volno"});
+  const following=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(following.sessions).toHaveLength(1);
+  expect(following.sessions[0].date).toBe("2026-10-13");
+});
+
+test("new gym templates show 'Nenaplánováno' until the user assigns a weekday",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  await root.locator("[data-gym-plan-editor]").getByRole("button",{name:"+ Tréninkový den"}).click();
+  await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator('[data-gym-day="Nový trénink"]').click();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Nenaplánováno");
+  await root.locator("[data-gym-week]").getByRole("combobox",{name:"Sobota – typ tréninku"}).selectOption({label:"Nový trénink"});
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Sobota");
 });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence,
+  emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, setGymWeekdayAssignment,
   occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
@@ -160,4 +160,78 @@ test("older existing gym stores gain new catalog entries without changing plans,
   assert.equal(JSON.stringify(old),raw,"Source store should not be mutated");
   assert.equal(extendGymExerciseCatalog(enlarged),enlarged,"Repeated hydration must not duplicate entries");
   assert.equal(parseGymStore(JSON.stringify(enlarged)).blocked,false);
+});
+
+test("five-day weekly split repeats and leaves historical sessions and exercise IDs intact",()=>{
+  let state=active();
+  // Existing plan has two template days. Build extra recurring slots from those templates.
+  const plan=state.plans[0];
+  const original=JSON.stringify(state.sessions);
+  state=setGymWeekdayAssignment(state,plan.id,2,plan.days[0].id,"2026-10-12");
+  state=setGymWeekdayAssignment(state,plan.id,3,plan.days[1].id,"2026-10-12");
+  state=setGymWeekdayAssignment(state,plan.id,5,plan.days[0].id,"2026-10-12");
+  assert.equal([12,13,14,15,16,17,18].reduce((sum,d)=>sum+assignmentsOnDate(state,"2026-10-"+d).length,0),5);
+  assert.equal(assignmentsOnDate(state,"2026-10-20").length,1);
+  assert.equal(JSON.stringify(state.sessions),original);
+  assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
+  const count=state.plans[0].days.length;
+  state=setGymWeekdayAssignment(state,plan.id,5,plan.days[0].id,"2026-10-12");
+  assert.equal(state.plans[0].days.length,count);
+  state=setGymWeekdayAssignment(state,plan.id,5,null,"2026-10-12");
+  assert.equal(assignmentsOnDate(state,"2026-10-16").length,0);
+  assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
+});
+
+test("recurring copies reflect later edits to shared workout templates",()=>{
+  let store=active();
+  const plan=store.plans[0],template=plan.days[0];
+  store=setGymWeekdayAssignment(store,plan.id,2,template.id,"2026-10-12");
+  const copy=store.plans[0].days.find(d=>d.templateDayId===template.id);
+  assert.ok(copy);
+  assert.equal(copy.exercises.length,0);
+  store={...store,plans:store.plans.map(p=>({...p,days:p.days.map(d=>d.id===template.id?
+    {...d,exercises:[{...template.exercises[0],sets:5,reps:7}]}:d)}))};
+  const occ=assignmentsOnDate(store,"2026-10-13")[0];
+  store=startSession(store,occ.key,occ.date);
+  assert.equal(store.sessions[0].exercises.length,1);
+  assert.equal(store.sessions[0].exercises[0].sets.length,5);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});
+
+test("changing recurrence preserves manually moved future occurrences and their original identity",()=>{
+  let store=active();
+  const template=store.plans[0].days[0];
+  const original=assignmentsOnDate(store,"2026-10-19")[0];
+  assert.ok(original);
+  store=moveOccurrence(store,original.key,"2026-10-20");
+  assert.equal(assignmentsOnDate(store,"2026-10-20")[0].key,original.key);
+  store=setGymWeekdayAssignment(store,store.activePlanId,1,null,"2026-10-12");
+  assert.equal(assignmentsOnDate(store,"2026-10-19").length,0);
+  const moved=assignmentsOnDate(store,"2026-10-20").find(x=>x.key===original.key);
+  assert.ok(moved,"Explicit date move must survive a weekday recurrence change");
+  assert.equal(moved.originalDate,"2026-10-19");
+  assert.equal(moved.dayId,template.id);
+  assert.equal(store.moves[original.key],"2026-10-20");
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+  store=moveOccurrence(store,original.key,"2026-10-21");
+  assert.equal(assignmentsOnDate(store,"2026-10-21")[0].key,original.key);
+  // Returning an explicitly moved occurrence to its original weekday remains
+  // a one-off booking when the old recurring weekday is no longer active.
+  store=moveOccurrence(store,original.key,"2026-10-19");
+  assert.equal(store.moves[original.key],"2026-10-19");
+  assert.equal(assignmentsOnDate(store,"2026-10-19")[0].key,original.key);
+  store=startSession(store,original.key,"2026-10-19");
+  assert.equal(store.sessions[0].occurrenceKey,original.key);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});
+
+test("recurrence edits do not change an already-started moved session",()=>{
+  let store=active();
+  const occurrence=assignmentsOnDate(store,"2026-10-19")[0];
+  store=moveOccurrence(store,occurrence.key,"2026-10-20");
+  store=startSession(store,occurrence.key,"2026-10-20");
+  const saved=JSON.stringify(store.sessions);
+  store=setGymWeekdayAssignment(store,store.activePlanId,1,null,"2026-10-12");
+  assert.equal(JSON.stringify(store.sessions),saved);
+  assert.equal(assignmentsOnDate(store,"2026-10-20")[0].session?.id,store.sessions[0].id);
 });

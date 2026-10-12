@@ -3,7 +3,7 @@ export const GYM_SYNC_EVENT = "dayframe-gym-sync";
 
 export type GymExercise = { id: string; name: string; muscle: string; equipment: string; kind: string; technique: string; photoUrl?: string; custom?: boolean };
 export type GymPlanExercise = { id: string; exerciseId: string; sets: number; reps: number; restSeconds: number };
-export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[]; scheduleHistory?: Array<{effectiveFrom:string;weekday:number}> };
+export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[]; templateDayId?:string; scheduleHistory?: Array<{effectiveFrom:string;weekday:number|null}> };
 export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?: string };
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
@@ -122,9 +122,9 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
     for(const p of s.plans) {
       if(!p || !str(p.id,100) || !p.id || !str(p.name) || !p.name.trim() || (p.createdOn!==undefined && !dateValid(p.createdOn)) || !Array.isArray(p.days) || !distinct(p.days)) throw Error("plan");
       for(const d of p.days) {
-        if(!d || !str(d.id,100) || !d.id || !str(d.name) || !num(d.weekday,0,6) || !Number.isInteger(d.weekday) || !Array.isArray(d.exercises) || !distinct(d.exercises)
+        if(!d || !str(d.id,100) || !d.id || !str(d.name) || !num(d.weekday,0,6) || !Number.isInteger(d.weekday) || !Array.isArray(d.exercises) || !distinct(d.exercises) || (d.templateDayId!==undefined && (!str(d.templateDayId,100)||!p.days.some(x=>x.id===d.templateDayId&&!x.templateDayId)))
           || (d.scheduleHistory!==undefined && (!Array.isArray(d.scheduleHistory) || !distinct(d.scheduleHistory.map(x=>({id:x.effectiveFrom})))
-            ||d.scheduleHistory.some(x=>!dateValid(x.effectiveFrom)||!num(x.weekday,0,6)||!Number.isInteger(x.weekday))))) throw Error("day");
+            ||d.scheduleHistory.some(x=>!dateValid(x.effectiveFrom)||(x.weekday!==null&&(!num(x.weekday,0,6)||!Number.isInteger(x.weekday))))))) throw Error("day");
         for(const e of d.exercises) if(!e || !str(e.id,100) || !str(e.exerciseId,100) || !num(e.sets,1,12) || !Number.isInteger(e.sets) || !num(e.reps,1,100) || !Number.isInteger(e.reps) || !num(e.restSeconds,0,1800)) throw Error("template");
       }
     }
@@ -202,17 +202,51 @@ export function setGymDayWeekday(plan:GymPlan,dayId:string,weekdayValue:number,t
     ]};
   })};
 }
+/**
+ * Update one recurring weekday without destroying past occurrences or sessions.
+ * Repeated days reference one canonical workout template; logged sessions keep their own snapshots.
+ * Disabled rows keep their identity and past sessions, while explicit date moves remain authoritative.
+ */
+export function setGymWeekdayAssignment(store:GymStore,planId:string,dayOfWeek:number,
+  templateDayId:string|null,today:string):GymStore {
+  if(!dateValid(today)||!Number.isInteger(dayOfWeek)||dayOfWeek<0||dayOfWeek>6)return store;
+  const plan=store.plans.find(p=>p.id===planId);
+  if(!plan||!plan.days.length||activeGymPlanOnDate(store,today)?.id!==planId)return store;
+  const source=templateDayId===null?null:plan.days.find(d=>d.id===templateDayId);
+  if(templateDayId!==null&&!source)return store;
+  const current=plan.days.filter(d=>gymDayWeekdayOnDate(d,today)===dayOfWeek);
+  // Repeat calls must not duplicate training slots.
+  if(current.length===1&&source&&(current[0].templateDayId??current[0].id)===(source.templateDayId??source.id))return store;
+  if(current.length===0&&!source)return store;
+  const revision=(day:GymPlanDay,weekdayValue:number|null):GymPlanDay=>{
+    const initial=day.scheduleHistory?.length?day.scheduleHistory:
+      [{effectiveFrom:plan.createdOn??today,weekday:day.weekday}];
+    const retained=initial.filter(x=>x.effectiveFrom<today);
+    return {...day,scheduleHistory:[...retained,{effectiveFrom:today,weekday:weekdayValue}]};
+  };
+  const updated=plan.days.map(day=>current.some(x=>x.id===day.id)?revision(day,null):day);
+  if(source){
+    updated.push({id:uid("day"),name:source.name,weekday:dayOfWeek,
+      templateDayId:source.templateDayId??source.id,
+      scheduleHistory:[{effectiveFrom:today,weekday:dayOfWeek}],exercises:[]});
+  }
+  return {...store,plans:store.plans.map(p=>p.id===planId?{...p,days:updated}:p)};
+}
+
 export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   if(!dateValid(date))return [];
   const result:GymOccurrence[]=[];
   const append=(plan:GymPlan,day:GymPlanDay,origin:string)=>{
     const key=occurrenceKey(plan.id,day.id,origin);
+    // A move was validated when saved. Subsequent changes to the recurring
+    // weekday must not silently erase that one-off date assignment.
+    const explicitMove=Object.prototype.hasOwnProperty.call(store.moves,key)&&store.moves[key]===date;
     if((plan.createdOn && origin<plan.createdOn) || (store.moves[key]??origin)!==date
       ||activeGymPlanOnDate(store,origin)?.id!==plan.id
-      ||gymDayWeekdayOnDate(day,origin)!==weekday(origin))return;
+      ||(!explicitMove&&gymDayWeekdayOnDate(day,origin)!==weekday(origin)))return;
     const session=store.sessions.find(s=>s.occurrenceKey===key)??null;
     if(result.some(x=>x.key===key))return;
-    result.push({key,planId:plan.id,dayId:day.id,name:session?.title??day.name,
+    result.push({key,planId:plan.id,dayId:day.id,name:session?.title??(plan.days.find(x=>x.id===day.templateDayId)?.name??day.name),
       date,originalDate:origin,completed:!!session?.completedAt,session});
   };
   const todayPlan=activeGymPlanOnDate(store,date);
@@ -221,7 +255,7 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   for(const [key,target] of Object.entries(store.moves)){
     if(target!==date)continue;
     const [planId,dayId,origin,...rest]=key.split("|");
-    if(rest.length || !dateValid(origin) || origin===date)continue;
+    if(rest.length || !dateValid(origin))continue;
     const plan=store.plans.find(p=>p.id===planId), day=plan?.days.find(x=>x.id===dayId);
     if(plan&&day)append(plan,day,origin);
   }
@@ -238,12 +272,17 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
 export function moveOccurrence(store:GymStore,key:string,target:string):GymStore {
   const [planId,dayId,origin,...rest]=key.split("|");
   const plan=store.plans.find(p=>p.id===planId);
-  if(!dateValid(target)||!dateValid(origin)||rest.length||!plan
+  const day=plan?.days.find(x=>x.id===dayId);
+  if(!dateValid(target)||!dateValid(origin)||rest.length||!plan||!day
     ||(plan.createdOn && (target<plan.createdOn || origin<plan.createdOn))
     ||activeGymPlanOnDate(store,origin)?.id!==planId
-    ||!plan.days.some(x=>x.id===dayId && gymDayWeekdayOnDate(x,origin)===weekday(origin))
+    ||!(gymDayWeekdayOnDate(day,origin)===weekday(origin)||Object.prototype.hasOwnProperty.call(store.moves,key))
     ||store.sessions.some(s=>s.occurrenceKey===key))return store;
-  const moves={...store.moves};if(target===origin)delete moves[key];else moves[key]=target;
+  const moves={...store.moves};
+  // Reverting to the original day must still retain a one-off booking if
+  // that weekday was subsequently removed from the recurring plan.
+  if(target===origin&&gymDayWeekdayOnDate(day,origin)===weekday(origin))delete moves[key];
+  else moves[key]=target;
   return {...store,moves};
 }
 export function uid(prefix:string) {return prefix+"-"+crypto.randomUUID();}
@@ -251,9 +290,12 @@ export function newSet(kind:GymSet["kind"]="work"):GymSet {return {id:uid("set")
 export function startSession(store:GymStore,key:string,date:string,now=new Date().toISOString()):GymStore {
   const found=assignmentsOnDate(store,date).find(x=>x.key===key);
   if(!found || found.session)return store;
-  const day=store.plans.find(p=>p.id===found.planId)?.days.find(x=>x.id===found.dayId);
-  if(!day)return store;
-  const exercises=day.exercises.map(x=>({id:uid("log-ex"),exerciseId:x.exerciseId,
+  const plan=store.plans.find(p=>p.id===found.planId);
+  const day=plan?.days.find(x=>x.id===found.dayId);
+  if(!plan||!day)return store;
+  const template=day.templateDayId?plan.days.find(x=>x.id===day.templateDayId):day;
+  if(!template)return store;
+  const exercises=template.exercises.map(x=>({id:uid("log-ex"),exerciseId:x.exerciseId,
     name:store.exercises.find(e=>e.id===x.exerciseId)?.name??"Neznámý cvik",
     sets:Array.from({length:x.sets},()=>newSet()),note:""}));
   return {...store,sessions:[...store.sessions,{id:uid("session"),occurrenceKey:key,planId:found.planId,dayId:found.dayId,
