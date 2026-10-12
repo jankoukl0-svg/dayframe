@@ -4,7 +4,7 @@ import { useGymStore } from "./use-gym-store";
 import {GymExercisePicker} from "./gym-exercise-picker";
 import {matchesGymExerciseSearch} from "@/lib/dayframe-gym-exercise-groups";
 import {
-  assignmentsOnDate, dateShift, gymMetrics, gymDayWeekdayOnDate, setGymWeekdayAssignment, lastExercisePerformance, weekday,
+  assignmentsOnDate, dateShift, gymMetrics, gymDayWeekdayOnDate, gymDayTimeOnDate, setGymWeekdayAssignment, setGymWeekdayTime, lastExercisePerformance, weekday,
   makeGymPlan, moveOccurrence, newSet, startSession, uid, setActiveGymPlan,
   type GymExercise, type GymPlan, type GymPlanDay, type GymPlanExercise,
   type GymSession, type GymSessionExercise, type GymSet, type GymTemplate
@@ -324,6 +324,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
               const hasSession=scheduled.some(o=>o.session);
               const matchingTemplate=gymTemplates.find(d=>d.id===(configured?.templateDayId??configured?.id));
+              const trainingTime=configured?gymDayTimeOnDate(configured,today):{start:null,duration:60};
               return <div key={date} className={"df2-gym-week-planner-day "+(date===today?"is-today":"")}
                 data-gym-weekday={dayOfWeek}>
                 <div><strong>{weekDayShort[index]}</strong><small>{date.slice(8)}.{date.slice(5,7)}.</small></div>
@@ -339,11 +340,27 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                     {gymTemplates.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </label>
+                {configured&&<div className="df2-gym-week-time" data-gym-week-time={dayOfWeek}>
+                  <label><span>Čas</span>
+                    <input type="time" aria-label={scheduleLabels[dayOfWeek]+" – čas tréninku"}
+                      min="08:00" max="23:45" step={900} value={trainingTime.start??""}
+                      disabled={blocked||(hasSession&&!isPast)}
+                      onChange={e=>persist(s=>setGymWeekdayTime(s,activePlan.id,dayOfWeek,e.target.value||null,trainingTime.duration,today))}/>
+                  </label>
+                  <label><span>Délka</span>
+                    <select aria-label={scheduleLabels[dayOfWeek]+" – délka tréninku"} value={trainingTime.duration}
+                      disabled={blocked||(hasSession&&!isPast)}
+                      onChange={e=>persist(s=>setGymWeekdayTime(s,activePlan.id,dayOfWeek,trainingTime.start,Number(e.target.value),today))}>
+                      {[30,45,60,75,90,120,150,180].map(n=><option key={n} value={n}>{n} min</option>)}
+                    </select>
+                  </label>
+                  {!trainingTime.start&&<small className="df2-gym-week-time-hint">Zvol čas pro zobrazení v kalendáři.</small>}
+                </div>}
                 {hasSession&&!isPast?<small className="df2-gym-week-status">Rozpracováno · datum je uzamčeno</small>
                   :isPast?<small className="df2-gym-week-status">Změna se projeví v dalších týdnech</small>:null}
               </div>;
             })}</div>
-            <p className="df2-gym-week-note">Např. Push / Pull / Lower / Push / Pull = 5 tréninků. Úpravy nemění již uložené tréninky.</p>
+            <p className="df2-gym-week-note">Zvol čas a délku tréninku, aby se zobrazil mezi bloky v kalendáři Týden. Bez času zůstane jen v Gymu. Uložené tréninky se nemění.</p>
           </section>
         </>}
         <details className="df2-gym-schedule" data-gym-schedule open={scheduleExpanded}

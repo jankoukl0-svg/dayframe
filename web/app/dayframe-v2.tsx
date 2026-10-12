@@ -41,7 +41,8 @@ import { DailyChecklist } from "./daily-checklist";
 import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
-import { assignmentsOnDate } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime } from "@/lib/dayframe-gym";
+import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 
 const STORAGE_KEY = "dayframe-v1";
@@ -658,6 +659,17 @@ export function DayframeV2() {
                     const tasks = getTasksForDate(data, key);
                     const unscheduled = tasks.filter((task) => !task.start);
                     const scheduled = tasks.filter((task) => task.start && task.end);
+                    const timedGym=assignmentsOnDate(gym.store,key)
+                      .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
+                      .filter(item=>item.time.start!==null);
+                    const lanePositions=placeWeekGymCollisions([
+                      ...timedGym.map(({occ,time})=>({
+                        id:"gym:"+occ.key,start:timeToMinutes(time.start??undefined),
+                        end:timeToMinutes(time.start??undefined)+time.duration,gym:true})),
+                      ...scheduled.map(task=>({
+                        id:"task:"+task.id,start:timeToMinutes(task.start),
+                        end:timeToMinutes(task.start)+task.duration,gym:false})),
+                    ]);
                     return (
                       <article className={`df2-week-day ${key === todayKey ? "today" : ""}`} key={key}>
                         <header className="df2-week-day-head" onClick={() => key >= todayKey && openAdd(key)}>
@@ -666,12 +678,8 @@ export function DayframeV2() {
                         </header>
                         <div className="df2-unscheduled">
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
-                          {assignmentsOnDate(gym.store,key).map(occ => (
-                            <button type="button" key={occ.key} data-week-gym={occ.key} className="df2-week-gym"
-                              onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}>
-                              <strong>{occ.name}</strong><small>{occ.completed?"✓ Gym · Hotovo":occ.session?"Gym · Rozpracováno":"Gym · bez času"}</small>
-                            </button>
-                          ))}
+                          {/* Unscheduled Gym items remain in the Gym planner and daily checklist.
+                               We never fabricate an hour or float them above the week grid. */}
                         </div>
                         <div
                           className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
@@ -696,6 +704,20 @@ export function DayframeV2() {
                               <strong>{dropPreview.valid ? dropPreview.start : "není místo"}</strong>
                             </div>
                           )}
+                          {timedGym.map(({occ,time})=>{
+                            if(!time.start)return null;
+                            const top=(timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT;
+                            const height=time.duration*MINUTE_HEIGHT;
+                            const end=minutesToTime(timeToMinutes(time.start)+time.duration);
+                            return <button key={occ.key} type="button" data-week-gym={occ.key}
+                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
+                              style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
+                              title="Otevřít trénink v Gymu"
+                              onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}>
+                              <span>{time.start}–{end}</span><strong>{occ.name}</strong>
+                              <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
+                            </button>;
+                          })}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
                             const height = task.duration * MINUTE_HEIGHT;
@@ -703,7 +725,7 @@ export function DayframeV2() {
                               <button
                                 key={task.id}
                                 className={`df2-week-task ${task.completed ? "done" : ""}`}
-                                style={{ top: `${top}px`, height: `${height}px` }}
+                                style={{ top: `${top}px`, height: `${height}px`, ...(lanePositions["task:"+task.id]??{}) }}
                                 draggable={!task.completed}
                                 onDragStart={(event) => {
                                   const rect = event.currentTarget.getBoundingClientRect();

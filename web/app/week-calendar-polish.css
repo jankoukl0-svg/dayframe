@@ -442,3 +442,7 @@
 @media (prefers-reduced-motion: reduce) {
   .df2-week-task.done { animation: none; }
 }
+
+.df2-week-task.df2-week-gym{left:7px;right:7px;display:grid;box-sizing:border-box;border:1px solid #d5afa1;border-left:3px solid var(--accent);border-radius:5px;background:#f9ede7}
+.df2-week-task.df2-week-gym:hover{z-index:6;background:#fff4ed}
+.df2-week-task.df2-week-gym.done{background:#f3f5f0;border-color:#c9cec5;border-left-color:var(--success)}
