@@ -219,10 +219,11 @@ test("weekly additions reject collisions hidden by moves and future one-off book
   assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-12","weekly"),store);
   assert.equal(assignmentsOnDate(store,"2026-10-19").length,1,"Native Monday still repeats");
 
-  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-20","once");
-  assert.equal(assignmentsOnDate(store,"2026-10-20").length,1);
-  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-13","weekly"),store,
-    "A future one-off date also blocks a weekly recurrence");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-22","once");
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,1);
+  assert.equal(assignmentsOnDate(store,"2026-10-15").length,0);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-15","weekly"),store,
+    "A future one-off date blocks recurrence even though the initial date is empty");
 });
 
 test("a moved recurring slot cannot be duplicated from its temporarily empty weekday",()=>{
