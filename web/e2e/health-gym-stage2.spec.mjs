@@ -576,3 +576,16 @@ test("a repeated template can start its nearest weekday and new templates do not
   expect(following.sessions).toHaveLength(1);
   expect(following.sessions[0].date).toBe("2026-10-13");
 });
+
+test("new gym templates show 'Nenaplánováno' until the user assigns a weekday",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  await root.locator("[data-gym-plan-editor]").getByRole("button",{name:"+ Tréninkový den"}).click();
+  await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator('[data-gym-day="Nový trénink"]').click();
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Nenaplánováno");
+  await root.locator("[data-gym-week]").getByRole("combobox",{name:"Sobota – typ tréninku"}).selectOption({label:"Nový trénink"});
+  await expect(root.locator("[data-gym-workout-preview]")).toContainText("Sobota");
+});

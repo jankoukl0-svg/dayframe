@@ -71,6 +71,15 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const selectedWeekOccurrences=weekDates.flatMap(day=>assignmentsOnDate(store,day));
   // One reusable template per named workout: duplicates in the week are intentional.
   const gymTemplates=activePlan?.days.filter(d=>!d.templateDayId)??[];
+  // Template weekdays come from currently active recurrence revisions,
+  // not the legacy weekday fallback used by the schedule-history model.
+  const activeDayWeekdays=[...new Set((activePlan?.days??[])
+    .filter(d=>(d.templateDayId??d.id)===activeDay?.id)
+    .map(d=>gymDayWeekdayOnDate(d,today))
+    .filter((n):n is number=>n!==null))]
+    .sort((a,b)=>(a+6)%7-(b+6)%7);
+  const activeDayScheduleLabel=activeDayWeekdays.length
+    ?activeDayWeekdays.map(d=>WEEKDAYS[d]).join(" · "):"Nenaplánováno";
   const scheduleLabels=["Neděle","Pondělí","Úterý","Středa","Čtvrtek","Pátek","Sobota"];
   const weekTotal=selectedWeekOccurrences.length;
   const weekDayShort=["Po","Út","St","Čt","Pá","So","Ne"];
@@ -287,7 +296,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             {activeDay&&<section className="df2-gym-workout-preview" data-gym-workout-preview>
               <div className="df2-gym-workout-top">
                 <div><span>VYBRANÝ TRÉNINK</span><h3>{activeDay.name}</h3>
-                  <small>{WEEKDAYS[activeDay.weekday]} · {activeDay.exercises.length} cviků
+                  <small>{activeDayScheduleLabel} · {activeDay.exercises.length} cviků
                     {activeDayOccurrence?" · další "+pretty(activeDayOccurrence.date):""}</small></div>
                 <div className="df2-gym-workout-actions">
                   {activeDayOccurrence&&<button type="button" className="df2-primary" disabled={blocked}

@@ -197,3 +197,41 @@ test("recurring copies reflect later edits to shared workout templates",()=>{
   assert.equal(store.sessions[0].exercises[0].sets.length,5);
   assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
 });
+
+test("changing recurrence preserves manually moved future occurrences and their original identity",()=>{
+  let store=active();
+  const template=store.plans[0].days[0];
+  const original=assignmentsOnDate(store,"2026-10-19")[0];
+  assert.ok(original);
+  store=moveOccurrence(store,original.key,"2026-10-20");
+  assert.equal(assignmentsOnDate(store,"2026-10-20")[0].key,original.key);
+  store=setGymWeekdayAssignment(store,store.activePlanId,1,null,"2026-10-12");
+  assert.equal(assignmentsOnDate(store,"2026-10-19").length,0);
+  const moved=assignmentsOnDate(store,"2026-10-20").find(x=>x.key===original.key);
+  assert.ok(moved,"Explicit date move must survive a weekday recurrence change");
+  assert.equal(moved.originalDate,"2026-10-19");
+  assert.equal(moved.dayId,template.id);
+  assert.equal(store.moves[original.key],"2026-10-20");
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+  store=moveOccurrence(store,original.key,"2026-10-21");
+  assert.equal(assignmentsOnDate(store,"2026-10-21")[0].key,original.key);
+  // Returning an explicitly moved occurrence to its original weekday remains
+  // a one-off booking when the old recurring weekday is no longer active.
+  store=moveOccurrence(store,original.key,"2026-10-19");
+  assert.equal(store.moves[original.key],"2026-10-19");
+  assert.equal(assignmentsOnDate(store,"2026-10-19")[0].key,original.key);
+  store=startSession(store,original.key,"2026-10-19");
+  assert.equal(store.sessions[0].occurrenceKey,original.key);
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});
+
+test("recurrence edits do not change an already-started moved session",()=>{
+  let store=active();
+  const occurrence=assignmentsOnDate(store,"2026-10-19")[0];
+  store=moveOccurrence(store,occurrence.key,"2026-10-20");
+  store=startSession(store,occurrence.key,"2026-10-20");
+  const saved=JSON.stringify(store.sessions);
+  store=setGymWeekdayAssignment(store,store.activePlanId,1,null,"2026-10-12");
+  assert.equal(JSON.stringify(store.sessions),saved);
+  assert.equal(assignmentsOnDate(store,"2026-10-20")[0].session?.id,store.sessions[0].id);
+});

@@ -204,8 +204,8 @@ export function setGymDayWeekday(plan:GymPlan,dayId:string,weekdayValue:number,t
 }
 /**
  * Update one recurring weekday without destroying past occurrences or sessions.
- * Source exercises are copied with fresh plan-entry IDs; exercise-library IDs stay stable.
- * Keeping a disabled day with a null schedule revision preserves historic occurrence keys.
+ * Repeated days reference one canonical workout template; logged sessions keep their own snapshots.
+ * Disabled rows keep their identity and past sessions, while explicit date moves remain authoritative.
  */
 export function setGymWeekdayAssignment(store:GymStore,planId:string,dayOfWeek:number,
   templateDayId:string|null,today:string):GymStore {
@@ -238,9 +238,12 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   const result:GymOccurrence[]=[];
   const append=(plan:GymPlan,day:GymPlanDay,origin:string)=>{
     const key=occurrenceKey(plan.id,day.id,origin);
+    // A move was validated when saved. Subsequent changes to the recurring
+    // weekday must not silently erase that one-off date assignment.
+    const explicitMove=Object.prototype.hasOwnProperty.call(store.moves,key)&&store.moves[key]===date;
     if((plan.createdOn && origin<plan.createdOn) || (store.moves[key]??origin)!==date
       ||activeGymPlanOnDate(store,origin)?.id!==plan.id
-      ||gymDayWeekdayOnDate(day,origin)!==weekday(origin))return;
+      ||(!explicitMove&&gymDayWeekdayOnDate(day,origin)!==weekday(origin)))return;
     const session=store.sessions.find(s=>s.occurrenceKey===key)??null;
     if(result.some(x=>x.key===key))return;
     result.push({key,planId:plan.id,dayId:day.id,name:session?.title??(plan.days.find(x=>x.id===day.templateDayId)?.name??day.name),
@@ -252,7 +255,7 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   for(const [key,target] of Object.entries(store.moves)){
     if(target!==date)continue;
     const [planId,dayId,origin,...rest]=key.split("|");
-    if(rest.length || !dateValid(origin) || origin===date)continue;
+    if(rest.length || !dateValid(origin))continue;
     const plan=store.plans.find(p=>p.id===planId), day=plan?.days.find(x=>x.id===dayId);
     if(plan&&day)append(plan,day,origin);
   }
@@ -269,12 +272,17 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
 export function moveOccurrence(store:GymStore,key:string,target:string):GymStore {
   const [planId,dayId,origin,...rest]=key.split("|");
   const plan=store.plans.find(p=>p.id===planId);
-  if(!dateValid(target)||!dateValid(origin)||rest.length||!plan
+  const day=plan?.days.find(x=>x.id===dayId);
+  if(!dateValid(target)||!dateValid(origin)||rest.length||!plan||!day
     ||(plan.createdOn && (target<plan.createdOn || origin<plan.createdOn))
     ||activeGymPlanOnDate(store,origin)?.id!==planId
-    ||!plan.days.some(x=>x.id===dayId && gymDayWeekdayOnDate(x,origin)===weekday(origin))
+    ||!(gymDayWeekdayOnDate(day,origin)===weekday(origin)||Object.prototype.hasOwnProperty.call(store.moves,key))
     ||store.sessions.some(s=>s.occurrenceKey===key))return store;
-  const moves={...store.moves};if(target===origin)delete moves[key];else moves[key]=target;
+  const moves={...store.moves};
+  // Reverting to the original day must still retain a one-off booking if
+  // that weekday was subsequently removed from the recurring plan.
+  if(target===origin&&gymDayWeekdayOnDate(day,origin)===weekday(origin))delete moves[key];
+  else moves[key]=target;
   return {...store,moves};
 }
 export function uid(prefix:string) {return prefix+"-"+crypto.randomUUID();}
