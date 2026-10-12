@@ -272,3 +272,65 @@
  .df2-gym-preview-row .df2-gym-preview-target{font-size:10px}
  .df2-gym-set-labels,.df2-gym-set{grid-template-columns:42px minmax(0,1fr) minmax(0,1fr) 62px;gap:5px}
 }
+
+
+/* Weekly Gym planner: choose workout templates on the week itself, no date entry needed. */
+.df2-gym-week-planner{display:grid;gap:14px;border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:18px;min-width:0}
+.df2-gym-week-header{display:flex;align-items:end;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.df2-gym-week-header>div:first-child{display:grid;gap:5px}
+.df2-gym-week-header>div:first-child>span{font-size:10px;font-weight:750;letter-spacing:.075em;color:var(--accent-dark)}
+.df2-gym-week-header h3{margin:0;font-size:19px;color:var(--ink)}
+.df2-gym-week-header small{font-size:11px;color:var(--muted)}
+.df2-gym-week-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap}
+.df2-gym-week-toolbar label{display:grid;gap:5px;font-size:11px;color:var(--muted);font-weight:650}
+.df2-gym-week-toolbar select{min-width:122px;min-height:35px;font-weight:700}
+.df2-gym-week-navigation{display:flex;align-items:center;gap:4px;min-height:35px;border:1px solid var(--line);border-radius:9px;background:var(--paper)}
+.df2-gym-week-navigation strong{min-width:105px;text-align:center;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.df2-gym .df2-gym-week-navigation>button{border:0!important;background:transparent!important;padding:6px 9px!important;min-height:33px!important;font-size:15px!important}
+.df2-gym-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;min-width:0}
+.df2-gym-week-card{display:flex;flex-direction:column;gap:10px;min-width:0;padding:12px 9px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.df2-gym-week-card.is-today{border-color:var(--accent);background:var(--accent-wash)}
+.df2-gym-week-card-top{display:flex;flex-direction:column;gap:3px}
+.df2-gym-week-card-top>span{font-size:12px;font-weight:800;color:var(--ink)}
+.df2-gym-week-card-top time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.df2-gym-week-rest{font-size:11px;color:var(--muted);min-height:21px;display:block}
+.df2-gym-week-entries{display:grid;gap:8px;min-width:0}
+.df2-gym-week-entry{display:grid;gap:6px;min-width:0}
+.df2-gym-week-entry strong{font-size:13px;color:var(--ink);overflow-wrap:anywhere}
+.df2-gym-week-entry small{font-size:10px;color:var(--muted)}
+.df2-gym .df2-gym-week-entry>button:not(.df2-gym-week-remove){border-color:var(--accent)!important;color:var(--accent-dark)!important;min-height:30px!important}
+.df2-gym .df2-gym-week-entry>.df2-gym-week-remove{font-weight:500!important;color:var(--muted)!important;background:transparent!important;border:0!important;text-decoration:underline;padding:4px 0!important}
+.df2-gym .df2-gym-week-add{margin-top:auto;text-align:left;min-height:35px!important;padding:7px 6px!important;border:1px dashed var(--line-strong)!important;color:var(--accent-dark)!important;background:transparent!important;white-space:normal;line-height:1.4}
+.df2-gym .df2-gym-week-add:hover{border-color:var(--accent)!important;background:var(--accent-wash)!important}
+.df2-gym-week-chooser{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:9px;min-width:0}
+.df2-gym-week-chooser>strong{font-size:11px;color:var(--ink)}
+.df2-gym .df2-gym-week-chooser>button:not(:last-child){border-color:var(--accent)!important;color:var(--accent-dark)!important;min-height:33px!important}
+.df2-gym-week-chooser>label{display:flex;align-items:start;gap:6px;font-size:10px;color:var(--ink);line-height:1.5;cursor:pointer}
+.df2-gym-week-chooser>label>input{width:15px;height:15px;flex:0 0 15px;padding:0;accent-color:var(--accent)}
+.df2-gym .df2-gym-week-chooser>button:last-child{border:0!important;background:transparent!important;color:var(--muted)!important}
+.df2-gym-week-footnote{margin:0;font-size:11px;color:var(--muted);line-height:1.5}
+.df2-gym-schedule{display:block;border:1px solid var(--line);border-radius:11px;padding:0;background:var(--paper)}
+.df2-gym-schedule>summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;list-style:none;padding:14px 16px;font-size:13px;font-weight:700;color:var(--ink)}
+.df2-gym-schedule>summary::-webkit-details-marker{display:none}
+.df2-gym-schedule>summary::after{content:"⌄";color:var(--accent-dark)}
+.df2-gym-schedule[open]>summary::after{transform:rotate(180deg)}
+.df2-gym-schedule>.df2-gym-section-head{padding:0 14px 11px}
+.df2-gym-schedule>.df2-gym-appointments{padding:0 14px 14px}
+.df2-gym-schedule>.df2-health-empty{padding:0 14px 14px}
+@media(max-width:1080px){.df2-gym-week-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:680px){
+ .df2-gym-week-planner{padding:13px;gap:13px}
+ .df2-gym-week-toolbar{width:100%;display:grid;grid-template-columns:1fr auto;align-items:end}
+ .df2-gym-week-toolbar>button{grid-column:1/-1}
+ .df2-gym-week-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .df2-gym-week-card{padding:12px;min-height:110px}
+ .df2-gym-week-card-top{flex-direction:row;align-items:baseline;justify-content:space-between}
+ .df2-gym-week-entry strong{font-size:13px}
+ .df2-gym .df2-gym-week-add{text-align:center}
+}
+@media(max-width:360px){
+ .df2-gym-week-toolbar{grid-template-columns:1fr}
+ .df2-gym-week-navigation{width:max-content}
+ .df2-gym-week-grid{grid-template-columns:1fr 1fr}
+ .df2-gym-week-card{padding:8px}
+}

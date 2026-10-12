@@ -21,6 +21,7 @@ async function createPlan(page,name="Můj Upper / Lower"){
   await modal.getByRole("combobox",{name:"Šablona plánu"}).selectOption("upper-lower");
   await modal.getByRole("button",{name:"Vytvořit plán"}).click();
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator("[data-gym-schedule] > summary").click();
   return root;
 }
 test("active plan appears once in Today and Week, with one shared completion and persistent gym records",async({page})=>{
@@ -97,6 +98,7 @@ test("custom exercises, plans and historical progress are retained without gym d
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days[0].exercises.some(item=>saved.exercises.find(ex=>ex.id===item.exerciseId)?.name==="Bulharský dřep")).toBe(true);
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator("[data-gym-schedule] > summary").click();
   await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
   const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
   await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("90");
@@ -248,6 +250,7 @@ test("historical schedule browsing does not change today's gym dashboard or the 
   const summary=root.locator("[data-gym-summary]");
   const initial=await summary.innerText();
   await expect(root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"})).toBeVisible();
+  await root.locator("[data-gym-schedule] > summary").click();
   await root.getByLabel("Prohlížet od data").fill("2026-09-28");
   await expect(root.locator("[data-gym-occurrence]")).toHaveCount(0);
   expect(await summary.innerText()).toBe(initial);
@@ -516,4 +519,81 @@ test("simplified Gym shows the chosen workout and keeps advanced set fields opti
   const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(after.plans).toEqual(before.plans);
   expect(after.sessions[0].exercises[0].sets[0]).toMatchObject({weightKg:60,reps:10,rpe:8,done:true});
+});
+
+test("five weekly workouts can be built directly in the calendar from existing Push/Pull/Lower templates",async({page})=>{
+  await page.setViewportSize({width:1280,height:900});
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const week=root.locator("[data-gym-week]");
+  await expect(week.getByRole("combobox",{name:"Týdenní cíl"})).toHaveValue("5");
+  await expect(week).toContainText("3 z 5 naplánováno");
+  const planBefore=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).plans,KEY);
+  const tuesday=week.locator('[data-gym-week-date="2026-10-13"]');
+  await tuesday.getByRole("button",{name:"+ Přidat trénink"}).click();
+  await expect(tuesday.locator("[data-gym-week-chooser]")).toBeVisible();
+  await expect(tuesday.getByRole("checkbox",{name:"Opakovat každý týden"})).toBeChecked();
+  await tuesday.locator("[data-gym-week-chooser]").getByRole("button",{name:"Pull",exact:true}).click();
+  await expect(tuesday.locator("[data-gym-week-workout]")).toContainText("Pull");
+  const thursday=week.locator('[data-gym-week-date="2026-10-15"]');
+  await thursday.getByRole("button",{name:"+ Přidat trénink"}).click();
+  await thursday.locator("[data-gym-week-chooser]").getByRole("button",{name:"Push",exact:true}).click();
+  await expect(week).toContainText("5 z 5 naplánováno");
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.plans).toEqual(planBefore);
+  expect(saved.scheduledWorkouts).toHaveLength(2);
+  expect(saved.sessions).toHaveLength(0);
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  const next=again.locator("[data-gym-week]");
+  await expect(next).toContainText("5 z 5 naplánováno");
+  await next.getByRole("button",{name:"Další týden"}).click();
+  await expect(next.locator('[data-gym-week-date="2026-10-20"]')).toContainText("Pull");
+  await expect(next.locator('[data-gym-week-date="2026-10-22"]')).toContainText("Push");
+  await next.locator('[data-gym-week-date="2026-10-20"]').getByRole("button",{name:"Zahájit"}).click();
+  await expect(again.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
+  const logged=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).sessions,KEY);
+  expect(logged).toHaveLength(1);
+  expect(logged[0].title).toBe("Pull");
+  expect(logged[0].exercises.length).toBe(saved.plans[0].days[1].exercises.length);
+});
+
+test("weekly goal is editable; one-off sessions and recurring cancellation preserve real history",async({page})=>{
+  await page.setViewportSize({width:375,height:812});
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const week=root.locator("[data-gym-week]");
+  await week.getByRole("combobox",{name:"Týdenní cíl"}).selectOption("4");
+  await expect(root.locator("[data-gym-summary]")).toContainText("0 / 4 tréninků");
+  const thursday=week.locator('[data-gym-week-date="2026-10-15"]');
+  await thursday.getByRole("button",{name:"+ Přidat trénink"}).click();
+  await thursday.getByRole("checkbox",{name:"Opakovat každý týden"}).uncheck();
+  await thursday.locator("[data-gym-week-chooser]").getByRole("button",{name:"Pull",exact:true}).click();
+  await expect(week).toContainText("4 z 4 naplánováno");
+  const original=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  await week.getByRole("button",{name:"Další týden"}).click();
+  await expect(week.locator('[data-gym-week-date="2026-10-22"]')).toContainText("Volno");
+  await week.getByRole("button",{name:"Předchozí týden"}).click();
+  page.once("dialog",dialog=>dialog.accept());
+  await thursday.getByRole("button",{name:/Odebrat Pull/}).click();
+  await expect(thursday).toContainText("Volno");
+  const after=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(after.plans).toEqual(original.plans);
+  expect(after.sessions).toEqual(original.sessions);
+  expect(after.scheduledWorkouts).toHaveLength(0);
+  await page.reload({waitUntil:"networkidle"});
+  const loaded=await gym(page);
+  await expect(loaded.locator("[data-gym-week]").getByRole("combobox",{name:"Týdenní cíl"})).toHaveValue("4");
+});
+
+test("invalid saved Gym data still blocks direct weekly scheduling without overwriting storage",async({page})=>{
+  await fresh(page);
+  await page.evaluate(key=>localStorage.setItem(key,'{"version":999,"scheduledWorkouts":[]}'),KEY);
+  await page.reload({waitUntil:"networkidle"});
+  const root=await gym(page);
+  await expect(root.getByRole("alert")).toContainText("zablokované");
+  await expect(root.locator("[data-gym-week]")).toHaveCount(0);
+  expect(await page.evaluate(key=>localStorage.getItem(key),KEY)).toBe('{"version":999,"scheduledWorkouts":[]}');
 });
