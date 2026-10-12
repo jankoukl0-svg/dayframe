@@ -236,3 +236,25 @@ test("a moved recurring slot cannot be duplicated from its temporarily empty wee
   assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-20","weekly"),store);
   assert.equal(assignmentsOnDate(store,"2026-10-27").length,1);
 });
+
+test("future appointments moved onto a different weekday block colliding recurrences",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  const native=assignmentsOnDate(store,"2026-10-19")[0];
+  store=moveOccurrence(store,native.key,"2026-10-22");
+  assert.equal(assignmentsOnDate(store,"2026-10-15").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,1);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-15","weekly"),store,
+    "The future moved Push prevents overlapping weekly Pull");
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,1);
+});
+
+test("recorded future sessions also block a new overlapping weekly appointment",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-22","once");
+  const occ=assignmentsOnDate(store,"2026-10-22")[0];
+  store=startSession(store,occ.key,occ.date);
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly"),store);
+  assert.equal(store.sessions.length,1);
+});

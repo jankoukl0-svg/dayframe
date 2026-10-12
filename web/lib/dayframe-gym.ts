@@ -227,6 +227,15 @@ export function addGymScheduledWorkout(store:GymStore,planId:string,dayId:string
       || day.scheduleHistory?.some(change=>change.effectiveFrom>date && change.weekday===targetWeekday)))return store;
     if((store.scheduledWorkouts??[]).some(slot=>slot.planId===planId && weekday(slot.date)===targetWeekday
       && (slot.repeat==="weekly" ? (!slot.until || slot.until>date) : slot.date>=date)))return store;
+    // A future workout moved ONTO this weekday also conflicts with the new
+    // recurrence, even though the current week looks empty. Only count moves
+    // that still materialize as real appointments on their destination.
+    if(Object.entries(store.moves).some(([key,target])=>target>=date && dateValid(target)
+      && weekday(target)===targetWeekday
+      && assignmentsOnDate(store,target).some(occ=>occ.key===key && occ.planId===planId)))return store;
+    // Recorded future workouts must never be silently doubled by a new slot.
+    if(store.sessions.some(session=>session.planId===planId && session.date>=date
+      && weekday(session.date)===targetWeekday))return store;
   }
   const slot:GymScheduledWorkout={id:uid("slot"),planId,dayId,date,repeat};
   return {...store,scheduledWorkouts:[...(store.scheduledWorkouts??[]),slot]};
