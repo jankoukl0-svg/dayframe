@@ -19,12 +19,6 @@
 .df2-gym input:focus-visible,.df2-gym select:focus-visible,.df2-gym textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .df2-gym-inline{display:flex;align-items:center;flex-wrap:wrap;gap:7px;min-width:0}
 .df2-gym-inline label{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--muted)}
-.df2-gym-appointments,.df2-gym-routines,.df2-gym-session{display:grid;gap:10px}
-.df2-gym-appointments article{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:var(--paper);border:1px solid var(--line);padding:13px 15px;border-radius:10px}
-.df2-gym-appointments article.is-highlighted{border-color:var(--accent)}
-.df2-gym-appointments article>div:first-child{display:grid;gap:4px}
-.df2-gym-appointments time,.df2-gym-appointments small{font-size:11px;color:var(--muted)}
-.df2-gym-appointments strong{font-size:14px;color:var(--ink)}
 .df2-gym-history{display:grid;gap:5px;padding-top:10px}
 .df2-gym-history>button{display:flex;justify-content:space-between;gap:10px;padding:10px 13px}
 .df2-gym-history button strong{color:var(--accent-dark)}
@@ -127,9 +121,6 @@
 .df2-gym-week-days>div.is-today{border-color:var(--accent);background:var(--accent-wash)}
 .df2-gym-week-days small{font-size:10px;color:var(--muted)}
 .df2-gym-week-days strong{color:var(--ink);font-size:10px;font-weight:650;overflow-wrap:anywhere}
-.df2-gym-schedule{display:grid;gap:11px;min-width:0}
-.df2-gym-schedule>.df2-gym-section-head{padding-top:5px}
-.df2-gym-appointments article{padding:11px 13px}
 .df2-gym-history{gap:7px}
 .df2-gym-history .df2-gym-section-head{padding-bottom:7px}
 @media(max-width:850px){
@@ -232,7 +223,6 @@
 .df2-gym-week-strip[open]>summary::after,.df2-gym-history[open]>summary::after{transform:rotate(180deg)}
 .df2-gym-week-strip>summary>span,.df2-gym-history>summary>span{margin-left:auto;font-size:11px;font-weight:500;color:var(--muted)}
 .df2-gym-week-days{padding:0 15px 15px}
-.df2-gym-schedule{border-top:1px solid var(--line);padding-top:17px}
 .df2-gym-history-list{display:grid;gap:6px;padding:0 12px 12px}
 .df2-gym-session-progress{height:6px;border-radius:20px;background:var(--line);overflow:hidden}
 .df2-gym-session-progress span{display:block;height:100%;background:var(--accent);border-radius:20px;transition:width .2s ease}
@@ -290,12 +280,6 @@
 .df2-gym-week-picker select:disabled{opacity:.7}
 .df2-gym-week-note{margin:0;font-size:11px;color:var(--muted)}
 .df2-gym .df2-gym-schedule{border:1px solid var(--line);border-radius:11px;padding:0;display:block}
-.df2-gym-schedule>summary{display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;padding:14px 16px;list-style:none;font-size:13px;font-weight:750;color:var(--ink)}
-.df2-gym-schedule>summary::-webkit-details-marker{display:none}
-.df2-gym-schedule>summary:after{content:"⌄";color:var(--accent-dark)}
-.df2-gym-schedule[open]>summary:after{transform:rotate(180deg)}
-.df2-gym-schedule>summary span{margin-left:auto;font-size:11px;color:var(--muted);font-weight:500}
-.df2-gym-schedule-content{display:grid;gap:12px;padding:0 15px 15px}
 .df2-visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:900px){.df2-gym-week-planner-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:620px){
