@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, setGymWeekdayAssignment,
+  emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, setGymWeekdayAssignment, setGymWeekdayTime, gymOccurrenceTime,
   occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
@@ -234,4 +234,29 @@ test("recurrence edits do not change an already-started moved session",()=>{
   store=setGymWeekdayAssignment(store,store.activePlanId,1,null,"2026-10-12");
   assert.equal(JSON.stringify(store.sessions),saved);
   assert.equal(assignmentsOnDate(store,"2026-10-20")[0].session?.id,store.sessions[0].id);
+});
+
+test("Gym times are optional, repeat weekly, and edits preserve past days",()=>{
+  let s=active();const id=s.plans[0].id;
+  const initial=assignmentsOnDate(s,"2026-10-12")[0];
+  assert.deepEqual(gymOccurrenceTime(s,initial),{start:null,duration:60});
+  s=setGymWeekdayTime(s,id,1,"17:00",90,"2026-10-12");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-12")[0]),{start:"17:00",duration:90});
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-19")[0]),{start:"17:00",duration:90});
+  assert.equal(parseGymStore(JSON.stringify(s)).blocked,false);
+  s=setGymWeekdayTime(s,id,1,"18:00",60,"2026-10-13");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-12")[0]),{start:"17:00",duration:90});
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-19")[0]),{start:"18:00",duration:60});
+  assert.equal(setGymWeekdayTime(s,id,1,"23:45",180,"2026-10-13"),s);
+  assert.deepEqual(s.sessions,[]);
+});
+test("Replacing workout type carries assigned time; moving the workout retains the hour",()=>{
+  let s=active();const p=s.plans[0];
+  s=setGymWeekdayTime(s,p.id,1,"16:15",75,"2026-10-12");
+  s=setGymWeekdayAssignment(s,p.id,1,p.days[1].id,"2026-10-12");
+  const occ=assignmentsOnDate(s,"2026-10-19")[0];
+  assert.deepEqual(gymOccurrenceTime(s,occ),{start:"16:15",duration:75});
+  s=moveOccurrence(s,occ.key,"2026-10-20");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-20").find(o=>o.key===occ.key)),{start:"16:15",duration:75});
+  assert.equal(parseGymStore(JSON.stringify(s)).blocked,false);
 });
