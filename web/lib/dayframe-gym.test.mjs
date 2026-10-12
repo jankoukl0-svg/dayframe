@@ -258,3 +258,20 @@ test("recorded future sessions also block a new overlapping weekly appointment",
   assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly"),store);
   assert.equal(store.sessions.length,1);
 });
+
+test("a one-off moved off Thursday frees Thursday for a new weekly recurrence",()=>{
+  const plan=makeGymPlan("PPL","ppl","2026-10-12");
+  let store=setActiveGymPlan({...emptyGymStore(),plans:[plan]},plan.id,"2026-10-12");
+  store=addGymScheduledWorkout(store,plan.id,plan.days[1].id,"2026-10-22","once");
+  const once=assignmentsOnDate(store,"2026-10-22")[0];
+  assert.equal(addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly"),store,
+    "The still-booked future Thursday prevents recurring Thursday");
+  store=moveOccurrence(store,once.key,"2026-10-23");
+  assert.equal(assignmentsOnDate(store,"2026-10-22").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-10-23").length,2,"Moved one-off coexists with native Friday");
+  const added=addGymScheduledWorkout(store,plan.id,plan.days[0].id,"2026-10-15","weekly");
+  assert.notEqual(added,store,"Thursday is now available");
+  assert.equal(assignmentsOnDate(added,"2026-10-22").length,1);
+  assert.equal(assignmentsOnDate(added,"2026-10-23").length,2);
+  assert.equal(parseGymStore(JSON.stringify(added)).blocked,false);
+});

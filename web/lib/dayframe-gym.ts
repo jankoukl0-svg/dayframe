@@ -225,8 +225,13 @@ export function addGymScheduledWorkout(store:GymStore,planId:string,dayId:string
     const targetWeekday=weekday(date);
     if(plan.days.some(day=>gymDayWeekdayOnDate(day,date)===targetWeekday
       || day.scheduleHistory?.some(change=>change.effectiveFrom>date && change.weekday===targetWeekday)))return store;
-    if((store.scheduledWorkouts??[]).some(slot=>slot.planId===planId && weekday(slot.date)===targetWeekday
-      && (slot.repeat==="weekly" ? (!slot.until || slot.until>date) : slot.date>=date)))return store;
+    if((store.scheduledWorkouts??[]).some(slot=>{
+      if(slot.planId!==planId)return false;
+      if(slot.repeat==="weekly")return weekday(slot.date)===targetWeekday && (!slot.until || slot.until>date);
+      // A moved one-off occupies its actual target, not its original day.
+      const bookedDate=store.moves[occurrenceKey(slot.planId,slot.dayId,slot.date)+"|"+slot.id]??slot.date;
+      return bookedDate>=date && weekday(bookedDate)===targetWeekday;
+    }))return store;
     // A future workout moved ONTO this weekday also conflicts with the new
     // recurrence, even though the current week looks empty. Only count moves
     // that still materialize as real appointments on their destination.

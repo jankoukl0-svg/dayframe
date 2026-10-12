@@ -81,8 +81,14 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const exerciseName=(id:string)=>store.exercises.find(ex=>ex.id===id)?.name??"Neznámý cvik";
   const addToWeek=(date:string,dayId:string)=>{
     if(!activePlan || blocked || date<today)return;
-    const added=persist(current=>addGymScheduledWorkout(current,activePlan.id,dayId,date,repeatWeekly?"weekly":"once"));
-    if(added){setSelectedDayId(dayId);setAddingOn(null);setRepeatWeekly(true);setMessage("");}
+    let wasScheduled=false;
+    const saved=persist(current=>{
+      const next=addGymScheduledWorkout(current,activePlan.id,dayId,date,repeatWeekly?"weekly":"once");
+      wasScheduled=next!==current;
+      return next;
+    });
+    if(!wasScheduled){setMessage("Na tento den již připadá jiný trénink v některém z dalších týdnů. Uprav nejprve jeho termín.");return;}
+    if(saved){setSelectedDayId(dayId);setAddingOn(null);setRepeatWeekly(true);setMessage("");}
   };
   const removeFromWeek=(key:string,date:string)=>{
     if(blocked || date<today || !window.confirm("Odebrat tento trénink? Opakované tréninky tím skončí od zvoleného týdne. Historie zůstane zachovaná."))return;
