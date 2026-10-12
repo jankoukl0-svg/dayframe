@@ -91,6 +91,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const selectedWeekOccurrences=weekDates.flatMap(day=>assignmentsOnDate(store,day));
   // One reusable template per named workout: duplicates in the week are intentional.
   const gymTemplates=previewPlan?.days.filter(d=>!d.templateDayId)??[];
+  const activeGymTemplates=activePlan?.days.filter(d=>!d.templateDayId)??[];
   // Template weekdays come from currently active recurrence revisions,
   // not the legacy weekday fallback used by the schedule-history model.
   const activeDayWeekdays=[...new Set((previewPlan?.days??[])
@@ -305,11 +306,20 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         </section> : <>
           <section className="df2-gym-split" data-gym-split>
             <div className="df2-gym-focus-head"><div><span>TVŮJ TRÉNINK</span><h3>Vyber trénink</h3></div>
-              <button type="button" onClick={()=>{setEditedPlanId(previewPlan.id);setView("plans");}}>Upravit plán</button>
+              <div className="df2-gym-inline">
+                {focusedPlan&&focusedPlan.id!==activePlan?.id&&<button type="button"
+                  onClick={()=>{setFocusedWorkout(null);setSelectedDayId(null);}}>
+                  ← Aktivní plán
+                </button>}
+                <button type="button" onClick={()=>{setEditedPlanId(previewPlan.id);setView("plans");}}>Upravit plán</button>
+              </div>
             </div>
             <div className="df2-gym-split-days" role="group" aria-label="Výběr tréninku">
               {gymTemplates.map(day=><button key={day.id} type="button" data-gym-day={day.name}
-                aria-pressed={activeDay?.id===day.id} onClick={()=>{setSelectedDayId(day.id);setFocusedWorkout(null);}}>
+                aria-pressed={activeDay?.id===day.id} onClick={()=>{
+                  setSelectedDayId(day.id);
+                  if(previewPlan?.id===activePlan?.id)setFocusedWorkout(null);
+                }}>
                 <strong>{day.name}</strong><small>{day.exercises.length} cviků</small>
               </button>)}
             </div>
@@ -343,7 +353,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               const isPast=date<today;
               const scheduled=selectedWeekOccurrences.filter(o=>o.date===date);
               const hasSession=scheduled.some(o=>o.session);
-              const matchingTemplate=gymTemplates.find(d=>d.id===(configured?.templateDayId??configured?.id));
+              const matchingTemplate=activeGymTemplates.find(d=>d.id===(configured?.templateDayId??configured?.id));
               const trainingTime=configured?gymDayTimeOnDate(configured,today):{start:null,duration:60};
               return <div key={date} className={"df2-gym-week-planner-day "+(date===today?"is-today":"")}
                 data-gym-weekday={dayOfWeek}>
@@ -357,7 +367,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                       if(ok)setMessage("");
                     }}>
                     <option value="">Volno</option>
-                    {gymTemplates.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                    {activeGymTemplates.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </label>
                 {configured&&<div className="df2-gym-week-time" data-gym-week-time={dayOfWeek}>

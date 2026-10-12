@@ -679,6 +679,11 @@ test("a historical unstarted Week workout opens its original plan after switchin
   await expect(preview).toContainText("Původní Upper");
   await expect(preview).toContainText("Upper");
   await expect(preview).toContainText("po 12.");
+  await expect(root.locator("[data-gym-week]").getByRole("combobox",{name:"Pondělí – typ tréninku"}).locator("option:checked")).toHaveText("Push");
+  await root.locator('[data-gym-day="Lower"]').click();
+  await expect(preview.getByRole("heading",{name:"Lower"})).toBeVisible();
+  await expect(preview).toContainText("Původní Upper");
+  await root.locator('[data-gym-day="Upper"]').click();
   await preview.getByRole("button",{name:"Zahájit trénink"}).click();
   const state=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(state.sessions).toHaveLength(1);
