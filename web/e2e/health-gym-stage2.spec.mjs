@@ -236,6 +236,8 @@ test("clean gym preview is sourced from the real saved plan and starts an editab
   await expect(root.locator("[data-gym-workout-preview]")).toContainText("Bench press");
   await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
   await expect(root.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
+  await expect(root.locator(".df2-gym-session")).toHaveCSS("display","grid");
+  await expect(root.locator(".df2-gym-session")).toHaveCSS("gap","10px");
   await expect(root.locator("[data-gym-log-exercise]").first()).toContainText("Bench press");
   await root.getByRole("button",{name:"← Zpět na plán"}).click();
   await expect(root.locator("[data-gym-schedule]")).toHaveCount(0);
