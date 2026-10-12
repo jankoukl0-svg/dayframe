@@ -21,6 +21,7 @@ async function createPlan(page,name="Můj Upper / Lower"){
   await modal.getByRole("combobox",{name:"Šablona plánu"}).selectOption("upper-lower");
   await modal.getByRole("button",{name:"Vytvořit plán"}).click();
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator("[data-gym-schedule] summary").click();
   return root;
 }
 test("active plan appears once in Today and Week, with one shared completion and persistent gym records",async({page})=>{
@@ -48,6 +49,7 @@ test("active plan appears once in Today and Week, with one shared completion and
   await expect(week.first()).toContainText("Hotovo");
   await week.first().click();
   await expect(page.locator("[data-gym-root]")).toBeVisible();
+  await expect(page.locator("[data-gym-schedule]")).toHaveAttribute("open","");
   await expect(page.locator("[data-gym-log-exercise]").first()).toBeVisible();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.sessions).toHaveLength(1);
@@ -70,6 +72,7 @@ test("workout can be moved between dates, shows once and cannot move a started o
   const moves=page.locator('[data-week-gym="'+key+'"]');
   await expect(moves).toHaveCount(1);
   await moves.click();
+  await expect(page.locator("[data-gym-schedule]")).toHaveAttribute("open","");
   const selected=page.locator('[data-gym-occurrence="'+key+'"]');
   await expect(selected).toBeVisible();
   await selected.getByRole("button",{name:"Zahájit"}).click();
@@ -97,6 +100,7 @@ test("custom exercises, plans and historical progress are retained without gym d
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days[0].exercises.some(item=>saved.exercises.find(ex=>ex.id===item.exerciseId)?.name==="Bulharský dřep")).toBe(true);
   await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await root.locator("[data-gym-schedule] summary").click();
   await root.locator("[data-gym-occurrence]").first().getByRole("button",{name:"Zahájit"}).click();
   const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
   await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("90");
@@ -248,6 +252,7 @@ test("historical schedule browsing does not change today's gym dashboard or the 
   const summary=root.locator("[data-gym-summary]");
   const initial=await summary.innerText();
   await expect(root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"})).toBeVisible();
+  await root.locator("[data-gym-schedule] summary").click();
   await root.getByLabel("Prohlížet od data").fill("2026-09-28");
   await expect(root.locator("[data-gym-occurrence]")).toHaveCount(0);
   expect(await summary.innerText()).toBe(initial);

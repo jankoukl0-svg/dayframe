@@ -22,6 +22,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [selectedDayId,setSelectedDayId]=useState<string|null>(null);
   const [selectedDate,setSelectedDate]=useState(today);
   const [selectedSession,setSelectedSession]=useState<string|null>(null);
+  const [scheduleExpanded,setScheduleExpanded]=useState(false);
   const [highlightKey,setHighlightKey]=useState<string|null>(null);
   const [newPlanName,setNewPlanName]=useState("");
   const [template,setTemplate]=useState<GymTemplate>("upper-lower");
@@ -37,7 +38,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [clock,setClock]=useState(()=>Date.now());
   const [message,setMessage]=useState("");
 
-  useEffect(()=>{if(!hydrated||!focusKey)return;setView("workout");setHighlightKey(focusKey);setSelectedDate(focusDate||today);
+  useEffect(()=>{if(!hydrated||!focusKey)return;setView("workout");setHighlightKey(focusKey);setSelectedDate(focusDate||today);setScheduleExpanded(true);
     const current=store.sessions.find(s=>s.occurrenceKey===focusKey);
     if(current)setSelectedSession(current.id);
     onFocusHandled?.();
@@ -335,7 +336,8 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             <p className="df2-gym-week-note">Např. Push / Pull / Lower / Push / Pull = 5 tréninků. Úpravy nemění již uložené tréninky.</p>
           </section>
         </>}
-        <details className="df2-gym-schedule" data-gym-schedule>
+        <details className="df2-gym-schedule" data-gym-schedule open={scheduleExpanded}
+          onToggle={e=>setScheduleExpanded(e.currentTarget.open)}>
           <summary>Konkrétní termíny a přesuny <span>Volitelné</span></summary>
           <div className="df2-gym-schedule-content">
           <div className="df2-gym-section-head"><div><h3>Naplánované tréninky</h3><small>Termíny a jejich splnění jsou propojené s Dnes a Týdnem.</small></div>
