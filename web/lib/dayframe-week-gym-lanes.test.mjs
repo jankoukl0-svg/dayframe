@@ -30,3 +30,15 @@ test("three simultaneous blocks use three lanes and subsequent intervals reuse l
   assert.equal(new Set([p.gym.left,p.a.left,p.b.left]).size,3);
   assert.equal(p.b.width,p.c.width);
 });
+
+test("past-day hidden unfinished blocks must not reserve horizontal space",()=>{
+  const blocks=[
+    {id:"gym",gym:true,start:1020,end:1110,completed:false},
+    {id:"task",gym:false,start:1020,end:1080,completed:true},
+  ];
+  assert.deepEqual(placeWeekGymCollisions(blocks,true),{});
+  assert.notDeepEqual(placeWeekGymCollisions(blocks,false),{});
+  assert.notDeepEqual(placeWeekGymCollisions([
+    {...blocks[0],completed:true},blocks[1],
+  ],true),{});
+});

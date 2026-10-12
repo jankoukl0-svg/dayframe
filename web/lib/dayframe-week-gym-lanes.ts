@@ -1,9 +1,9 @@
 /** Give gym and ordinary calendar tasks separate lanes only when their times intersect. */
-export type TimedWeekBlock={id:string;start:number;end:number;gym:boolean};
+export type TimedWeekBlock={id:string;start:number;end:number;gym:boolean;completed?:boolean};
 export type WeekLaneStyle={left:string;right:"auto";width:string};
-export function placeWeekGymCollisions(blocks:TimedWeekBlock[]):Record<string,WeekLaneStyle> {
+export function placeWeekGymCollisions(blocks:TimedWeekBlock[],past=false):Record<string,WeekLaneStyle> {
   const result:Record<string,WeekLaneStyle>={};
-  const items=blocks.filter(b=>Number.isFinite(b.start)&&Number.isFinite(b.end)&&b.end>b.start)
+  const items=blocks.filter(b=>(!past||b.completed)&&Number.isFinite(b.start)&&Number.isFinite(b.end)&&b.end>b.start)
     .sort((a,b)=>a.start-b.start||a.end-b.end||a.id.localeCompare(b.id));
   let group:TimedWeekBlock[]=[],maxEnd=-Infinity;
   const flush=()=>{
