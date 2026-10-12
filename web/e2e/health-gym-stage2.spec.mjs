@@ -527,6 +527,8 @@ test("a gym user can build five recurring Push Pull Lower sessions from the week
   await week.getByRole("combobox",{name:"Úterý – typ tréninku"}).selectOption({label:"Push"});
   await week.getByRole("combobox",{name:"Čtvrtek – typ tréninku"}).selectOption({label:"Pull"});
   await expect(week).toContainText("5 tréninků týdně");
+  // Adding recurring instances does not clutter the workout-template switcher.
+  await expect(root.locator("[data-gym-day]")).toHaveCount(3);
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
   expect(saved.plans[0].days.filter(day=>day.scheduleHistory?.at(-1)?.weekday!==null)).toHaveLength(5);
   await page.reload({waitUntil:"networkidle"});

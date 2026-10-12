@@ -274,7 +274,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               <button type="button" onClick={()=>{setEditedPlanId(activePlan.id);setView("plans");}}>Upravit plán</button>
             </div>
             <div className="df2-gym-split-days" role="group" aria-label="Výběr tréninku">
-              {activePlan.days.map(day=><button key={day.id} type="button" data-gym-day={day.name}
+              {gymTemplates.map(day=><button key={day.id} type="button" data-gym-day={day.name}
                 aria-pressed={activeDay?.id===day.id} onClick={()=>setSelectedDayId(day.id)}>
                 <strong>{day.name}</strong><small>{day.exercises.length} cviků</small>
               </button>)}
