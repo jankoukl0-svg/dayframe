@@ -549,3 +549,30 @@ test("a gym user can build five recurring Push Pull Lower sessions from the week
   // The 14-day browser window runs from today - 3 to today + 10, not two full calendar weeks.
   await expect(again.locator("[data-gym-occurrence]")).toHaveCount(9);
 });
+
+test("a repeated template can start its nearest weekday and new templates do not create extra Monday workouts",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.locator("[data-gym-week]").getByRole("combobox",{name:"Úterý – typ tréninku"}).selectOption({label:"Push"});
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  await root.locator("[data-gym-plan-editor]").getByRole("button",{name:"+ Tréninkový den"}).click();
+  const before=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(before.plans[0].days.at(-1).scheduleHistory.at(-1).weekday).toBeNull();
+  await root.getByRole("button",{name:"Tréninky",exact:true}).click();
+  await expect(root.locator("[data-gym-week]")).toContainText("4 tréninků týdně");
+  await page.clock.setFixedTime(new Date("2026-10-13T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await expect(again.locator("[data-gym-workout-preview]")).toContainText("další út 13.");
+  await again.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  const updated=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(updated.sessions[0].date).toBe("2026-10-13");
+  await again.getByRole("button",{name:"← Zpět na plán"}).click();
+  const monday=again.locator('[data-gym-weekday="1"]');
+  await expect(monday.getByRole("combobox")).toBeEnabled();
+  await monday.getByRole("combobox").selectOption({label:"Volno"});
+  const following=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(following.sessions).toHaveLength(1);
+  expect(following.sessions[0].date).toBe("2026-10-13");
+});

@@ -63,7 +63,8 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const upcomingOccurrences=useMemo(()=>currentDates.flatMap(date=>assignmentsOnDate(store,date))
     .filter(o=>!o.completed).sort((a,b)=>a.date.localeCompare(b.date)),[currentDates,store]);
   const nearest=upcomingOccurrences[0]??null;
-  const activeDayOccurrence=upcomingOccurrences.find(o=>o.dayId===activeDay?.id)??null;
+  const activeDayOccurrence=upcomingOccurrences.find(o=>o.dayId===activeDay?.id
+    ||activePlan?.days.find(d=>d.id===o.dayId)?.templateDayId===activeDay?.id)??null;
   const monday=dateShift(today,-((weekday(today)+6)%7));
   const weekDates=Array.from({length:7},(_,i)=>dateShift(monday,i));
   const completedWeek=metrics.workouts.filter(w=>w.date>=monday&&w.date<=weekDates[6]).length;
@@ -320,7 +321,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 <label className="df2-gym-week-picker">
                   <span className="df2-visually-hidden">{scheduleLabels[dayOfWeek]} – typ tréninku</span>
                   <select aria-label={scheduleLabels[dayOfWeek]+" – typ tréninku"} value={matchingTemplate?.id??""}
-                    disabled={blocked||hasSession} onChange={e=>{
+                    disabled={blocked||(hasSession&&!isPast)} onChange={e=>{
                       const id=e.target.value||null;
                       const ok=persist(s=>setGymWeekdayAssignment(s,activePlan.id,dayOfWeek,id,today));
                       if(ok)setMessage("");
@@ -329,8 +330,8 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                     {gymTemplates.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </label>
-                {hasSession?<small className="df2-gym-week-status">Zapsáno · nelze přepsat</small>
-                  :isPast?<small className="df2-gym-week-status">Změna platí od dneška</small>:null}
+                {hasSession&&!isPast?<small className="df2-gym-week-status">Rozpracováno · datum je uzamčeno</small>
+                  :isPast?<small className="df2-gym-week-status">Změna se projeví v dalších týdnech</small>:null}
               </div>;
             })}</div>
             <p className="df2-gym-week-note">Např. Push / Pull / Lower / Push / Pull = 5 tréninků. Úpravy nemění již uložené tréninky.</p>
@@ -429,7 +430,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               }:d)}))
             }/>
         </article>)}
-        <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:[...p.days,{id:uid("day"),name:"Nový trénink",weekday:1,scheduleHistory:[{effectiveFrom:today,weekday:1}],exercises:[]}]}))}>+ Tréninkový den</button>
+        <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:[...p.days,{id:uid("day"),name:"Nový trénink",weekday:1,scheduleHistory:[{effectiveFrom:today,weekday:null}],exercises:[]}]}))}>+ Tréninkový den</button>
       </section>}
     </div>}
 
