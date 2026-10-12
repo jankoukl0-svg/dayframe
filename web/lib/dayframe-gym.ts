@@ -134,7 +134,7 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
            || (d.timeHistory!==undefined && (!Array.isArray(d.timeHistory)
              || !distinct(d.timeHistory.map(x=>({id:x.effectiveFrom})))
              || d.timeHistory.some(x=>!x||!dateValid(x.effectiveFrom)||!gymTimeValid(x.start)
-               ||!gymDurationValid(x.duration)|| (x.start!==null && gymClockMinutes(x.start)+x.duration>26*60))))) throw Error("day");
+               ||!gymDurationValid(x.duration)|| (x.start!==null && gymClockMinutes(x.start)+x.duration>26*60)))))) throw Error("day");
         for(const e of d.exercises) if(!e || !str(e.id,100) || !str(e.exerciseId,100) || !num(e.sets,1,12) || !Number.isInteger(e.sets) || !num(e.reps,1,100) || !Number.isInteger(e.reps) || !num(e.restSeconds,0,1800)) throw Error("template");
       }
     }
