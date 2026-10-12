@@ -3,7 +3,7 @@ export const GYM_SYNC_EVENT = "dayframe-gym-sync";
 
 export type GymExercise = { id: string; name: string; muscle: string; equipment: string; kind: string; technique: string; photoUrl?: string; custom?: boolean };
 export type GymPlanExercise = { id: string; exerciseId: string; sets: number; reps: number; restSeconds: number };
-export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[]; scheduleHistory?: Array<{effectiveFrom:string;weekday:number}> };
+export type GymPlanDay = { id: string; name: string; weekday: number; exercises: GymPlanExercise[]; scheduleHistory?: Array<{effectiveFrom:string;weekday:number|null}> };
 export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?: string };
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
@@ -124,7 +124,7 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
       for(const d of p.days) {
         if(!d || !str(d.id,100) || !d.id || !str(d.name) || !num(d.weekday,0,6) || !Number.isInteger(d.weekday) || !Array.isArray(d.exercises) || !distinct(d.exercises)
           || (d.scheduleHistory!==undefined && (!Array.isArray(d.scheduleHistory) || !distinct(d.scheduleHistory.map(x=>({id:x.effectiveFrom})))
-            ||d.scheduleHistory.some(x=>!dateValid(x.effectiveFrom)||!num(x.weekday,0,6)||!Number.isInteger(x.weekday))))) throw Error("day");
+            ||d.scheduleHistory.some(x=>!dateValid(x.effectiveFrom)||(x.weekday!==null&&(!num(x.weekday,0,6)||!Number.isInteger(x.weekday))))))) throw Error("day");
         for(const e of d.exercises) if(!e || !str(e.id,100) || !str(e.exerciseId,100) || !num(e.sets,1,12) || !Number.isInteger(e.sets) || !num(e.reps,1,100) || !Number.isInteger(e.reps) || !num(e.restSeconds,0,1800)) throw Error("template");
       }
     }
@@ -202,6 +202,37 @@ export function setGymDayWeekday(plan:GymPlan,dayId:string,weekdayValue:number,t
     ]};
   })};
 }
+/**
+ * Update one recurring weekday without destroying past occurrences or sessions.
+ * Source exercises are copied with fresh plan-entry IDs; exercise-library IDs stay stable.
+ * Keeping a disabled day with a null schedule revision preserves historic occurrence keys.
+ */
+export function setGymWeekdayAssignment(store:GymStore,planId:string,dayOfWeek:number,
+  templateDayId:string|null,today:string):GymStore {
+  if(!dateValid(today)||!Number.isInteger(dayOfWeek)||dayOfWeek<0||dayOfWeek>6)return store;
+  const plan=store.plans.find(p=>p.id===planId);
+  if(!plan||!plan.days.length||activeGymPlanOnDate(store,today)?.id!==planId)return store;
+  const source=templateDayId===null?null:plan.days.find(d=>d.id===templateDayId);
+  if(templateDayId!==null&&!source)return store;
+  const current=plan.days.filter(d=>gymDayWeekdayOnDate(d,today)===dayOfWeek);
+  // Repeat calls must not duplicate training slots.
+  if(current.length===1&&source&&current[0].name===source.name)return store;
+  if(current.length===0&&!source)return store;
+  const revision=(day:GymPlanDay,weekdayValue:number|null):GymPlanDay=>{
+    const initial=day.scheduleHistory?.length?day.scheduleHistory:
+      [{effectiveFrom:plan.createdOn??today,weekday:day.weekday}];
+    const retained=initial.filter(x=>x.effectiveFrom<today);
+    return {...day,scheduleHistory:[...retained,{effectiveFrom:today,weekday:weekdayValue}]};
+  };
+  const updated=plan.days.map(day=>current.some(x=>x.id===day.id)?revision(day,null):day);
+  if(source){
+    updated.push({id:uid("day"),name:source.name,weekday:dayOfWeek,
+      scheduleHistory:[{effectiveFrom:today,weekday:dayOfWeek}],
+      exercises:source.exercises.map(ex=>({...ex,id:uid("plan-ex")}))});
+  }
+  return {...store,plans:store.plans.map(p=>p.id===planId?{...p,days:updated}:p)};
+}
+
 export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   if(!dateValid(date))return [];
   const result:GymOccurrence[]=[];

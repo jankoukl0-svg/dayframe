@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence,
+  emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, setGymWeekdayAssignment,
   occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
@@ -160,4 +160,24 @@ test("older existing gym stores gain new catalog entries without changing plans,
   assert.equal(JSON.stringify(old),raw,"Source store should not be mutated");
   assert.equal(extendGymExerciseCatalog(enlarged),enlarged,"Repeated hydration must not duplicate entries");
   assert.equal(parseGymStore(JSON.stringify(enlarged)).blocked,false);
+});
+
+test("five-day weekly split repeats and leaves historical sessions and exercise IDs intact",()=>{
+  let state=active();
+  // Existing plan has two template days. Build extra recurring slots from those templates.
+  const plan=state.plans[0];
+  const original=JSON.stringify(state.sessions);
+  state=setGymWeekdayAssignment(state,plan.id,2,plan.days[0].id,"2026-10-12");
+  state=setGymWeekdayAssignment(state,plan.id,3,plan.days[1].id,"2026-10-12");
+  state=setGymWeekdayAssignment(state,plan.id,5,plan.days[0].id,"2026-10-12");
+  assert.equal([12,13,14,15,16,17,18].reduce((sum,d)=>sum+assignmentsOnDate(state,"2026-10-"+d).length,0),5);
+  assert.equal(assignmentsOnDate(state,"2026-10-20").length,1);
+  assert.equal(JSON.stringify(state.sessions),original);
+  assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
+  const count=state.plans[0].days.length;
+  state=setGymWeekdayAssignment(state,plan.id,5,plan.days[0].id,"2026-10-12");
+  assert.equal(state.plans[0].days.length,count);
+  state=setGymWeekdayAssignment(state,plan.id,5,null,"2026-10-12");
+  assert.equal(assignmentsOnDate(state,"2026-10-16").length,0);
+  assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
 });

@@ -517,3 +517,22 @@ test("simplified Gym shows the chosen workout and keeps advanced set fields opti
   expect(after.plans).toEqual(before.plans);
   expect(after.sessions[0].exercises[0].sets[0]).toMatchObject({weightKg:60,reps:10,rpe:8,done:true});
 });
+
+test("a gym user can build five recurring Push Pull Lower sessions from the weekly section without date fields",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  const week=root.locator("[data-gym-week]");
+  await expect(week).toBeVisible();
+  await week.getByRole("combobox",{name:"Úterý – typ tréninku"}).selectOption({label:"Push"});
+  await week.getByRole("combobox",{name:"Čtvrtek – typ tréninku"}).selectOption({label:"Pull"});
+  await expect(week).toContainText("5 tréninků týdně");
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.plans[0].days.filter(day=>day.scheduleHistory?.at(-1)?.weekday!==null)).toHaveLength(5);
+  await page.reload({waitUntil:"networkidle"});
+  const again=await gym(page);
+  await expect(again.locator("[data-gym-week]")).toContainText("5 tréninků týdně");
+  await expect(again.locator("[data-gym-schedule]")).not.toHaveAttribute("open","");
+  await again.locator("[data-gym-schedule] summary").click();
+  await expect(again.locator("[data-gym-occurrence]")).toHaveCount(10);
+});
