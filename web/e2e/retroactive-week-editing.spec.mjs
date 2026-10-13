@@ -134,3 +134,61 @@ test("retroactive edit is saved together with completion, resizes visually and s
   await expect(persisted).toContainText("19:00–21:00");
   await expect.poll(async () => persisted.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(86.4, 0);
 });
+
+
+test("saved September routine ghosts disappear from history after loading without erasing completed sessions",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-13T16:30:00"));
+  await page.goto(process.env.DAYFRAME_BASE_URL||"http://127.0.0.1:4173",{waitUntil:"networkidle"});
+  await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const reference="2026-09-17T09:00:00.000Z";
+    const template=(id,date,title,source="routine",completed=false)=>({
+      id,title,date,duration:45,start:"18:00",end:"18:45",requestedStart:"18:00",
+      category:"Studium",priority:"normal",mode:"flexible",completed,source,
+      routineId:source==="routine"?"old-study":undefined,createdAt:reference,
+    });
+    state.routines.push({id:"old-study",title:"SCIO historické opakování",
+      duration:45,start:"18:00",category:"Studium",priority:"normal",
+      frequency:"daily",active:true,createdAt:reference});
+    state.plans["2026-09-21"]=[
+      template("routine-old-study-2026-09-21","2026-09-21","Starý automatický SCIO blok"),
+      template("confirmed","2026-09-21","Skutečně dokončené studium","routine",true),
+      template("manual","2026-09-21","Ručně zapsaný historický úkol","user"),
+    ];
+    state.plans["2026-09-22"]=[
+      template("orphan","2026-09-22","Osiřelý automatický blok"),
+    ];
+    state.plans["2026-10-14"]=[
+      template("future","2026-10-14","Budoucí automatický blok"),
+    ];
+    localStorage.setItem("dayframe-v1",JSON.stringify(state));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  const historical=()=>page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    return {
+      monday:(state.plans["2026-09-21"]??[]).map(task=>task.id),
+      tuesday:(state.plans["2026-09-22"]??[]).map(task=>task.id),
+      future:(state.plans["2026-10-14"]??[]).some(task=>task.id==="future"),
+      routine:state.routines.some(rule=>rule.id==="old-study"),
+    };
+  });
+  await expect.poll(historical).toEqual({
+    monday:["confirmed","manual"],tuesday:[],future:true,routine:true,
+  });
+  await page.getByRole("button",{name:/Týden/}).click();
+  for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").filter({hasText:"←"}).click();
+  const week=page.locator(".df2-week-grid");
+  await expect(week).not.toContainText("Starý automatický SCIO blok");
+  await expect(week).not.toContainText("Osiřelý automatický blok");
+  await expect(week).toContainText("Skutečně dokončené studium");
+  await expect(week).toContainText("Ručně zapsaný historický úkol");
+  await page.reload({waitUntil:"networkidle"});
+  await expect.poll(historical).toEqual({
+    monday:["confirmed","manual"],tuesday:[],future:true,routine:true,
+  });
+  await page.getByRole("button",{name:/Týden/}).click();
+  for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").filter({hasText:"←"}).click();
+  await expect(page.locator(".df2-week-grid")).not.toContainText("Starý automatický SCIO blok");
+});
