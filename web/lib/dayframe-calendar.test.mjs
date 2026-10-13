@@ -291,3 +291,19 @@ test("opening historical calendar must not schedule previously untimed saved tas
   const regenerated=materializeRange(state,"2026-10-05","2026-10-08",now);
   assert.deepEqual(regenerated.plans["2026-10-06"],[old]);
 });
+
+test("undated recurring mornings start on the next future day, never in today's elapsed slot",()=>{
+  const now=new Date(2026,9,13,20,53);
+  const state={...migrateStoredState(null,now),routines:[],plans:{}};
+  const draft={title:"Ranní rutina",start:"09:00",duration:30,
+    priority:"normal",category:"Rutina",repeat:"daily"};
+  const added=addTask(state,draft,now);
+  assert.equal(added.status,"scheduled");
+  assert.equal(added.task.date,"2026-10-14");
+  assert.equal(added.task.start,"09:00");
+  assert.equal((added.state.plans["2026-10-13"]??[]).length,0);
+  const followup=materializeRange(added.state,"2026-10-12","2026-10-16",now);
+  assert.equal((followup.plans["2026-10-13"]??[]).length,0);
+  assert.equal((followup.plans["2026-10-15"]??[]).some(t=>t.title==="Ranní rutina"),true);
+  assert.equal(addTask(state,{...draft,dueDate:"2026-10-13"},now).status,"invalid");
+});

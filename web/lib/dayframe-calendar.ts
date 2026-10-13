@@ -475,17 +475,21 @@ function dateRangeForDraft(draft: TaskDraft, now: Date) {
 }
 
 export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()) {
-  if (draft.repeat && draft.repeat !== "none") {
-    const selected = draft.date ?? planningDateKey(now);
-    const minute = timeToMinutes(draft.start);
-    // The historical Week editor may add one-off records, never backdated routines.
-    if (selected < planningDateKey(now)
-      || (selected === planningDateKey(now) && (!Number.isFinite(minute) || minute <= planningMinute(now)))) {
-      return {state,status:"invalid" as const,
-        error:"Opakovanou rutinu lze založit jen do budoucna. Vyber budoucí den nebo pozdější čas."};
-    }
+  const recurring = Boolean(draft.repeat && draft.repeat !== "none");
+  const today = planningDateKey(now),startMinute = timeToMinutes(draft.start);
+  // Explicit historical dates are invalid for recurrences, but an undated
+  // morning routine entered in the afternoon should start on the NEXT free day.
+  if(recurring && (!Number.isFinite(startMinute)
+    || (draft.date && (draft.date<today
+      || (draft.date===today && startMinute<=planningMinute(now)))))) {
+    return {state,status:"invalid" as const,
+      error:"Opakovanou rutinu lze založit jen do budoucna. Vyber budoucí den nebo pozdější čas."};
   }
-  const dates = dateRangeForDraft(draft, now);
+  const dates = dateRangeForDraft(draft, now).filter(date=>
+    !(recurring&&!draft.date&&date===today&&startMinute<=planningMinute(now)));
+  // A due date can leave no eligible future slot; never create an old backlog item.
+  if(!dates.length)return {state,status:"invalid" as const,
+    error:"Pro rutinu není dostupný budoucí den. Posuň datum nebo termín dokončení."};
   let next = materializeRange(state, dates[0], dates[dates.length - 1], now);
   const base = createTaskFromDraft(draft, dates[0], now, Boolean(draft.date));
 
