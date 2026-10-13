@@ -307,3 +307,41 @@ test("a routine cannot start in the already elapsed current minute, including wh
   assert.equal((rendered.plans["2026-10-13"]??[]).some(t=>t.routineId==="direct"),false);
   assert.equal((rendered.plans["2026-10-14"]??[]).filter(t=>t.routineId==="direct").length,1);
 });
+
+test("the first recurring task is linked to its rule and replaced when the rule is edited",()=>{
+  const now=new Date(2026,9,13,17,5);
+  const empty={...migrateStoredState(null,now),plans:{},routines:[]};
+  const added=addTask(empty,{title:"Starý čas",date:"2026-10-14",start:"18:00",
+    duration:30,category:"Studium",priority:"normal",repeat:"daily"},now);
+  assert.equal(added.status,"scheduled");
+  const routine=added.state.routines[0];
+  const first=added.state.plans["2026-10-14"][0];
+  assert.equal(first.source,"routine");
+  assert.equal(first.routineId,routine.id);
+  const changed=updateRoutineSchedule(added.state,routine.id,{title:"Nový čas",start:"19:00"},now);
+  const regenerated=materializeRange(changed,"2026-10-13","2026-10-16",now);
+  const day=regenerated.plans["2026-10-14"];
+  assert.equal(day.length,1,"Future seed must not survive as an orphaned duplicate");
+  assert.equal(day[0].title,"Nový čas");
+  assert.equal(day[0].start,"19:00");
+  assert.equal(day[0].routineId,routine.id);
+});
+test("future legacy seeds from the prior version are removed without touching separate one-off tasks",()=>{
+  const now=new Date(2026,9,13,17,5);
+  const instant=now.toISOString();
+  const rule={id:"legacy-rule",title:"Stará rutina",start:"18:00",duration:30,
+    frequency:"daily",priority:"normal",category:"Studium",active:true,
+    createdAt:instant,startDate:"2026-10-14"};
+  const legacy={id:"old-seed",title:rule.title,date:"2026-10-14",
+    duration:rule.duration,start:"18:00",requestedStart:"18:00",end:"18:30",
+    priority:"normal",category:rule.category,mode:"flexible",completed:false,
+    source:"user",createdAt:instant};
+  const manual={...legacy,id:"unrelated",createdAt:"2026-10-11T08:00:00.000Z"};
+  const state={...migrateStoredState(null,now),routines:[rule],
+    plans:{"2026-10-14":[legacy,manual]}};
+  const updated=updateRoutineSchedule(state,rule.id,{title:"Změna",start:"19:00"},now);
+  assert.deepEqual(updated.plans["2026-10-14"],[manual]);
+  const rendered=materializeRange(updated,"2026-10-14","2026-10-15",now);
+  assert.equal(rendered.plans["2026-10-14"].filter(t=>t.routineId===rule.id).length,1);
+  assert.equal(rendered.plans["2026-10-14"].find(t=>t.routineId===rule.id).title,"Změna");
+});

@@ -538,7 +538,13 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     createdAt: now.toISOString(),
     startDate: task.date,
   };
-  const next = { ...state, routines: [...state.routines, routineItem] };
+  // The initially scheduled block belongs to this recurring rule too. Keeping
+  // it as source:user would strand a stale duplicate after the routine is edited.
+  const attach=(item:CalendarTask):CalendarTask=>item.id===task.id?
+    {...item,source:"routine",routineId:routineItem.id}:item;
+  const plans={...state.plans};
+  if(plans[task.date])plans[task.date]=plans[task.date].map(attach);
+  const next={...state,plans,backlog:state.backlog.map(attach),routines:[...state.routines,routineItem]};
   // Populate upcoming occurrences immediately so the Week and Today views
   // display the new routine without an extra page reload.
   return materializeRange(next, task.date, addDaysKey(task.date, 28), now);
@@ -548,19 +554,30 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
 export function updateRoutineSchedule(state: DayframeState, id: string, patch: Partial<Routine>, now = new Date()): DayframeState {
   if (!state.routines.some(r => r.id === id)) return state;
   const today = planningDateKey(now), minute = planningMinute(now);
+  const original = state.routines.find(r=>r.id===id)!;
+  // PR #190 originally saved a seed as a one-off user task; identify it by
+  // its exact creation timestamp and first date to avoid touching other tasks.
+  const legacySeed=(task:CalendarTask,date:string)=>task.source==="user"
+    && !task.routineId && Boolean(original.startDate) && date===original.startDate
+    && task.createdAt===original.createdAt && task.title===original.title
+    && task.category===original.category && task.duration===original.duration
+    && task.requestedStart===original.start;
+  const belongs=(task:CalendarTask,date:string)=>(
+    (task.source==="routine" && task.routineId===id) || legacySeed(task,date));
   const routines = state.routines.map(r => r.id === id
     ? {...r, ...patch, id:r.id, createdAt:r.createdAt, startDate:r.startDate, effectiveFrom:now.toISOString()}
     : r);
   const plans = Object.fromEntries(Object.entries(state.plans).map(([date,tasks]) => [
     date, date < today ? tasks : tasks.filter(task => {
-      if (task.source !== "routine" || task.routineId !== id || task.completed) return true;
+      if (!belongs(task,date) || task.completed) return true;
       // Even an unfinished occurrence whose scheduled hour has passed today
       // is historical truth and must not be deleted or rewritten.
       if (date === today && task.start && timeToMinutes(task.start) <= minute) return true;
       return false;
     }),
   ]));
-  return {...state, routines, plans};
+  const backlog=state.backlog.filter(task=>!belongs(task,task.date)||task.completed);
+  return {...state, routines, plans, backlog};
 }
 
 export function updateTask(state: DayframeState, taskIdValue: string, patch: Partial<CalendarTask>, now = new Date()) {
