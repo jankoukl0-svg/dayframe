@@ -12,7 +12,7 @@ test("new daily routines affect today and future, never an already elapsed week"
   await dialog.locator(".df2-title-input input").fill("Nový pouze budoucí blok");
   await dialog.locator(".df2-chips input[type=time]").fill("20:30");
   await dialog.locator("details summary").filter({hasText:"Podrobnosti"}).click();
-  await dialog.getByLabel("Opakování").selectOption("daily");
+  await dialog.getByLabel("Opakování",{exact:true}).selectOption("daily");
   await dialog.getByRole("button",{name:"Naplánovat"}).click();
   await expect(dialog).toHaveCount(0);
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
@@ -45,12 +45,12 @@ test("retroactive Week entry cannot be recurring, but one-off historical entry i
   await dialog.locator(".df2-title-input input").fill("Zpětná poznámka");
   await dialog.locator(".df2-chips input[type=time]").fill("18:00");
   await dialog.locator("details summary").filter({hasText:"Podrobnosti"}).click();
-  await dialog.getByLabel("Opakování").selectOption("weekly");
+  await dialog.getByLabel("Opakování",{exact:true}).selectOption("weekly");
   await dialog.getByRole("button",{name:"Naplánovat"}).click();
   await expect(dialog).toContainText("Opakovanou rutinu lze naplánovat jen do budoucna.");
   let state=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
   expect(state.routines.some(x=>x.title==="Zpětná poznámka")).toBe(false);
-  await dialog.getByLabel("Opakování").selectOption("none");
+  await dialog.getByLabel("Opakování",{exact:true}).selectOption("none");
   await dialog.getByRole("button",{name:"Naplánovat"}).click();
   await expect(dialog).toHaveCount(0);
   state=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
