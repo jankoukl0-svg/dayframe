@@ -404,7 +404,7 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
       const skipKey = `${routine.id}:${cursor}`;
       if (next.routineSkips.includes(skipKey)) continue;
       const id = `routine-${routine.id}-${cursor}`;
-      const duplicate = existing.some((task) => task.id === id || (task.title === routine.title && task.start === routine.start));
+      const duplicate = existing.some((task) => task.id === id || (task.source === "routine" && task.routineId === routine.id) || (task.title === routine.title && task.start === routine.start));
       if (duplicate) continue;
       existing.push({
         id,
