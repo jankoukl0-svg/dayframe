@@ -248,3 +248,15 @@ test("adding a daily routine materializes tomorrow immediately without a refresh
   assert.equal(getTasksForDate(out.state,"2026-10-12").filter(t=>t.routineId).length,0);
   assert.equal(materializeRange(out.state,"2026-10-13","2026-10-14",now).plans["2026-10-14"].length,1);
 });
+
+test("a future-dated repeating task never materializes a recurrence before its chosen date",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  const state=migrateStoredState(null,now);
+  state.routines=[];state.plans={};
+  const created=addTask(state,{title:"Až zítra",duration:30,date:"2026-10-14",
+    start:"18:00",priority:"normal",category:"Studium",repeat:"daily"},now);
+  assert.equal(created.status,"scheduled");
+  assert.equal(getTasksForDate(created.state,"2026-10-13").some(x=>x.title==="Až zítra"),false);
+  assert.equal(getTasksForDate(created.state,"2026-10-14").filter(x=>x.title==="Až zítra").length,1);
+  assert.equal(getTasksForDate(created.state,"2026-10-15").filter(x=>x.title==="Až zítra").length,1);
+});

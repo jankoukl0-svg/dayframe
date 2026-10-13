@@ -520,7 +520,8 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
   };
   const updated={ ...state, routines: [...state.routines, routineItem] };
   // Show newly generated upcoming occurrences immediately, without a reload.
-  return materializeRange(updated, planningDateKey(now), addDaysKey(planningDateKey(now), 28), now);
+  const firstDate = task.date > planningDateKey(now) ? task.date : planningDateKey(now);
+  return materializeRange(updated, firstDate, addDaysKey(firstDate, 28), now);
 }
 
 export function updateTask(state: DayframeState, taskIdValue: string, patch: Partial<CalendarTask>, now = new Date()) {
