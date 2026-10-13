@@ -379,3 +379,20 @@ test("deleting a recurrence preserves historical, completed and elapsed instance
   assert.deepEqual(after.plans["2026-10-15"],[completed]);
   assert.deepEqual(state.plans["2026-10-14"],[future],"Original storage is unchanged");
 });
+
+test("deleting a recurrence removes today's unscheduled occurrence, preserving elapsed and completed ones",()=>{
+  const now=new Date(2026,9,13,15,30);
+  const base={id:"r",title:"Volná rutina",date:"2026-10-13",duration:30,
+    category:"Studium",priority:"normal",mode:"flexible",source:"routine",
+    routineId:"r",completed:false,createdAt:"2026-10-10T00:00:00Z"};
+  const state={...migrateStoredState(null,now),routines:[{
+    id:"r",title:"Volná rutina",duration:30,category:"Studium",priority:"normal",
+    frequency:"daily",active:true,createdAt:"2026-10-10T00:00:00Z",
+  }],plans:{"2026-10-13":[
+    base,{...base,id:"elapsed",start:"11:00",end:"11:30"},
+    {...base,id:"finished",completed:true,start:"17:00",end:"17:30"},
+  ]}};
+  const result=deleteRoutine(state,"r",now);
+  assert.deepEqual(result.plans["2026-10-13"].map(x=>x.id),["elapsed","finished"]);
+  assert.equal(result.routines.length,0);
+});

@@ -707,7 +707,7 @@ export function deleteRoutine(state: DayframeState, id: string, now = new Date()
       // Deleting a repeat cancels only upcoming occurrences; it must not
       // erase history, completed sessions, or today's already elapsed blocks.
       return task.completed || date < today
-        || (date === today && (!task.start || timeToMinutes(task.start) <= minute));
+        || (date === today && Boolean(task.start) && timeToMinutes(task.start) <= minute);
     }),
   ]));
   return { ...state, routines, plans };
