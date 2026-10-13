@@ -376,8 +376,33 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
   return { ...state, plans: { ...state.plans, [date]: sortTasks(next) } };
 }
 
+/**
+ * Previously generated routine occurrences can already be persisted in past
+ * weeks from older releases. Such uncompleted calendar projections are not
+ * evidence of an activity actually performed.
+ *
+ * Keep completed routine history and every manual/legacy task. Run against
+ * ALL stored dates, not only the currently viewed week, so old entries do not
+ * reappear when navigating back or reloading.
+ */
+export function pruneHistoricalRoutineProjections(state: DayframeState, now = new Date()): DayframeState {
+  const today = planningDateKey(now);
+  let plans: DayframeState["plans"] | null = null;
+  for (const [date, tasks] of Object.entries(state.plans)) {
+    if (date >= today) continue;
+    const kept = tasks.filter(task => task.source !== "routine" || task.completed);
+    if (kept.length === tasks.length) continue;
+    if (!plans) plans = { ...state.plans };
+    plans[date] = kept;
+  }
+  return plans ? { ...state, plans } : state;
+}
+
 export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date()) {
-  let next: DayframeState = { ...state, plans: { ...state.plans } };
+  // Clean already-saved ghost instances before projecting any future days.
+  // This also runs on hydration and when the 02:00 planning day changes.
+  const cleaned = pruneHistoricalRoutineProjections(state, now);
+  let next: DayframeState = { ...cleaned, plans: { ...cleaned.plans } };
   const today = planningDateKey(now);
   for (let cursor = fromKey; cursor <= toKey; cursor = addDaysKey(cursor, 1)) {
     // Neither recurrence generation nor automatic placement may rewrite a past day.
