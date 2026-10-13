@@ -110,6 +110,9 @@ for (const file of changed) {
   }
 
   if (lower.includes("routine")) addPrefix("routine-");
+  // Changes to the calendar materializer must always exercise the future-only gate.
+  if (file === "web/lib/dayframe-calendar.ts" || file === "web/app/dayframe-v2.tsx")
+    add("routine-future-only.spec.mjs");
   if (lower.includes("label")) addPrefix("label-");
   if (lower.includes("notification")) add("notifications.spec.mjs");
   if (lower.includes("dayframe-product-packshots")) add("hygiene-packshots.spec.mjs");
