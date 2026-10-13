@@ -34,6 +34,7 @@ export type Routine = {
   weekdays?: number[];
   active: boolean;
   createdAt: string;
+  startDate?: string; // First day on which this recurring routine is allowed to appear.
 };
 
 export type Milestone = { id: string; title: string; date: string; note: string };
@@ -385,6 +386,7 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
     const existing = [...(next.plans[cursor] ?? [])];
     for (const routine of next.routines) {
       if (!routineMatchesDate(routine, date)) continue;
+      if (routine.startDate && cursor < routine.startDate) continue;
       const startMinute = timeToMinutes(routine.start);
       // Established routines may still appear as missed today. The creation-time
       // boundary below prevents only NEW routines from appearing before they existed.
@@ -517,6 +519,7 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     weekdays: frequency === "weekly" ? [dateFromKey(task.date).getDay()] : undefined,
     active: true,
     createdAt: now.toISOString(),
+    startDate: task.date,
   };
   const updated={ ...state, routines: [...state.routines, routineItem] };
   // Show newly generated upcoming occurrences immediately, without a reload.

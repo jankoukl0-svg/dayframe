@@ -260,3 +260,18 @@ test("a future-dated repeating task never materializes a recurrence before its c
   assert.equal(getTasksForDate(created.state,"2026-10-14").filter(x=>x.title==="Až zítra").length,1);
   assert.equal(getTasksForDate(created.state,"2026-10-15").filter(x=>x.title==="Až zítra").length,1);
 });
+
+test("selected future first date survives reload and opening earlier days",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  const state=migrateStoredState(null,now);
+  state.routines=[];state.plans={};
+  const created=addTask(state,{title:"Od zítřka",duration:30,date:"2026-10-14",
+    start:"18:00",priority:"normal",category:"Studium",repeat:"daily"},now);
+  assert.equal(created.status,"scheduled");
+  assert.equal(created.state.routines[0].startDate,"2026-10-14");
+  const reloaded=migrateStoredState(JSON.parse(JSON.stringify(created.state)),now);
+  const visible=materializeRange(reloaded,"2026-10-05","2026-10-16",now);
+  assert.equal(getTasksForDate(visible,"2026-10-13").some(x=>x.title==="Od zítřka"),false);
+  assert.equal(getTasksForDate(visible,"2026-10-14").filter(x=>x.title==="Od zítřka").length,1);
+  assert.equal(getTasksForDate(visible,"2026-10-15").filter(x=>x.title==="Od zítřka").length,1);
+});
