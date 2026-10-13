@@ -129,15 +129,17 @@ test("Settings toggle immediately restores upcoming routine blocks and deleting 
   await expect(group).toBeVisible();
   await group.locator(".df2-routine-group-summary").click();
   const toggle=group.locator(".df2-routine-occurrence input[type='checkbox']");
-  await toggle.uncheck();
+  await toggle.click();
   const counts=()=>page.evaluate(()=>{
     const state=JSON.parse(localStorage.getItem("dayframe-v1"));
     const count=(date)=>(state.plans[date]??[]).filter(task=>task.routineId==="history-toggle-e2e").length;
     return [count("2026-10-12"),count("2026-10-13"),count("2026-10-14")];
   });
   await expect.poll(counts).toEqual([1,0,0]);
-  await toggle.check();
+  await expect(toggle).not.toBeChecked();
+  await toggle.click();
   await expect.poll(counts).toEqual([1,1,1]);
+  await expect(toggle).toBeChecked();
   await group.locator(".df2-routine-occurrence button.delete").click();
   await expect.poll(counts).toEqual([1,0,0]);
   await page.reload({waitUntil:"networkidle"});
