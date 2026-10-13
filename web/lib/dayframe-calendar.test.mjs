@@ -396,3 +396,68 @@ test("deleting a recurrence removes today's unscheduled occurrence, preserving e
   assert.deepEqual(result.plans["2026-10-13"].map(x=>x.id),["elapsed","finished"]);
   assert.equal(result.routines.length,0);
 });
+
+
+test("the first scheduled recurrence is linked to its rule and removed on disabling without erasing other tasks",()=>{
+  const instant=new Date(2026,9,13,15,30);
+  const initial={...migrateStoredState(null,instant),routines:[],plans:{},backlog:[]};
+  const result=addTask(initial,{title:"Budoucí propojená rutina",date:"2026-10-20",
+    start:"18:00",duration:45,category:"Studium",priority:"normal",repeat:"daily"},instant);
+  assert.equal(result.status,"scheduled");
+  const rule=result.state.routines[0];
+  const first=result.state.plans["2026-10-20"].find(task=>task.title==="Budoucí propojená rutina");
+  assert.equal(first.source,"routine");
+  assert.equal(first.routineId,rule.id);
+  const generated=materializeRange(result.state,"2026-10-19","2026-10-22",instant);
+  assert.equal(generated.plans["2026-10-20"].filter(task=>task.routineId===rule.id).length,1);
+  const disabled=editRoutineFutureOnly(generated,rule.id,{active:false},instant);
+  assert.equal((disabled.plans["2026-10-20"]??[]).some(task=>task.routineId===rule.id),false);
+  const enabled=editRoutineFutureOnly(disabled,rule.id,{active:true},instant);
+  const restored=materializeRange(enabled,"2026-10-13","2026-11-10",instant);
+  assert.equal(restored.plans["2026-10-20"].filter(task=>task.routineId===rule.id).length,1);
+  assert.equal((restored.plans["2026-10-19"]??[]).some(task=>task.routineId===rule.id),false);
+  const removed=deleteRoutine(restored,rule.id,instant);
+  assert.equal((removed.plans["2026-10-20"]??[]).some(task=>task.routineId===rule.id),false);
+  assert.deepEqual(removed.routines,[]);
+});
+
+test("deactivating a rule preserves past incomplete tasks and today's elapsed or completed tasks",()=>{
+  const instant=new Date(2026,9,13,15,30);
+  const routine={id:"keep-history",title:"Studium",duration:45,start:"18:00",
+    category:"Studium",priority:"normal",frequency:"daily",active:true,
+    createdAt:"2026-10-01T08:00:00.000Z"};
+  const make=(id,date,start,completed=false)=>({
+    id,title:"Studium",date,start,end:start?"18:45":undefined,duration:45,
+    priority:"normal",category:"Studium",mode:"flexible",completed,source:"routine",
+    routineId:routine.id,createdAt:routine.createdAt,
+  });
+  const past=make("past","2026-10-12","18:00");
+  const elapsed=make("elapsed","2026-10-13","11:00");
+  const done=make("done","2026-10-14","18:00",true);
+  const upcoming=make("upcoming","2026-10-13","18:00");
+  const untimed=make("untimed","2026-10-13",undefined);
+  const tomorrow=make("tomorrow","2026-10-14","18:00");
+  const state={...migrateStoredState(null,instant),routines:[routine],
+    plans:{"2026-10-12":[past],"2026-10-13":[elapsed,upcoming,untimed],"2026-10-14":[done,tomorrow]}};
+  const disabled=editRoutineFutureOnly(state,routine.id,{active:false},instant);
+  assert.deepEqual(disabled.plans["2026-10-12"],[past]);
+  assert.deepEqual(disabled.plans["2026-10-13"],[elapsed]);
+  assert.deepEqual(disabled.plans["2026-10-14"],[done]);
+  assert.equal(state.plans["2026-10-13"].length,3);
+  assert.equal(disabled.routines[0].active,false);
+});
+
+test("routine deletion cleans only linked backlog occurrences without touching manual backlog",()=>{
+  const instant=new Date(2026,9,13,15,30);
+  const id="waiting-rule";
+  const base={id:"waiting",title:"Ranní aktivita",date:"2026-10-14",
+    duration:45,priority:"normal",category:"Studium",mode:"flexible",
+    completed:false,source:"routine",routineId:id,createdAt:instant.toISOString()};
+  const state={...migrateStoredState(null,instant),
+    routines:[{id,title:"Ranní aktivita",duration:45,category:"Studium",
+      priority:"normal",frequency:"daily",active:true,createdAt:instant.toISOString()}],
+    backlog:[base,{...base,id:"manual",source:"user",routineId:undefined}]};
+  const cleaned=deleteRoutine(state,id,instant);
+  assert.deepEqual(cleaned.backlog.map(x=>x.id),["manual"]);
+  assert.equal(state.backlog.length,2);
+});
