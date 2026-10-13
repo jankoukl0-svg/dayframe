@@ -46,6 +46,8 @@ test("retroactive Week entry cannot be recurring, but one-off historical entry i
   await dialog.locator(".df2-chips input[type=time]").fill("18:00");
   await dialog.locator("details summary").filter({hasText:"Podrobnosti"}).click();
   await dialog.getByLabel("Opakování",{exact:true}).selectOption("weekly");
+  // The historic date is intentionally allowed for one-off entries, even after rerenders.
+  await expect(dialog.locator(".df2-chips input[type=date]")).not.toHaveAttribute("min");
   await dialog.getByRole("button",{name:"Naplánovat"}).click();
   await expect(dialog).toContainText("Opakovanou rutinu lze naplánovat jen do budoucna.");
   let state=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
