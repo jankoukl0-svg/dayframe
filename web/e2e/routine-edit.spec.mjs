@@ -53,7 +53,7 @@ test("a new repeating routine rejects past dates in the historical Week editor",
   await dialog.locator(".df2-title-input input").fill("Budoucí testovací rutina");
   await dialog.locator(".df2-chips input[type='time']").fill("18:00");
   await dialog.locator("details.df2-details summary").click();
-  await dialog.getByLabel("Opakování").selectOption("weekly");
+  await dialog.getByRole("combobox",{name:/^Opakování/}).selectOption("weekly");
   const before=await page.evaluate(()=>localStorage.getItem("dayframe-v1"));
   await dialog.getByRole("button",{name:"Naplánovat"}).click();
   await expect(dialog).toBeVisible();
