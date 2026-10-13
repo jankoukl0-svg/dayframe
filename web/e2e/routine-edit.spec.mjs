@@ -118,7 +118,7 @@ test("Settings toggle immediately restores upcoming routine blocks and deleting 
       mode:"flexible",completed:false,source:"routine",routineId:id,
       createdAt:rule.createdAt});
     initial.routines.push(rule);
-    initial.plans["2026-10-12"]=[...(initial.plans["2026-10-12"]??[]),occurrence("2026-10-12")];
+    initial.plans["2026-10-12"]=[...(initial.plans["2026-10-12"]??[]),{...occurrence("2026-10-12"),completed:true}];
     initial.plans["2026-10-13"]=[...(initial.plans["2026-10-13"]??[]),occurrence("2026-10-13")];
     initial.plans["2026-10-14"]=[...(initial.plans["2026-10-14"]??[]),occurrence("2026-10-14")];
     localStorage.setItem("dayframe-v1",JSON.stringify(initial));
