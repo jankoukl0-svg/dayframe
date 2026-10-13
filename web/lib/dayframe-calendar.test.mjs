@@ -461,3 +461,21 @@ test("routine deletion cleans only linked backlog occurrences without touching m
   assert.deepEqual(cleaned.backlog.map(x=>x.id),["manual"]);
   assert.equal(state.backlog.length,2);
 });
+
+
+test("a newly created repeat without an available first slot is still owned by its rule",()=>{
+  const instant=new Date(2026,9,13,15,30);
+  const state={...migrateStoredState(null,instant),routines:[],plans:{},backlog:[]};
+  const result=addTask(state,{title:"Pozdní opakování",date:"2026-10-20",
+    start:"23:59",duration:45,deadlineTime:"22:30",category:"Studium",
+    priority:"normal",repeat:"daily"},instant);
+  assert.equal(result.status,"waiting");
+  const id=result.state.routines[0].id;
+  const initial=result.state.plans["2026-10-20"][0];
+  assert.equal(initial.source,"routine");
+  assert.equal(initial.routineId,id);
+  const materialized=materializeRange(result.state,"2026-10-20","2026-10-20",instant);
+  assert.equal((materialized.plans["2026-10-20"]??[]).filter(t=>t.routineId===id).length,1);
+  const deleted=deleteRoutine(materialized,id,instant);
+  assert.equal((deleted.plans["2026-10-20"]??[]).some(t=>t.routineId===id),false);
+});
