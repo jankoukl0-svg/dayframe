@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   addTask,
   editRoutineFutureOnly,
+  deleteRoutine,
   findSlot,
   getTasksForDate,
   calendarBounds,
@@ -306,4 +307,75 @@ test("undated recurring mornings start on the next future day, never in today's 
   assert.equal((followup.plans["2026-10-13"]??[]).length,0);
   assert.equal((followup.plans["2026-10-15"]??[]).some(t=>t.title==="Ranní rutina"),true);
   assert.equal(addTask(state,{...draft,dueDate:"2026-10-13"},now).status,"invalid");
+});
+
+test("future-dated new daily recurrence never backfills dates before the chosen first day",()=>{
+  const now=new Date(2026,9,13,15,30);
+  const state={...migrateStoredState(null,now),routines:[],plans:{}};
+  const result=addTask(state,{title:"Nová denní rutina",date:"2026-10-19",
+    start:"10:30",duration:45,category:"Studium",priority:"normal",repeat:"daily"},now);
+  assert.equal(result.status,"scheduled");
+  assert.equal(result.state.routines[0].effectiveFrom,"2026-10-19");
+  const future=materializeRange(result.state,"2026-10-05","2026-10-25",now);
+  for(const date of ["2026-10-05","2026-10-12","2026-10-13","2026-10-14","2026-10-15","2026-10-18"]){
+    assert.equal((future.plans[date]??[]).some(x=>x.title==="Nová denní rutina"),false,date);
+  }
+  assert.equal((future.plans["2026-10-19"]??[]).filter(x=>x.title==="Nová denní rutina").length,1);
+  assert.equal((future.plans["2026-10-20"]??[]).filter(x=>x.title==="Nová denní rutina").length,1);
+  const later=materializeRange(future,"2026-10-05","2026-10-25",new Date(2026,9,20,18));
+  assert.equal((later.plans["2026-10-18"]??[]).length,0);
+  assert.equal((later.plans["2026-10-19"]??[]).filter(x=>x.title==="Nová denní rutina").length,1);
+});
+test("new future weekly repeat starts on its specified weekday without past-week backfill",()=>{
+  const now=new Date(2026,9,13,15,30);
+  const state={...migrateStoredState(null,now),routines:[],plans:{}};
+  const result=addTask(state,{title:"Nové úterní opakování",date:"2026-10-20",
+    start:"11:00",duration:45,category:"Studium",priority:"normal",repeat:"weekly"},now);
+  assert.equal(result.status,"scheduled");
+  assert.deepEqual(result.state.routines[0].weekdays,[2]);
+  assert.equal(result.state.routines[0].effectiveFrom,"2026-10-20");
+  const future=materializeRange(result.state,"2026-10-06","2026-11-04",now);
+  for(const date of ["2026-10-06","2026-10-13"]){
+    assert.equal((future.plans[date]??[]).some(x=>x.title==="Nové úterní opakování"),false,date);
+  }
+  for(const date of ["2026-10-20","2026-10-27","2026-11-03"]){
+    assert.equal((future.plans[date]??[]).filter(x=>x.title==="Nové úterní opakování").length,1,date);
+  }
+});
+test("routine start at the current minute is already elapsed and can only start later",()=>{
+  const now=new Date(2026,9,13,15,30);
+  let state={...migrateStoredState(null,now),routines:[],plans:{}};
+  const immediate=addTask(state,{title:"Právě teď",date:"2026-10-13",
+    start:"15:30",duration:30,category:"Studium",priority:"normal",repeat:"daily"},now);
+  assert.equal(immediate.status,"invalid");
+  const fresh={...state,routines:[{id:"exact",title:"Právě teď",duration:30,start:"15:30",
+    category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:now.toISOString()}]};
+  const materialized=materializeRange(fresh,"2026-10-12","2026-10-14",now);
+  assert.equal((materialized.plans["2026-10-13"]??[]).length,0);
+  assert.equal((materialized.plans["2026-10-14"]??[]).length,1);
+});
+test("deleting a recurrence preserves historical, completed and elapsed instances",()=>{
+  const now=new Date(2026,9,13,15,30);
+  const state={...migrateStoredState(null,now),routines:[{
+    id:"routine-x",title:"Archivovaná rutina",start:"14:00",duration:30,category:"Studium",
+    priority:"normal",frequency:"daily",active:true,createdAt:"2026-09-17T00:00:00.000Z",
+  }],plans:{}};
+  const build=(date,id,start="14:00",completed=false)=>({
+    id,title:"Archivovaná rutina",date,start,end:"14:30",duration:30,
+    category:"Studium",priority:"normal",mode:"flexible",source:"routine",
+    routineId:"routine-x",completed,createdAt:"2026-09-17T00:00:00.000Z",
+  });
+  const past=build("2026-10-12","old");
+  const elapsed=build("2026-10-13","elapsed");
+  const future=build("2026-10-14","future");
+  const completed=build("2026-10-15","done","14:00",true);
+  state.plans={"2026-10-12":[past],"2026-10-13":[elapsed],
+    "2026-10-14":[future],"2026-10-15":[completed]};
+  const after=deleteRoutine(state,"routine-x",now);
+  assert.equal(after.routines.length,0);
+  assert.deepEqual(after.plans["2026-10-12"],[past]);
+  assert.deepEqual(after.plans["2026-10-13"],[elapsed]);
+  assert.deepEqual(after.plans["2026-10-14"],[]);
+  assert.deepEqual(after.plans["2026-10-15"],[completed]);
+  assert.deepEqual(state.plans["2026-10-14"],[future],"Original storage is unchanged");
 });

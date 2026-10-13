@@ -34,6 +34,9 @@ export type Routine = {
   weekdays?: number[];
   active: boolean;
   createdAt: string;
+  /** First eligible planning date for this recurrence, inclusive.
+   * Optional for existing stored routines created before this setting existed. */
+  effectiveFrom?: string;
 };
 
 export type Milestone = { id: string; title: string; date: string; note: string };
@@ -383,17 +386,20 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
     const existing = [...(next.plans[cursor] ?? [])];
     for (const routine of next.routines) {
       if (!routineMatchesDate(routine, date)) continue;
+      // A repeat created for a future start date must never run earlier.
+      // Older stored routines without this field still obey their creation timestamp.
+      if (routine.effectiveFrom && cursor < routine.effectiveFrom) continue;
       const hasFixedStart = Boolean(routine.start);
       const startMinute = hasFixedStart ? timeToMinutes(routine.start) : 0;
       // Untimed routines are placed by the auto-planner into the remaining day.
-      if (hasFixedStart && cursor === today && startMinute < planningMinute(now)) continue;
+      if (hasFixedStart && cursor === today && startMinute <= planningMinute(now)) continue;
       // A newly created recurrence cannot invent occurrences before it existed.
       // Existing saved task instances are not touched by this guard.
       const created = new Date(routine.createdAt);
       if (Number.isFinite(created.getTime())) {
         const createdDay = planningDateKey(created);
         if (cursor < createdDay
-          || (hasFixedStart && cursor === createdDay && startMinute < planningMinute(created))) continue;
+          || (hasFixedStart && cursor === createdDay && startMinute <= planningMinute(created))) continue;
       }
       const skipKey = `${routine.id}:${cursor}`;
       if (next.routineSkips.includes(skipKey)) continue;
@@ -525,6 +531,9 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     weekdays: frequency === "weekly" ? [dateFromKey(task.date).getDay()] : undefined,
     active: true,
     createdAt: now.toISOString(),
+    // This is the date the user chose (or the first available future day).
+    // createdAt alone would allow a future-dated daily routine to recur too early.
+    effectiveFrom: task.date,
   };
   return { ...state, routines: [...state.routines, routineItem] };
 }
@@ -688,9 +697,19 @@ export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partia
   return {...state,plans,routines:state.routines.map(item=>item.id===id?{...item,...patch}:item)};
 }
 
-export function deleteRoutine(state: DayframeState, id: string) {
+export function deleteRoutine(state: DayframeState, id: string, now = new Date()) {
   const routines = state.routines.filter((item) => item.id !== id);
-  const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [date, tasks.filter((task) => task.routineId !== id)]));
+  const today = planningDateKey(now), minute = planningMinute(now);
+  const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [
+    date,
+    tasks.filter((task) => {
+      if (task.source !== "routine" || task.routineId !== id) return true;
+      // Deleting a repeat cancels only upcoming occurrences; it must not
+      // erase history, completed sessions, or today's already elapsed blocks.
+      return task.completed || date < today
+        || (date === today && (!task.start || timeToMinutes(task.start) <= minute));
+    }),
+  ]));
   return { ...state, routines, plans };
 }
 

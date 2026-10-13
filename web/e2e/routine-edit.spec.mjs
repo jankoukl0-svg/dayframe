@@ -69,3 +69,36 @@ test("a new repeating routine rejects past dates in the historical Week editor",
   const after=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
   expect((after.plans["2026-10-05"]??[]).some(t=>t.title==="Budoucí testovací rutina")).toBe(false);
 });
+
+test("a newly created future-dated daily routine only appears from its first date onward",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-13T16:30:00"));
+  await page.goto(process.env.DAYFRAME_BASE_URL||"http://127.0.0.1:4173",{waitUntil:"networkidle"});
+  await page.evaluate(()=>localStorage.clear());
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:/Nastavení/}).click();
+  await page.getByRole("button",{name:"+ Nová rutina"}).click();
+  const dialog=page.getByRole("dialog",{name:"Přidat úkol"});
+  await dialog.locator(".df2-title-input input").fill("Budoucí od 19. října");
+  await dialog.locator(".df2-chips input[type='date']").fill("2026-10-19");
+  await dialog.locator(".df2-chips input[type='time']").fill("18:00");
+  await dialog.locator("details.df2-details summary").click();
+  await dialog.getByRole("combobox",{name:/^Opakování/}).selectOption("daily");
+  await dialog.getByRole("button",{name:"Naplánovat"}).click();
+  await expect(dialog).toHaveCount(0);
+  let saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
+  const routine=saved.routines.find(x=>x.title==="Budoucí od 19. října");
+  expect(routine.effectiveFrom).toBe("2026-10-19");
+  await page.getByRole("button",{name:/Týden/}).click();
+  await expect(page.locator(".df2-week-day").filter({hasText:"Budoucí od 19. října"})).toHaveCount(0);
+  // Next week includes Monday the 19th. Reload must not backfill earlier days.
+  await page.locator(".df2-week-controls button").filter({hasText:"→"}).click();
+  await expect(page.locator(".df2-week-day").filter({hasText:"Budoucí od 19. října"})).toHaveCount(7);
+  saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
+  for(const day of ["2026-10-12","2026-10-13","2026-10-14","2026-10-15","2026-10-16","2026-10-17","2026-10-18"]){
+    expect((saved.plans[day]??[]).some(x=>x.routineId===routine.id)).toBe(false);
+  }
+  await page.reload({waitUntil:"networkidle"});
+  const reloaded=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
+  expect((reloaded.plans["2026-10-18"]??[]).some(x=>x.routineId===routine.id)).toBe(false);
+  expect((reloaded.plans["2026-10-20"]??[]).filter(x=>x.routineId===routine.id)).toHaveLength(1);
+});
