@@ -223,3 +223,28 @@ test("retroactive repeating drafts are rejected without blocking retrospective o
   assert.notEqual(retro.status,"rejected");
   assert.equal(retro.task.date,"2026-10-12");
 });
+
+test("older already active routines still appear today as missed, never fabricated on older dates",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  const data=migrateStoredState(null,now);
+  data.routines=[{id:"established",title:"Zavedená rutina",start:"09:00",
+    duration:30,category:"Studium",priority:"normal",frequency:"daily",
+    active:true,createdAt:"2026-10-01T12:00:00.000Z"}];
+  const ready=materializeRange(data,"2026-10-05","2026-10-14",now);
+  assert.equal(getTasksForDate(ready,"2026-10-12").some(x=>x.routineId==="established"),false);
+  assert.equal(getTasksForDate(ready,"2026-10-13").filter(x=>x.routineId==="established").length,1,
+    "Today's elapsed scheduled routines must remain available in the missed flow");
+  assert.equal(getTasksForDate(ready,"2026-10-14").filter(x=>x.routineId==="established").length,1);
+});
+
+test("adding a daily routine materializes tomorrow immediately without a refresh",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  const data=migrateStoredState(null,now);
+  data.routines=[];data.plans={};
+  const out=addTask(data,{title:"Nová pravidelná",duration:30,start:"20:30",
+    date:"2026-10-13",priority:"normal",category:"Studium",repeat:"daily"},now);
+  assert.equal(out.status,"scheduled");
+  assert.equal(getTasksForDate(out.state,"2026-10-14").filter(t=>t.routineId).length,1);
+  assert.equal(getTasksForDate(out.state,"2026-10-12").filter(t=>t.routineId).length,0);
+  assert.equal(materializeRange(out.state,"2026-10-13","2026-10-14",now).plans["2026-10-14"].length,1);
+});

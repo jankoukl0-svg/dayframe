@@ -386,7 +386,8 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
     for (const routine of next.routines) {
       if (!routineMatchesDate(routine, date)) continue;
       const startMinute = timeToMinutes(routine.start);
-      if (cursor === today && (!Number.isFinite(startMinute) || startMinute < currentMinute)) continue;
+      // Established routines may still appear as missed today. The creation-time
+      // boundary below prevents only NEW routines from appearing before they existed.
       // Newly added routines must not be backfilled before their creation.
       const created = new Date(routine.createdAt);
       const validCreated = !Number.isNaN(created.getTime());
@@ -517,7 +518,9 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     active: true,
     createdAt: now.toISOString(),
   };
-  return { ...state, routines: [...state.routines, routineItem] };
+  const updated={ ...state, routines: [...state.routines, routineItem] };
+  // Show newly generated upcoming occurrences immediately, without a reload.
+  return materializeRange(updated, planningDateKey(now), addDaysKey(planningDateKey(now), 28), now);
 }
 
 export function updateTask(state: DayframeState, taskIdValue: string, patch: Partial<CalendarTask>, now = new Date()) {
