@@ -11,6 +11,7 @@ import {
   minutesToTime,
   planningDateKey,
   planningMinute,
+  pruneHistoricalRoutineProjections,
   timeToMinutes,
   materializeRange,
   migrateStoredState,
@@ -278,7 +279,7 @@ test("routine edits keep past incomplete and today elapsed events, regenerating 
   assert.deepEqual(state.plans["2026-10-14"],[future,completed,manual]);
   assert.equal(changed.routines.find(r=>r.id===original.id).title,"Upravená CFI");
   const next=materializeRange(changed,"2026-10-06","2026-10-20",now);
-  assert.deepEqual(next.plans["2026-10-06"],[old]);
+  assert.deepEqual(next.plans["2026-10-06"],[],"Uncompleted generated blocks from past weeks are purged on materialization");
   assert.ok(next.plans["2026-10-13"].some(t=>t.id===elapsed.id && t.title===old.title));
   assert.ok(next.plans["2026-10-20"].some(t=>t.title==="Upravená CFI"&&t.start==="18:00"));
 });
@@ -324,7 +325,7 @@ test("future-dated new daily recurrence never backfills dates before the chosen 
   assert.equal((future.plans["2026-10-20"]??[]).filter(x=>x.title==="Nová denní rutina").length,1);
   const later=materializeRange(future,"2026-10-05","2026-10-25",new Date(2026,9,20,18));
   assert.equal((later.plans["2026-10-18"]??[]).length,0);
-  assert.equal((later.plans["2026-10-19"]??[]).filter(x=>x.title==="Nová denní rutina").length,1);
+  assert.equal((later.plans["2026-10-19"]??[]).filter(x=>x.title==="Nová denní rutina").length,0,"Expired unfinished occurrence is not historical activity");
 });
 test("new future weekly repeat starts on its specified weekday without past-week backfill",()=>{
   const now=new Date(2026,9,13,15,30);
@@ -480,4 +481,72 @@ test("a newly created repeat without an available first slot is still owned by i
   assert.equal((materialized.plans["2026-10-20"]??[]).filter(t=>t.routineId===id).length,1);
   const deleted=deleteRoutine(materialized,id,instant);
   assert.equal((deleted.plans["2026-10-20"]??[]).some(t=>t.routineId===id),false);
+});
+
+
+test("old saved weeks lose uncompleted routine ghosts but retain confirmed and manual history",()=>{
+  const reference=new Date(2026,9,13,16,30);
+  const seed=migrateStoredState(null,reference);
+  const base={title:"Studium",duration:45,start:"18:00",end:"18:45",
+    category:"Studium",priority:"normal",mode:"flexible",source:"routine",
+    routineId:"mon-cfi",completed:false,createdAt:"2026-09-17T00:00:00Z"};
+  const ghost={...base,id:"routine-mon-cfi-2026-09-21",date:"2026-09-21"};
+  const orphan={...base,id:"old-orphan",routineId:"deleted-old-rule",date:"2026-09-22"};
+  const completed={...base,id:"completed",date:"2026-09-21",completed:true};
+  const manual={...base,id:"manual",date:"2026-09-21",source:"user",routineId:undefined};
+  const legacy={...base,id:"legacy",date:"2026-09-22",source:"legacy",routineId:undefined};
+  const today={...base,id:"today",date:"2026-10-13"};
+  const future={...base,id:"future",date:"2026-10-14"};
+  const raw={...seed,plans:{
+    "2026-09-21":[ghost,completed,manual],
+    "2026-09-22":[orphan,legacy],
+    "2026-10-13":[today],
+    "2026-10-14":[future],
+  }};
+  const before=JSON.stringify(raw);
+  // A load of any week must clean the entire stored history, not just the visible range.
+  const cleaned=materializeRange(migrateStoredState(raw,reference),"2026-10-13","2026-10-14",reference);
+  assert.deepEqual(cleaned.plans["2026-09-21"],[completed,manual]);
+  assert.deepEqual(cleaned.plans["2026-09-22"],[legacy]);
+  assert.ok(cleaned.plans["2026-10-13"].some(x=>x.id==="today"));
+  assert.ok(cleaned.plans["2026-10-14"].some(x=>x.id==="future"));
+  assert.equal(JSON.stringify(raw),before,"Never mutate the user's source object");
+  assert.deepEqual(pruneHistoricalRoutineProjections(cleaned,reference),cleaned,"Cleanup is idempotent");
+  const viewedOldWeek=materializeRange(cleaned,"2026-09-21","2026-09-27",reference);
+  assert.deepEqual(viewedOldWeek.plans["2026-09-21"],[completed,manual]);
+  assert.deepEqual(viewedOldWeek.plans["2026-09-22"],[legacy]);
+});
+
+test("past routine cleanup rolls over at the existing 02:00 planning boundary",()=>{
+  const seed=migrateStoredState(null,new Date(2026,9,14,1,59));
+  const base={id:"old",title:"Noční rutina",date:"2026-10-13",duration:30,
+    start:"23:00",end:"23:30",category:"Studium",priority:"normal",
+    mode:"flexible",source:"routine",routineId:"read",completed:false,
+    createdAt:"2026-09-17T00:00:00Z"};
+  const yesterday={...base,id:"yesterday",date:"2026-10-12"};
+  const completed={...base,id:"finished",completed:true};
+  const manual={...base,id:"manual",source:"user",routineId:undefined};
+  const state={...seed,plans:{
+    "2026-10-12":[yesterday],
+    "2026-10-13":[base,completed,manual],
+  }};
+  const beforeBoundary=pruneHistoricalRoutineProjections(state,new Date(2026,9,14,1,59));
+  assert.deepEqual(beforeBoundary.plans["2026-10-12"],[]);
+  assert.deepEqual(beforeBoundary.plans["2026-10-13"],[base,completed,manual]);
+  const afterBoundary=pruneHistoricalRoutineProjections(beforeBoundary,new Date(2026,9,14,2,0));
+  assert.deepEqual(afterBoundary.plans["2026-10-13"],[completed,manual]);
+});
+
+test("empty historical days never materialize any routine again on revisit",()=>{
+  const reference=new Date(2026,9,13,16,30);
+  const old={id:"routine-read-2026-09-21",title:"Čtení knihy",date:"2026-09-21",
+    duration:20,start:"22:40",end:"23:00",category:"Rutina",priority:"normal",
+    mode:"flexible",completed:false,source:"routine",routineId:"read",
+    createdAt:"2026-09-17T00:00:00Z"};
+  const initial={...migrateStoredState(null,reference),plans:{"2026-09-21":[old]}};
+  let cleaned=materializeRange(initial,"2026-09-21","2026-10-14",reference);
+  assert.deepEqual(cleaned.plans["2026-09-21"],[]);
+  cleaned=materializeRange(cleaned,"2026-09-21","2026-09-27",reference);
+  assert.deepEqual(cleaned.plans["2026-09-21"],[]);
+  assert.equal(cleaned.routines.some(x=>x.id==="read"),true,"The underlying schedule remains active");
 });
