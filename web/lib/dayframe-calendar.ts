@@ -535,7 +535,19 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     // createdAt alone would allow a future-dated daily routine to recur too early.
     effectiveFrom: task.date,
   };
-  return { ...state, routines: [...state.routines, routineItem] };
+  // Link the very first occurrence to the same rule. Otherwise deleting
+  // the rule would leave its future first appointment orphaned as a user task.
+  const bindFirst=(item:CalendarTask):CalendarTask=>item.id===task.id
+    ?{...item,source:"routine",routineId:routineItem.id}:item;
+  return {
+    ...state,
+    routines:[...state.routines,routineItem],
+    plans:state.plans[task.date]?{
+      ...state.plans,
+      [task.date]:state.plans[task.date].map(bindFirst),
+    }:state.plans,
+    backlog:state.backlog.map(bindFirst),
+  };
 }
 
 export function updateTask(state: DayframeState, taskIdValue: string, patch: Partial<CalendarTask>, now = new Date()) {
@@ -682,35 +694,38 @@ export function addMilestone(state: DayframeState, title: string, date: string) 
   return { ...state, milestones: [...state.milestones, milestone].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
-/** Edit future recurrence only; keep historical and elapsed instances intact. */
-export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partial<Routine>,now=new Date()):DayframeState {
-  if(!state.routines.some(item=>item.id===id))return state;
+/** Remove only upcoming uncompleted occurrences, preserving factual calendar history. */
+function filterUpcomingRoutineOccurrences(state:DayframeState,id:string,now:Date):DayframeState["plans"] {
   const today=planningDateKey(now),minute=planningMinute(now);
-  const plans=Object.fromEntries(Object.entries(state.plans).map(([date,tasks])=>{
-    if(date<today)return [date,tasks];
-    return [date,tasks.filter(task=>{
-      if(task.source!=="routine"||task.routineId!==id||task.completed)return true;
-      if(date===today && task.start && timeToMinutes(task.start)<=minute)return true;
-      return false;
-    })];
-  }));
-  return {...state,plans,routines:state.routines.map(item=>item.id===id?{...item,...patch}:item)};
-}
-
-export function deleteRoutine(state: DayframeState, id: string, now = new Date()) {
-  const routines = state.routines.filter((item) => item.id !== id);
-  const today = planningDateKey(now), minute = planningMinute(now);
-  const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [
+  return Object.fromEntries(Object.entries(state.plans).map(([date,tasks])=>[
     date,
-    tasks.filter((task) => {
-      if (task.source !== "routine" || task.routineId !== id) return true;
-      // Deleting a repeat cancels only upcoming occurrences; it must not
-      // erase history, completed sessions, or today's already elapsed blocks.
-      return task.completed || date < today
-        || (date === today && Boolean(task.start) && timeToMinutes(task.start) <= minute);
+    date<today?tasks:tasks.filter(task=>{
+      if(task.source!=="routine"||task.routineId!==id||task.completed)return true;
+      // A startless task has not actually begun, even on the current day.
+      return date===today && Boolean(task.start) && timeToMinutes(task.start)<=minute;
     }),
   ]));
-  return { ...state, routines, plans };
+}
+
+/** Changes to a repeating rule never rewrite elapsed or completed activities. */
+export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partial<Routine>,now=new Date()):DayframeState {
+  if(!state.routines.some(item=>item.id===id))return state;
+  return {
+    ...state,
+    plans:filterUpcomingRoutineOccurrences(state,id,now),
+    routines:state.routines.map(item=>item.id===id?{...item,...patch}:item),
+  };
+}
+
+/** Removing a rule cancels only its upcoming instances, not its history. */
+export function deleteRoutine(state:DayframeState,id:string,now=new Date()):DayframeState {
+  if(!state.routines.some(item=>item.id===id))return state;
+  return {
+    ...state,
+    routines:state.routines.filter(item=>item.id!==id),
+    plans:filterUpcomingRoutineOccurrences(state,id,now),
+    backlog:state.backlog.filter(task=>task.source!=="routine"||task.routineId!==id||task.completed),
+  };
 }
 
 export function overdueTasks(state: DayframeState, now = new Date()) {
