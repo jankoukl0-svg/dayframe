@@ -8,7 +8,7 @@ import {
 
 function active() {
   const store=emptyGymStore();
-  const plan=makeGymPlan("Upper / Lower","upper-lower");
+  const plan=makeGymPlan("Upper / Lower","upper-lower","2026-10-12");
   return {...store,plans:[plan],activePlanId:plan.id};
 }
 test("plan templates offer adjustable repeated workout days and a stable occurrence identity",()=>{
