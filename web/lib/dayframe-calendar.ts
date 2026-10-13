@@ -673,25 +673,39 @@ export function addMilestone(state: DayframeState, title: string, date: string) 
   return { ...state, milestones: [...state.milestones, milestone].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
-/** Edit future recurrence only; keep historical and elapsed instances intact. */
-export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partial<Routine>,now=new Date()):DayframeState {
-  if(!state.routines.some(item=>item.id===id))return state;
+/** Recurring rule changes only touch not-yet-elapsed occurrences.
+ * Historical tasks (including incomplete ones) and completed future records
+ * are factual calendar history and must never be silently removed. */
+function filterFutureRoutineOccurrences(state:DayframeState,id:string,now:Date) {
   const today=planningDateKey(now),minute=planningMinute(now);
-  const plans=Object.fromEntries(Object.entries(state.plans).map(([date,tasks])=>{
+  return Object.fromEntries(Object.entries(state.plans).map(([date,tasks])=>{
     if(date<today)return [date,tasks];
     return [date,tasks.filter(task=>{
       if(task.source!=="routine"||task.routineId!==id||task.completed)return true;
       if(date===today && task.start && timeToMinutes(task.start)<=minute)return true;
       return false;
     })];
-  }));
-  return {...state,plans,routines:state.routines.map(item=>item.id===id?{...item,...patch}:item)};
+  })) as DayframeState["plans"];
 }
 
-export function deleteRoutine(state: DayframeState, id: string) {
-  const routines = state.routines.filter((item) => item.id !== id);
-  const plans = Object.fromEntries(Object.entries(state.plans).map(([date, tasks]) => [date, tasks.filter((task) => task.routineId !== id)]));
-  return { ...state, routines, plans };
+/** Edit, enable, or disable only future recurrence; never rewrite past dates. */
+export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partial<Routine>,now=new Date()):DayframeState {
+  if(!state.routines.some(item=>item.id===id))return state;
+  return {
+    ...state,
+    plans:filterFutureRoutineOccurrences(state,id,now),
+    routines:state.routines.map(item=>item.id===id?{...item,...patch}:item),
+  };
+}
+
+/** Remove a repeating rule, but retain all past and elapsed workout/study history. */
+export function deleteRoutine(state: DayframeState, id: string, now=new Date()) {
+  if(!state.routines.some(item=>item.id===id))return state;
+  return {
+    ...state,
+    routines:state.routines.filter(item=>item.id!==id),
+    plans:filterFutureRoutineOccurrences(state,id,now),
+  };
 }
 
 export function overdueTasks(state: DayframeState, now = new Date()) {

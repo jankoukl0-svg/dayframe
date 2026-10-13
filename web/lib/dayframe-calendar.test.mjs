@@ -307,3 +307,44 @@ test("undated recurring mornings start on the next future day, never in today's 
   assert.equal((followup.plans["2026-10-15"]??[]).some(t=>t.title==="Ranní rutina"),true);
   assert.equal(addTask(state,{...draft,dueDate:"2026-10-13"},now).status,"invalid");
 });
+
+test("disabling a repeating routine does not rewrite elapsed or completed history",()=>{
+  const now=new Date("2026-10-13T15:20:00");
+  const state={...migrateStoredState(null,now),routines:[],plans:{}};
+  const routine={id:"protected-study",title:"Studium",duration:45,start:"16:00",
+    category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:"2026-10-05T09:00:00"};
+  const base={title:"Studium",duration:45,start:"16:00",end:"16:45",priority:"normal",
+    category:"Studium",mode:"flexible",completed:false,source:"routine",routineId:routine.id,
+    createdAt:routine.createdAt};
+  state.routines=[routine];
+  state.plans={
+    "2026-10-05":[{...base,id:"past",date:"2026-10-05"}],
+    "2026-10-13":[{...base,id:"today-future",date:"2026-10-13"}],
+    "2026-10-14":[{...base,id:"future",date:"2026-10-14"},
+      {...base,id:"completed",date:"2026-10-14",completed:true}],
+  };
+  const changed=editRoutineFutureOnly(state,routine.id,{active:false},now);
+  assert.deepEqual(changed.plans["2026-10-05"],state.plans["2026-10-05"]);
+  assert.equal(changed.plans["2026-10-13"].length,0);
+  assert.deepEqual(changed.plans["2026-10-14"],[state.plans["2026-10-14"][1]]);
+  assert.equal(materializeRange(changed,"2026-10-05","2026-10-20",now).plans["2026-10-05"].length,1);
+  assert.equal(state.routines[0].active,true);
+});
+
+test("deleting an existing recurring routine preserves historical days and never backfills past dates",()=>{
+  const now=new Date("2026-10-13T15:20:00");
+  const initial=migrateStoredState(null,now),routine=initial.routines.find(r=>r.id==="mon-cfi");
+  const historical={id:"old",title:routine.title,date:"2026-10-05",start:"10:00",end:"11:30",
+    duration:90,priority:"normal",category:"Finance",mode:"flexible",
+    completed:false,source:"routine",routineId:routine.id,createdAt:routine.createdAt};
+  const state={...initial,plans:{"2026-10-05":[historical],
+    "2026-10-19":[{...historical,id:"future",date:"2026-10-19"}]}};
+  const removed=deleteRoutine(state,routine.id,now);
+  assert.deepEqual(removed.plans["2026-10-05"],[historical]);
+  assert.deepEqual(removed.plans["2026-10-19"],[]);
+  assert.equal(removed.routines.some(r=>r.id===routine.id),false);
+  assert.deepEqual(state.plans["2026-10-19"][0],{...historical,id:"future",date:"2026-10-19"});
+  const history=materializeRange(removed,"2026-10-05","2026-10-20",now);
+  assert.deepEqual(history.plans["2026-10-05"],[historical]);
+  assert.equal(history.plans["2026-10-19"].some(t=>t.routineId===routine.id),false);
+});
