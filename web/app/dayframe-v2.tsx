@@ -423,6 +423,10 @@ export function DayframeV2() {
       repeat: draft.repeat,
     };
     const result = addTask(data, effective, now);
+    if(result.status==="invalid"){
+      setError(result.error);
+      return;
+    }
     setData(result.state);
     setNotice(result.status === "scheduled"
       ? `${effective.title} · ${dayLabel(result.task.date, todayKey)}${result.task.start ? ` · ${result.task.start}–${result.task.end}` : ""}`
@@ -798,6 +802,7 @@ export function DayframeV2() {
                 <label>Nejpozději v<input type="time" value={draft.deadlineTime} onChange={(event) => setDraft({ ...draft, deadlineTime: event.target.value })} /></label>
                 <label>Oblast<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
                 <label>Opakování<select value={draft.repeat} onChange={(event) => setDraft({ ...draft, repeat: event.target.value as RepeatRule })}><option value="none">Neopakovat</option><option value="daily">Každý den</option><option value="weekly">Každý týden</option></select></label>
+                {draft.repeat!=="none"&&<small>Opakování se plánuje pouze do budoucna. Minulá data zůstanou beze změny.</small>}
               </div>
             </details>
             {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}

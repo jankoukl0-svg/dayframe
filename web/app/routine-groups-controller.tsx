@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {editRoutineFutureOnly,type DayframeState} from "@/lib/dayframe-calendar";
 
 type Routine = {
   id: string;
@@ -138,38 +139,18 @@ function originalArticleFor(id: string) {
     .find((article) => article.dataset.routineId === id) ?? null;
 }
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
   const raw = window.localStorage.getItem(STATE_KEY);
   if (!raw) return false;
 
   try {
-    const parsed = JSON.parse(raw) as {
-      routines?: Routine[];
-      plans?: Record<string, Array<Record<string, unknown>>>;
-    };
-    if (!Array.isArray(parsed.routines)) return false;
+    const parsed = JSON.parse(raw) as DayframeState;
+    if (!Array.isArray(parsed.routines)||!parsed.routines.some(item=>item.id===routineId)
+      ||!parsed.plans||typeof parsed.plans!=="object")return false;
 
-    parsed.routines = parsed.routines.map((routine) => routine.id === routineId ? { ...routine, ...patch } : routine);
-
-    // Regenerate only future, unfinished instances of the edited routine on reload.
-    // Completed/past blocks remain untouched as historical truth.
-    const today = localDateKey(new Date());
-    if (parsed.plans && typeof parsed.plans === "object") {
-      Object.entries(parsed.plans).forEach(([date, tasks]) => {
-        if (date < today || !Array.isArray(tasks)) return;
-        parsed.plans![date] = tasks.filter((task) => !(
-          task.source === "routine"
-          && task.routineId === routineId
-          && task.completed !== true
-        ));
-      });
-    }
-
-    window.localStorage.setItem(STATE_KEY, JSON.stringify(parsed));
+    // One shared future-only rule for edits, instead of removing elapsed blocks.
+    const updated = editRoutineFutureOnly(parsed,routineId,patch,new Date());
+    window.localStorage.setItem(STATE_KEY, JSON.stringify(updated));
     window.sessionStorage.setItem(RETURN_TO_SETTINGS_KEY, "1");
     return true;
   } catch {
