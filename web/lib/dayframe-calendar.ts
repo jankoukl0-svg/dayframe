@@ -713,6 +713,7 @@ export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partia
   return {
     ...state,
     plans:filterUpcomingRoutineOccurrences(state,id,now),
+    backlog:state.backlog.filter(task=>task.source!=="routine"||task.routineId!==id||task.completed),
     routines:state.routines.map(item=>item.id===id?{...item,...patch}:item),
   };
 }
