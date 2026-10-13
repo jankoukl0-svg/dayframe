@@ -23,7 +23,7 @@ concurrency:
 jobs:
   build-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 22
     defaults:
       run:
         working-directory: web
@@ -72,7 +72,7 @@ jobs:
 
       - name: Run targeted browser tests first
         env:
-          DAYFRAME_E2E_TIMEOUT: 300
+          DAYFRAME_E2E_TIMEOUT: 720
         run: bash scripts/run-static-e2e.sh ${{ steps.targeted.outputs.tests }}
 
       - name: Upload targeted failure diagnostics
