@@ -423,6 +423,10 @@ export function DayframeV2() {
       repeat: draft.repeat,
     };
     const result = addTask(data, effective, now);
+    if (result.status === "rejected") {
+      setError("Opakovanou rutinu lze naplánovat jen do budoucna. Pro minulý den použij Neopakovat.");
+      return;
+    }
     setData(result.state);
     setNotice(result.status === "scheduled"
       ? `${effective.title} · ${dayLabel(result.task.date, todayKey)}${result.task.start ? ` · ${result.task.start}–${result.task.end}` : ""}`

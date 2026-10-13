@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {planningDateKey, planningMinute, timeToMinutes} from "@/lib/dayframe-calendar";
 
 type Routine = {
   id: string;
@@ -138,10 +139,6 @@ function originalArticleFor(id: string) {
     .find((article) => article.dataset.routineId === id) ?? null;
 }
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
   const raw = window.localStorage.getItem(STATE_KEY);
   if (!raw) return false;
@@ -157,15 +154,19 @@ function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
 
     // Regenerate only future, unfinished instances of the edited routine on reload.
     // Completed/past blocks remain untouched as historical truth.
-    const today = localDateKey(new Date());
+    const now = new Date();
+    const today = planningDateKey(now);
+    const currentMinute = planningMinute(now);
     if (parsed.plans && typeof parsed.plans === "object") {
       Object.entries(parsed.plans).forEach(([date, tasks]) => {
         if (date < today || !Array.isArray(tasks)) return;
-        parsed.plans![date] = tasks.filter((task) => !(
-          task.source === "routine"
-          && task.routineId === routineId
-          && task.completed !== true
-        ));
+        parsed.plans![date] = tasks.filter((task) => {
+          if (task.source !== "routine" || task.routineId !== routineId || task.completed === true) return true;
+          // Keep missed earlier slots today as historical truth as well.
+          if (date === today && (typeof task.start !== "string" ||
+              timeToMinutes(task.start) < currentMinute)) return true;
+          return false;
+        });
       });
     }
 

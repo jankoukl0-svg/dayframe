@@ -177,3 +177,49 @@ test("explicit weekly replan keeps manually chosen dates and times in place", ()
   assert.equal(after.start, before);
   assert.equal(localDateKey(now), "2026-09-17");
 });
+test("new routine never backfills earlier dates or past time slots",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  let state=migrateStoredState(null,now);
+  state.routines=[{id:"fresh",title:"Nová rutina",start:"09:00",duration:30,
+    category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:now.toISOString()}];
+  const recorded={id:"logged",date:"2026-10-12",title:"Historie",duration:30,
+    start:"10:00",end:"10:30",priority:"normal",category:"Studium",
+    mode:"flexible",completed:true,source:"user",createdAt:"2026-10-12T10:00:00.000Z"};
+  state.plans["2026-10-12"]=[recorded];
+  const next=materializeRange(state,"2026-10-05","2026-10-16",now);
+  assert.deepEqual(next.plans["2026-10-12"],[recorded]);
+  for(const date of ["2026-10-05","2026-10-12","2026-10-13"])
+    assert.equal(getTasksForDate(next,date).some(x=>x.routineId==="fresh"),false,date);
+  assert.equal(getTasksForDate(next,"2026-10-14").filter(x=>x.routineId==="fresh").length,1);
+  assert.deepEqual(materializeRange(next,"2026-10-05","2026-10-16",now).plans["2026-10-12"],[recorded]);
+});
+
+test("routines created today may occur later today, but never before creation",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  const state=migrateStoredState(null,now);
+  state.routines=[{id:"later",title:"Později",start:"18:00",duration:30,
+    category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:now.toISOString()}];
+  let result=materializeRange(state,"2026-10-12","2026-10-14",now);
+  assert.equal(getTasksForDate(result,"2026-10-12").some(t=>t.routineId==="later"),false);
+  assert.equal(getTasksForDate(result,"2026-10-13").filter(t=>t.routineId==="later").length,1);
+  result=materializeRange({...state,routines:state.routines.map(r=>({...r,createdAt:"2026-10-13T19:00:00"}))},
+    "2026-10-13","2026-10-14",now);
+  assert.equal(getTasksForDate(result,"2026-10-13").filter(t=>t.routineId==="later").length,0);
+  assert.equal(getTasksForDate(result,"2026-10-14").filter(t=>t.routineId==="later").length,1);
+});
+
+test("retroactive repeating drafts are rejected without blocking retrospective one-off tasks",()=>{
+  const now=new Date("2026-10-13T11:46:00");
+  const state=migrateStoredState(null,now);
+  state.routines=[];state.plans={};
+  const draft={title:"Nový blok",duration:30,start:"16:00",priority:"normal",
+    category:"Studium",repeat:"daily"};
+  for(const attrs of [{date:"2026-10-12"},{date:"2026-10-13",start:"10:00"}]){
+    const rejected=addTask(state,{...draft,...attrs},now);
+    assert.equal(rejected.status,"rejected");
+    assert.equal(rejected.state,state);
+  }
+  const retro=addTask(state,{...draft,date:"2026-10-12",repeat:"none"},now);
+  assert.notEqual(retro.status,"rejected");
+  assert.equal(retro.task.date,"2026-10-12");
+});

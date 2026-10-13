@@ -375,11 +375,24 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
 
 export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date()) {
   let next: DayframeState = { ...state, plans: { ...state.plans } };
+  const today = planningDateKey(now);
+  const currentMinute = planningMinute(now);
   for (let cursor = fromKey; cursor <= toKey; cursor = addDaysKey(cursor, 1)) {
+    // Historical weeks are read-only for automatic routine generation.
+    // Existing manually entered and completed history stays unchanged.
+    if (cursor < today) continue;
     const date = dateFromKey(cursor);
     const existing = [...(next.plans[cursor] ?? [])];
     for (const routine of next.routines) {
       if (!routineMatchesDate(routine, date)) continue;
+      const startMinute = timeToMinutes(routine.start);
+      if (cursor === today && (!Number.isFinite(startMinute) || startMinute < currentMinute)) continue;
+      // Newly added routines must not be backfilled before their creation.
+      const created = new Date(routine.createdAt);
+      const validCreated = !Number.isNaN(created.getTime());
+      const createdDay = validCreated ? planningDateKey(created) : today;
+      if (cursor < createdDay || (cursor === createdDay &&
+        (!Number.isFinite(startMinute) || startMinute < (validCreated ? planningMinute(created) : currentMinute)))) continue;
       const skipKey = `${routine.id}:${cursor}`;
       if (next.routineSkips.includes(skipKey)) continue;
       const id = `routine-${routine.id}-${cursor}`;
@@ -460,6 +473,13 @@ function dateRangeForDraft(draft: TaskDraft, now: Date) {
 }
 
 export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()) {
+  // Historical one-off tasks remain supported, but not retroactive repetitions.
+  if (draft.repeat && draft.repeat !== "none" && draft.date &&
+      (draft.date < planningDateKey(now) ||
+        (draft.date === planningDateKey(now) && draft.start &&
+          timeToMinutes(draft.start) < planningMinute(now)))) {
+    return { state, task: createTaskFromDraft(draft, draft.date, now, true), status: "rejected" as const };
+  }
   const dates = dateRangeForDraft(draft, now);
   let next = materializeRange(state, dates[0], dates[dates.length - 1], now);
   const base = createTaskFromDraft(draft, dates[0], now, Boolean(draft.date));
