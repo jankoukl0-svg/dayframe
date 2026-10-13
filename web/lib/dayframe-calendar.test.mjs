@@ -177,3 +177,60 @@ test("explicit weekly replan keeps manually chosen dates and times in place", ()
   assert.equal(after.start, before);
   assert.equal(localDateKey(now), "2026-09-17");
 });
+test("new recurring routines never populate already elapsed days or hours",()=>{
+  const instant=new Date(2026,9,13,12,40,0);
+  let state=migrateStoredState(null,instant);
+  state={...state,plans:{},routines:[
+    {id:"before",title:"Před obědem",duration:45,start:"09:00",category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:instant.toISOString()},
+    {id:"after",title:"Večer",duration:45,start:"18:00",category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:instant.toISOString()},
+  ]};
+  const ready=materializeRange(state,"2026-10-05","2026-10-15",instant);
+  for(const key of ["2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-10","2026-10-11","2026-10-12"]){
+    assert.equal((ready.plans[key]??[]).length,0,key+" must remain unpopulated");
+  }
+  assert.deepEqual((ready.plans["2026-10-13"]??[]).map(t=>t.title),["Večer"]);
+  assert.deepEqual((ready.plans["2026-10-14"]??[]).map(t=>t.title),["Před obědem","Večer"]);
+});
+test("historical completed and manually placed tasks survive recurrence generation",()=>{
+  const instant=new Date(2026,9,13,12,40,0);
+  let state=migrateStoredState(null,instant);
+  const past={id:"routine-old-2026-10-05",title:"Stará rutina",date:"2026-10-05",start:"09:00",end:"09:45",
+    duration:45,category:"Studium",priority:"normal",mode:"flexible",completed:true,
+    source:"routine",routineId:"old",createdAt:"2026-10-01T09:00:00Z"};
+  state={...state,plans:{"2026-10-05":[past]},routines:[
+    {id:"old",title:"Stará rutina",duration:45,start:"09:00",category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:"2026-10-01T09:00:00Z"},
+  ]};
+  const ready=materializeRange(state,"2026-10-05","2026-10-14",instant);
+  assert.deepEqual(ready.plans["2026-10-05"],[past]);
+  assert.equal((ready.plans["2026-10-12"]??[]).length,0);
+  assert.equal((ready.plans["2026-10-13"]??[]).length,0);
+  assert.equal((ready.plans["2026-10-14"]??[]).length,1);
+});
+test("new routines do not backfill the hours before their creation even if viewed later",()=>{
+  const creation=new Date(2026,9,13,15,30);
+  const later=new Date(2026,9,14,9,0);
+  let state=migrateStoredState(null,later);
+  state={...state,plans:{},routines:[
+    {id:"early",title:"Brzká",duration:30,start:"11:00",category:"Studium",priority:"normal",frequency:"daily",active:true,createdAt:creation.toISOString()},
+  ]};
+  // On the creation date the 11:00 session had already passed.
+  assert.equal((materializeRange(state,"2026-10-13","2026-10-13",creation).plans["2026-10-13"]??[]).length,0);
+  const future=materializeRange(state,"2026-10-13","2026-10-15",later);
+  assert.equal((future.plans["2026-10-13"]??[]).length,0);
+  assert.equal((future.plans["2026-10-14"]??[]).length,1);
+});
+
+test("untimed routines still receive a future auto-planned slot later in the day",()=>{
+  const now=new Date(2026,9,13,9,15);
+  let state=migrateStoredState(null,now);
+  state={...state,plans:{},routines:[{
+    id:"flex",title:"Volná rutina",duration:45,category:"Studium",priority:"normal",
+    frequency:"daily",active:true,createdAt:new Date(2026,9,13,9,0).toISOString(),
+  }]};
+  const planned=materializeRange(state,"2026-10-12","2026-10-14",now);
+  assert.equal((planned.plans["2026-10-12"]??[]).length,0);
+  const today=planned.plans["2026-10-13"]??[];
+  assert.equal(today.length,1);
+  assert.equal(today[0].title,"Volná rutina");
+  assert.ok(today[0].start && timeToMinutes(today[0].start)>=planningMinute(now));
+});
