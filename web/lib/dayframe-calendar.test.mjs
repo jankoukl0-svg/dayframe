@@ -469,7 +469,7 @@ test("a newly created repeat without an available first slot is still owned by i
   const instant=new Date(2026,9,13,15,30);
   const state={...migrateStoredState(null,instant),routines:[],plans:{},backlog:[]};
   const result=addTask(state,{title:"Pozdní opakování",date:"2026-10-20",
-    start:"23:59",duration:45,deadlineTime:"22:30",category:"Studium",
+    start:"01:50",duration:45,deadlineTime:"22:30",category:"Studium",
     priority:"normal",repeat:"daily"},instant);
   assert.equal(result.status,"waiting");
   const id=result.state.routines[0].id;
