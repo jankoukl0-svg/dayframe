@@ -678,7 +678,7 @@ export function DayframeV2() {
                       <article className={`df2-week-day ${key === todayKey ? "today" : ""}`} key={key}>
                         <header className="df2-week-day-head" onClick={() => key >= todayKey && openAdd(key)}>
                           <div><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(day).replace(".", "")}</span><strong>{day.getDate()}</strong></div>
-                          <button disabled={key < todayKey} onClick={(event) => { event.stopPropagation(); openAdd(key); }}>+</button>
+                          <button aria-label={"Přidat úkol "+key} onClick={(event) => { event.stopPropagation(); openAdd(key); }}>+</button>
                         </header>
                         <div className="df2-unscheduled">
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}

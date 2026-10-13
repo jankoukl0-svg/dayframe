@@ -111,7 +111,7 @@ for (const file of changed) {
 
   if (lower.includes("routine")) addPrefix("routine-");
   // Calendar core materializes recurring routines; always run its focused browser suite.
-  if (file === "web/lib/dayframe-calendar.ts") add("routine-future-only.spec.mjs");
+  if (file === "web/lib/dayframe-calendar.ts" || file === "web/app/dayframe-v2.tsx") add("routine-future-only.spec.mjs");
   if (lower.includes("label")) addPrefix("label-");
   if (lower.includes("notification")) add("notifications.spec.mjs");
   if (lower.includes("dayframe-product-packshots")) add("hygiene-packshots.spec.mjs");
