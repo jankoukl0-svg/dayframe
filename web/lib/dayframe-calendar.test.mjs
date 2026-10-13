@@ -291,3 +291,19 @@ test("editing an existing routine preserves historic tasks and applies revisions
   assert.equal(loaded.plans["2026-10-14"][0].start,"18:00");
   assert.deepEqual(loaded.plans["2026-10-15"],[completed]);
 });
+
+test("a routine cannot start in the already elapsed current minute, including when seconds remain",()=>{
+  const instant=new Date(2026,9,13,17,5,30);
+  const state={...migrateStoredState(null,instant),routines:[],plans:{}};
+  const attrs={title:"Tato minuta už běží",start:"17:05",duration:30,
+    priority:"normal",category:"Studium",repeat:"daily",date:"2026-10-13"};
+  const blocked=addTask(state,attrs,instant);
+  assert.equal(blocked.status,"rejected");
+  assert.equal(blocked.state,state);
+  const direct={...state,routines:[{id:"direct",title:"Direct",start:"17:05",
+    duration:30,priority:"normal",category:"Studium",frequency:"daily",
+    active:true,createdAt:new Date(2026,9,13,16,0).toISOString()}]};
+  const rendered=materializeRange(direct,"2026-10-13","2026-10-14",instant);
+  assert.equal((rendered.plans["2026-10-13"]??[]).some(t=>t.routineId==="direct"),false);
+  assert.equal((rendered.plans["2026-10-14"]??[]).filter(t=>t.routineId==="direct").length,1);
+});

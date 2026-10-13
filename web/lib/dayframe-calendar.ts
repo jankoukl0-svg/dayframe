@@ -392,7 +392,7 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
       const hasFixedStart = Boolean(routine.start);
       const startMinute = hasFixedStart ? timeToMinutes(routine.start) : 0;
       // Untimed routines are placed by the auto-planner into the remaining day.
-      if (hasFixedStart && cursor === today && startMinute < planningMinute(now)) continue;
+      if (hasFixedStart && cursor === today && startMinute <= planningMinute(now)) continue;
       // A newly created recurrence cannot invent occurrences before it existed.
       // Existing saved task instances are not touched by this guard.
       let eligible = true;
@@ -402,7 +402,7 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
         if (!Number.isFinite(instant.getTime())) continue; // Backward-compatible legacy data.
         const boundaryDay = planningDateKey(instant);
         if (cursor < boundaryDay
-          || (hasFixedStart && cursor === boundaryDay && startMinute < planningMinute(instant))) {
+          || (hasFixedStart && cursor === boundaryDay && startMinute <= planningMinute(instant))) {
           // Mark the occurrence as ineligible for this date.
           eligible = false;
           break;
@@ -494,7 +494,7 @@ export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()
   if (draft.repeat && draft.repeat !== "none" && (
       (draft.date && (draft.date < planningDateKey(now)
         || (draft.date === planningDateKey(now) && draft.start
-          && timeToMinutes(draft.start) < planningMinute(now))))
+          && timeToMinutes(draft.start) <= planningMinute(now))))
       || (draft.dueDate && draft.dueDate < (draft.date || planningDateKey(now)))
     )) {
     const firstDate = draft.date || planningDateKey(now);
@@ -556,7 +556,7 @@ export function updateRoutineSchedule(state: DayframeState, id: string, patch: P
       if (task.source !== "routine" || task.routineId !== id || task.completed) return true;
       // Even an unfinished occurrence whose scheduled hour has passed today
       // is historical truth and must not be deleted or rewritten.
-      if (date === today && task.start && timeToMinutes(task.start) < minute) return true;
+      if (date === today && task.start && timeToMinutes(task.start) <= minute) return true;
       return false;
     }),
   ]));
