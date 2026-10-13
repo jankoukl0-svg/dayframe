@@ -457,6 +457,8 @@ test("routine deletion cleans only linked backlog occurrences without touching m
     routines:[{id,title:"Ranní aktivita",duration:45,category:"Studium",
       priority:"normal",frequency:"daily",active:true,createdAt:instant.toISOString()}],
     backlog:[base,{...base,id:"manual",source:"user",routineId:undefined}]};
+  const paused=editRoutineFutureOnly(state,id,{active:false},instant);
+  assert.deepEqual(paused.backlog.map(x=>x.id),["manual"]);
   const cleaned=deleteRoutine(state,id,instant);
   assert.deepEqual(cleaned.backlog.map(x=>x.id),["manual"]);
   assert.equal(state.backlog.length,2);
