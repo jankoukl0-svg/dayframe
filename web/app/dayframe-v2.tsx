@@ -423,6 +423,10 @@ export function DayframeV2() {
       repeat: draft.repeat,
     };
     const result = addTask(data, effective, now);
+    if (result.status === "rejected") {
+      setError("Opakovanou rutinu lze plánovat jen do budoucna. Pro zpětný záznam zvol Neopakovat.");
+      return;
+    }
     setData(result.state);
     setNotice(result.status === "scheduled"
       ? `${effective.title} · ${dayLabel(result.task.date, todayKey)}${result.task.start ? ` · ${result.task.start}–${result.task.end}` : ""}`
@@ -786,7 +790,9 @@ export function DayframeV2() {
             <header><div><h2 id="df2-add-task-title">Přidat úkol</h2></div><button type="button" aria-label="Zavřít" onClick={closeAdd}>×</button></header>
             <label className="df2-title-input"><span>Úkol</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>
             <div className="df2-chips" aria-label="Rychlá nastavení">
-              <label><span>Den</span><input type="date" value={draft.date} min={todayKey} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
+              <label><span>Den</span><input type="date" value={draft.date}
+                  min={draft.date && draft.date < todayKey ? undefined : todayKey}
+                  onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
               <label><span>Délka</span><select value={draft.duration} onChange={(event) => setDraft({ ...draft, duration: Number(event.target.value) })}><option value={20}>20 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option></select></label>
               <label><span>Začít v</span><input type="time" value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label>
               <label><span>Priorita</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="normal">Běžná</option><option value="high">Vysoká</option><option value="low">Nízká</option></select></label>

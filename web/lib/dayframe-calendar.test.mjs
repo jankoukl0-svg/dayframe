@@ -14,6 +14,7 @@ import {
   migrateStoredState,
   moveTask,
   replanWeek,
+  updateRoutineSchedule,
 } from "./dayframe-calendar.ts";
 
 const now = new Date("2026-09-17T10:00:00");
@@ -233,4 +234,60 @@ test("untimed routines still receive a future auto-planned slot later in the day
   assert.equal(today.length,1);
   assert.equal(today[0].title,"Volná rutina");
   assert.ok(today[0].start && timeToMinutes(today[0].start)>=planningMinute(now));
+});
+
+test("repeating task cannot be added to elapsed days or hours, but one-off history is allowed",()=>{
+  const now=new Date(2026,9,13,17,5);
+  const state={...migrateStoredState(null,now),plans:{},routines:[]};
+  const base={title:"Nová rutina",duration:30,start:"18:00",priority:"normal",category:"Studium",repeat:"weekly"};
+  for(const patch of [{date:"2026-10-05"},{date:"2026-10-13",start:"16:00"},{dueDate:"2026-10-12"}]){
+    const out=addTask(state,{...base,...patch},now);
+    assert.equal(out.status,"rejected");
+    assert.equal(out.state,state);
+  }
+  const note=addTask(state,{...base,date:"2026-10-05",repeat:"none"},now);
+  assert.notEqual(note.status,"rejected");
+  assert.equal(note.task.date,"2026-10-05");
+  assert.equal(state.routines.length,0);
+});
+test("future-dated daily routine never appears before its selected first day and repeats after reload",()=>{
+  const now=new Date(2026,9,13,17,5);
+  const state={...migrateStoredState(null,now),plans:{},routines:[]};
+  const created=addTask(state,{title:"Teprve zítra",date:"2026-10-14",start:"18:00",duration:45,
+    priority:"normal",category:"Studium",repeat:"daily"},now);
+  assert.equal(created.status,"scheduled");
+  assert.equal(created.state.routines[0].startDate,"2026-10-14");
+  assert.equal((created.state.plans["2026-10-13"]??[]).some(t=>t.title==="Teprve zítra"),false);
+  const reloaded=migrateStoredState(JSON.parse(JSON.stringify(created.state)),now);
+  const visible=materializeRange(reloaded,"2026-10-05","2026-10-20",now);
+  assert.equal((visible.plans["2026-10-05"]??[]).some(t=>t.title==="Teprve zítra"),false);
+  assert.equal((visible.plans["2026-10-13"]??[]).some(t=>t.title==="Teprve zítra"),false);
+  assert.equal((visible.plans["2026-10-14"]??[]).filter(t=>t.title==="Teprve zítra").length,1);
+  assert.equal((visible.plans["2026-10-15"]??[]).filter(t=>t.title==="Teprve zítra").length,1);
+});
+test("editing an existing routine preserves historic tasks and applies revisions only to future occurrences",()=>{
+  const now=new Date(2026,9,13,17,5);
+  const template={id:"routine-edit",title:"Starý název",category:"Studium",start:"10:00",duration:45,
+    frequency:"daily",priority:"normal",active:true,createdAt:"2026-10-01T09:00:00Z"};
+  const occurrence=(date,start,completed=false)=>({id:`routine-routine-edit-${date}`,
+    title:"Starý název",date,start,end:start==="10:00"?"10:45":"19:00",duration:45,priority:"normal",
+    category:"Studium",mode:"flexible",completed,source:"routine",routineId:"routine-edit",
+    createdAt:"2026-10-01T09:00:00Z"});
+  const past=occurrence("2026-10-05","10:00",false);
+  const todayPast=occurrence("2026-10-13","10:00",false);
+  const tomorrow=occurrence("2026-10-14","10:00",false);
+  const completed=occurrence("2026-10-15","10:00",true);
+  const state={...migrateStoredState(null,now),routines:[template],
+    plans:{"2026-10-05":[past],"2026-10-13":[todayPast],"2026-10-14":[tomorrow],"2026-10-15":[completed]}};
+  const next=updateRoutineSchedule(state,"routine-edit",{title:"Nový název",start:"18:00"},now);
+  assert.deepEqual(next.plans["2026-10-05"],[past]);
+  assert.deepEqual(next.plans["2026-10-13"],[todayPast]);
+  assert.equal(next.plans["2026-10-14"].length,0);
+  assert.deepEqual(next.plans["2026-10-15"],[completed]);
+  assert.equal(next.routines[0].createdAt,template.createdAt);
+  const loaded=materializeRange(next,"2026-10-05","2026-10-16",now);
+  assert.deepEqual(loaded.plans["2026-10-13"],[todayPast]);
+  assert.equal(loaded.plans["2026-10-14"][0].title,"Nový název");
+  assert.equal(loaded.plans["2026-10-14"][0].start,"18:00");
+  assert.deepEqual(loaded.plans["2026-10-15"],[completed]);
 });

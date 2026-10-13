@@ -34,6 +34,8 @@ export type Routine = {
   weekdays?: number[];
   active: boolean;
   createdAt: string;
+  startDate?: string; // First eligible date when the routine was first scheduled.
+  effectiveFrom?: string; // Last edit takes effect only from this instant.
 };
 
 export type Milestone = { id: string; title: string; date: string; note: string };
@@ -375,27 +377,38 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
 
 export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date()) {
   let next: DayframeState = { ...state, plans: { ...state.plans } };
+  const today = planningDateKey(now);
   for (let cursor = fromKey; cursor <= toKey; cursor = addDaysKey(cursor, 1)) {
+    // Browsing a past week is read-only for automatic recurrence and auto-scheduling.
+    // Keep all previously recorded or manually backfilled history exactly as saved.
+    if (cursor < today) continue;
     const date = dateFromKey(cursor);
     const existing = [...(next.plans[cursor] ?? [])];
     for (const routine of next.routines) {
       if (!routineMatchesDate(routine, date)) continue;
       // Recurrence only creates future instances. Never backfill a visited week
       // or silently rewrite history when the calendar is browsed or reloaded.
-      const today = planningDateKey(now);
-      if (cursor < today) continue;
+      if (routine.startDate && cursor < routine.startDate) continue;
       const hasFixedStart = Boolean(routine.start);
       const startMinute = hasFixedStart ? timeToMinutes(routine.start) : 0;
       // Untimed routines are placed by the auto-planner into the remaining day.
       if (hasFixedStart && cursor === today && startMinute < planningMinute(now)) continue;
       // A newly created recurrence cannot invent occurrences before it existed.
       // Existing saved task instances are not touched by this guard.
-      const created = new Date(routine.createdAt);
-      if (Number.isFinite(created.getTime())) {
-        const createdDay = planningDateKey(created);
-        if (cursor < createdDay
-          || (hasFixedStart && cursor === createdDay && startMinute < planningMinute(created))) continue;
+      let eligible = true;
+      for (const boundary of [routine.createdAt, routine.effectiveFrom]) {
+        if (!boundary) continue;
+        const instant = new Date(boundary);
+        if (!Number.isFinite(instant.getTime())) continue; // Backward-compatible legacy data.
+        const boundaryDay = planningDateKey(instant);
+        if (cursor < boundaryDay
+          || (hasFixedStart && cursor === boundaryDay && startMinute < planningMinute(instant))) {
+          // Mark the occurrence as ineligible for this date.
+          eligible = false;
+          break;
+        }
       }
+      if (!eligible) continue;
       const skipKey = `${routine.id}:${cursor}`;
       if (next.routineSkips.includes(skipKey)) continue;
       const id = `routine-${routine.id}-${cursor}`;
@@ -476,6 +489,17 @@ function dateRangeForDraft(draft: TaskDraft, now: Date) {
 }
 
 export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()) {
+  // Retroactive one-off notes stay possible. A repeated routine cannot create
+  // an instance on an elapsed date or at an hour that has already passed today.
+  if (draft.repeat && draft.repeat !== "none" && (
+      (draft.date && (draft.date < planningDateKey(now)
+        || (draft.date === planningDateKey(now) && draft.start
+          && timeToMinutes(draft.start) < planningMinute(now))))
+      || (draft.dueDate && draft.dueDate < (draft.date || planningDateKey(now)))
+    )) {
+    const firstDate = draft.date || planningDateKey(now);
+    return { state, task: createTaskFromDraft(draft, firstDate, now, Boolean(draft.date)), status: "rejected" as const };
+  }
   const dates = dateRangeForDraft(draft, now);
   let next = materializeRange(state, dates[0], dates[dates.length - 1], now);
   const base = createTaskFromDraft(draft, dates[0], now, Boolean(draft.date));
@@ -512,8 +536,31 @@ function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarT
     weekdays: frequency === "weekly" ? [dateFromKey(task.date).getDay()] : undefined,
     active: true,
     createdAt: now.toISOString(),
+    startDate: task.date,
   };
-  return { ...state, routines: [...state.routines, routineItem] };
+  const next = { ...state, routines: [...state.routines, routineItem] };
+  // Populate upcoming occurrences immediately so the Week and Today views
+  // display the new routine without an extra page reload.
+  return materializeRange(next, task.date, addDaysKey(task.date, 28), now);
+}
+
+/** Edit the recurrence only from now on, preserving completed and elapsed slots. */
+export function updateRoutineSchedule(state: DayframeState, id: string, patch: Partial<Routine>, now = new Date()): DayframeState {
+  if (!state.routines.some(r => r.id === id)) return state;
+  const today = planningDateKey(now), minute = planningMinute(now);
+  const routines = state.routines.map(r => r.id === id
+    ? {...r, ...patch, id:r.id, createdAt:r.createdAt, startDate:r.startDate, effectiveFrom:now.toISOString()}
+    : r);
+  const plans = Object.fromEntries(Object.entries(state.plans).map(([date,tasks]) => [
+    date, date < today ? tasks : tasks.filter(task => {
+      if (task.source !== "routine" || task.routineId !== id || task.completed) return true;
+      // Even an unfinished occurrence whose scheduled hour has passed today
+      // is historical truth and must not be deleted or rewritten.
+      if (date === today && task.start && timeToMinutes(task.start) < minute) return true;
+      return false;
+    }),
+  ]));
+  return {...state, routines, plans};
 }
 
 export function updateTask(state: DayframeState, taskIdValue: string, patch: Partial<CalendarTask>, now = new Date()) {

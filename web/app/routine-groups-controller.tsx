@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { updateRoutineSchedule, type DayframeState } from "@/lib/dayframe-calendar";
 
 type Routine = {
   id: string;
@@ -138,39 +139,15 @@ function originalArticleFor(id: string) {
     .find((article) => article.dataset.routineId === id) ?? null;
 }
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
   const raw = window.localStorage.getItem(STATE_KEY);
   if (!raw) return false;
-
   try {
-    const parsed = JSON.parse(raw) as {
-      routines?: Routine[];
-      plans?: Record<string, Array<Record<string, unknown>>>;
-    };
-    if (!Array.isArray(parsed.routines)) return false;
-
-    parsed.routines = parsed.routines.map((routine) => routine.id === routineId ? { ...routine, ...patch } : routine);
-
-    // Regenerate only future, unfinished instances of the edited routine on reload.
-    // Completed/past blocks remain untouched as historical truth.
-    const today = localDateKey(new Date());
-    if (parsed.plans && typeof parsed.plans === "object") {
-      Object.entries(parsed.plans).forEach(([date, tasks]) => {
-        if (date < today || !Array.isArray(tasks)) return;
-        parsed.plans![date] = tasks.filter((task) => !(
-          task.source === "routine"
-          && task.routineId === routineId
-          && task.completed !== true
-        ));
-      });
-    }
-
-    window.localStorage.setItem(STATE_KEY, JSON.stringify(parsed));
-    window.sessionStorage.setItem(RETURN_TO_SETTINGS_KEY, "1");
+    const parsed = JSON.parse(raw) as DayframeState;
+    if (!Array.isArray(parsed.routines) || !parsed.routines.some(r=>r.id===routineId)) return false;
+    const next = updateRoutineSchedule(parsed,routineId,patch,new Date());
+    window.localStorage.setItem(STATE_KEY,JSON.stringify(next));
+    window.sessionStorage.setItem(RETURN_TO_SETTINGS_KEY,"1");
     return true;
   } catch {
     return false;
