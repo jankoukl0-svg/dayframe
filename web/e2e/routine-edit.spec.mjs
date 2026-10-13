@@ -102,3 +102,46 @@ test("a newly created future-dated daily routine only appears from its first dat
   expect((reloaded.plans["2026-10-18"]??[]).some(x=>x.routineId===routine.id)).toBe(false);
   expect((reloaded.plans["2026-10-20"]??[]).filter(x=>x.routineId===routine.id)).toHaveLength(1);
 });
+
+
+test("Settings toggle immediately restores upcoming routine blocks and deleting retains history",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-13T15:30:00"));
+  await page.goto(process.env.DAYFRAME_BASE_URL||"http://127.0.0.1:4173",{waitUntil:"networkidle"});
+  await page.evaluate(()=>{
+    const initial=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const id="history-toggle-e2e";
+    const rule={id,title:"Rutina s bezpečnou historií",duration:45,start:"18:00",
+      category:"Studium",priority:"normal",frequency:"daily",active:true,
+      createdAt:"2026-10-01T08:00:00.000Z",effectiveFrom:"2026-10-12"};
+    const occurrence=(date)=>({id:"routine-"+id+"-"+date,title:rule.title,date,
+      duration:45,start:"18:00",end:"18:45",priority:"normal",category:"Studium",
+      mode:"flexible",completed:false,source:"routine",routineId:id,
+      createdAt:rule.createdAt});
+    initial.routines.push(rule);
+    initial.plans["2026-10-12"]=[...(initial.plans["2026-10-12"]??[]),occurrence("2026-10-12")];
+    initial.plans["2026-10-13"]=[...(initial.plans["2026-10-13"]??[]),occurrence("2026-10-13")];
+    initial.plans["2026-10-14"]=[...(initial.plans["2026-10-14"]??[]),occurrence("2026-10-14")];
+    localStorage.setItem("dayframe-v1",JSON.stringify(initial));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:/Nastavení/}).click();
+  const group=page.locator(".df2-routine-group").filter({hasText:"Rutina s bezpečnou historií"}).first();
+  await expect(group).toBeVisible();
+  await group.locator(".df2-routine-group-summary").click();
+  const toggle=group.locator(".df2-routine-occurrence input[type='checkbox']");
+  await toggle.uncheck();
+  const counts=()=>page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const count=(date)=>(state.plans[date]??[]).filter(task=>task.routineId==="history-toggle-e2e").length;
+    return [count("2026-10-12"),count("2026-10-13"),count("2026-10-14")];
+  });
+  await expect.poll(counts).toEqual([1,0,0]);
+  await toggle.check();
+  await expect.poll(counts).toEqual([1,1,1]);
+  await group.locator(".df2-routine-occurrence button.delete").click();
+  await expect.poll(counts).toEqual([1,0,0]);
+  await page.reload({waitUntil:"networkidle"});
+  expect(await counts()).toEqual([1,0,0]);
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-v1")));
+  expect(saved.routines.some(r=>r.id==="history-toggle-e2e")).toBe(false);
+});
