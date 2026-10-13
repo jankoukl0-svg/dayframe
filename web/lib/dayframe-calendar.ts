@@ -509,7 +509,9 @@ export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()
     if (!slot) continue;
     const task = { ...base, date, ...slot, dateLocked: Boolean(draft.date), autoScheduled: !draft.start };
     next = { ...next, plans: { ...next.plans, [date]: sortTasks([...(next.plans[date] ?? []), task]) } };
-    return { state: maybeAddRoutine(next, draft, task, now), task, status: "scheduled" as const };
+    const saved=maybeAddRoutine(next,draft,task,now);
+    const linked=saved.plans[date]?.find(x=>x.id===task.id)??task;
+    return { state:saved,task:linked,status:"scheduled" as const };
   }
 
   const targetDate = draft.date ?? dates[0];
@@ -519,7 +521,10 @@ export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()
   } else {
     next = { ...next, backlog: [...next.backlog, waiting] };
   }
-  return { state: maybeAddRoutine(next, draft, waiting, now), task: waiting, status: "waiting" as const };
+  const saved=maybeAddRoutine(next,draft,waiting,now);
+  const linked=saved.plans[targetDate]?.find(x=>x.id===waiting.id)
+    ??saved.backlog.find(x=>x.id===waiting.id)??waiting;
+  return {state:saved,task:linked,status:"waiting" as const};
 }
 
 function maybeAddRoutine(state: DayframeState, draft: TaskDraft, task: CalendarTask, now: Date) {

@@ -317,6 +317,8 @@ test("the first recurring task is linked to its rule and replaced when the rule 
   const routine=added.state.routines[0];
   const first=added.state.plans["2026-10-14"][0];
   assert.equal(first.source,"routine");
+  assert.equal(added.task.source,"routine");
+  assert.equal(added.task.routineId,routine.id);
   assert.equal(first.routineId,routine.id);
   const changed=updateRoutineSchedule(added.state,routine.id,{title:"Nový čas",start:"19:00"},now);
   const regenerated=materializeRange(changed,"2026-10-13","2026-10-16",now);
