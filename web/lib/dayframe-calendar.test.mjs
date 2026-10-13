@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   addTask,
+  editRoutineFutureOnly,
   findSlot,
   getTasksForDate,
   calendarBounds,
@@ -233,4 +234,60 @@ test("untimed routines still receive a future auto-planned slot later in the day
   assert.equal(today.length,1);
   assert.equal(today[0].title,"Volná rutina");
   assert.ok(today[0].start && timeToMinutes(today[0].start)>=planningMinute(now));
+});
+
+test("recurrences cannot be added to previous calendar days or elapsed times",()=>{
+  const now=new Date(2026,9,13,20,53);
+  const state=migrateStoredState(null,now),before=JSON.stringify(state);
+  const draft={title:"Nová rutina",date:"2026-10-05",start:"16:00",
+    duration:60,category:"Studium",priority:"normal",repeat:"weekly"};
+  const past=addTask(state,draft,now);
+  assert.equal(past.status,"invalid");
+  assert.equal(past.state,state);
+  assert.equal(JSON.stringify(state),before);
+  assert.equal(addTask(state,{...draft,date:"2026-10-13"},now).status,"invalid");
+  const oneOff=addTask({...state,routines:[]},{...draft,repeat:"none"},now);
+  assert.equal(oneOff.status,"scheduled","Retroactive one-off logs remain allowed");
+  assert.equal(oneOff.task.date,"2026-10-05");
+  const future=addTask({...state,routines:[]},{...draft,date:"2026-10-14",repeat:"daily"},now);
+  assert.equal(future.status,"scheduled");
+  const generated=materializeRange(future.state,"2026-10-05","2026-10-17",now);
+  for(const date of ["2026-10-05","2026-10-12","2026-10-13"]){
+    assert.equal((generated.plans[date]??[]).some(task=>task.title==="Nová rutina"),false,date);
+  }
+  assert.equal((generated.plans["2026-10-14"]??[]).filter(task=>task.title==="Nová rutina").length,1);
+});
+test("routine edits keep past incomplete and today elapsed events, regenerating only later days",()=>{
+  const now=new Date(2026,9,13,20,53);
+  let state=migrateStoredState(null,now);
+  const original=state.routines.find(r=>r.id==="tue-cfi");
+  assert.ok(original);
+  const old={id:"routine-tue-cfi-2026-10-06",title:original.title,date:"2026-10-06",
+    duration:original.duration,start:"14:00",end:"15:00",category:original.category,
+    priority:"normal",mode:"flexible",completed:false,source:"routine",routineId:original.id,createdAt:original.createdAt};
+  const elapsed={...old,id:"routine-tue-cfi-2026-10-13",date:"2026-10-13"};
+  const future={...old,id:"routine-tue-cfi-2026-10-14",date:"2026-10-14"};
+  const completed={...future,id:"completed-future",completed:true};
+  const manual={...future,id:"manual",source:"user",routineId:undefined};
+  state={...state,plans:{"2026-10-06":[old],"2026-10-13":[elapsed],"2026-10-14":[future,completed,manual]}};
+  const changed=editRoutineFutureOnly(state,original.id,{title:"Upravená CFI",start:"18:00",duration:75},now);
+  assert.deepEqual(changed.plans["2026-10-06"],[old]);
+  assert.deepEqual(changed.plans["2026-10-13"],[elapsed]);
+  assert.deepEqual(changed.plans["2026-10-14"],[completed,manual]);
+  assert.deepEqual(state.plans["2026-10-14"],[future,completed,manual]);
+  assert.equal(changed.routines.find(r=>r.id===original.id).title,"Upravená CFI");
+  const next=materializeRange(changed,"2026-10-06","2026-10-20",now);
+  assert.deepEqual(next.plans["2026-10-06"],[old]);
+  assert.ok(next.plans["2026-10-13"].some(t=>t.id===elapsed.id && t.title===old.title));
+  assert.ok(next.plans["2026-10-20"].some(t=>t.title==="Upravená CFI"&&t.start==="18:00"));
+});
+test("opening historical calendar must not schedule previously untimed saved tasks",()=>{
+  const now=new Date(2026,9,13,20,53);
+  const state=migrateStoredState(null,now);
+  const old={id:"historic-wait",title:"Starý nezapsaný blok",date:"2026-10-06",
+    duration:45,category:"Studium",priority:"normal",mode:"flexible",
+    source:"user",completed:false,createdAt:"2026-10-06T08:00:00Z"};
+  state.plans={"2026-10-06":[old]};
+  const regenerated=materializeRange(state,"2026-10-05","2026-10-08",now);
+  assert.deepEqual(regenerated.plans["2026-10-06"],[old]);
 });

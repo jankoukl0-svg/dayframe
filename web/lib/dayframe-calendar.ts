@@ -375,15 +375,14 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
 
 export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date()) {
   let next: DayframeState = { ...state, plans: { ...state.plans } };
+  const today = planningDateKey(now);
   for (let cursor = fromKey; cursor <= toKey; cursor = addDaysKey(cursor, 1)) {
+    // Neither recurrence generation nor automatic placement may rewrite a past day.
+    if (cursor < today) continue;
     const date = dateFromKey(cursor);
     const existing = [...(next.plans[cursor] ?? [])];
     for (const routine of next.routines) {
       if (!routineMatchesDate(routine, date)) continue;
-      // Recurrence only creates future instances. Never backfill a visited week
-      // or silently rewrite history when the calendar is browsed or reloaded.
-      const today = planningDateKey(now);
-      if (cursor < today) continue;
       const hasFixedStart = Boolean(routine.start);
       const startMinute = hasFixedStart ? timeToMinutes(routine.start) : 0;
       // Untimed routines are placed by the auto-planner into the remaining day.
@@ -476,6 +475,16 @@ function dateRangeForDraft(draft: TaskDraft, now: Date) {
 }
 
 export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()) {
+  if (draft.repeat && draft.repeat !== "none") {
+    const selected = draft.date ?? planningDateKey(now);
+    const minute = timeToMinutes(draft.start);
+    // The historical Week editor may add one-off records, never backdated routines.
+    if (selected < planningDateKey(now)
+      || (selected === planningDateKey(now) && (!Number.isFinite(minute) || minute <= planningMinute(now)))) {
+      return {state,status:"invalid" as const,
+        error:"Opakovanou rutinu lze založit jen do budoucna. Vyber budoucí den nebo pozdější čas."};
+    }
+  }
   const dates = dateRangeForDraft(draft, now);
   let next = materializeRange(state, dates[0], dates[dates.length - 1], now);
   const base = createTaskFromDraft(draft, dates[0], now, Boolean(draft.date));
@@ -658,6 +667,21 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
 export function addMilestone(state: DayframeState, title: string, date: string) {
   const milestone: Milestone = { id: taskId("milestone"), title: title.trim(), date, note: "Vlastní termín" };
   return { ...state, milestones: [...state.milestones, milestone].sort((a, b) => a.date.localeCompare(b.date)) };
+}
+
+/** Edit future recurrence only; keep historical and elapsed instances intact. */
+export function editRoutineFutureOnly(state:DayframeState,id:string,patch:Partial<Routine>,now=new Date()):DayframeState {
+  if(!state.routines.some(item=>item.id===id))return state;
+  const today=planningDateKey(now),minute=planningMinute(now);
+  const plans=Object.fromEntries(Object.entries(state.plans).map(([date,tasks])=>{
+    if(date<today)return [date,tasks];
+    return [date,tasks.filter(task=>{
+      if(task.source!=="routine"||task.routineId!==id||task.completed)return true;
+      if(date===today && task.start && timeToMinutes(task.start)<=minute)return true;
+      return false;
+    })];
+  }));
+  return {...state,plans,routines:state.routines.map(item=>item.id===id?{...item,...patch}:item)};
 }
 
 export function deleteRoutine(state: DayframeState, id: string) {
