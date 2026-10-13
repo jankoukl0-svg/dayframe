@@ -384,14 +384,17 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
       // or silently rewrite history when the calendar is browsed or reloaded.
       const today = planningDateKey(now);
       if (cursor < today) continue;
-      const startMinute = routine.start ? timeToMinutes(routine.start) : calendarBounds.dayStart;
-      if (cursor === today && startMinute < planningMinute(now)) continue;
+      const hasFixedStart = Boolean(routine.start);
+      const startMinute = hasFixedStart ? timeToMinutes(routine.start) : 0;
+      // Untimed routines are placed by the auto-planner into the remaining day.
+      if (hasFixedStart && cursor === today && startMinute < planningMinute(now)) continue;
       // A newly created recurrence cannot invent occurrences before it existed.
       // Existing saved task instances are not touched by this guard.
       const created = new Date(routine.createdAt);
       if (Number.isFinite(created.getTime())) {
         const createdDay = planningDateKey(created);
-        if (cursor < createdDay || (cursor === createdDay && startMinute < planningMinute(created))) continue;
+        if (cursor < createdDay
+          || (hasFixedStart && cursor === createdDay && startMinute < planningMinute(created))) continue;
       }
       const skipKey = `${routine.id}:${cursor}`;
       if (next.routineSkips.includes(skipKey)) continue;

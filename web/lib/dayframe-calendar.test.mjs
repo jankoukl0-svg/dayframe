@@ -219,3 +219,18 @@ test("new routines do not backfill the hours before their creation even if viewe
   assert.equal((future.plans["2026-10-13"]??[]).length,0);
   assert.equal((future.plans["2026-10-14"]??[]).length,1);
 });
+
+test("untimed routines still receive a future auto-planned slot later in the day",()=>{
+  const now=new Date(2026,9,13,9,15);
+  let state=migrateStoredState(null,now);
+  state={...state,plans:{},routines:[{
+    id:"flex",title:"Volná rutina",duration:45,category:"Studium",priority:"normal",
+    frequency:"daily",active:true,createdAt:new Date(2026,9,13,9,0).toISOString(),
+  }]};
+  const planned=materializeRange(state,"2026-10-12","2026-10-14",now);
+  assert.equal((planned.plans["2026-10-12"]??[]).length,0);
+  const today=planned.plans["2026-10-13"]??[];
+  assert.equal(today.length,1);
+  assert.equal(today[0].title,"Volná rutina");
+  assert.ok(today[0].start && timeToMinutes(today[0].start)>=planningMinute(now));
+});
