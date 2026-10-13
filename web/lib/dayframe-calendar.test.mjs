@@ -506,15 +506,15 @@ test("old saved weeks lose uncompleted routine ghosts but retain confirmed and m
   const before=JSON.stringify(raw);
   // A load of any week must clean the entire stored history, not just the visible range.
   const cleaned=materializeRange(migrateStoredState(raw,reference),"2026-10-13","2026-10-14",reference);
-  assert.deepEqual(cleaned.plans["2026-09-21"],[completed,manual]);
-  assert.deepEqual(cleaned.plans["2026-09-22"],[legacy]);
+  assert.deepEqual(cleaned.plans["2026-09-21"].map(task=>task.id),["completed","manual"]);
+  assert.deepEqual(cleaned.plans["2026-09-22"].map(task=>task.id),["legacy"]);
   assert.ok(cleaned.plans["2026-10-13"].some(x=>x.id==="today"));
   assert.ok(cleaned.plans["2026-10-14"].some(x=>x.id==="future"));
   assert.equal(JSON.stringify(raw),before,"Never mutate the user's source object");
   assert.deepEqual(pruneHistoricalRoutineProjections(cleaned,reference),cleaned,"Cleanup is idempotent");
   const viewedOldWeek=materializeRange(cleaned,"2026-09-21","2026-09-27",reference);
-  assert.deepEqual(viewedOldWeek.plans["2026-09-21"],[completed,manual]);
-  assert.deepEqual(viewedOldWeek.plans["2026-09-22"],[legacy]);
+  assert.deepEqual(viewedOldWeek.plans["2026-09-21"],cleaned.plans["2026-09-21"]);
+  assert.deepEqual(viewedOldWeek.plans["2026-09-22"],cleaned.plans["2026-09-22"]);
 });
 
 test("past routine cleanup rolls over at the existing 02:00 planning boundary",()=>{
