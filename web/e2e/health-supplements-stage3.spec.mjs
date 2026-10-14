@@ -389,7 +389,7 @@ test("compact daily cards group doses by time, show live progress and preserve q
   await expect(reloaded.getByRole("progressbar",{name:"Dnes užité dávky"})).toHaveAttribute("aria-valuenow","1");
   await reloaded.getByRole("button",{name:"Moje suplementy"}).click();
   await expect(reloaded.locator("[data-supplements-library] [data-supplement-id]")).toHaveCount(2);
-  await expect(reloaded.locator(".df2-supplements-library").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).resolves.toBeGreaterThan(1);
+  expect(await reloaded.locator(".df2-supplements-library").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBeGreaterThan(1);
   await reloaded.locator("[data-supplement-id]").first().getByRole("button",{name:"Upravit"}).click();
   await expect(page.getByRole("dialog",{name:"Editor suplementu"})).toBeVisible();
 });
@@ -402,7 +402,7 @@ test("responsive supplement cards stack on mobile without hiding inventory and h
   await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toBeVisible();
   await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Užito",exact:true})).toBeVisible();
   await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Vynechat"})).toBeVisible();
-  await expect(root.locator(".df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).resolves.toBe(1);
+  expect(await root.locator(".df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(1);
   await root.getByRole("button",{name:"Moje suplementy"}).click();
   await expect(root.locator("[data-supplements-library] [data-supplement-id]")).toHaveCount(1);
   await root.locator("[data-supplement-id]").getByRole("button",{name:"Přidat k nákupu"}).click();
