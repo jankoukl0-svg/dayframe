@@ -189,3 +189,26 @@ test("Užito vše has no effect on days without scheduled or pending doses",()=>
   const allTaken=markAllSupplementIntakes(store,date);
   assert.equal(markAllSupplementIntakes(allTaken,date),allTaken);
 });
+
+
+test("fractional servings do not create false stock shortages, but real shortages stay blocked",()=>{
+  const {store,item}=setup();
+  item.stock=0.3;
+  item.servingsPerIntake=0.1;
+  item.times=["08:00","12:00","20:00"];
+  item.scheduleHistory=[{effectiveFrom:date,active:true,weekdays:[...item.weekdays],times:[...item.times]}];
+  const bulk=markAllSupplementIntakes(store,date);
+  assert.notEqual(bulk,store,"Three 0.1-unit doses must fit into 0.3 units");
+  assert.equal(bulk.intakes.length,3);
+  assert.equal(bulk.supplements[0].stock,0);
+  assert.equal(parseSupplementStore(JSON.stringify(bulk)).blocked,false);
+  const restored=markSupplementIntake(bulk,supplementIntakeKey(item.id,date,"20:00"),"taken");
+  assert.ok(Math.abs(restored.supplements[0].stock-0.1)<1e-12,"Undo restores exactly one serving");
+  const retried=markAllSupplementIntakes(restored,date);
+  assert.equal(retried.intakes.length,3);
+  assert.equal(retried.supplements[0].stock,0);
+
+  const insufficient={...store,supplements:[{...item,stock:0.29}]};
+  assert.equal(markAllSupplementIntakes(insufficient,date),insufficient,"A genuine 0.01-unit shortage must reject the entire batch");
+  assert.equal(insufficient.intakes.length,0);
+});
