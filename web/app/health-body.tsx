@@ -196,7 +196,7 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
             <span className="df2-body-chart-dot" aria-hidden="true"/>
             <div><strong>{metricLabel(metric,chart[0].value)}</strong>
               <time dateTime={chart[0].date}>{dateLabel(chart[0].date)}</time></div>
-            <span className="df2-body-single-caption">První záznam</span>
+            <span className="df2-body-single-caption">Jediné měření v období</span>
           </div>
         </div>:chart.length>1?<div className="df2-body-chart" data-body-chart>
           <ResponsiveContainer width="100%" height={245}>
