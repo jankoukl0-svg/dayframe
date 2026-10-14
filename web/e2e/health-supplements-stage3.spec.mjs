@@ -38,8 +38,9 @@ test("supplement check-in, Today summary and inventory read one shared record wi
   await expect(due.first()).toContainText("Zbývá 2");
   await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
   const entries=page.locator("[data-supplement-checklist]");
-  await expect(entries).toHaveCount(2);
-  await expect(entries.first()).toContainText("Užito");
+  await expect(entries).toHaveCount(1);
+  await expect(entries.first()).toContainText("Suplementy");
+  await expect(entries.first()).toContainText("1/2 užito");
   await entries.first().getByRole("button",{name:/Otevřít suplement/}).click();
   await expect(page.getByRole("tab",{name:"Suplementy"})).toHaveAttribute("aria-selected","true");
   await root.getByRole("button",{name:"Historie",exact:true}).click();
@@ -63,7 +64,8 @@ test("supplement check-in, Today summary and inventory read one shared record wi
   expect(invariant(hygieneAfter)).toEqual(invariant(hygieneBefore));
   await page.reload({waitUntil:"networkidle"});
   await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
-  await expect(page.locator("[data-supplement-checklist]").first()).toContainText("Užito");
+  await expect(page.locator("[data-supplement-checklist]")).toHaveCount(1);
+  await expect(page.locator("[data-supplement-checklist]").first()).toContainText("1/2 užito");
 });
 test("stock limits, skipped doses, shopping and purchase history behave predictably",async({page})=>{
   await fresh(page);
@@ -459,4 +461,63 @@ test("Užito vše never partially consumes inventory and preserves deliberately 
   expect(saved.intakes).toHaveLength(2);
   await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toHaveAttribute("aria-valuenow","1");
   await expect(root.getByRole("button",{name:"Užito vše",exact:true})).toBeDisabled();
+});
+
+
+test("seven supplement doses appear as one Today checklist entry and count as one task",async({page})=>{
+  await fresh(page);
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  const checklist=page.locator("[data-daily-checklist]");
+  const original=await checklist.locator("[data-checklist-progress]").innerText();
+  const originalTotal=Number(original.split("/")[1]);
+  expect(Number.isFinite(originalTotal)).toBe(true);
+  const root=await addOne(page,{name:"Ranní vitamíny",stock:"7",times:"08:00,09:00,10:00,11:00"});
+  await addOne(page,{name:"Kreatin",stock:"7",times:"12:00,13:00,14:00"});
+  await expect(root.locator("[data-supplement-occurrence]")).toHaveCount(7);
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  const row=checklist.locator('[data-supplement-checklist="summary"]');
+  await expect(checklist.locator("[data-supplement-checklist]")).toHaveCount(1);
+  await expect(row).toContainText("Suplementy");
+  await expect(row).toContainText("0/7 užito");
+  await expect(row).not.toHaveClass(/done/);
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/"+(originalTotal+1));
+  await row.getByRole("button",{name:"Otevřít suplementy ve Zdraví"}).click();
+  await expect(page.getByRole("tab",{name:"Suplementy"})).toHaveAttribute("aria-selected","true");
+  await root.getByRole("button",{name:"Užito vše",exact:true}).click();
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(7);
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await expect(checklist.locator("[data-supplement-checklist]")).toHaveCount(1);
+  await expect(row).toContainText("7/7 užito");
+  await expect(row).toHaveClass(/done/);
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/"+(originalTotal+1));
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await expect(checklist.locator("[data-supplement-checklist]")).toHaveCount(1);
+  await expect(row).toContainText("7/7 užito");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/"+(originalTotal+1));
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.intakes).toHaveLength(7);
+  expect(saved.supplements.map(s=>s.stock).sort()).toEqual([3,4]);
+});
+
+test("Today supplement summary stays one row and shows taken/skipped progress separately",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Zinek",stock:"4",times:"09:00,20:00"});
+  await root.locator("[data-supplement-occurrence]").first().getByRole("button",{name:"Užito",exact:true}).click();
+  await root.locator("[data-supplement-occurrence]").last().getByRole("button",{name:"Vynechat"}).click();
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  const checklist=page.locator("[data-daily-checklist]");
+  const row=checklist.locator('[data-supplement-checklist="summary"]');
+  await expect(checklist.locator("[data-supplement-checklist]")).toHaveCount(1);
+  await expect(row).toContainText("1/2 užito · 1 vynecháno");
+  await expect(row).toHaveClass(/done/);
+  await row.getByRole("button",{name:"Otevřít suplementy ve Zdraví"}).click();
+  await root.locator('[data-supplement-occurrence][data-intake-status="skipped"]').getByRole("button",{name:/Vynecháno/}).click();
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await expect(row).toContainText("1/2 užito");
+  await expect(row).not.toContainText("vynecháno");
+  await expect(row).not.toHaveClass(/done/);
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.intakes).toHaveLength(1);
+  expect(saved.supplements[0].stock).toBe(3);
 });
