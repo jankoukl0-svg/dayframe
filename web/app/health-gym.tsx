@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGymStore } from "./use-gym-store";
 import {GymExercisePicker} from "./gym-exercise-picker";
-import {matchesGymExerciseSearch} from "@/lib/dayframe-gym-exercise-groups";
 import {
   assignmentsOnDate, dateShift, gymMetrics, gymDayWeekdayOnDate, gymDayTimeOnDate, setGymWeekdayAssignment, setGymWeekdayTime, lastExercisePerformance, weekday,
   makeGymPlan, newSet, startSession, uid, setActiveGymPlan,
@@ -11,7 +10,7 @@ import {
 } from "@/lib/dayframe-gym";
 
 const WEEKDAYS = ["Neděle","Pondělí","Úterý","Středa","Čtvrtek","Pátek","Sobota"];
-type GymView="workout"|"plans"|"exercises"|"progress";
+type GymView="workout"|"plans"|"progress";
 const numberValue = (raw:string,min:number,max:number):number|null => raw.trim()===""?null:Math.max(min,Math.min(max,Number(raw)||0));
 const pretty = (date:string)=>new Intl.DateTimeFormat("cs-CZ",{weekday:"short",day:"numeric",month:"numeric"}).format(new Date(date+"T12:00:00"));
 const formatKg = (value:number)=>new Intl.NumberFormat("cs-CZ",{maximumFractionDigits:1}).format(value)+" kg";
@@ -29,8 +28,6 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
   const [editedPlanId,setEditedPlanId]=useState<string|null>(null);
   const [planNameDraft,setPlanNameDraft]=useState<{id:string;value:string}|null>(null);
   const [dayNameDrafts,setDayNameDrafts]=useState<Record<string,string>>({});
-  const [exerciseQuery,setExerciseQuery]=useState("");
-  const [exerciseMuscle,setExerciseMuscle]=useState("all");
   const [newExercise,setNewExercise]=useState(false);
   const [exerciseDraft,setExerciseDraft]=useState({name:"",muscle:"",equipment:"",kind:"Silový",technique:"",photoUrl:""});
   const [restSeconds,setRestSeconds]=useState(90);
@@ -113,10 +110,6 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
       return setActiveGymPlan({...s,plans:[...s.plans,created]},created.id,today);
     })){setSelectedDayId(created.days[0]?.id??null);setEditedPlanId(null);setMessage("");}
   };
-  const muscleOptions=useMemo(()=>[...new Set(store.exercises.map(e=>e.muscle))]
-    .sort((a,b)=>a.localeCompare(b,"cs")),[store.exercises]);
-  const library=useMemo(()=>store.exercises.filter(e=>(exerciseMuscle==="all"||e.muscle===exerciseMuscle)
-    &&matchesGymExerciseSearch(e,exerciseQuery)).sort((a,b)=>a.name.localeCompare(b.name,"cs")),[store.exercises,exerciseQuery,exerciseMuscle]);
   const savePlan=(id:string,fn:(plan:GymPlan)=>GymPlan)=>persist(s=>({...s,plans:s.plans.map(p=>p.id===id?fn(p):p)}));
   const saveSession=(id:string,fn:(session:GymSession)=>GymSession)=>persist(s=>({...s,sessions:s.sessions.map(x=>{
     if(x.id!==id)return x;
@@ -199,7 +192,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
       <button type="button" disabled={blocked} className="df2-gym-new-plan" onClick={()=>{setNewPlan(true);setMessage("");}}>+ Tréninkový plán</button>
     </header>
     <nav className="df2-gym-nav" aria-label="Gym navigace">
-      {([["workout","Tréninky"],["plans","Plány"],["exercises","Cviky"],["progress","Progres"]] as const).map(([key,label])=>
+      {([["workout","Tréninky"],["plans","Plány"],["progress","Progres"]] as const).map(([key,label])=>
         <button type="button" aria-current={view===key?"page":undefined} key={key} onClick={()=>{setView(key);setMessage("");}}>{label}</button>)}
     </nav>
     {(blocked||error||message) && <p role="alert" className="df2-hygiene-error">{blocked?"Uložený tréninkový deník nelze bezpečně načíst. Změny jsou zablokované.":error||message}</p>}
@@ -404,7 +397,12 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
     </div>}
 
     {view==="plans" && <div className="df2-gym-panel">
-      <div className="df2-gym-section-head"><h3>Moje plány</h3><button type="button" onClick={()=>setNewPlan(true)}>+ Nový plán</button></div>
+      <div className="df2-gym-section-head"><h3>Moje plány</h3>
+        <div className="df2-gym-inline">
+          <button type="button" disabled={blocked} onClick={()=>{setMessage("");setNewExercise(true);}}>+ Vlastní cvik</button>
+          <button type="button" disabled={blocked} onClick={()=>setNewPlan(true)}>+ Nový plán</button>
+        </div>
+      </div>
       <div className="df2-gym-plan-switch">{store.plans.map(p=><article key={p.id}>
         <button type="button" aria-pressed={plan?.id===p.id} onClick={()=>setEditedPlanId(p.id)}>{p.name}</button>
         <button type="button" disabled={blocked||store.activePlanId===p.id} onClick={()=>persist(s=>setActiveGymPlan(s,p.id,today))}>
@@ -468,24 +466,6 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         </article>)}
         <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:[...p.days,{id:uid("day"),name:"Nový trénink",weekday:1,scheduleHistory:[{effectiveFrom:today,weekday:null}],exercises:[]}]}))}>+ Tréninkový den</button>
       </section>}
-    </div>}
-
-    {view==="exercises" && <div className="df2-gym-panel">
-      <div className="df2-gym-section-head"><h3>Knihovna cviků</h3><button type="button" onClick={()=>setNewExercise(true)}>+ Vlastní cvik</button></div>
-      <div className="df2-gym-library-tools">
-        <input type="search" placeholder="Hledat cvik, partii nebo vybavení" aria-label="Hledat cviky"
-          value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)}/>
-        <select aria-label="Filtrovat podle partie" value={exerciseMuscle} onChange={e=>setExerciseMuscle(e.target.value)}>
-          <option value="all">Všechny partie</option>
-          {muscleOptions.map(muscle=><option key={muscle} value={muscle}>{muscle}</option>)}
-        </select>
-        <small data-gym-library-count>{library.length} z {store.exercises.length} cviků</small>
-      </div>
-      {library.length?<div className="df2-gym-library">{library.map(ex=><article key={ex.id}>
-        <div><strong>{ex.name}</strong><small>{ex.muscle} · {ex.equipment} · {ex.kind}</small>
-          <p>{ex.technique||"Bez popisu techniky"}</p>{ex.photoUrl && /^https:\/\//.test(ex.photoUrl)&&
-          <a target="_blank" rel="noreferrer" href={ex.photoUrl}>Demonstrace / fotografie ↗</a>}</div>
-      </article>)}</div>:<p className="df2-health-empty" data-gym-library-empty>Žádné cviky neodpovídají hledání. Zkus jinou partii nebo hledaný výraz.</p>}
     </div>}
 
     {view==="progress" && <div className="df2-gym-panel" data-gym-progress>
