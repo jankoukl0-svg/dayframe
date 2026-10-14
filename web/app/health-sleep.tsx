@@ -70,8 +70,7 @@ export function SleepPage({today,focusDate,onFocusHandled}:{today:string;focusDa
   if(!hydrated)return <section className="df2-sleep" data-sleep-root><p>Načítám záznamy spánku…</p></section>;
   return <section className="df2-sleep" data-sleep-root>
     <header className="df2-sleep-head"><div>
-      <span>ETAPA 5 · SPÁNEK</span><h2>Spánek & Regenerace</h2>
-      <p>Dobrovolné záznamy skutečného spánku, bez automatických hodnocení zdraví.</p>
+      <h2>Spánek & Regenerace</h2>
     </div><button type="button" className="df2-accent-button" onClick={()=>loadDate(today)}>+ Zapsat spánek</button></header>
     <nav className="df2-sleep-nav" aria-label="Spánek – sekce">
       {([{key:"overview",title:"Přehled"},{key:"log",title:"Záznam"},{key:"history",title:"Historie"}] as const).map(x=>
@@ -83,11 +82,11 @@ export function SleepPage({today,focusDate,onFocusHandled}:{today:string;focusDa
     {panel==="overview"&&<div className="df2-sleep-content">
       <div className="df2-sleep-kpis">
         <article><small>Poslední noc</small><strong>{latest?formatSleepDuration(sleepDurationMinutes(latest.date,latest.bedtime,latest.wakeTime)!):"—"}</strong><span>{latest?dateLabel(latest.date):"Zatím bez záznamů"}</span></article>
-        <article><small>Průměr za 30 dní</small><strong>{average!==null?formatSleepDuration(average):"—"}</strong><span>Jen skutečně zapsané noci</span></article>
-        <article><small>Kvalita poslední noci</small><strong>{latest?.quality?latest.quality+"/5":"—"}</strong><span>Vlastní subjektivní hodnocení</span></article>
+        <article><small>Průměr za 30 dní</small><strong>{average!==null?formatSleepDuration(average):"—"}</strong></article>
+        <article><small>Kvalita poslední noci</small><strong>{latest?.quality?latest.quality+"/5":"—"}</strong></article>
       </div>
       <article className="df2-sleep-card">
-        <header className="df2-sleep-card-head"><div><h3>Historie spánku</h3><small>Délka skutečně zapsaných nocí</small></div>
+        <header className="df2-sleep-card-head"><div><h3>Historie spánku</h3></div>
           <label>Období <select aria-label="Období spánkového grafu" value={windowDays===null?"all":String(windowDays)}
             onChange={event=>setWindowDays(event.target.value==="all"?null:Number(event.target.value))}>
             <option value="7">7 dní</option><option value="30">30 dní</option><option value="90">90 dní</option><option value="all">Vše</option>
@@ -102,17 +101,17 @@ export function SleepPage({today,focusDate,onFocusHandled}:{today:string;focusDa
               <Line type="monotone" dataKey="minutes" stroke="var(--accent-dark)" strokeWidth={2.5} dot={{r:3}}/>
             </LineChart>
           </ResponsiveContainer>
-        </div>:<p className="df2-sleep-empty">Zatím nemáš žádná měření. První noc přidej tlačítkem „Zapsat spánek“.</p>}
+        </div>:<p className="df2-sleep-empty">Zatím bez záznamů.</p>}
       </article>
       <article className="df2-sleep-card"><h3>Volitelný denní záznam</h3>
         <label className="df2-sleep-toggle"><input type="checkbox" checked={store.checkInEnabled} disabled={blocked}
           onChange={event=>persist(current=>({...current,checkInEnabled:event.target.checked}))}/> Přidávat „Zapsat spánek“ do stránky Dnes</label>
-        <p>Splní se automaticky uložením jediné noci v tomto modulu. Výchozí nastavení je vypnuté.</p>
+        <p>Splní se po zapsání noci.</p>
         <div className="df2-sleep-goal"><label>Vlastní cíl spánku (minuty, volitelné)
           <input type="number" min="180" max="840" step="1" value={targetDraft} placeholder="Bez cíle"
             onChange={event=>setTargetDraft(event.target.value)} disabled={blocked}/></label>
           <button type="button" disabled={blocked} onClick={saveGoal}>Uložit cíl</button></div>
-        {store.goalMinutes!==null&&<small>Nastavený cíl: {formatSleepDuration(store.goalMinutes)}. Nejde o zdravotní doporučení.</small>}
+        {store.goalMinutes!==null&&<small>Cíl: {formatSleepDuration(store.goalMinutes)} · vlastní nastavení</small>}
       </article>
     </div>}
     {panel==="log"&&<article className="df2-sleep-card" data-sleep-editor>
