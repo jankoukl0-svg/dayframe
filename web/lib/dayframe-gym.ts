@@ -8,7 +8,7 @@ export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
 export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; scheduledTime?:GymTime; exercises: GymSessionExercise[] };
-export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string> };
+export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string>; occurrenceTimes?: Record<string,GymTime> };
 export type GymOccurrence = { key: string; planId: string; dayId: string; name: string; date: string; originalDate: string; completed: boolean; session: GymSession | null };
 export type GymTime = {start:string|null;duration:number};
 
@@ -100,15 +100,15 @@ export function extendGymExerciseCatalog(store: GymStore): GymStore {
 }
 
 export function emptyGymStore(): GymStore {
-  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [], sessions: [], moves: {} };
+  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [], sessions: [], moves: {}, occurrenceTimes: {} };
 }
 const str = (value: unknown, max=300) => typeof value === "string" && value.length <= max;
 const num = (value: unknown, min: number, max: number) => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 const nullable = (value: unknown,min:number,max:number) => value === null || num(value,min,max);
 const gymTimeValid=(value:string|null)=>value===null || (
-  typeof value==="string" && /^(?:0[8-9]|1[0-9]|2[0-3]):(?:00|15|30|45)$/.test(value));
+  typeof value==="string" && /^(?:0[0189]|1[0-9]|2[0-3]):(?:00|15|30|45)$/.test(value));
 const gymDurationValid=(value:number)=>Number.isInteger(value)&&value>=30&&value<=180&&value%15===0;
-const gymClockMinutes=(value:string)=>Number(value.slice(0,2))*60+Number(value.slice(3));
+const gymClockMinutes=(value:string)=>{const hour=Number(value.slice(0,2));return (hour<8?hour+24:hour)*60+Number(value.slice(3));};
 
 const distinct = (items: {id:string}[]) => new Set(items.map(x=>x.id)).size === items.length;
 const dateValid = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d)
@@ -157,6 +157,13 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
       || !distinct(s.activations.map(x=>({id:x.effectiveFrom})))
       || s.activations.some(x=>!x||!dateValid(x.effectiveFrom)||!(x.planId===null || str(x.planId,100))))) throw Error("activations");
     for(const [key,date] of Object.entries(s.moves)) if(!str(key,300)||!dateValid(date)) throw Error("move");
+    if(s.occurrenceTimes!==undefined){
+      if(!s.occurrenceTimes||typeof s.occurrenceTimes!=="object"||Array.isArray(s.occurrenceTimes))throw Error("occurrence times");
+      for(const [key,time] of Object.entries(s.occurrenceTimes)){
+        if(!str(key,300)||!key || !time || !gymTimeValid(time.start) || time.start===null
+          || !gymDurationValid(time.duration) || gymClockMinutes(time.start)+time.duration>26*60)throw Error("occurrence time");
+      }
+    }
     return {store:s,blocked:false};
   }catch{ return {store:emptyGymStore(),blocked:true}; }
 }
@@ -211,6 +218,8 @@ export function gymDayTimeOnDate(day:GymPlanDay,date:string):GymTime {
 export function gymOccurrenceTime(store:GymStore,occ:GymOccurrence):GymTime {
   // A started session is factual history even after deleting/editing its plan.
   if(occ.session?.scheduledTime)return occ.session.scheduledTime;
+  const override=store.occurrenceTimes?.[occ.key];
+  if(override)return override;
   const day=store.plans.find(p=>p.id===occ.planId)?.days.find(d=>d.id===occ.dayId);
   return day?gymDayTimeOnDate(day,occ.originalDate):{start:null,duration:60};
 }
@@ -330,6 +339,27 @@ export function moveOccurrence(store:GymStore,key:string,target:string):GymStore
   if(target===origin&&gymDayWeekdayOnDate(day,origin)===weekday(origin))delete moves[key];
   else moves[key]=target;
   return {...store,moves};
+}
+/**
+ * Move a SINGLE unstarted workout in the Week calendar, preserving its
+ * recurring template and all other weeks. A date move keeps the occurrence key,
+ * and its new clock time is stored independently of weekday timeHistory.
+ */
+export function rescheduleGymOccurrence(store:GymStore,key:string,fromDate:string,targetDate:string,start:string):GymStore {
+  if(!dateValid(fromDate)||!dateValid(targetDate)||!gymTimeValid(start)||start===null)return store;
+  const occurrence=assignmentsOnDate(store,fromDate).find(item=>item.key===key);
+  if(!occurrence||occurrence.session)return store;
+  const time=gymOccurrenceTime(store,occurrence);
+  if(!gymDurationValid(time.duration)||gymClockMinutes(start)+time.duration>26*60)return store;
+  const moved=moveOccurrence(store,key,targetDate);
+  if(moved===store||!assignmentsOnDate(moved,targetDate).some(item=>item.key===key))return store;
+  const day=moved.plans.find(plan=>plan.id===occurrence.planId)?.days.find(item=>item.id===occurrence.dayId);
+  const templateTime=day?gymDayTimeOnDate(day,occurrence.originalDate):null;
+  const occurrenceTimes={...(moved.occurrenceTimes??{})};
+  // Reverting to the template also removes the one-off time exception.
+  if(templateTime?.start===start&&templateTime.duration===time.duration)delete occurrenceTimes[key];
+  else occurrenceTimes[key]={start,duration:time.duration};
+  return {...moved,occurrenceTimes};
 }
 export function uid(prefix:string) {return prefix+"-"+crypto.randomUUID();}
 export function newSet(kind:GymSet["kind"]="work"):GymSet {return {id:uid("set"),kind,reps:null,weightKg:null,rpe:null,rir:null,done:false,note:""};}
