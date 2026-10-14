@@ -32,6 +32,18 @@ export function SupplementsPage({today}:{today:string}){
   const [editError,setEditError]=useState("");
   const [notice,setNotice]=useState("");
   const due=useMemo(()=>supplementOccurrences(store,today),[store,today]);
+  const takenCount=due.filter(x=>x.intake?.status==="taken").length;
+  const skippedCount=due.filter(x=>x.intake?.status==="skipped").length;
+  const pendingCount=due.length-takenCount-skippedCount;
+  const dueGroups=useMemo(()=>{
+    const groups:Array<{time:string;items:typeof due}>=[];
+    for(const occurrence of due){
+      const last=groups[groups.length-1];
+      if(last?.time===occurrence.time)last.items.push(occurrence);
+      else groups.push({time:occurrence.time,items:[occurrence]});
+    }
+    return groups;
+  },[due]);
   const low=useMemo(()=>lowStockSupplements(store),[store]);
   const stats=useMemo(()=>supplementStats(store,addDaysKey(today,-29),today),[store,today]);
   const records=store.intakes.filter(x=>x.date>=addDaysKey(today,-29)&&x.date<=today)
@@ -159,7 +171,7 @@ export function SupplementsPage({today}:{today:string}){
   if(!hydrated)return <section className="df2-supplements">Načítám suplementy…</section>;
   return <section className="df2-supplements" aria-label="Suplementy">
     <header className="df2-supplements-head">
-      <div><span>ETAPA 3 · EVIDENCE</span><h2>Suplementy</h2><p>Dávky přepisuj podle etikety nebo doporučení odborníka. Aplikace je sama neurčuje.</p></div>
+      <div><span>ZDRAVÍ · DENNÍ REŽIM</span><h2>Suplementy</h2><p>Dnešní dávky, moje produkty a zásoby na jednom místě.</p></div>
       <button type="button" className="df2-accent-button" disabled={blocked} onClick={()=>showEdit({...newSupplement(""),doseLabel:""})}>+ Přidat suplement</button>
     </header>
     <nav className="df2-supplements-nav" aria-label="Suplementy navigace">
@@ -168,42 +180,76 @@ export function SupplementsPage({today}:{today:string}){
     </nav>
     {(blocked||error||notice)&&<p className={blocked||error?"df2-hygiene-error":"df2-supplements-notice"} role="status">
       {blocked?"Uložená data suplementů nelze bezpečně načíst. Změny jsou zablokované.":error||notice}</p>}
-    {tab==="today"&&<div className="df2-supplements-main">
-      <div className="df2-supplements-stats"><article><small>Naplánováno</small><strong>{due.length}</strong></article>
-        <article><small>Užito</small><strong>{due.filter(x=>x.intake?.status==="taken").length}</strong></article>
-        <article><small>K nákupu</small><strong>{low.length}</strong></article></div>
-      {due.length?<div className="df2-supplements-due">
-        {due.map(x=><article key={x.key} data-supplement-occurrence={x.key}>
-          <SupplementPhoto photoId={x.supplement.photoId} name={x.supplement.name}/>
-          <div className="df2-supplements-due-copy">
-            <time dateTime={today+"T"+x.time}>{x.time}</time><strong>{x.supplement.name}</strong>
-            <small>{x.supplement.brand||"Bez značky"} · {x.supplement.doseLabel}</small>
-            {x.supplement.stock!==null&&<small>Zbývá {czNum(x.supplement.stock)} {x.supplement.units}</small>}
+    {tab==="today"&&<div className="df2-supplements-main" data-supplements-today>
+      <div className="df2-supplements-overview">
+        <div className="df2-supplements-overview-copy">
+          <span>DENNÍ PŘEHLED</span>
+          <h3><strong>{takenCount}</strong><span> / {due.length}</span> dávek užito</h3>
+          <p>{!due.length?"Na dnešek nemáš žádné plánované dávky.":pendingCount===0?"Dnešní dávky jsou vyřízené.":`Zbývá ${pendingCount} ${pendingCount===1?"dávka":pendingCount<5?"dávky":"dávek"} k potvrzení.`}</p>
+        </div>
+        <div className="df2-supplements-overview-progress">
+          <strong>{due.length?Math.round(takenCount/due.length*100):0} %</strong>
+          <div className="df2-supplements-progress-track" role="progressbar" aria-label="Dnes užité dávky"
+            aria-valuemin={0} aria-valuemax={due.length||1} aria-valuenow={takenCount}>
+            <span style={{width:(due.length?100*takenCount/due.length:0)+"%"}}/>
           </div>
-          <div className="df2-supplements-due-actions">
-            <button type="button" disabled={blocked} aria-pressed={x.intake?.status==="taken"}
-              onClick={()=>mark(x.key,"taken")}>{x.intake?.status==="taken"?"✓ Užito":"Užito"}</button>
-            <button type="button" disabled={blocked} aria-pressed={x.intake?.status==="skipped"}
-              onClick={()=>mark(x.key,"skipped")}>{x.intake?.status==="skipped"?"✓ Vynecháno":"Vynechat"}</button>
+          <div className="df2-supplements-overview-detail">
+            <span>Čeká <strong>{pendingCount}</strong></span>
+            <span>Vynecháno <strong>{skippedCount}</strong></span>
+            {low.length>0&&<button type="button" onClick={()=>setTab("shopping")}>K nákupu <strong>{low.length}</strong> ↗</button>}
           </div>
-        </article>)}
-      </div>:<p className="df2-health-empty">Na dnešek nemáš naplánované suplementy. Přidej první nebo uprav jejich rozvrh.</p>}
-      <p className="df2-health-helper">Odškrtnutí dávky se promítne i na stránku Dnes. Sledované zásoby se odečítají jen po potvrzení užití a při vrácení záznamu se opraví.</p>
+        </div>
+      </div>
+      {due.length?<div className="df2-supplements-groups">
+        {dueGroups.map(group=><section className="df2-supplements-time-group" key={group.time} aria-label={"Dávky v "+group.time}>
+          <div className="df2-supplements-group-heading">
+            <h3><time dateTime={today+"T"+group.time}>{group.time}</time></h3>
+            <span>{group.items.length} {group.items.length===1?"dávka":group.items.length<5?"dávky":"dávek"}</span>
+          </div>
+          <div className="df2-supplements-due">
+            {group.items.map(x=><article className={"df2-supplements-dose-card"+(x.intake?.status?" is-"+x.intake.status:"")}
+              key={x.key} data-supplement-occurrence={x.key} data-intake-status={x.intake?.status??"pending"}>
+              <div className="df2-supplements-dose-body">
+                <SupplementPhoto photoId={x.supplement.photoId} name={x.supplement.name}/>
+                <div className="df2-supplements-due-copy">
+                  <div className="df2-supplements-dose-status">
+                    {x.intake?.status==="taken"?<span className="is-taken">✓ Užito</span>:
+                      x.intake?.status==="skipped"?<span className="is-skipped">Vynecháno</span>:<span>Naplánováno</span>}
+                  </div>
+                  <strong>{x.supplement.name}</strong>
+                  <small>{x.supplement.brand||"Bez značky"} · {x.supplement.doseLabel}</small>
+                  {x.supplement.stock!==null&&<small className="df2-supplements-stock-note">Zbývá {czNum(x.supplement.stock)} {x.supplement.units}</small>}
+                </div>
+              </div>
+              <div className="df2-supplements-due-actions">
+                <button type="button" disabled={blocked} aria-pressed={x.intake?.status==="taken"}
+                  onClick={()=>mark(x.key,"taken")}>{x.intake?.status==="taken"?"✓ Užito":"Užito"}</button>
+                <button type="button" disabled={blocked} aria-pressed={x.intake?.status==="skipped"}
+                  onClick={()=>mark(x.key,"skipped")}>{x.intake?.status==="skipped"?"✓ Vynecháno":"Vynechat"}</button>
+              </div>
+            </article>)}
+          </div>
+        </section>)}
+      </div>:<div className="df2-supplements-empty"><strong>Pro dnešek máš hotovo.</strong><span>Nemáš naplánované žádné dávky. Rozvrh můžeš změnit v Moje suplementy.</span>
+        <button type="button" onClick={()=>setTab("library")}>Moje suplementy →</button></div>}
+      <p className="df2-health-helper df2-supplements-footnote">Užití a vynechání se promítá do denního přehledu i historie. Dávkování nastavuj podle etikety nebo doporučení odborníka.</p>
     </div>}
     {tab==="library"&&<div className="df2-supplements-main">
       <input type="search" placeholder="Hledat suplement podle názvu nebo značky" aria-label="Hledat suplement"
         value={search} onChange={e=>setSearch(e.target.value)}/>
-      <div className="df2-supplements-library">
+      <div className="df2-supplements-library" data-supplements-library>
         {store.supplements.filter(x=>(x.name+" "+x.brand).toLocaleLowerCase("cs").includes(search.toLocaleLowerCase("cs")))
           .sort((a,b)=>a.name.localeCompare(b.name,"cs")).map(item=><article key={item.id} data-supplement-id={item.id}>
             <SupplementPhoto photoId={item.photoId} name={item.name}/>
-            <div><span>{item.active?"Aktivní":"Pozastaveno"}</span><h3>{item.name}</h3><p>{item.brand||"Bez značky"}</p>
+            <div className="df2-supplements-library-copy">
+              <span className={"df2-supplements-product-status"+(!item.active?" is-paused":"")}>{item.active?"● Aktivní":"Pozastaveno"}</span>
+              <h3>{item.name}</h3><p>{item.brand||"Bez značky"}</p>
               <small>{item.doseLabel} · {item.times.join(", ")}</small>
-              <small>{item.stock===null?"Zásoby nejsou sledované":"Na skladě "+czNum(item.stock)+" "+item.units}</small>
-              {!!item.notes&&<p>{item.notes}</p>}
+              <small>{item.stock===null?"Zásoby nesledovány":"Na skladě "+czNum(item.stock)+" "+item.units}</small>
+              {!!item.notes&&<p className="df2-supplements-note">{item.notes}</p>}
             </div>
             <div className="df2-supplements-card-actions">
-              <button type="button" onClick={()=>showEdit(item)}>Upravit</button>
+              <button type="button" className="df2-supplements-edit-action" onClick={()=>showEdit(item)}>Upravit</button>
               <button type="button" disabled={blocked} onClick={()=>persist(s=>({...s,supplements:s.supplements.map(x=>x.id===item.id?
                 withSupplementSchedule({...x,active:!x.active},today,x):x)}))}>
                 {item.active?"Pozastavit":"Aktivovat"}</button>
