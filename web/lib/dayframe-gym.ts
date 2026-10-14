@@ -345,8 +345,9 @@ export function moveOccurrence(store:GymStore,key:string,target:string):GymStore
  * recurring template and all other weeks. A date move keeps the occurrence key,
  * and its new clock time is stored independently of weekday timeHistory.
  */
-export function rescheduleGymOccurrence(store:GymStore,key:string,fromDate:string,targetDate:string,start:string):GymStore {
-  if(!dateValid(fromDate)||!dateValid(targetDate)||!gymTimeValid(start)||start===null)return store;
+export function rescheduleGymOccurrence(store:GymStore,key:string,fromDate:string,targetDate:string,start:string,today:string):GymStore {
+  if(!dateValid(today)||!dateValid(fromDate)||!dateValid(targetDate)
+    ||fromDate<today||targetDate<today||!gymTimeValid(start)||start===null)return store;
   const occurrence=assignmentsOnDate(store,fromDate).find(item=>item.key===key);
   if(!occurrence||occurrence.session)return store;
   const time=gymOccurrenceTime(store,occurrence);
