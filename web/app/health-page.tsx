@@ -184,47 +184,46 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
       {tab === "overview" ? (
         <div className="df2-health-content">
           <section className="df2-health-section" data-health-prevention-overview>
-            <div className="df2-health-section-heading"><div><span>Preventivní termíny</span><h2>Prevence</h2></div>
+            <div className="df2-health-section-heading"><div><h2>Prevence</h2></div>
               <button type="button" onClick={()=>setTab("prevention")}>Otevřít prevenci →</button></div>
             <p className="df2-health-helper">{preventionDue.length
               ?preventionDue.map(row=>row.item.title+" · "+(row.status==="done"?"Splněno":row.status==="overdue"?"Po termínu":row.status==="today"?"Dnes":"Připomenutí")).join(" / ")
-              :"Žádné preventivní termíny nevyžadují pozornost. Zadej jen vlastní objednané kontroly."}</p>
+              :"Žádné termíny k řešení."}</p>
           </section>
           <section className="df2-health-section" data-health-sleep-overview>
-            <div className="df2-health-section-heading"><div><span>Regenerace</span><h2>Spánek & Regenerace</h2></div>
+            <div className="df2-health-section-heading"><div><h2>Spánek & Regenerace</h2></div>
               <button type="button" onClick={()=>setTab("sleep")}>Otevřít spánek →</button></div>
             <p className="df2-health-helper">{sleepLatest
               ? "Poslední noc "+sleepLatest.date+" · "+formatSleepDuration(sleepDurationMinutes(sleepLatest.date,sleepLatest.bedtime,sleepLatest.wakeTime)!)
-              : "Zatím bez záznamu spánku. Můžeš přidat svou první noc."}</p>
+              : "Zatím bez záznamu."}</p>
           </section>
           <section className="df2-health-section" data-health-body-overview>
-            <div className="df2-health-section-heading"><div><span>Tělesná měření</span><h2>Tělo & Progress</h2></div>
+            <div className="df2-health-section-heading"><div><h2>Tělo & Progress</h2></div>
               <button type="button" onClick={()=>setTab("body")}>Otevřít měření →</button></div>
             <p className="df2-health-helper">{bodyLatest
               ? "Poslední měření "+bodyLatest.date+(bodyWeight!==null?" · Hmotnost "+bodyWeight.toLocaleString("cs-CZ")+" kg":"")
-              : "Zatím bez měření. Začni jedním dobrovolným záznamem."}</p>
+              : "Zatím bez měření."}</p>
           </section>
           <section className="df2-health-section" data-health-supplements-overview>
-            <div className="df2-health-section-heading"><div><span>Rozpis užívání</span><h2>Dnešní suplementy</h2></div>
+            <div className="df2-health-section-heading"><div><h2>Dnešní suplementy</h2></div>
               <button type="button" onClick={()=>setTab("supplements")}>Otevřít suplementy →</button></div>
             <p className="df2-health-helper">{todaySupplements.length
               ? todaySupplements.map(x=>x.time+" · "+x.supplement.name+" · "+(x.intake?.status==="taken"?"Užito":x.intake?.status==="skipped"?"Vynecháno":"Čeká")).join(" / ")
               : "Dnes nemáš naplánované žádné suplementy."}</p>
           </section>
           <section className="df2-health-section" data-health-gym-overview>
-            <div className="df2-health-section-heading"><div><span>Tréninkový plán</span><h2>Dnešní gym</h2></div>
+            <div className="df2-health-section-heading"><div><h2>Dnešní gym</h2></div>
               <button type="button" onClick={()=>setTab("gym")}>Otevřít tréninky →</button></div>
             <p className="df2-health-helper">{todayWorkouts.length
               ? todayWorkouts.map(x=>x.name+(x.completed?" · Hotovo":x.session?" · Rozpracováno":" · Plánováno")).join(" / ")
-              : "Dnes není plánovaný trénink. V Gymu můžeš aktivovat vlastní plán."}</p>
+              : "Dnes bez tréninku."}</p>
           </section>
           <section className="df2-health-section">
             <div className="df2-health-section-heading">
-              <div><span>Společný plánovač Dayframe</span><h2>Moje zdravotní návyky</h2></div>
+              <div><h2>Moje zdravotní návyky</h2></div>
               <button type="button" className="df2-accent-button"
                 disabled={blocked} onClick={() => { setDraft(newHealthRoutine()); setError(""); }}>+ Přidat návyk</button>
             </div>
-            <p className="df2-health-helper">Splnění se automaticky promítá také do stránky Dnes. Jeden úkol se označuje jen jednou.</p>
             {summaries.length ? (
               <div className="df2-health-routines">
                 {summaries.map((summary) => (
@@ -256,7 +255,7 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
           </section>
 
           <section className="df2-health-section">
-            <div className="df2-health-section-heading"><div><span>Úprava plánování</span><h2>Správa návyků</h2></div></div>
+            <div className="df2-health-section-heading"><div><h2>Správa návyků</h2></div></div>
             {existing.length ? <div className="df2-health-manage">
               {existing.map((routine) => <article key={routine.id}>
                 <div><strong>{routine.title}</strong><small>{scheduleLabel(routine.schedule)} · {routine.active ? "Aktivní" : "Pozastaveno"}</small></div>
@@ -272,11 +271,11 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
                   })}>Upravit</button>
                 </div>
               </article>)}
-            </div> : <p className="df2-health-empty">Zatím nemáš žádné zdravotní návyky. Můžeš je vytvořit bez nového trackeru.</p>}
+            </div> : <p className="df2-health-empty">Zatím žádné návyky.</p>}
           </section>
 
           <section className="df2-health-section">
-            <div className="df2-health-section-heading"><div><span>Skutečně uložená splnění</span><h2>Posledních 7 dní</h2></div>
+            <div className="df2-health-section-heading"><div><h2>Posledních 7 dní</h2></div>
               <button type="button" onClick={() => setShowHistory((value) => !value)}>{showHistory ? "Skrýt" : "Zobrazit"}</button></div>
             {showHistory && <div className="df2-health-history">
               {historyDays.map((date) => {
