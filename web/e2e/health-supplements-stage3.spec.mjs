@@ -355,3 +355,59 @@ test("corrupt image bytes with a PNG MIME type show a neutral placeholder, not a
   await expect(again.locator("[data-supplement-id] .df2-supplement-photo-placeholder")).toBeVisible();
   await expect(again.locator("[data-supplement-id] .df2-supplement-photo img")).toHaveCount(0);
 });
+
+
+test("compact daily cards group doses by time, show live progress and preserve quick check-in",async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
+  await fresh(page);
+  await addOne(page,{name:"B12 test",stock:"4",times:"09:00,20:00"});
+  await addOne(page,{name:"Kreatin test",stock:"4",times:"09:00"});
+  const root=await supplements(page);
+  const groups=root.locator(".df2-supplements-time-group");
+  await expect(groups).toHaveCount(2);
+  await expect(groups.first().locator("[data-supplement-occurrence]")).toHaveCount(2);
+  await expect(groups.last().locator("[data-supplement-occurrence]")).toHaveCount(1);
+  await expect(groups.first().getByRole("heading",{name:"09:00"})).toBeVisible();
+  const progress=root.getByRole("progressbar",{name:"Dnes užité dávky"});
+  await expect(progress).toHaveAttribute("aria-valuemax","3");
+  await expect(progress).toHaveAttribute("aria-valuenow","0");
+  const first=groups.first().locator("[data-supplement-occurrence]").first();
+  await expect(first).toHaveAttribute("data-intake-status","pending");
+  await first.getByRole("button",{name:"Užito",exact:true}).click();
+  await expect(first).toHaveAttribute("data-intake-status","taken");
+  await expect(progress).toHaveAttribute("aria-valuenow","1");
+  await expect(first).toContainText("Zbývá 3");
+  const second=groups.first().locator("[data-supplement-occurrence]").last();
+  await second.getByRole("button",{name:"Vynechat"}).click();
+  await expect(second).toHaveAttribute("data-intake-status","skipped");
+  await expect(root.locator(".df2-supplements-overview-detail")).toContainText("Vynecháno 1");
+  await expect(progress).toHaveAttribute("aria-valuenow","1");
+  await page.reload({waitUntil:"networkidle"});
+  const reloaded=await supplements(page);
+  await expect(reloaded.locator("[data-supplement-occurrence][data-intake-status=taken]")).toHaveCount(1);
+  await expect(reloaded.locator("[data-supplement-occurrence][data-intake-status=skipped]")).toHaveCount(1);
+  await expect(reloaded.getByRole("progressbar",{name:"Dnes užité dávky"})).toHaveAttribute("aria-valuenow","1");
+  await reloaded.getByRole("button",{name:"Moje suplementy"}).click();
+  await expect(reloaded.locator("[data-supplements-library] [data-supplement-id]")).toHaveCount(2);
+  expect(await reloaded.locator(".df2-supplements-library").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBeGreaterThan(1);
+  await reloaded.locator("[data-supplement-id]").first().getByRole("button",{name:"Upravit"}).click();
+  await expect(page.getByRole("dialog",{name:"Editor suplementu"})).toBeVisible();
+});
+
+test("responsive supplement cards stack on mobile without hiding inventory and history",async({page})=>{
+  await page.setViewportSize({width:375,height:812});
+  await fresh(page);
+  const root=await addOne(page,{name:"Zinek test",stock:"5"});
+  await expect(root.locator(".df2-supplements-dose-card")).toHaveCount(1);
+  await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toBeVisible();
+  await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Užito",exact:true})).toBeVisible();
+  await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Vynechat"})).toBeVisible();
+  expect(await root.locator(".df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(1);
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await expect(root.locator("[data-supplements-library] [data-supplement-id]")).toHaveCount(1);
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Přidat k nákupu"}).click();
+  await root.getByRole("button",{name:/K nákupu/}).click();
+  await expect(root.locator(".df2-supplements-shopping")).toContainText("Zinek test");
+  await root.getByRole("button",{name:"Historie",exact:true}).click();
+  await expect(root.locator("[data-supplements-history]")).toBeVisible();
+});

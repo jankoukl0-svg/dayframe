@@ -1,36 +1,98 @@
-/* Stage 3 — Supplements */
-.df2-supplements{display:grid;gap:17px;min-width:0}
-.df2-supplements-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:15px}
-.df2-supplements-head>div{display:grid;gap:6px}
-.df2-supplements-head span{font-size:10px;font-weight:750;letter-spacing:.06em;color:var(--accent-dark)}
-.df2-supplements-head h2{color:var(--ink);font-size:22px;font-weight:750;margin:0}
-.df2-supplements-head p{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
-.df2-supplements-nav{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--line);padding-bottom:12px}
-.df2-supplements-nav button,.df2-supplements-card-actions button,.df2-supplements-card-actions a,
-.df2-supplements-due-actions button{font-size:11px;font-weight:700;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:7px;padding:8px 11px;cursor:pointer}
-.df2-supplements-nav button[aria-current=page],.df2-supplements-due-actions button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-wash);color:var(--accent-dark)}
-.df2-supplements-main{display:grid;gap:16px}
-.df2-supplements-main input[type=search]{width:min(100%,530px);padding:11px 12px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);border-radius:8px}
+/* Supplements: calm, product-first layout shared with Gym & Hygiene. */
+.df2-supplements{display:grid;gap:20px;min-width:0}
+.df2-supplements-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.df2-supplements-head>div{display:grid;gap:5px}
+.df2-supplements-head span{font-size:10px;font-weight:750;letter-spacing:.085em;color:var(--accent-dark)}
+.df2-supplements-head h2{color:var(--ink);font-size:24px;font-weight:760;margin:0;letter-spacing:-.035em}
+.df2-supplements-head p{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
+.df2-supplements-nav{display:flex;gap:3px;width:max-content;max-width:100%;border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:4px}
+.df2-supplements-nav button{font-size:12px;font-weight:700;padding:10px 15px;border:0;border-radius:9px;background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap;transition:background .16s ease,color .16s ease}
+.df2-supplements-nav button:hover{background:var(--accent-wash);color:var(--ink)}
+.df2-supplements-nav button[aria-current=page]{background:var(--accent-wash);color:var(--accent-dark)}
+.df2-supplements-nav button:focus-visible,.df2-supplements button:focus-visible,.df2-supplements a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.df2-supplements-main{display:grid;gap:20px;min-width:0}
+.df2-supplements-main input[type=search]{width:min(100%,520px);padding:12px 14px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);border-radius:10px;font-size:13px}
+.df2-supplements-main input[type=search]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.df2-supplements-overview{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.9fr);gap:24px;align-items:center;border:1px solid var(--line);border-radius:16px;background:var(--paper);padding:23px 26px}
+.df2-supplements-overview-copy{display:grid;gap:7px;min-width:0}
+.df2-supplements-overview-copy>span{font-size:10px;letter-spacing:.1em;font-weight:750;color:var(--accent-dark)}
+.df2-supplements-overview-copy h3{margin:0;color:var(--ink);font-size:19px;font-weight:650;letter-spacing:-.035em}
+.df2-supplements-overview-copy h3 strong{font-size:34px;font-weight:760;letter-spacing:-.06em}
+.df2-supplements-overview-copy h3>span{font-size:27px;font-weight:500;color:var(--muted)}
+.df2-supplements-overview-copy p{font-size:12px;color:var(--muted);margin:0;line-height:1.5}
+.df2-supplements-overview-progress{display:grid;gap:10px;min-width:0}
+.df2-supplements-overview-progress>strong{font-size:13px;color:var(--ink);font-weight:750;justify-self:end;font-variant-numeric:tabular-nums}
+.df2-supplements-progress-track{height:7px;overflow:hidden;background:var(--accent-wash);border-radius:999px}
+.df2-supplements-progress-track>span{height:100%;display:block;background:var(--accent-dark);border-radius:inherit;transition:width .25s ease}
+.df2-supplements-overview-detail{display:flex;align-items:center;justify-content:flex-end;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:11px}
+.df2-supplements-overview-detail strong{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:750}
+.df2-supplements-overview-detail button{border:0;background:transparent;padding:0;color:var(--accent-dark);font:inherit;font-weight:700;cursor:pointer}
+.df2-supplements-groups{display:grid;gap:22px;min-width:0}
+.df2-supplements-time-group{display:grid;gap:12px;min-width:0}
+.df2-supplements-group-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px}
+.df2-supplements-group-heading h3{margin:0;font-size:14px;letter-spacing:-.02em;color:var(--ink);font-weight:750}
+.df2-supplements-group-heading>span{font-size:11px;color:var(--muted)}
+.df2-supplements-due,.df2-supplements-library,.df2-supplements-shopping{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;align-items:stretch;min-width:0}
+.df2-supplements-due article,.df2-supplements-library article,.df2-supplements-shopping article{min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:16px;box-shadow:0 2px 8px rgb(0 0 0 / .018)}
+.df2-supplements-due article{display:flex;flex-direction:column;justify-content:space-between;gap:14px;transition:border-color .16s ease,background .16s ease}
+.df2-supplements-dose-card.is-taken{border-color:#cadbcf;background:color-mix(in srgb,var(--paper) 91%,#e7f4e9)}
+.df2-supplements-dose-card.is-skipped{background:color-mix(in srgb,var(--paper) 93%,#eceae6)}
+.df2-supplements-dose-body{display:flex;align-items:center;gap:13px;min-width:0}
+.df2-supplements-dose-body>.df2-supplement-photo{flex-shrink:0}
+.df2-supplements-due-copy{display:grid;gap:4px;min-width:0;align-content:center}
+.df2-supplements-dose-status{margin-bottom:2px;font-size:10px;font-weight:700;color:var(--muted)}
+.df2-supplements-dose-status .is-taken{color:#457458}
+.df2-supplements-dose-status .is-skipped{color:var(--muted)}
+.df2-supplements-due-copy strong,.df2-supplements-shopping article>div:nth-child(2) strong,.df2-supplements-library h3{font-size:13px;font-weight:750;line-height:1.35;color:var(--ink);margin:0;overflow-wrap:anywhere}
+.df2-supplements-due-copy small,.df2-supplements-library small,.df2-supplements-library p,.df2-supplements-shopping small{font-size:11px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere}
+.df2-supplements-due-copy .df2-supplements-stock-note{font-size:10px}
+.df2-supplements-due-actions{display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+.df2-supplements-due-actions button{min-width:0;flex:1;min-height:34px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--ink);font-size:11px;font-weight:750;cursor:pointer;transition:background .16s ease}
+.df2-supplements-due-actions button:first-child{border-color:var(--line-strong);background:var(--accent-wash);color:var(--accent-dark)}
+.df2-supplements-due-actions button[aria-pressed=true]{background:var(--accent-wash);color:var(--accent-dark);border-color:var(--accent)}
+.df2-supplements-due-actions button:first-child[aria-pressed=true]{background:#e7f4e9;border-color:#bfd9c7;color:#365e44}
+.df2-supplements-due-actions button:disabled,.df2-supplements-card-actions button:disabled{opacity:.48;cursor:not-allowed}
+.df2-supplements-empty{display:grid;justify-items:start;gap:8px;padding:23px;border:1px dashed var(--line-strong);border-radius:14px;color:var(--muted);font-size:12px;background:var(--paper)}
+.df2-supplements-empty strong{font-size:14px;color:var(--ink)}
+.df2-supplements-empty button{border:0;background:none;padding:3px 0;color:var(--accent-dark);font-weight:750;cursor:pointer}
+.df2-supplements-footnote{max-width:760px;font-size:11px;line-height:1.55}
+.df2-supplements-library article,.df2-supplements-shopping article{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:13px;row-gap:14px;align-content:start}
+.df2-supplements-library-copy,.df2-supplements-shopping article>div:nth-child(2){display:grid;align-content:start;gap:5px;min-width:0}
+.df2-supplements-product-status{font-size:10px;font-weight:730;color:#457458}
+.df2-supplements-product-status.is-paused{color:var(--muted)}
+.df2-supplements-library .df2-supplements-note{margin:0;font-size:10px}
+.df2-supplements-card-actions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.df2-supplements-card-actions button,.df2-supplements-card-actions a{font-size:11px;font-weight:700;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:8px 10px;cursor:pointer;text-decoration:none}
+.df2-supplements-card-actions .df2-supplements-edit-action{border-color:var(--line-strong);background:var(--accent-wash);color:var(--accent-dark)}
+.df2-supplements-stock-actions{display:flex;gap:5px;margin-left:auto;padding-left:8px;border-left:1px solid var(--line)}
+.df2-supplements-stock-actions button{min-width:33px}
+.df2-supplements-shopping article>div:nth-child(2){min-width:0}
 .df2-supplements-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.df2-supplements-stats article{padding:14px;border-radius:10px;border:1px solid var(--line);display:grid;gap:9px;background:var(--paper)}
+.df2-supplements-stats article{padding:17px 19px;border-radius:12px;border:1px solid var(--line);display:grid;gap:8px;background:var(--paper)}
 .df2-supplements-stats small{font-size:11px;color:var(--muted)}
-.df2-supplements-stats strong{font-size:22px;color:var(--ink);font-weight:750}
-.df2-supplements-due,.df2-supplements-shopping,.df2-supplements-library{display:grid;gap:10px}
-.df2-supplements-due article,.df2-supplements-shopping article,.df2-supplements-library article{
-  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:15px;
-  border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:15px}
-.df2-supplements-due-copy,.df2-supplements-library article>div:nth-child(2),.df2-supplements-shopping article>div:nth-child(2){display:grid;gap:5px;min-width:0}
-.df2-supplements-due-copy time,.df2-supplements-library article span{color:var(--accent-dark);font-size:10px;font-weight:750}
-.df2-supplements-due-copy strong,.df2-supplements-shopping strong,.df2-supplements-library h3{font-size:14px;font-weight:750;color:var(--ink);margin:0}
-.df2-supplements-due-copy small,.df2-supplements-shopping small,.df2-supplements-library small,.df2-supplements-library p{font-size:11px;color:var(--muted);line-height:1.5}
-.df2-supplements-due-actions,.df2-supplements-card-actions,.df2-supplements-stock-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
-.df2-supplements-stock-actions{border-left:1px solid var(--line);padding-left:7px}
+.df2-supplements-stats strong{font-size:23px;color:var(--ink);font-weight:750;font-variant-numeric:tabular-nums}
 .df2-supplements-notice{color:var(--ink);font-size:11px;margin:0}
-.df2-supplements-history{display:grid;border:1px solid var(--line);border-radius:9px;background:var(--paper)}
-.df2-supplements-history>div{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:10px;padding:11px 14px;align-items:center;font-size:11px}
+.df2-supplements-history{display:grid;border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden}
+.df2-supplements-history>div{display:grid;grid-template-columns:145px minmax(0,1fr) auto;gap:13px;padding:12px 17px;align-items:center;font-size:11px}
 .df2-supplements-history>div+div{border-top:1px solid var(--line)}
 .df2-supplements-history time,.df2-supplements-history span{color:var(--muted)}
 .df2-supplements-history strong{font-size:11px;color:var(--ink)}
+@media(max-width:780px){
+  .df2-supplements-overview{grid-template-columns:1fr;gap:14px;padding:18px}
+  .df2-supplements-overview-progress>strong,.df2-supplements-overview-detail{justify-self:stretch;justify-content:flex-start}
+}
+@media(max-width:620px){
+  .df2-supplements-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;gap:2px}
+  .df2-supplements-nav button{min-width:0;padding:10px 4px;font-size:10px;white-space:normal}
+  .df2-supplements-due,.df2-supplements-library,.df2-supplements-shopping{grid-template-columns:1fr}
+  .df2-supplements-stats article{padding:12px}
+  .df2-supplements-stats strong{font-size:19px}
+  .df2-supplements-history>div{grid-template-columns:minmax(0,1fr) auto;gap:6px}
+  .df2-supplements-history>div time{grid-column:1/-1}
+  .df2-supplements-history>div span{grid-column:2;justify-self:end}
+}
+@media(prefers-reduced-motion:reduce){.df2-supplements-progress-track>span{transition:none}.df2-supplements-due article{transition:none}}
+
 .df2-supplements-editor .df2-supplements-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .df2-supplements-editor-fields label{display:grid;gap:5px;font-size:11px;font-weight:650;color:var(--ink)}
 .df2-supplements-editor-fields input,.df2-supplements-editor-fields textarea{width:100%;min-width:0;border:1px solid var(--line-strong);border-radius:6px;background:var(--paper);color:var(--ink);padding:9px;font:inherit}
@@ -39,10 +101,7 @@
 .df2-supplements-weekdays legend{font-size:11px;color:var(--ink);font-weight:700}
 .df2-supplements-weekdays label{display:flex;align-items:center;gap:4px;color:var(--ink);font-size:11px}
 @media(max-width:720px){
-  .df2-supplements-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
   .df2-supplements-editor .df2-supplements-editor-fields{grid-template-columns:1fr}
-  .df2-supplements-history>div{grid-template-columns:1fr 1fr}
-  .df2-supplements-history>div>span{grid-column:2;justify-self:end}
 }
 
 /* Product photographs: local IndexedDB packshots with neutral placeholders. */
@@ -50,7 +109,6 @@
 .df2-supplement-photo img{width:100%;height:100%;display:block;object-fit:contain}
 .df2-supplement-photo-placeholder{display:grid;place-items:center;color:#b5ada5;font-size:23px;background:#f7f5f2;width:100%;height:100%}
 .df2-supplement-photo.is-large{width:104px;height:112px;flex:0 0 104px;border-radius:11px}
-.df2-supplements-due-copy,.df2-supplements-library article>div:nth-child(2),.df2-supplements-shopping article>div:nth-child(2){flex:1 1 200px}
 .df2-supplements-photo-editor{display:flex;align-items:center;gap:16px;padding:12px 0 15px;border-bottom:1px solid var(--line);min-width:0}
 .df2-supplements-photo-inputs{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
 .df2-supplements-photo-inputs>strong{font-size:12px;color:var(--ink)}
@@ -62,7 +120,6 @@
 .df2-supplements-editor .df2-supplements-photo-editor{margin-bottom:3px}
 @media(max-width:640px){
   .df2-supplements-photo-editor{align-items:flex-start}
-  .df2-supplements-due article,.df2-supplements-library article,.df2-supplements-shopping article{gap:10px}
   .df2-supplement-photo{width:55px;height:64px;flex-basis:55px}
   .df2-supplement-photo.is-large{width:90px;height:100px;flex-basis:90px}
 }
