@@ -173,3 +173,75 @@ test("failed metadata write cannot delete the only locally stored photo blob",as
   },id);
   expect(size).toBe(png.length);
 });
+
+
+test("Body overview uses the Gym/Supplements card style and a compact single-reading display",async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
+  await fresh(page);
+  const root=await measure(page,"67","81");
+  await root.getByRole("button",{name:"Přehled",exact:true}).click();
+  await expect(root.locator(".df2-body-nav button")).toHaveCount(4);
+  await expect(root.locator(".df2-body-kpis article")).toHaveCount(3);
+  await expect(root.locator(".df2-body-kpis")).toContainText("67 kg");
+  await expect(root.locator(".df2-body-chart.is-single")).toBeVisible();
+  await expect(root.locator(".df2-body-chart.is-single")).toContainText("67 kg");
+  await expect(root.locator("[data-body-chart]")).toHaveCount(1);
+  const design=await root.evaluate(el=>{
+    const nav=getComputedStyle(el.querySelector(".df2-body-nav"));
+    const kpi=getComputedStyle(el.querySelector(".df2-body-kpis article"));
+    const section=getComputedStyle(el.querySelector(".df2-body-section"));
+    const plot=el.querySelector("[data-body-chart]").getBoundingClientRect();
+    return {navRadius:nav.borderRadius,kpiRadius:kpi.borderRadius,sectionRadius:section.borderRadius,chartHeight:plot.height};
+  });
+  expect(design).toMatchObject({navRadius:"12px",kpiRadius:"14px",sectionRadius:"16px"});
+  expect(design.chartHeight).toBeLessThan(150);
+  await root.getByRole("combobox",{name:"Metrika grafu"}).selectOption("waistCm");
+  await expect(root.locator(".df2-body-chart.is-single")).toContainText("81 cm");
+  await root.getByRole("button",{name:"Všechna měření →"}).click();
+  await expect(root.locator("[data-body-entry]")).toHaveCount(1);
+  await page.reload({waitUntil:"networkidle"});
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.entries).toHaveLength(1);
+  expect(saved.entries[0].metrics).toMatchObject({weightKg:67,waistCm:81});
+});
+
+test("Body chart expands for a real time series and retains schedule controls after visual changes",async({page})=>{
+  await fresh(page);
+  const root=await measure(page,"67");
+  await root.getByRole("button",{name:"Měření",exact:true}).click();
+  await root.getByLabel("Datum měření").fill("2026-10-11");
+  await root.getByRole("spinbutton",{name:"Hmotnost",exact:true}).fill("66.5");
+  await root.getByRole("button",{name:"Uložit měření"}).click();
+  await root.getByRole("button",{name:"Přehled",exact:true}).click();
+  await expect(root.locator("[data-body-chart]:not(.is-single)")).toBeVisible();
+  await expect(root.locator("[data-body-chart] svg.recharts-surface")).toBeVisible();
+  await root.getByRole("combobox",{name:"Frekvence měření"}).selectOption("weekly");
+  await expect(root.getByRole("combobox",{name:"Den měření"})).toBeVisible();
+  await root.getByRole("button",{name:"Cíle",exact:true}).click();
+  await expect(root.getByRole("spinbutton",{name:"Cílová hodnota"})).toBeVisible();
+  await root.getByRole("button",{name:"Fotografie",exact:true}).click();
+  await expect(root.getByLabel("Vybrat progresovou fotografii")).toBeVisible();
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.entries).toHaveLength(2);
+  expect(saved.schedule.frequency).toBe("weekly");
+});
+
+test("Body cards and form controls are responsive in the same compact visual system",async({page})=>{
+  await page.setViewportSize({width:375,height:812});
+  await fresh(page);
+  const root=await body(page);
+  await expect(root.locator(".df2-body-nav button")).toHaveCount(4);
+  const layout=await root.evaluate(el=>({
+    navCols:getComputedStyle(el.querySelector(".df2-body-nav")).gridTemplateColumns.split(" ").length,
+    kpiCols:getComputedStyle(el.querySelector(".df2-body-kpis")).gridTemplateColumns.split(" ").length,
+  }));
+  expect(layout.navCols).toBe(4);
+  expect(layout.kpiCols).toBe(2);
+  await root.getByRole("button",{name:"Měření",exact:true}).click();
+  await expect(root.getByRole("spinbutton",{name:"Hmotnost",exact:true})).toBeVisible();
+  await expect(root.getByRole("button",{name:"Uložit měření"})).toBeVisible();
+  await root.getByRole("button",{name:"Cíle",exact:true}).click();
+  await expect(root.getByRole("spinbutton",{name:"Cílová hodnota"})).toBeVisible();
+  await root.getByRole("button",{name:"Fotografie",exact:true}).click();
+  await expect(root.getByLabel("Vybrat progresovou fotografii")).toBeVisible();
+});
