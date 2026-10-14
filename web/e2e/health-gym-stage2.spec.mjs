@@ -159,7 +159,7 @@ test("renaming a plan or day cannot store a transient blank name and block exist
   await expect(again).not.toContainText("Tréninková data nelze bezpečně načíst");
 });
 
-test("a Gym deep link is consumed and an ordinary Health click returns to its overview",async({page})=>{
+test("a Gym deep link is consumed and an ordinary Health click opens Gym by default",async({page})=>{
   await fresh(page);
   const root=await createPlan(page);
   await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
@@ -168,7 +168,7 @@ test("a Gym deep link is consumed and an ordinary Health click returns to its ov
   await expect(page.getByRole("tab",{name:"Gym & Tréninky"})).toHaveAttribute("aria-selected","true");
   await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
   await page.locator(".df2-sidebar nav button").filter({hasText:"Zdraví"}).click();
-  await expect(page.getByRole("tab",{name:"Přehled"})).toHaveAttribute("aria-selected","true");
+  await expect(page.getByRole("tab",{name:"Gym & Tréninky"})).toHaveAttribute("aria-selected","true");
 });
 
 test("new workout plans do not appear in weeks before they were created",async({page})=>{

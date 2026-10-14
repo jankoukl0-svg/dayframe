@@ -7,17 +7,7 @@ import { GymPage } from "./health-gym";
 import { BodyPage } from "./health-body";
 import { SleepPage } from "./health-sleep";
 import { PreventionPage } from "./health-prevention";
-import { usePreventionStore } from "./use-prevention-store";
-import {preventionTodayRows} from "@/lib/dayframe-prevention";
-import { useSleepStore } from "./use-sleep-store";
-import {sleepDurationMinutes,formatSleepDuration} from "@/lib/dayframe-sleep";
-import { useBodyStore } from "./use-body-store";
-import { latestMetric,latestBodyEntry } from "@/lib/dayframe-body";
 import { SupplementsPage } from "./health-supplements";
-import { useSupplementStore } from "./use-supplement-store";
-import { supplementOccurrences } from "@/lib/dayframe-supplements";
-import { useGymStore } from "./use-gym-store";
-import { assignmentsOnDate } from "@/lib/dayframe-gym";
 import {
   HYGIENE_STORAGE_KEY, HYGIENE_SYNC_EVENT,
   careDomainStore, createDefaultHygieneStore, createRoutineId, createTaskId,
@@ -26,9 +16,8 @@ import {
   toggleManualRoutine, type HygieneRoutineDefinition, type HygieneSchedule, type HygieneStore,
 } from "@/lib/dayframe-hygiene";
 
-type HealthTab = "overview" | "gym" | "supplements" | "body" | "sleep" | "prevention";
+type HealthTab = "gym" | "supplements" | "body" | "sleep" | "prevention";
 const TABS: { id: HealthTab; name: string }[] = [
-  { id: "overview", name: "Přehled" },
   { id: "gym", name: "Gym & Tréninky" },
   { id: "supplements", name: "Suplementy" },
   { id: "body", name: "Tělo & Progress" },
@@ -63,21 +52,10 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
   const [blocked, setBlocked] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<HealthTab>("overview");
+  const [tab, setTab] = useState<HealthTab>("gym");
+  const [habitsOpen, setHabitsOpen] = useState(false);
   const [draft, setDraft] = useState<HygieneRoutineDefinition | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const gym = useGymStore();
-  const supplements = useSupplementStore();
-  const body = useBodyStore();
-  const sleep = useSleepStore();
-  const prevention=usePreventionStore();
-  const preventionDue=useMemo(()=>preventionTodayRows(prevention.store,sleepTodayKey),[prevention.store,sleepTodayKey]);
-  const bodyWeight=latestMetric(body.store,"weightKg",planningKey);
-  const bodyLatest=latestBodyEntry(body.store,planningKey);
-  const sleepLatest=sleep.store.entries.filter(x=>x.date<=sleepTodayKey).slice().sort((a,b)=>b.date.localeCompare(a.date))[0]??null;
-  const todaySupplements = useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
-  const todayWorkouts = useMemo(() => assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
-
   useEffect(() => {
     const sync = () => {
       const result = loadHygieneStore(planningKey);
@@ -99,7 +77,8 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
 
   useEffect(() => {
     if (!hydrated || !focusRoutineId) return;
-    setTab("overview");
+    setTab("prevention");
+    setHabitsOpen(true);
     const timer = window.setTimeout(() => {
       document.getElementById("health-routine-" + focusRoutineId)?.scrollIntoView({ block: "center" });
       onFocusHandled?.();
@@ -169,9 +148,9 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
           <p>{new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(planningKey))}</p>
           <h1>Zdraví</h1>
         </div>
-        <div className="df2-health-today-progress" aria-label={"Zdravotní návyky " + handled + " z " + total}>
+        {total > 0 && <div className="df2-health-today-progress" aria-label={"Zdravotní návyky " + handled + " z " + total}>
           <strong>{handled}/{total}</strong><span>dnešní návyky</span>
-        </div>
+        </div>}
       </header>
 
       <div className="df2-health-tabs" role="tablist" aria-label="Sekce Zdraví">
@@ -181,43 +160,21 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
 
       {(blocked || error) && <p role="alert" className="df2-hygiene-error">{blocked ? "Uložená data nelze bezpečně načíst. Změny jsou zablokované." : error}</p>}
 
-      {tab === "overview" ? (
-        <div className="df2-health-content">
-          <section className="df2-health-section" data-health-prevention-overview>
-            <div className="df2-health-section-heading"><div><h2>Prevence</h2></div>
-              <button type="button" onClick={()=>setTab("prevention")}>Otevřít prevenci →</button></div>
-            <p className="df2-health-helper">{preventionDue.length
-              ?preventionDue.map(row=>row.item.title+" · "+(row.status==="done"?"Splněno":row.status==="overdue"?"Po termínu":row.status==="today"?"Dnes":"Připomenutí")).join(" / ")
-              :"Žádné termíny k řešení."}</p>
-          </section>
-          <section className="df2-health-section" data-health-sleep-overview>
-            <div className="df2-health-section-heading"><div><h2>Spánek & Regenerace</h2></div>
-              <button type="button" onClick={()=>setTab("sleep")}>Otevřít spánek →</button></div>
-            <p className="df2-health-helper">{sleepLatest
-              ? "Poslední noc "+sleepLatest.date+" · "+formatSleepDuration(sleepDurationMinutes(sleepLatest.date,sleepLatest.bedtime,sleepLatest.wakeTime)!)
-              : "Zatím bez záznamu."}</p>
-          </section>
-          <section className="df2-health-section" data-health-body-overview>
-            <div className="df2-health-section-heading"><div><h2>Tělo & Progress</h2></div>
-              <button type="button" onClick={()=>setTab("body")}>Otevřít měření →</button></div>
-            <p className="df2-health-helper">{bodyLatest
-              ? "Poslední měření "+bodyLatest.date+(bodyWeight!==null?" · Hmotnost "+bodyWeight.toLocaleString("cs-CZ")+" kg":"")
-              : "Zatím bez měření."}</p>
-          </section>
-          <section className="df2-health-section" data-health-supplements-overview>
-            <div className="df2-health-section-heading"><div><h2>Dnešní suplementy</h2></div>
-              <button type="button" onClick={()=>setTab("supplements")}>Otevřít suplementy →</button></div>
-            <p className="df2-health-helper">{todaySupplements.length
-              ? todaySupplements.map(x=>x.time+" · "+x.supplement.name+" · "+(x.intake?.status==="taken"?"Užito":x.intake?.status==="skipped"?"Vynecháno":"Čeká")).join(" / ")
-              : "Dnes nemáš naplánované žádné suplementy."}</p>
-          </section>
-          <section className="df2-health-section" data-health-gym-overview>
-            <div className="df2-health-section-heading"><div><h2>Dnešní gym</h2></div>
-              <button type="button" onClick={()=>setTab("gym")}>Otevřít tréninky →</button></div>
-            <p className="df2-health-helper">{todayWorkouts.length
-              ? todayWorkouts.map(x=>x.name+(x.completed?" · Hotovo":x.session?" · Rozpracováno":" · Plánováno")).join(" / ")
-              : "Dnes bez tréninku."}</p>
-          </section>
+      {tab === "gym" ? (
+        <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} onFocusHandled={onGymFocusHandled} />
+      ) : tab === "supplements" ? (
+        <SupplementsPage today={planningKey} />
+      ) : tab === "body" ? (
+        <BodyPage today={planningKey} focusDate={focusBodyDate} onFocusHandled={onBodyFocusHandled} />
+      ) : tab === "sleep" ? (
+        <SleepPage today={sleepTodayKey} focusDate={focusSleepDate} onFocusHandled={onSleepFocusHandled} />
+      ) : tab === "prevention" ? (
+        <>
+          <PreventionPage today={sleepTodayKey} focusId={focusPreventionId} onFocusHandled={onPreventionFocusHandled} />
+          <details className="df2-health-habits-details" open={habitsOpen}
+            onToggle={(event) => setHabitsOpen(event.currentTarget.open)}>
+            <summary>Zdravotní návyky</summary>
+            <div className="df2-health-content">
           <section className="df2-health-section">
             <div className="df2-health-section-heading">
               <div><h2>Moje zdravotní návyky</h2></div>
@@ -288,17 +245,9 @@ export function HealthPage({ planningKey, sleepTodayKey, focusRoutineId, onFocus
               })}
             </div>}
           </section>
-        </div>
-      ) : tab === "gym" ? (
-        <GymPage today={planningKey} focusKey={focusGymKey} focusDate={focusGymDate} onFocusHandled={onGymFocusHandled} />
-      ) : tab === "supplements" ? (
-        <SupplementsPage today={planningKey} />
-      ) : tab === "body" ? (
-        <BodyPage today={planningKey} focusDate={focusBodyDate} onFocusHandled={onBodyFocusHandled} />
-      ) : tab === "sleep" ? (
-        <SleepPage today={sleepTodayKey} focusDate={focusSleepDate} onFocusHandled={onSleepFocusHandled} />
-      ) : tab === "prevention" ? (
-        <PreventionPage today={sleepTodayKey} focusId={focusPreventionId} onFocusHandled={onPreventionFocusHandled} />
+            </div>
+          </details>
+        </>
       ) : null}
 
       {draft && <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDraft(null); }}>

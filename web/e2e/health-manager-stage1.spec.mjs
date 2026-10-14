@@ -13,14 +13,22 @@ async function goHealth(page) {
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Zdraví" }).click();
   return page.getByRole("region", { name: "Zdraví", exact: true });
 }
+async function openHabits(health) {
+  await health.getByRole("tab", { name: "Prevence" }).click();
+  const details = health.locator("details.df2-health-habits-details");
+  if (!(await details.evaluate((element) => element.open))) await details.locator("summary").click();
+  await expect(details).toHaveAttribute("open", "");
+}
 
-test("Health navigation contains six active/future tabs without Hydration", async ({ page }) => {
+test("Health has five direct module tabs, opens Gym first and no longer shows overview", async ({ page }) => {
   await fresh(page);
   const health = await goHealth(page);
   await expect(health.getByRole("heading", { name: "Zdraví", exact: true })).toBeVisible();
-  await expect(health.getByRole("tab")).toHaveCount(6);
+  await expect(health.getByRole("tab")).toHaveCount(5);
+  await expect(health.getByRole("tab", { name: "Přehled" })).toHaveCount(0);
+  await expect(health.getByRole("tab", { name: "Gym & Tréninky" })).toHaveAttribute("aria-selected", "true");
   await expect(health.getByRole("tab", { name: "Hydratace" })).toHaveCount(0);
-  await expect(health).toContainText("Pro dnešek nejsou naplánované žádné zdravotní návyky");
+  await expect(health.locator("[data-health-gym-overview]")).toHaveCount(0);
   await health.getByRole("tab", { name: "Gym & Tréninky" }).click();
   await expect(health.getByRole("tab", { name: "Gym & Tréninky" })).toHaveAttribute("aria-selected", "true");
   await health.getByRole("tab", { name: "Suplementy" }).click();
@@ -29,7 +37,6 @@ test("Health navigation contains six active/future tabs without Hydration", asyn
   await expect(health).toContainText("Zatím bez záznamů");
   await health.getByRole("tab", { name: "Prevence" }).click();
   await expect(health.locator("[data-prevention-root]")).toContainText("Moje preventivní termíny");
-  await health.getByRole("tab", { name: "Přehled" }).click();
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Hygiena" }).click();
   await expect(page.getByRole("tab", { name: "Moje produkty" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Správa rutin" })).toBeVisible();
@@ -39,6 +46,7 @@ test("Health habit shares recurrence/history storage and Today shows one linked 
   await fresh(page);
   const before = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   const health = await goHealth(page);
+  await openHabits(health);
   await health.getByRole("button", { name: "+ Přidat návyk" }).click();
   const editor = page.getByRole("dialog", { name: "Zdravotní návyk" });
   await editor.getByRole("textbox", { name: "Název rutiny" }).fill("Ranní protažení");
@@ -92,6 +100,7 @@ test("Health habit shares recurrence/history storage and Today shows one linked 
 test("custom Health recurrence does not schedule out-of-day tasks; edits retain original history", async ({ page }) => {
   await fresh(page);
   const health = await goHealth(page);
+  await openHabits(health);
   await health.getByRole("button", { name: "+ Přidat návyk" }).click();
   const editor = page.getByRole("dialog", { name: "Zdravotní návyk" });
   await editor.getByRole("textbox", { name: "Název rutiny" }).fill("Nedělní pohyb");
@@ -104,6 +113,7 @@ test("custom Health recurrence does not schedule out-of-day tasks; edits retain 
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Dnes" }).click();
   await expect(page.locator("[data-health-checklist-routine]")).toHaveCount(0);
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Zdraví" }).click();
+  await openHabits(health);
   await health.getByRole("button", { name: "Upravit" }).click();
   const changed = page.getByRole("dialog", { name: "Zdravotní návyk" });
   await changed.getByRole("combobox", { name: "Frekvence" }).selectOption("daily");
@@ -125,6 +135,7 @@ test("Health menu and future-module tabs are usable at mobile width", async ({ p
 test("deactivating a completed Health habit keeps its actual completion in history", async ({ page }) => {
   await fresh(page);
   const health = await goHealth(page);
+  await openHabits(health);
   await health.getByRole("button", { name: "+ Přidat návyk" }).click();
   const editor = page.getByRole("dialog", { name: "Zdravotní návyk" });
   await editor.getByRole("textbox", { name: "Název rutiny" }).fill("Zdravotní rutina");
@@ -148,6 +159,7 @@ test("deactivating a completed Health habit keeps its actual completion in histo
 test("Health keeps short actionable labels without repeated instructional paragraphs",async({page})=>{
   await fresh(page);
   const root=await goHealth(page);
+  await openHabits(root);
   await expect(root.locator(".df2-health-section-heading span")).toHaveCount(0);
   await expect(root).not.toContainText("Společný plánovač Dayframe");
   await expect(root.getByRole("button",{name:"+ Přidat návyk"})).toBeVisible();

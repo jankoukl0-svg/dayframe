@@ -54,3 +54,16 @@
   .df2-health-tabs button { white-space: nowrap; }
   .df2-health-task { align-items: stretch; flex-direction: column; }
 }
+
+/* Custom health habits remain available without an overview dashboard. */
+.df2-health-habits-details { border: 1px solid var(--line); border-radius: 14px; background: var(--paper); overflow: hidden; }
+.df2-health-habits-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; font-size: 13px; font-weight: 720; color: var(--ink); cursor: pointer; list-style: none; }
+.df2-health-habits-details > summary::-webkit-details-marker { display: none; }
+.df2-health-habits-details > summary::after { content: "+"; color: var(--muted); font-size: 18px; font-weight: 400; }
+.df2-health-habits-details[open] > summary::after { content: "−"; }
+.df2-health-habits-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 12px; }
+.df2-health-habits-details[open] > summary { border-bottom: 1px solid var(--line); }
+.df2-health-habits-details > .df2-health-content { padding: 20px 18px; gap: 24px; }
+@media (max-width: 720px) {
+  .df2-health-habits-details > .df2-health-content { padding: 16px 12px; }
+}
