@@ -7,7 +7,7 @@ import {deleteSupplementPhoto,saveSupplementPhoto,validSupplementPhoto} from "@/
 import {readSupplementStore} from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
 import { buySupplement, lowStockSupplements, markSupplementIntake, newSupplement, supplementOccurrences,
-  supplementStats, withSupplementSchedule, type Supplement } from "@/lib/dayframe-supplements";
+  supplementStats, withSupplementSchedule, markAllSupplementIntakes, type Supplement } from "@/lib/dayframe-supplements";
 import { addDaysKey } from "@/lib/dayframe-calendar";
 
 type Tab="today"|"library"|"shopping"|"history";
@@ -164,6 +164,28 @@ export function SupplementsPage({today}:{today:string}){
     const after=before?.status===status?"Záznam byl vrácen do nesplněného stavu.":"Záznam byl uložen.";
     if(ok)setNotice(after);
   };
+  const markAll=()=>{
+    if(blocked||pendingCount===0)return;
+    // Keep this operation all-or-nothing even when multiple daily entries
+    // consume stock from the same product.
+    if(markAllSupplementIntakes(store,today)===store){
+      setNotice("Pro všechny čekající dávky není dost zásob. Uprav zásoby nebo označ dávky jednotlivě.");
+      return;
+    }
+    let confirmed=0;
+    let rejected=false;
+    const ok=persist(latest=>{
+      const pending=supplementOccurrences(latest,today).filter(x=>!x.intake);
+      if(!pending.length)return latest;
+      const next=markAllSupplementIntakes(latest,today);
+      if(next===latest){rejected=true;return latest;}
+      confirmed=pending.length;
+      return next;
+    });
+    if(ok)setNotice(rejected
+      ?"Pro všechny čekající dávky není dost zásob. Nic se nezměnilo."
+      :confirmed===0?"Všechny dávky už jsou vyřízené.":`Užito: ${confirmed} ${confirmed===1?"dávka":confirmed<5?"dávky":"dávek"}.`);
+  };
   const stockAdjust=(item:Supplement,amount:number)=>{
     if(item.stock===null)return;
     persist(s=>({...s,supplements:s.supplements.map(x=>x.id===item.id?{...x,stock:Math.min(1000000,Math.max(0,(x.stock??0)+amount))}:x)}));
@@ -184,6 +206,9 @@ export function SupplementsPage({today}:{today:string}){
       <div className="df2-supplements-overview">
         <div className="df2-supplements-overview-copy">
           <h3><strong>{takenCount}</strong><span> / {due.length}</span> dávek užito</h3>
+          {due.length>0&&<button type="button" className="df2-supplements-mark-all"
+            disabled={blocked||pendingCount===0} title="Označí čekající dávky jako užité. Vynechané dávky nezmění."
+            onClick={markAll}>✓ Užito vše</button>}
         </div>
         <div className="df2-supplements-overview-progress">
           <strong>{due.length?Math.round(takenCount/due.length*100):0} %</strong>
