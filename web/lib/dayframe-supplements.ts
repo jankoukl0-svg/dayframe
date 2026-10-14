@@ -158,11 +158,15 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
   // already exhausted the inventory. Ask for a manual correction instead.
   const restored=existing?.status==="taken"?(existing.stockDeducted??0):0;
   const available=item.stock===null?null:item.stock+restored;
-  if(nextStatus==="taken" && available!==null && available<item.servingsPerIntake)return store;
+  // Floating point subtraction of fractional servings can produce tiny
+  // artifacts (0.3 - 0.1 - 0.1 = 0.09999999999999998). Ignore only machine
+  // rounding noise, never a meaningful stock shortage.
+  const epsilon=available===null?0:Number.EPSILON*8*Math.max(1,available,item.servingsPerIntake);
+  if(nextStatus==="taken" && available!==null && available+epsilon<item.servingsPerIntake)return store;
   let stock=item.stock;
   if(stock!==null){
     if(existing?.status==="taken") stock+=restored;
-    if(nextStatus==="taken") stock=stock-item.servingsPerIntake;
+    if(nextStatus==="taken") stock=Math.max(0,stock-item.servingsPerIntake);
   }
   const updated={...store,
     supplements:store.supplements.map(x=>x.id===id?{...x,stock}:x),
