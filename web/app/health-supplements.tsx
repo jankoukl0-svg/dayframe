@@ -208,7 +208,7 @@ export function SupplementsPage({today}:{today:string}){
           <h3><strong>{takenCount}</strong><span> / {due.length}</span> dávek užito</h3>
           {due.length>0&&<button type="button" className="df2-supplements-mark-all"
             disabled={blocked||pendingCount===0} title="Označí čekající dávky jako užité. Vynechané dávky nezmění."
-            onClick={markAll}>✓ Užito vše</button>}
+            onClick={markAll}>Užito vše</button>}
         </div>
         <div className="df2-supplements-overview-progress">
           <strong>{due.length?Math.round(takenCount/due.length*100):0} %</strong>
