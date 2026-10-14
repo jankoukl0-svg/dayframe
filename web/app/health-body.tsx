@@ -169,35 +169,49 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
 
     {panel==="overview"&&<div className="df2-body-content">
       <div className="df2-body-kpis">
-        <article><small>Poslední hmotnost</small><strong>{weight===null?"—":metricLabel("weightKg",weight)}</strong>
-          <span>{deltaWeight===null?"Zatím bez srovnání":(deltaWeight>0?"+":"")+metricLabel("weightKg",deltaWeight)+" od prvního zápisu"}</span></article>
-        <article><small>Poslední pas</small><strong>{waist===null?"—":metricLabel("waistCm",waist)}</strong>
+        <article><small>Poslední hmotnost</small><strong>{weight===null?"Nezadáno":metricLabel("weightKg",weight)}</strong>
+          <span>{deltaWeight===null?"Bez srovnání":(deltaWeight>0?"+":"")+metricLabel("weightKg",deltaWeight)+" od prvního zápisu"}</span></article>
+        <article><small>Poslední pas</small><strong>{waist===null?"Nezadáno":metricLabel("waistCm",waist)}</strong>
           </article>
         <article><small>Záznamy</small><strong>{entries.length}</strong>
-          <span>{entries.length?dateLabel(entries[0].date)+" · poslední měření":"Přidej první měření"}</span></article>
+          <span>{entries.length?dateLabel(entries[0].date):"Zatím bez měření"}</span></article>
       </div>
-      <section className="df2-body-section">
-        <div className="df2-body-section-head"><div><h3>Vývoj měření</h3></div>
-          <button type="button" onClick={()=>setPanel("measurements")}>Všechna měření →</button></div>
-        <div className="df2-body-filters">
-          <label>Metrika<select aria-label="Metrika grafu" value={metric} onChange={e=>setMetric(e.target.value as BodyMetric)}>
-            {BODY_METRICS.map(m=><option key={m.key} value={m.key}>{m.name}</option>)}</select></label>
-          <label>Období<select aria-label="Období grafu" value={windowDays??"all"}
-            onChange={e=>setWindowDays(e.target.value==="all"?null:Number(e.target.value))}>
-            <option value="30">30 dní</option><option value="90">90 dní</option>
-            <option value="365">1 rok</option><option value="all">Vše</option></select></label>
+      <section className="df2-body-section df2-body-chart-section">
+        <div className="df2-body-section-head df2-body-chart-head">
+          <h3>Vývoj měření</h3>
+          <div className="df2-body-chart-controls">
+            <div className="df2-body-filters">
+              <label>Metrika<select aria-label="Metrika grafu" value={metric} onChange={e=>setMetric(e.target.value as BodyMetric)}>
+                {BODY_METRICS.map(m=><option key={m.key} value={m.key}>{m.name}</option>)}</select></label>
+              <label>Období<select aria-label="Období grafu" value={windowDays??"all"}
+                onChange={e=>setWindowDays(e.target.value==="all"?null:Number(e.target.value))}>
+                <option value="30">30 dní</option><option value="90">90 dní</option>
+                <option value="365">1 rok</option><option value="all">Vše</option></select></label>
+            </div>
+            <button type="button" className="df2-body-link" onClick={()=>setPanel("measurements")}>Všechna měření →</button>
+          </div>
         </div>
-        {chart.length?<div className="df2-body-chart" data-body-chart>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={chart} margin={{top:12,right:22,bottom:4,left:2}}>
-              <CartesianGrid strokeDasharray="3 4" stroke="var(--line)"/>
-              <XAxis dataKey="date" tickFormatter={(d:string)=>d.slice(5)} tick={{fontSize:10,fill:"var(--muted)"}}/>
-              <YAxis width={42} domain={["auto","auto"]} tick={{fontSize:10,fill:"var(--muted)"}}/>
+        {chart.length===1?<div className="df2-body-chart is-single" data-body-chart>
+          <div className="df2-body-single-point">
+            <span className="df2-body-chart-dot" aria-hidden="true"/>
+            <div><strong>{metricLabel(metric,chart[0].value)}</strong>
+              <time dateTime={chart[0].date}>{dateLabel(chart[0].date)}</time></div>
+            <span className="df2-body-single-caption">Jediné měření v období</span>
+          </div>
+        </div>:chart.length>1?<div className="df2-body-chart" data-body-chart>
+          <ResponsiveContainer width="100%" height={245}>
+            <LineChart data={chart} margin={{top:12,right:18,bottom:4,left:2}}>
+              <CartesianGrid strokeDasharray="3 5" stroke="var(--line)" vertical={false}/>
+              <XAxis dataKey="date" tickFormatter={(d:string)=>d.slice(5)} tick={{fontSize:10,fill:"var(--muted)"}} tickLine={false} axisLine={false}/>
+              <YAxis width={42} domain={["auto","auto"]} tick={{fontSize:10,fill:"var(--muted)"}} tickLine={false} axisLine={false}/>
               <Tooltip formatter={(value)=>[nf(Number(value))+" "+unit(metric).unit,unit(metric).name]} labelFormatter={(label)=>dateLabel(String(label))}/>
-              <Line type="monotone" dataKey="value" stroke="var(--accent-dark)" strokeWidth={2} dot={{r:3}} activeDot={{r:5}}/>
+              <Line type="monotone" dataKey="value" stroke="var(--accent-dark)" strokeWidth={2.5} dot={{r:4,strokeWidth:2,fill:"var(--paper)"}} activeDot={{r:6}}/>
             </LineChart>
           </ResponsiveContainer>
-        </div>:<p className="df2-health-empty">Pro vybranou metriku zatím nemáš měření v tomto období.</p>}
+        </div>:<div className="df2-body-chart-empty">
+          <p>Pro toto období zatím nejsou měření.</p>
+          <button type="button" onClick={()=>{loadDate(today);setPanel("measurements");}}>+ Zapsat měření</button>
+        </div>}
       </section>
       <section className="df2-body-section">
         <div className="df2-body-section-head"><div><h3>Pravidelné měření</h3></div></div>
