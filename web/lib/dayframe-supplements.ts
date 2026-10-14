@@ -172,6 +172,24 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
     recordedAt:new Date().toISOString(),servings:item.servingsPerIntake,
     stockDeducted:nextStatus==="taken"&&stock!==null?item.servingsPerIntake:0}]};
 }
+/**
+ * Confirm all still-pending doses scheduled for one day.
+ * Previously taken/skipped entries remain untouched. Perform a dry-run-like
+ * sequential update of in-memory state, committing only if *every* dose can
+ * be recorded without taking stock below zero.
+ */
+export function markAllSupplementIntakes(store:SupplementStore,date:string):SupplementStore {
+  const pending=supplementOccurrences(store,date).filter(x=>!x.intake);
+  if(!pending.length)return store;
+  let next=store;
+  for(const {key} of pending){
+    const updated=markSupplementIntake(next,key,"taken");
+    if(updated===next)return store; // Atomic: do not partially confirm other doses.
+    next=updated;
+  }
+  return next;
+}
+
 export function buySupplement(store:SupplementStore,id:string,date:string):SupplementStore {
   const item=store.supplements.find(x=>x.id===id);
   if(!item||!validDate(date)||item.stock===null)return store;
