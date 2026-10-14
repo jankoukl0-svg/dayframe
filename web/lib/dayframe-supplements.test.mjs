@@ -2,7 +2,7 @@ import test from "node:test";
 import {validSupplementPhoto,validSupplementPhotoId,SUPPLEMENT_PHOTO_MAX_SIZE} from "./dayframe-supplement-photos.ts";
 import assert from "node:assert/strict";
 import {emptySupplementStore,parseSupplementStore,newSupplement,supplementOccurrences,supplementIntakeKey,
-  markSupplementIntake,buySupplement,lowStockSupplements,supplementStats,withSupplementSchedule} from "./dayframe-supplements.ts";
+  markSupplementIntake,markAllSupplementIntakes,buySupplement,lowStockSupplements,supplementStats,withSupplementSchedule} from "./dayframe-supplements.ts";
 
 const date="2026-10-12";
 function setup(){
@@ -125,4 +125,67 @@ test("supplement upload accepts only small nonempty supported images",()=>{
   assert.equal(validSupplementPhoto(new Blob(["x"],{type:"image/svg+xml"})),false);
   assert.equal(validSupplementPhoto(new Blob([""],{type:"image/png"})),false);
   assert.equal(validSupplementPhoto(new Blob([new Uint8Array(SUPPLEMENT_PHOTO_MAX_SIZE+1)],{type:"image/png"})),false);
+});
+
+
+test("Užito vše confirms all pending daily doses once and subtracts stock exactly once",()=>{
+  const {store,item}=setup();
+  const before=JSON.stringify(store);
+  const marked=markAllSupplementIntakes(store,date);
+  assert.notEqual(marked,store);
+  assert.equal(marked.intakes.length,2);
+  assert.deepEqual(marked.intakes.map(x=>x.status),["taken","taken"]);
+  assert.equal(marked.supplements[0].stock,6);
+  assert.deepEqual(marked.intakes.map(x=>x.key),supplementOccurrences(store,date).map(x=>x.key));
+  assert.equal(markAllSupplementIntakes(marked,date),marked,"Repeated bulk clicks are idempotent");
+  assert.equal(JSON.stringify(store),before,"Original store is not mutated");
+  const undone=markSupplementIntake(marked,supplementIntakeKey(item.id,date,"08:00"),"taken");
+  assert.equal(undone.supplements[0].stock,7,"Single-dose undo remains available");
+  assert.equal(undone.intakes.length,1);
+});
+
+test("Užito vše respects prior skipped and taken decisions, touching only pending doses",()=>{
+  const {store,item}=setup();
+  const another=newSupplement("Vitamin D");
+  another.doseLabel="Podle etikety";another.stock=4;
+  another.scheduleHistory=[{effectiveFrom:date,active:true,weekdays:[...another.weekdays],times:[...another.times]}];
+  let current={...store,supplements:[item,another]};
+  const morning=supplementIntakeKey(item.id,date,"08:00");
+  const evening=supplementIntakeKey(item.id,date,"20:00");
+  current=markSupplementIntake(current,morning,"taken");
+  current=markSupplementIntake(current,evening,"skipped");
+  const originals=current.intakes.map(x=>({...x}));
+  const bulk=markAllSupplementIntakes(current,date);
+  assert.deepEqual(bulk.intakes.filter(x=>x.key===morning||x.key===evening),originals);
+  assert.equal(bulk.intakes.length,3);
+  assert.equal(bulk.intakes.find(x=>x.supplementId===another.id)?.status,"taken");
+  assert.equal(bulk.supplements.find(x=>x.id===item.id)?.stock,7);
+  assert.equal(bulk.supplements.find(x=>x.id===another.id)?.stock,3);
+  assert.deepEqual(supplementStats(bulk,date,date),{planned:3,taken:2,skipped:1});
+});
+
+test("Užito vše is atomic when one or multiple remaining doses exceed stock",()=>{
+  const {store,item}=setup();
+  item.stock=1;
+  const before=JSON.stringify(store);
+  assert.equal(markAllSupplementIntakes(store,date),store,"Two doses need two units, only one available");
+  assert.equal(JSON.stringify(store),before,"No partial intake or inventory mutation");
+  const another=newSupplement("Unavailable supplement");
+  another.doseLabel="Dle etikety";another.stock=0;
+  another.scheduleHistory=[{effectiveFrom:date,active:true,weekdays:[...another.weekdays],times:[...another.times]}];
+  const mixed={...store,supplements:[{...item,stock:2},another]};
+  assert.equal(markAllSupplementIntakes(mixed,date),mixed,"One out-of-stock product blocks full batch");
+  assert.equal(mixed.intakes.length,0);
+  const replenished={...store,supplements:[{...item,stock:2}]};
+  const success=markAllSupplementIntakes(replenished,date);
+  assert.equal(success.supplements[0].stock,0);
+  assert.equal(success.intakes.length,2);
+});
+
+test("Užito vše has no effect on days without scheduled or pending doses",()=>{
+  const {store}=setup();
+  assert.equal(markAllSupplementIntakes(store,"2026-10-11"),store);
+  assert.equal(markAllSupplementIntakes(store,"invalid"),store);
+  const allTaken=markAllSupplementIntakes(store,date);
+  assert.equal(markAllSupplementIntakes(allTaken,date),allTaken);
 });
