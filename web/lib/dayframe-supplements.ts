@@ -158,11 +158,15 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
   // already exhausted the inventory. Ask for a manual correction instead.
   const restored=existing?.status==="taken"?(existing.stockDeducted??0):0;
   const available=item.stock===null?null:item.stock+restored;
-  if(nextStatus==="taken" && available!==null && available<item.servingsPerIntake)return store;
+  // Floating point subtraction of fractional servings can produce tiny
+  // artifacts (0.3 - 0.1 - 0.1 = 0.09999999999999998). Ignore only machine
+  // rounding noise, never a meaningful stock shortage.
+  const epsilon=available===null?0:Number.EPSILON*8*Math.max(1,available,item.servingsPerIntake);
+  if(nextStatus==="taken" && available!==null && available+epsilon<item.servingsPerIntake)return store;
   let stock=item.stock;
   if(stock!==null){
     if(existing?.status==="taken") stock+=restored;
-    if(nextStatus==="taken") stock=stock-item.servingsPerIntake;
+    if(nextStatus==="taken") stock=Math.max(0,stock-item.servingsPerIntake);
   }
   const updated={...store,
     supplements:store.supplements.map(x=>x.id===id?{...x,stock}:x),
@@ -172,6 +176,24 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
     recordedAt:new Date().toISOString(),servings:item.servingsPerIntake,
     stockDeducted:nextStatus==="taken"&&stock!==null?item.servingsPerIntake:0}]};
 }
+/**
+ * Confirm all still-pending doses scheduled for one day.
+ * Previously taken/skipped entries remain untouched. Perform a dry-run-like
+ * sequential update of in-memory state, committing only if *every* dose can
+ * be recorded without taking stock below zero.
+ */
+export function markAllSupplementIntakes(store:SupplementStore,date:string):SupplementStore {
+  const pending=supplementOccurrences(store,date).filter(x=>!x.intake);
+  if(!pending.length)return store;
+  let next=store;
+  for(const {key} of pending){
+    const updated=markSupplementIntake(next,key,"taken");
+    if(updated===next)return store; // Atomic: do not partially confirm other doses.
+    next=updated;
+  }
+  return next;
+}
+
 export function buySupplement(store:SupplementStore,id:string,date:string):SupplementStore {
   const item=store.supplements.find(x=>x.id===id);
   if(!item||!validDate(date)||item.stock===null)return store;

@@ -19,6 +19,9 @@
 .df2-supplements-overview-copy h3{margin:0;color:var(--ink);font-size:19px;font-weight:650;letter-spacing:-.035em}
 .df2-supplements-overview-copy h3 strong{font-size:34px;font-weight:760;letter-spacing:-.06em}
 .df2-supplements-overview-copy h3>span{font-size:27px;font-weight:500;color:var(--muted)}
+.df2-supplements-mark-all{justify-self:start;min-height:36px;margin-top:7px;padding:9px 16px;border:1px solid var(--accent-dark);border-radius:9px;background:var(--accent-dark);color:#fff;font-size:12px;font-weight:750;cursor:pointer;transition:filter .16s ease}
+.df2-supplements-mark-all:hover:not(:disabled){filter:brightness(.93)}
+.df2-supplements-mark-all:disabled{opacity:.45;cursor:default}
 .df2-supplements-overview-copy p{font-size:12px;color:var(--muted);margin:0;line-height:1.5}
 .df2-supplements-overview-progress{display:grid;gap:10px;min-width:0}
 .df2-supplements-overview-progress>strong{font-size:13px;color:var(--ink);font-weight:750;justify-self:end;font-variant-numeric:tabular-nums}
