@@ -224,13 +224,19 @@ export function DailyChecklist({
   const gymItems = useMemo(()=>assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
   const gymCompletedCount = gymItems.filter(x=>x.completed).length;
   const supplementItems=useMemo(()=>supplementOccurrences(supplements.store,planningKey),[supplements.store,planningKey]);
-  const supplementCompletedCount=supplementItems.filter(x=>!!x.intake).length;
+  const supplementTakenCount=supplementItems.filter(x=>x.intake?.status==="taken").length;
+  const supplementSkippedCount=supplementItems.filter(x=>x.intake?.status==="skipped").length;
+  const supplementHandledCount=supplementTakenCount+supplementSkippedCount;
+  const supplementHasDue=supplementItems.length>0;
+  const supplementComplete=supplementHasDue&&supplementHandledCount===supplementItems.length;
   const bodyStatus=useMemo(()=>bodyCheckInStatus(body.store,planningKey),[body.store,planningKey]);
   const sleepStatus=useMemo(()=>sleepCheckInStatus(sleep.store,sleepDateKey),[sleep.store,sleepDateKey]);
   const preventionRows=useMemo(()=>preventionTodayRows(prevention.store,sleepDateKey),[prevention.store,sleepDateKey]);
   const preventionCompleted=preventionRows.filter(row=>row.status==="done").length;
-  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + supplementItems.length + (bodyStatus.due?1:0) + (sleepStatus.due?1:0) + preventionRows.length;
-  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + supplementCompletedCount + (bodyStatus.due&&bodyStatus.complete?1:0) + (sleepStatus.due&&sleepStatus.complete?1:0) + preventionCompleted;
+  // One checklist entry represents the entire supplement routine; individual
+  // dose status and inventory continue to live in the Supplements module.
+  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + (supplementHasDue?1:0) + (bodyStatus.due?1:0) + (sleepStatus.due?1:0) + preventionRows.length;
+  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + (supplementComplete?1:0) + (bodyStatus.due&&bodyStatus.complete?1:0) + (sleepStatus.due&&sleepStatus.complete?1:0) + preventionCompleted;
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
   const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
@@ -529,17 +535,17 @@ export function DailyChecklist({
                 <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>
             ))}
-            {supplementItems.map((item)=>(
-              <article key={"supp-"+item.key} data-supplement-checklist={item.key}
-                className={"df2-checklist-hygiene-row "+(item.intake?"done":"")}>
-                <span className={"df2-checklist-hygiene-indicator "+(item.intake?"is-done":"")} aria-hidden="true">{item.intake?"✓":""}</span>
+            {supplementHasDue && (
+              <article data-supplement-checklist="summary"
+                className={"df2-checklist-hygiene-row "+(supplementComplete?"done":"")}>
+                <span className={"df2-checklist-hygiene-indicator "+(supplementComplete?"is-done":"")} aria-hidden="true">{supplementComplete?"✓":""}</span>
                 <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
-                  aria-label={"Otevřít suplement "+item.supplement.name+" ve Zdraví"} onClick={onOpenSupplements}>
-                  <strong>{item.time} · {item.supplement.name}</strong>
-                  <small>{item.intake?.status==="taken"?"Užito":item.intake?.status==="skipped"?"Vynecháno":"Čeká · Suplementy"}</small>
+                  aria-label="Otevřít suplementy ve Zdraví" onClick={onOpenSupplements}>
+                  <strong>Suplementy</strong>
+                  <small>{supplementTakenCount}/{supplementItems.length} užito{supplementSkippedCount>0?" · "+supplementSkippedCount+" vynecháno":""}</small>
                 </button><span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
               </article>
-            ))}
+            )}
             {bodyStatus.due && (
               <article data-body-checklist={planningKey}
                 className={"df2-checklist-hygiene-row "+(bodyStatus.complete?"done":"")}>
