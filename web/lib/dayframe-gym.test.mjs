@@ -284,7 +284,7 @@ test("dragging one gym occurrence changes its displayed time, not its weekly pla
   store=setGymWeekdayTime(store,planId,1,"17:00",75,"2026-10-12");
   const first=assignmentsOnDate(store,"2026-10-12")[0];
   const next=assignmentsOnDate(store,"2026-10-19")[0];
-  store=rescheduleGymOccurrence(store,first.key,"2026-10-12","2026-10-12","19:15");
+  store=rescheduleGymOccurrence(store,first.key,"2026-10-12","2026-10-12","19:15","2026-10-12");
   assert.deepEqual(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-10-12")[0]),{start:"19:15",duration:75});
   assert.deepEqual(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-10-19")[0]),{start:"17:00",duration:75});
   assert.equal(store.moves[first.key],undefined);
@@ -295,7 +295,7 @@ test("dragging one gym occurrence changes its displayed time, not its weekly pla
   assert.equal(gymOccurrenceTime(reloaded,assignmentsOnDate(reloaded,"2026-10-12")[0]).start,"19:15");
   assert.equal(gymOccurrenceTime(reloaded,assignmentsOnDate(reloaded,"2026-10-19")[0]).start,"17:00");
   assert.equal(next.key!==first.key,true);
-  store=rescheduleGymOccurrence(store,first.key,"2026-10-12","2026-10-12","17:00");
+  store=rescheduleGymOccurrence(store,first.key,"2026-10-12","2026-10-12","17:00","2026-10-12");
   assert.equal(store.occurrenceTimes?.[first.key],undefined,"Reverting to template removes one-off exception");
 });
 
@@ -303,7 +303,7 @@ test("Week drop moves a workout to another date and time without duplicate recur
   let store=active();
   store=setGymWeekdayTime(store,store.plans[0].id,1,"10:00",90,"2026-10-12");
   const original=assignmentsOnDate(store,"2026-10-12")[0];
-  store=rescheduleGymOccurrence(store,original.key,"2026-10-12","2026-10-13","17:30");
+  store=rescheduleGymOccurrence(store,original.key,"2026-10-12","2026-10-13","17:30","2026-10-12");
   assert.equal(assignmentsOnDate(store,"2026-10-12").some(o=>o.key===original.key),false);
   const moved=assignmentsOnDate(store,"2026-10-13").find(o=>o.key===original.key);
   assert.ok(moved);
@@ -315,7 +315,7 @@ test("Week drop moves a workout to another date and time without duplicate recur
   const fromStorage=parseGymStore(JSON.stringify(store));
   assert.equal(fromStorage.blocked,false);
   assert.equal(gymOccurrenceTime(fromStorage.store,assignmentsOnDate(fromStorage.store,"2026-10-13")[0]).start,"17:30");
-  store=rescheduleGymOccurrence(store,original.key,"2026-10-13","2026-10-12","10:00");
+  store=rescheduleGymOccurrence(store,original.key,"2026-10-13","2026-10-12","10:00","2026-10-12");
   assert.equal(store.moves[original.key],undefined);
   assert.equal(store.occurrenceTimes?.[original.key],undefined);
   assert.equal(assignmentsOnDate(store,"2026-10-13").some(o=>o.key===original.key),false);
@@ -326,14 +326,14 @@ test("cannot drag started, completed, invalid, or nonexistent gym occurrences",(
   const planId=store.plans[0].id;
   store=setGymWeekdayTime(store,planId,1,"17:00",60,"2026-10-12");
   const occurrence=assignmentsOnDate(store,"2026-10-12")[0];
-  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","15:07"),store);
-  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","07:45"),store);
-  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","01:30"),store);
-  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","bad-date","17:00"),store);
-  assert.equal(rescheduleGymOccurrence(store,"nonexistent","2026-10-12","2026-10-13","17:00"),store);
+  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","15:07","2026-10-12"),store);
+  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","07:45","2026-10-12"),store);
+  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","01:30","2026-10-12"),store);
+  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","bad-date","17:00","2026-10-12"),store);
+  assert.equal(rescheduleGymOccurrence(store,"nonexistent","2026-10-12","2026-10-13","17:00","2026-10-12"),store);
   store=startSession(store,occurrence.key,"2026-10-12");
   const before=JSON.stringify(store);
-  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","18:00"),store);
+  assert.equal(rescheduleGymOccurrence(store,occurrence.key,"2026-10-12","2026-10-13","18:00","2026-10-12"),store);
   assert.equal(JSON.stringify(store),before);
   assert.deepEqual(store.sessions[0].scheduledTime,{start:"17:00",duration:60});
 });
@@ -342,12 +342,27 @@ test("Gym drag supports Dayframe midnight lane up to 02:00",()=>{
   let store=active();
   store=setGymWeekdayTime(store,store.plans[0].id,1,"18:00",75,"2026-10-12");
   const original=assignmentsOnDate(store,"2026-10-12")[0];
-  store=rescheduleGymOccurrence(store,original.key,"2026-10-12","2026-10-12","00:30");
+  store=rescheduleGymOccurrence(store,original.key,"2026-10-12","2026-10-12","00:30","2026-10-12");
   assert.equal(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-10-12")[0]).start,"00:30");
   assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
-  assert.equal(rescheduleGymOccurrence(store,original.key,"2026-10-12","2026-10-12","01:00"),store,"Would exceed 02:00");
+  assert.equal(rescheduleGymOccurrence(store,original.key,"2026-10-12","2026-10-12","01:00","2026-10-12"),store,"Would exceed 02:00");
   const invalid={...store,occurrenceTimes:{...store.occurrenceTimes,[original.key]:{start:"01:45",duration:75}}};
   assert.equal(parseGymStore(JSON.stringify(invalid)).blocked,true);
   const older={...store,occurrenceTimes:undefined};
   assert.equal(parseGymStore(JSON.stringify(older)).blocked,false,"Old stores are backward-compatible");
+});
+
+
+test("Week drag rejects past source and target dates but keeps existing history intact",()=>{
+  let store=active();
+  store=setGymWeekdayTime(store,store.plans[0].id,1,"17:00",60,"2026-10-12");
+  const past=assignmentsOnDate(store,"2026-10-12")[0];
+  const upcoming=assignmentsOnDate(store,"2026-10-19")[0];
+  const unchanged=JSON.stringify(store);
+  assert.equal(rescheduleGymOccurrence(store,past.key,"2026-10-12","2026-10-14","18:00","2026-10-14"),store);
+  assert.equal(rescheduleGymOccurrence(store,upcoming.key,"2026-10-19","2026-10-12","18:00","2026-10-14"),store);
+  assert.equal(JSON.stringify(store),unchanged);
+  assert.equal(gymOccurrenceTime(store,past).start,"17:00");
+  store=rescheduleGymOccurrence(store,upcoming.key,"2026-10-19","2026-10-20","18:00","2026-10-14");
+  assert.equal(store.moves[upcoming.key],"2026-10-20");
 });
