@@ -196,7 +196,7 @@ export function SupplementsPage({today}:{today:string}){
           <div className="df2-supplements-overview-detail">
             <span>Čeká <strong>{pendingCount}</strong></span>
             <span>Vynecháno <strong>{skippedCount}</strong></span>
-            {low.length>0&&<button type="button" onClick={()=>setTab("shopping")}>K nákupu <strong>{low.length}</strong> ↗</button>}
+            {low.length>0&&<button type="button" onClick={()=>setTab("shopping")}>Dokoupit <strong>{low.length}</strong> ↗</button>}
           </div>
         </div>
       </div>
