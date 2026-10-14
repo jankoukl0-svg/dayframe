@@ -157,8 +157,7 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
   };
   if(!hydrated)return <section className="df2-body">Načítám Tělo & Progress…</section>;
   return <section className="df2-body" data-body-root aria-label="Tělo a progress">
-    <header className="df2-body-head"><div><span>ETAPA 4 · TĚLO & PROGRESS</span><h2>Tělo & Progress</h2>
-      <p>Měření, historie, osobní cíle a soukromé fotografie.</p></div>
+    <header className="df2-body-head"><div><h2>Tělo & Progress</h2></div>
       <button type="button" className="df2-accent-button" disabled={blocked} onClick={()=>{loadDate(today);setPanel("measurements");}}>+ Zapsat měření</button>
     </header>
     <nav className="df2-body-nav" aria-label="Tělo navigace">{([
@@ -173,12 +172,12 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
         <article><small>Poslední hmotnost</small><strong>{weight===null?"—":metricLabel("weightKg",weight)}</strong>
           <span>{deltaWeight===null?"Zatím bez srovnání":(deltaWeight>0?"+":"")+metricLabel("weightKg",deltaWeight)+" od prvního zápisu"}</span></article>
         <article><small>Poslední pas</small><strong>{waist===null?"—":metricLabel("waistCm",waist)}</strong>
-          <span>{latestMetric(store,"waistCm",today)===null?"Zatím bez měření":"Poslední zaznamenaná hodnota"}</span></article>
+          </article>
         <article><small>Záznamy</small><strong>{entries.length}</strong>
           <span>{entries.length?dateLabel(entries[0].date)+" · poslední měření":"Přidej první měření"}</span></article>
       </div>
       <section className="df2-body-section">
-        <div className="df2-body-section-head"><div><h3>Vývoj měření</h3><p>Zobrazujeme pouze tebou zadaná data.</p></div>
+        <div className="df2-body-section-head"><div><h3>Vývoj měření</h3></div>
           <button type="button" onClick={()=>setPanel("measurements")}>Všechna měření →</button></div>
         <div className="df2-body-filters">
           <label>Metrika<select aria-label="Metrika grafu" value={metric} onChange={e=>setMetric(e.target.value as BodyMetric)}>
@@ -201,7 +200,7 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
         </div>:<p className="df2-health-empty">Pro vybranou metriku zatím nemáš měření v tomto období.</p>}
       </section>
       <section className="df2-body-section">
-        <div className="df2-body-section-head"><div><h3>Pravidelné měření</h3><p>Do stránky Dnes se přidá jeden odkaz na měření pouze ve zvolené dny.</p></div></div>
+        <div className="df2-body-section-head"><div><h3>Pravidelné měření</h3></div></div>
         <div className="df2-body-filters">
           <label>Frekvence<select aria-label="Frekvence měření" value={store.schedule.frequency} disabled={blocked}
             onChange={e=>persist(s=>({...s,schedule:{...s.schedule,frequency:e.target.value as "off"|"daily"|"weekly"}}))}>
@@ -226,8 +225,7 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
 
     {panel==="measurements"&&<div className="df2-body-content">
       <section className="df2-body-section" data-body-editor>
-        <div className="df2-body-section-head"><div><h3>{bodyEntryForDate(store,date)?"Upravit měření":"Nové měření"}</h3>
-          <p>Můžeš vyplnit jen ty údaje, které skutečně měříš.</p></div></div>
+        <div className="df2-body-section-head"><div><h3>{bodyEntryForDate(store,date)?"Upravit měření":"Nové měření"}</h3></div></div>
         <label className="df2-body-date">Datum měření<input aria-label="Datum měření" type="date" max={today} value={date}
           onChange={e=>setSelectedDate(e.target.value)}/></label>
         <div className="df2-body-measure-grid">{BODY_METRICS.map(m=><label key={m.key}>{m.name} ({m.unit})
@@ -264,7 +262,7 @@ export function BodyPage({today,focusDate,onFocusHandled}:{today:string;focusDat
             aria-label="Termín cíle" onChange={e=>setGoalDeadline(e.target.value)}/></label>
           <button type="button" className="df2-primary" disabled={blocked} onClick={addGoal}>+ Vytvořit cíl</button>
         </div>
-        <p className="df2-health-helper">Výchozí hodnota se převezme z posledního zapsaného měření. Cíl je osobní evidence, nikoliv zdravotní doporučení.</p>
+        <p className="df2-health-helper">Cíl je osobní nastavení, ne zdravotní doporučení.</p>
       </section>
       <section className="df2-body-section"><h3>Moje cíle</h3>
         {goals.length?<div className="df2-body-goals-list">{goals.map(g=>{

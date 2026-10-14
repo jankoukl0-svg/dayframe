@@ -143,3 +143,35 @@ test("deactivating a completed Health habit keeps its actual completion in histo
   expect(record.archived).toBe(true);
   expect(Object.values(record.states)).toContain("done");
 });
+
+
+test("Health keeps short actionable labels without repeated instructional paragraphs",async({page})=>{
+  await fresh(page);
+  const root=await goHealth(page);
+  await expect(root.locator(".df2-health-section-heading span")).toHaveCount(0);
+  await expect(root).not.toContainText("Společný plánovač Dayframe");
+  await expect(root.getByRole("button",{name:"+ Přidat návyk"})).toBeVisible();
+
+  await root.getByRole("tab",{name:"Gym & Tréninky"}).click();
+  await expect(root).not.toContainText("Vyber trénink, zapiš série a sleduj pokrok.");
+  await expect(root.getByRole("button",{name:"+ Tréninkový plán"})).toBeVisible();
+
+  await root.getByRole("tab",{name:"Suplementy"}).click();
+  await expect(root).not.toContainText("Dnešní dávky, moje produkty a zásoby na jednom místě.");
+  await expect(root.getByRole("button",{name:"+ Přidat suplement"})).toBeVisible();
+  await root.getByRole("button",{name:"+ Přidat suplement"}).click();
+  const editor=page.getByRole("dialog",{name:"Editor suplementu"});
+  await expect(editor).toContainText("Dávkování dle etikety nebo odborníka.");
+  await editor.getByRole("button",{name:"Zavřít"}).click();
+
+  await root.getByRole("tab",{name:"Spánek & Regenerace"}).click();
+  await expect(root).not.toContainText("ETAPA 5");
+  await expect(root.getByRole("button",{name:"+ Zapsat spánek"})).toBeVisible();
+
+  await root.getByRole("tab",{name:"Tělo & Progress"}).click();
+  await expect(root).not.toContainText("Zobrazujeme pouze tebou zadaná data.");
+  await root.getByRole("tab",{name:"Prevence"}).click();
+  await expect(root).not.toContainText("ETAPA 6");
+  await expect(root).toContainText("Intervaly kontrol a očkování nastav podle pokynů lékaře.");
+  await expect(root.getByRole("button",{name:"+ Přidat termín"})).toBeVisible();
+});

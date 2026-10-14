@@ -26,7 +26,7 @@ async function addAppointment(page,{title="Zubní kontrola",date="2026-10-15",re
 test("prevention is empty by default and an appointment appears exactly once in Today with correct deep link",async({page})=>{
   await fresh(page);
   const root=await goPrevention(page);
-  await expect(root).toContainText("Zatím nemáš žádné termíny");
+  await expect(root).toContainText("Zatím žádné termíny.");
   await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
   await expect(page.locator("[data-prevention-checklist]")).toHaveCount(0);
   await addAppointment(page);

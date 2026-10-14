@@ -171,7 +171,7 @@ export function SupplementsPage({today}:{today:string}){
   if(!hydrated)return <section className="df2-supplements">Načítám suplementy…</section>;
   return <section className="df2-supplements" aria-label="Suplementy">
     <header className="df2-supplements-head">
-      <div><span>ZDRAVÍ · DENNÍ REŽIM</span><h2>Suplementy</h2><p>Dnešní dávky, moje produkty a zásoby na jednom místě.</p></div>
+      <div><h2>Suplementy</h2></div>
       <button type="button" className="df2-accent-button" disabled={blocked} onClick={()=>showEdit({...newSupplement(""),doseLabel:""})}>+ Přidat suplement</button>
     </header>
     <nav className="df2-supplements-nav" aria-label="Suplementy navigace">
@@ -183,9 +183,7 @@ export function SupplementsPage({today}:{today:string}){
     {tab==="today"&&<div className="df2-supplements-main" data-supplements-today>
       <div className="df2-supplements-overview">
         <div className="df2-supplements-overview-copy">
-          <span>DENNÍ PŘEHLED</span>
           <h3><strong>{takenCount}</strong><span> / {due.length}</span> dávek užito</h3>
-          <p>{!due.length?"Na dnešek nemáš žádné plánované dávky.":pendingCount===0?"Dnešní dávky jsou vyřízené.":`Zbývá ${pendingCount} ${pendingCount===1?"dávka":pendingCount<5?"dávky":"dávek"} k potvrzení.`}</p>
         </div>
         <div className="df2-supplements-overview-progress">
           <strong>{due.length?Math.round(takenCount/due.length*100):0} %</strong>
@@ -230,9 +228,8 @@ export function SupplementsPage({today}:{today:string}){
             </article>)}
           </div>
         </section>)}
-      </div>:<div className="df2-supplements-empty"><strong>Pro dnešek máš hotovo.</strong><span>Nemáš naplánované žádné dávky. Rozvrh můžeš změnit v Moje suplementy.</span>
+      </div>:<div className="df2-supplements-empty"><strong>Žádné dávky na dnešek.</strong>
         <button type="button" onClick={()=>setTab("library")}>Moje suplementy →</button></div>}
-      <p className="df2-health-helper df2-supplements-footnote">Užití a vynechání se promítá do denního přehledu i historie. Dávkování nastavuj podle etikety nebo doporučení odborníka.</p>
     </div>}
     {tab==="library"&&<div className="df2-supplements-main">
       <input type="search" placeholder="Hledat suplement podle názvu nebo značky" aria-label="Hledat suplement"
@@ -279,7 +276,6 @@ export function SupplementsPage({today}:{today:string}){
           </div>
         </article>)}
       </div>:<p className="df2-health-empty">Žádný suplement není pod minimální zásobou ani ručně označený k nákupu.</p>}
-      <p className="df2-health-helper">Nákup přičítá pouze deklarovanou velikost balení. Automatický nákup ani objednávky neprovádíme.</p>
     </div>}
     {tab==="history"&&<div className="df2-supplements-main" data-supplements-history>
       <div className="df2-gym-section-head"><h3>Posledních 30 dní</h3></div>
@@ -307,7 +303,7 @@ export function SupplementsPage({today}:{today:string}){
           <SupplementPhoto large photoId={photoAction==="remove"?undefined:draft.photoId} previewFile={photoAction==="replace"?photoFile:null} name={draft.name||"suplementu"}/>
           <div className="df2-supplements-photo-inputs">
             <strong>Fotografie produktu</strong>
-            <small>Přidej vlastní fotku balení. JPG, PNG nebo WebP do 6 MB. Zůstane jen v tomto prohlížeči.</small>
+            <small>JPG, PNG nebo WebP · max. 6 MB · jen v tomto prohlížeči.</small>
             <label className="df2-supplements-upload">Vybrat fotografii
               <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Nahrát fotografii suplementu"
                 disabled={photoBusy||blocked} onChange={e=>{
@@ -358,7 +354,7 @@ export function SupplementsPage({today}:{today:string}){
           <label>Poznámky a upozornění<textarea aria-label="Poznámky suplementu" rows={2} value={draft.notes} maxLength={1500}
             onChange={e=>setDraft({...draft,notes:e.target.value})}/></label>
         </div>
-        <p className="df2-health-helper">Zadávej jen dávkování potvrzené etiketou nebo odborníkem. Změny rozvrhu a pozastavení se projeví od následujícího dne, aby dnešní historie zůstala zachovaná. U interakcí s léky, zdravotních omezení či nejasností se poraď s lékárníkem nebo lékařem.</p>
+        <p className="df2-health-helper">Dávkování dle etikety nebo odborníka. Změny rozvrhu platí od zítřka. Interakce s léky konzultuj s lékárníkem či lékařem.</p>
         {editError&&<p className="df2-hygiene-error" role="alert">{editError}</p>}
         <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked||photoBusy||autoPhotoBusy} type="button" onClick={saveDraft}>{photoBusy?"Ukládám…":"Uložit suplement"}</button></div>
       </section>

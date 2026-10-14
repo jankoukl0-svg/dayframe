@@ -187,8 +187,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
 
   if(!hydrated)return <div className="df2-gym-loading">Načítám tréninkový deník…</div>;
   return <div className="df2-gym" data-gym-root>
-    <header className="df2-gym-heading"><div><span>TRÉNINKOVÝ DENÍK</span><h2>Gym & Tréninky</h2>
-      <p>Vyber trénink, zapiš série a sleduj pokrok.</p></div>
+    <header className="df2-gym-heading"><div><h2>Gym & Tréninky</h2></div>
       <button type="button" disabled={blocked} className="df2-gym-new-plan" onClick={()=>{setNewPlan(true);setMessage("");}}>+ Tréninkový plán</button>
     </header>
     <nav className="df2-gym-nav" aria-label="Gym navigace">
@@ -287,8 +286,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
           <div><small>Nejbližší termín</small><strong>{nearest?nearest.name+" · "+pretty(nearest.date):"Zatím neplánováno"}</strong></div>
         </div>
         {!previewPlan ? <section className="df2-gym-welcome" data-gym-setup>
-          <div><span>ZAČNI JEDNÍM KROKEM</span><h3>Tvůj split: Push / Pull / Lower</h3>
-            <p>Tři tréninkové dny. Cviky, série a rozvrh si můžeš kdykoli upravit. Žádný plán se nevytvoří bez tvého potvrzení.</p>
+          <div><h3>Tvůj split: Push / Pull / Lower</h3>
             <div className="df2-gym-welcome-split">
               <span><strong>Push</strong><small>Hrudník · ramena · triceps</small></span>
               <span><strong>Pull</strong><small>Záda · biceps</small></span>
@@ -338,7 +336,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
           </section>
           {activePlan&&<section className="df2-gym-week-strip df2-gym-week-planner" data-gym-week>
             <div className="df2-gym-week-heading"><div>
-              <h3>Tvůj týdenní plán</h3><p>Vyber trénink pro každý den. Rozvrh se opakuje každý týden.</p>
+              <h3>Tvůj týdenní plán</h3>
             </div><strong>{activePlan.days.filter(d=>gymDayWeekdayOnDate(d,today)!==null).length} tréninků týdně</strong></div>
             <div className="df2-gym-week-planner-grid">{weekDates.map((date,index)=>{
               const dayOfWeek=weekday(date);
@@ -383,7 +381,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                   :isPast?<small className="df2-gym-week-status">Změna se projeví v dalších týdnech</small>:null}
               </div>;
             })}</div>
-            <p className="df2-gym-week-note">Zvol čas a délku tréninku, aby se zobrazil mezi bloky v kalendáři Týden. Bez času zůstane jen v Gymu. Uložené tréninky se nemění.</p>
+            <p className="df2-gym-week-note">Bez nastaveného času se trénink v kalendáři nezobrazí.</p>
           </section>}
         </>}
         {!!history.length&&<details className="df2-gym-history" data-gym-history>
@@ -480,7 +478,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         {metrics.workouts.slice(-12).map(w=><div key={w.id}>
           <span style={{height:Math.max(3,Math.round(w.volume/Math.max(1,...metrics.workouts.map(x=>x.volume))*100))+"%"}} title={w.title+": "+formatKg(w.volume)} />
           <small>{w.date.slice(5)}</small></div>)}
-      </div>:<p className="df2-health-empty">Po dokončení prvního tréninku se zde objeví historie a progres.</p>}
+      </div>:<p className="df2-health-empty">Zatím bez výsledků.</p>}
       <h3>Osobní rekordy podle cviku</h3>
       <div className="df2-gym-pr-list">{[...metrics.byExercise.entries()].map(([id,x])=>
         <article key={id}><strong>{store.exercises.find(e=>e.id===id)?.name??id}</strong>

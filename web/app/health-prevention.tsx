@@ -94,8 +94,7 @@ export function PreventionPage({today,focusId,onFocusHandled}:{
   if(!hydrated)return <section className="df2-prevention" data-prevention-root><p>Načítám prevenci…</p></section>;
   return <section className="df2-prevention" data-prevention-root>
     <header className="df2-prevention-head">
-      <div><span>ETAPA 6 · PREVENCE</span><h2>Prevence</h2>
-        <p>Osobní evidence prohlídek, očkování a termínů — vše si plánuješ sám.</p></div>
+      <div><h2>Prevence</h2></div>
       <button type="button" className="df2-accent-button" disabled={blocked} onClick={openNew}>+ Přidat termín</button>
     </header>
     <nav className="df2-prevention-nav" aria-label="Prevence – sekce">
@@ -108,13 +107,12 @@ export function PreventionPage({today,focusId,onFocusHandled}:{
 
     {panel==="overview"&&<div className="df2-prevention-content">
       <div className="df2-prevention-stats">
-        <article><small>Nadcházející termíny</small><strong>{upcoming}</strong><span>Naplánované tebou</span></article>
-        <article><small>Po termínu</small><strong>{overdue}</strong><span>Termíny bez zaznamenaného splnění</span></article>
-        <article><small>Historie</small><strong>{history.length}</strong><span>Skutečná splnění</span></article>
+        <article><small>Nadcházející termíny</small><strong>{upcoming}</strong></article>
+        <article><small>Po termínu</small><strong>{overdue}</strong></article>
+        <article><small>Historie</small><strong>{history.length}</strong></article>
       </div>
       <section className="df2-prevention-card">
-        <div className="df2-prevention-section-head"><div><h3>Moje preventivní termíny</h3>
-          <small>Upozornění se zobrazí pouze v aplikaci, v tebou zvoleném předstihu.</small></div></div>
+        <div className="df2-prevention-section-head"><div><h3>Moje preventivní termíny</h3></div></div>
         {active.length?<div className="df2-prevention-items">{active.map(item=>
           <article key={item.id} id={"prevention-"+item.id} data-prevention-item={item.id}>
             <div className="df2-prevention-item-main">
@@ -132,7 +130,7 @@ export function PreventionPage({today,focusId,onFocusHandled}:{
               <button type="button" disabled={blocked} onClick={()=>savePaused(item)}>Pozastavit</button>
             </div>
           </article>)}</div>
-          :<div className="df2-prevention-empty">Zatím nemáš žádné termíny. Můžeš přidat například prohlídku, kterou máš skutečně naplánovanou.</div>}
+          :<div className="df2-prevention-empty">Zatím žádné termíny.</div>}
       </section>
       {paused.length>0&&<section className="df2-prevention-card">
         <div className="df2-prevention-section-head"><h3>Pozastavené záznamy</h3>
@@ -143,7 +141,7 @@ export function PreventionPage({today,focusId,onFocusHandled}:{
             <button type="button" disabled={blocked} onClick={()=>openEdit(item)}>Upravit</button></div>
         </article>)}</div>}
       </section>}
-      <p className="df2-prevention-disclaimer">Tento modul slouží jako osobní organizér, nikoli jako doporučení, jak často absolvovat vyšetření nebo očkování. Intervaly a termíny si nastav podle pokynů lékaře.</p>
+      <p className="df2-prevention-disclaimer">Intervaly kontrol a očkování nastav podle pokynů lékaře.</p>
     </div>}
     {panel==="history"&&<section className="df2-prevention-card">
       <div className="df2-prevention-section-head"><h3>Historie absolvované prevence</h3><small>{history.length} záznamů</small></div>
