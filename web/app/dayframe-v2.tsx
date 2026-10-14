@@ -42,7 +42,7 @@ import { DailyChecklist } from "./daily-checklist";
 import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
-import { assignmentsOnDate, gymOccurrenceTime } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 
@@ -68,6 +68,7 @@ type Draft = {
 };
 
 type DragState = {
+  kind: "task" | "gym";
   id: string;
   date: string;
   duration: number;
@@ -468,16 +469,25 @@ export function DayframeV2() {
   }
 
   function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
+    if(dragging?.kind==="gym"&&date<todayKey)return null;
     const min = calendarBounds.dayStart;
     const max = calendarBounds.dayEnd - duration;
     const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
-    const destination = getTasksForDate(data, date).filter((task) => task.id !== id);
+    const destination = getTasksForDate(data, date).filter(task => dragging?.kind==="task" ? task.id!==id : true);
+    const otherGym = dragging?.kind==="gym"
+      ? assignmentsOnDate(gym.store,date)
+        .filter(occ=>occ.key!==id)
+        .map(occ=>gymOccurrenceTime(gym.store,occ))
+        .filter(time=>time.start!==null)
+        .map(time=>({start:timeToMinutes(time.start??undefined),end:timeToMinutes(time.start??undefined)+time.duration}))
+      : [];
     const offsets = [0, -15, 15, -30, 30, -45, 45, -60, 60];
     for (const offset of offsets) {
       if (Math.abs(offset) > DROP_MAGNET_RANGE) continue;
       const candidate = rounded + offset;
       if (candidate < min || candidate > max) continue;
-      if (canPlaceAt(destination, candidate, duration)) return candidate;
+      if (canPlaceAt(destination, candidate, duration)
+        && !otherGym.some(block=>candidate<block.end && candidate+duration>block.start))return candidate;
     }
     return null;
   }
@@ -520,16 +530,25 @@ export function DayframeV2() {
     if (!preview?.valid) {
       setDragging(null);
       setDropPreview(null);
-      setNotice("Tady není volný 15min slot poblíž. Blok zůstal na původním místě.");
+      setNotice(dragging.kind==="gym"&&date<todayKey?"Trénink nelze přesunout do minulého dne.":"Tady není volný 15min slot poblíž. Blok zůstal na původním místě.");
       return;
     }
-    const result = moveTask(data, dragging.id, date, preview.start);
+    const selection=dragging;
     setDragging(null);
     setDropPreview(null);
-    if (result.error) {
-      setNotice(result.error);
+    if(selection.kind==="gym"){
+      let didChange=false;
+      const saved=gym.persist(current=>{
+        const updated=rescheduleGymOccurrence(current,selection.id,selection.date,date,preview.start,planningDateKey(new Date()));
+        didChange=updated!==current;
+        return updated;
+      });
+      if(!saved)setNotice("Nepodařilo se uložit nový čas tréninku.");
+      else if(!didChange)setNotice("Tento trénink nelze přesunout. Již zahájené tréninky zůstávají na svém místě.");
       return;
     }
+    const result=moveTask(data,selection.id,date,preview.start);
+    if(result.error){setNotice(result.error);return;}
     setData(result.state);
   }
 
@@ -717,8 +736,20 @@ export function DayframeV2() {
                             return <button key={occ.key} type="button" data-week-gym={occ.key}
                               className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
-                              title="Otevřít trénink v Gymu"
-                              onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}>
+                              draggable={key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked}
+                              onDragStart={event=>{
+                                if(key<todayKey||occ.session||gym.blocked){event.preventDefault();return;}
+                                const rect=event.currentTarget.getBoundingClientRect();
+                                const grabPixels=Math.max(0,Math.min(rect.height,event.clientY-rect.top));
+                                const grabOffsetMinutes=Math.max(0,Math.min(time.duration,grabPixels/MINUTE_HEIGHT));
+                                event.dataTransfer.effectAllowed="move";
+                                event.dataTransfer.setData("text/plain",occ.key);
+                                setDragging({kind:"gym",id:occ.key,date:key,duration:time.duration,grabOffsetMinutes});
+                                setDropPreview({date:key,start:time.start!,duration:time.duration,valid:true});
+                              }}
+                              onDragEnd={()=>{setDragging(null);setDropPreview(null);}}
+                              title={occ.session?"Otevřít zahájený trénink v Gymu":"Přetáhni trénink na jiný čas nebo den; kliknutím otevřeš Gym"}
+                              onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}> 
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>;
@@ -737,7 +768,7 @@ export function DayframeV2() {
                                   const grabPixels = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
                                   const grabOffsetMinutes = Math.max(0, Math.min(task.duration, grabPixels / MINUTE_HEIGHT));
                                   event.dataTransfer.effectAllowed = "move";
-                                  setDragging({ id: task.id, date: key, duration: task.duration, grabOffsetMinutes });
+                                  setDragging({ kind:"task", id: task.id, date: key, duration: task.duration, grabOffsetMinutes });
                                   setDropPreview({ date: key, start: task.start ?? minutesToTime(calendarBounds.dayStart), duration: task.duration, valid: true });
                                 }}
                                 onDragEnd={() => { setDragging(null); setDropPreview(null); }}
