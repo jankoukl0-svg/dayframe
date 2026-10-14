@@ -411,3 +411,52 @@ test("responsive supplement cards stack on mobile without hiding inventory and h
   await root.getByRole("button",{name:"Historie",exact:true}).click();
   await expect(root.locator("[data-supplements-history]")).toBeVisible();
 });
+
+
+test("Užito vše records all pending daily doses at once and survives reload without duplicate stock deductions",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Kreatin",stock:"2",times:"09:00,20:00"});
+  await addOne(page,{name:"Vitamin D",stock:"5",times:"09:00"});
+  await expect(root.locator("[data-supplement-occurrence]")).toHaveCount(3);
+  const all=root.getByRole("button",{name:"Užito vše",exact:true});
+  await expect(all).toBeEnabled();
+  await all.click();
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(3);
+  await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toHaveAttribute("aria-valuenow","3");
+  await expect(all).toBeDisabled();
+  const snapshot=()=>page.evaluate(k=>{
+    const s=JSON.parse(localStorage.getItem(k));
+    return {intakes:s.intakes.length,stocks:Object.fromEntries(s.supplements.map(x=>[x.name,x.stock]))};
+  },SUP_KEY);
+  await expect.poll(snapshot).toEqual({intakes:3,stocks:{"Kreatin":0,"Vitamin D":4}});
+  await page.reload({waitUntil:"networkidle"});
+  await supplements(page);
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(3);
+  await expect(root.getByRole("button",{name:"Užito vše",exact:true})).toBeDisabled();
+  await expect.poll(snapshot).toEqual({intakes:3,stocks:{"Kreatin":0,"Vitamin D":4}});
+  const first=root.locator("[data-supplement-occurrence]").first();
+  await first.getByRole("button",{name:/Užito/}).click();
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="pending"]')).toHaveCount(1);
+  await root.getByRole("button",{name:"Užito vše",exact:true}).click();
+  await expect.poll(snapshot).toEqual({intakes:3,stocks:{"Kreatin":0,"Vitamin D":4}});
+});
+
+test("Užito vše never partially consumes inventory and preserves deliberately skipped doses",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Dvě dávky",stock:"1",times:"09:00,20:00"});
+  await root.getByRole("button",{name:"Užito vše",exact:true}).click();
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(0);
+  await expect(root).toContainText("není dost zásob");
+  let saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.intakes).toHaveLength(0);
+  expect(saved.supplements[0].stock).toBe(1);
+  await root.locator("[data-supplement-occurrence]").last().getByRole("button",{name:"Vynechat"}).click();
+  await root.getByRole("button",{name:"Užito vše",exact:true}).click();
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(1);
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="skipped"]')).toHaveCount(1);
+  saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].stock).toBe(0);
+  expect(saved.intakes).toHaveLength(2);
+  await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toHaveAttribute("aria-valuenow","1");
+  await expect(root.getByRole("button",{name:"Užito vše",exact:true})).toBeDisabled();
+});
