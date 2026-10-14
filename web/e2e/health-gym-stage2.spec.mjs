@@ -692,3 +692,91 @@ test("a historical unstarted Week workout opens its original plan after switchin
   expect(state.sessions[0]).toMatchObject({planId:previousId,date:"2026-10-12"});
   expect(state.activePlanId).toBe(activeId);
 });
+
+
+/** Dispatch native drag events at exact Week grid coordinates (not the viewport scroll position). */
+async function dragWorkoutOnWeek(page,fromIndex,toIndex,targetStart){
+  await page.evaluate(({fromIndex})=>{
+    const day=document.querySelectorAll(".df2-week-day")[fromIndex];
+    const source=day?.querySelector("[data-week-gym]");
+    if(!(source instanceof HTMLElement))throw Error("Gym block missing");
+    const rect=source.getBoundingClientRect(),transfer=new DataTransfer();
+    window.__gymWeekDragTransfer=transfer;
+    source.dispatchEvent(new DragEvent("dragstart",{
+      bubbles:true,cancelable:true,dataTransfer:transfer,
+      clientX:rect.left+20,clientY:rect.top+8,
+    }));
+  },{fromIndex});
+  await page.evaluate(({toIndex,targetStart})=>{
+    const day=document.querySelectorAll(".df2-week-day")[toIndex];
+    const target=day?.querySelector(".df2-time-body");
+    const transfer=window.__gymWeekDragTransfer;
+    if(!(target instanceof HTMLElement)||!(transfer instanceof DataTransfer))throw Error("Gym drop target missing");
+    const [hours,mins]=targetStart.split(":").map(Number);
+    const minute=(hours<8?hours+24:hours)*60+mins;
+    const rect=target.getBoundingClientRect();
+    target.dispatchEvent(new DragEvent("dragover",{
+      bubbles:true,cancelable:true,dataTransfer:transfer,
+      clientX:rect.left+Math.min(65,rect.width/2),
+      clientY:rect.top+(minute-8*60)*0.72+8,
+    }));
+  },{toIndex,targetStart});
+  const target=page.locator(".df2-week-day").nth(toIndex).locator(".df2-time-body");
+  await expect(target.locator(".df2-drop-preview.valid")).toBeVisible();
+  await page.evaluate(({toIndex,targetStart})=>{
+    const target=document.querySelectorAll(".df2-week-day")[toIndex]?.querySelector(".df2-time-body");
+    const transfer=window.__gymWeekDragTransfer;
+    if(!(target instanceof HTMLElement)||!(transfer instanceof DataTransfer))throw Error("Gym drop target missing");
+    const [hours,mins]=targetStart.split(":").map(Number);
+    const minute=(hours<8?hours+24:hours)*60+mins;
+    const rect=target.getBoundingClientRect();
+    target.dispatchEvent(new DragEvent("drop",{
+      bubbles:true,cancelable:true,dataTransfer:transfer,
+      clientX:rect.left+Math.min(65,rect.width/2),
+      clientY:rect.top+(minute-8*60)*0.72+8,
+    }));
+  },{toIndex,targetStart});
+}
+
+test("Gym block is draggable within Week and to another day; new time persists without changing recurring hours",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Dragované tréninky");
+  await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  const monday=page.locator(".df2-week-day").nth(0);
+  const tuesday=page.locator(".df2-week-day").nth(1);
+  const workout=monday.locator("[data-week-gym]").first();
+  await expect(workout).toContainText("17:00");
+  await expect(workout).toHaveAttribute("draggable","true");
+  const key=await workout.getAttribute("data-week-gym");
+  await dragWorkoutOnWeek(page,0,0,"18:30");
+  await expect.poll(()=>page.evaluate(key=>{
+    const store=JSON.parse(localStorage.getItem("dayframe-gym-v1"));
+    return store.occurrenceTimes?.[key]?.start;
+  },key)).toBe("18:30");
+  await expect(monday.locator('[data-week-gym="'+key+'"]')).toContainText("18:30–19:30");
+  await dragWorkoutOnWeek(page,0,1,"19:00");
+  await expect(monday.locator('[data-week-gym="'+key+'"]')).toHaveCount(0);
+  await expect(tuesday.locator('[data-week-gym="'+key+'"]')).toContainText("19:00–20:00");
+  const snapshot=()=>page.evaluate(key=>{
+    const store=JSON.parse(localStorage.getItem("dayframe-gym-v1"));
+    return {date:store.moves[key],time:store.occurrenceTimes?.[key]?.start,duration:store.occurrenceTimes?.[key]?.duration};
+  },key);
+  await expect.poll(snapshot).toEqual({date:"2026-10-13",time:"19:00",duration:60});
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-gym="'+key+'"]')).toContainText("19:00");
+  await page.locator(".df2-week-controls button").filter({hasText:"→"}).click();
+  await expect(page.locator(".df2-week-day").nth(0).locator("[data-week-gym]")).toContainText("17:00");
+  await page.locator(".df2-week-controls button").filter({hasText:"←"}).click();
+  await page.locator(".df2-week-day").nth(1).locator('[data-week-gym="'+key+'"]').click();
+  await expect(page.getByRole("tab",{name:"Gym & Tréninky"})).toHaveAttribute("aria-selected","true");
+  const gymRoot=page.locator("[data-gym-root]");
+  await expect(gymRoot.locator("[data-gym-workout-preview]")).toContainText("úterý");
+  await gymRoot.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-gym-v1")));
+  const session=stored.sessions.find(session=>session.occurrenceKey===key);
+  expect(session).toMatchObject({date:"2026-10-13",scheduledTime:{start:"19:00",duration:60}});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-gym="'+key+'"]')).toHaveAttribute("draggable","false");
+});
