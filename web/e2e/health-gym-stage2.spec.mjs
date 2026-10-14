@@ -772,7 +772,7 @@ test("Gym block is draggable within Week and to another day; new time persists w
   await page.locator(".df2-week-day").nth(1).locator('[data-week-gym="'+key+'"]').click();
   await expect(page.getByRole("tab",{name:"Gym & Tréninky"})).toHaveAttribute("aria-selected","true");
   const gymRoot=page.locator("[data-gym-root]");
-  await expect(gymRoot.locator("[data-gym-workout-preview]")).toContainText("úterý");
+  await expect(gymRoot.locator("[data-gym-workout-preview]")).toContainText("út 13.");
   await gymRoot.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-gym-v1")));
   const session=stored.sessions.find(session=>session.occurrenceKey===key);
