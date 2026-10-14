@@ -469,6 +469,7 @@ export function DayframeV2() {
   }
 
   function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
+    if(dragging?.kind==="gym"&&date<todayKey)return null;
     const min = calendarBounds.dayStart;
     const max = calendarBounds.dayEnd - duration;
     const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
@@ -529,7 +530,7 @@ export function DayframeV2() {
     if (!preview?.valid) {
       setDragging(null);
       setDropPreview(null);
-      setNotice("Tady není volný 15min slot poblíž. Blok zůstal na původním místě.");
+      setNotice(dragging.kind==="gym"&&date<todayKey?"Trénink nelze přesunout do minulého dne.":"Tady není volný 15min slot poblíž. Blok zůstal na původním místě.");
       return;
     }
     const selection=dragging;
@@ -538,7 +539,7 @@ export function DayframeV2() {
     if(selection.kind==="gym"){
       let didChange=false;
       const saved=gym.persist(current=>{
-        const updated=rescheduleGymOccurrence(current,selection.id,selection.date,date,preview.start);
+        const updated=rescheduleGymOccurrence(current,selection.id,selection.date,date,preview.start,planningDateKey(new Date()));
         didChange=updated!==current;
         return updated;
       });
@@ -735,9 +736,9 @@ export function DayframeV2() {
                             return <button key={occ.key} type="button" data-week-gym={occ.key}
                               className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
-                              draggable={!occ.session&&gym.hydrated&&!gym.blocked}
+                              draggable={key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked}
                               onDragStart={event=>{
-                                if(occ.session||gym.blocked){event.preventDefault();return;}
+                                if(key<todayKey||occ.session||gym.blocked){event.preventDefault();return;}
                                 const rect=event.currentTarget.getBoundingClientRect();
                                 const grabPixels=Math.max(0,Math.min(rect.height,event.clientY-rect.top));
                                 const grabOffsetMinutes=Math.max(0,Math.min(time.duration,grabPixels/MINUTE_HEIGHT));
