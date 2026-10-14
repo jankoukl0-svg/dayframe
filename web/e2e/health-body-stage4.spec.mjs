@@ -185,6 +185,7 @@ test("Body overview uses the Gym/Supplements card style and a compact single-rea
   await expect(root.locator(".df2-body-kpis")).toContainText("67 kg");
   await expect(root.locator(".df2-body-chart.is-single")).toBeVisible();
   await expect(root.locator(".df2-body-chart.is-single")).toContainText("67 kg");
+  await expect(root.locator(".df2-body-chart.is-single")).toContainText("Jediné měření v období");
   await expect(root.locator("[data-body-chart]")).toHaveCount(1);
   const design=await root.evaluate(el=>{
     const nav=getComputedStyle(el.querySelector(".df2-body-nav"));
