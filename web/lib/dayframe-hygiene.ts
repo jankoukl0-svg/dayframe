@@ -29,7 +29,9 @@ export type HygieneTaskDefinition = {
 
 export type HygieneRoutineDefinition = {
   /** Unset on existing data; existing routines belong to Hygiena. */
-  domain?: "health";
+  domain?: "health" | "cleaning";
+  /** Do not retroactively populate a newly installed routine into earlier days. */
+  startsOn?: string;
   id: string;
   title: string;
   active: boolean;
@@ -95,7 +97,7 @@ export type HygieneTaskSnapshot = {
 
 export type HygieneRoutineRecord = {
   /** Persist domain with records so historical health entries survive definition deletion. */
-  domain?: "health";
+  domain?: "health" | "cleaning";
   date: string;
   routineId: string;
   routineTitle: string;
@@ -106,10 +108,10 @@ export type HygieneRoutineRecord = {
   carryToday?: boolean;
 };
 
-export type PersonalCareDomain = "hygiene" | "health";
+export type PersonalCareDomain = "hygiene" | "health" | "cleaning";
 
 export function routineDomain(routine: Pick<HygieneRoutineDefinition, "domain">): PersonalCareDomain {
-  return routine.domain === "health" ? "health" : "hygiene";
+  return routine.domain === "health" ? "health" : routine.domain === "cleaning" ? "cleaning" : "hygiene";
 }
 
 /** Read-only projection of a shared store; save changes against the full store. */
@@ -120,7 +122,7 @@ export function careDomainStore(store: HygieneStore, domain: PersonalCareDomain)
   const records: HygieneStore["records"] = {};
   for (const [date, dateRecords] of Object.entries(store.records)) {
     records[date] = Object.fromEntries(Object.entries(dateRecords).filter(([id, record]) =>
-      currentIds.has(id) || (!knownIds.has(id) && (record.domain === "health" ? "health" : "hygiene") === domain)));
+      currentIds.has(id) || (!knownIds.has(id) && (record.domain === "health" ? "health" : record.domain === "cleaning" ? "cleaning" : "hygiene") === domain)));
   }
   return { ...store, routines, records };
 }
@@ -135,6 +137,8 @@ export type HygieneStore = {
   manualTaskDates: Record<string, string[]>;
   taskReschedules: Record<string, string>;
   lastMaterializedDate: string | null;
+  /** One-time installation marker; deleting a cleaning task/routine must stay deleted. */
+  cleaningDefaultsInstalled?: boolean;
 };
 
 export type HygieneRoutineStatus = "complete" | "partial" | "missed" | "skipped" | "deferred" | "scheduled";
@@ -178,6 +182,73 @@ function task(
     optional: options.optional === true,
     allowSkip: options.allowSkip === true,
     schedule: options.schedule,
+  };
+}
+
+const CLEANING_TRANSFER_IDS = new Set([
+  "weekly-bed", "weekly-phone", "weekly-headphones",
+  "weekly-towels", "weekly-brushes", "weekly-razor",
+]);
+
+export function defaultCleaningRoutines(today: string): HygieneRoutineDefinition[] {
+  return [
+    {
+      domain: "cleaning", id: "cleaning-daily", title: "Denní úklid",
+      active: true, order: 40, startsOn: today, schedule: { type: "daily" },
+      tasks: [
+        task("cleaning-make-bed", "Ustlat postel", "Pokoj"),
+        task("cleaning-clothes", "Uklidit oblečení a odložené věci na místo", "Pokoj"),
+        task("cleaning-desk", "Srovnat pracovní stůl a používané plochy", "Pokoj"),
+        task("cleaning-dishes", "Uklidit nádobí a umýt nebo naplnit myčku", "Kuchyň"),
+        task("cleaning-counter", "Otřít kuchyňskou linku a jídelní stůl", "Kuchyň"),
+        task("cleaning-trash-daily", "Vynést odpadky, pokud je koš plný", "Ostatní", { optional: true, allowSkip: true }),
+      ],
+    },
+    {
+      domain: "cleaning", id: "cleaning-sunday", title: "Nedělní úklid",
+      active: true, order: 50, startsOn: today, schedule: { type: "weekly", weekday: 0 },
+      tasks: [
+        task("cleaning-vacuum", "Vysát podlahy a koberce", "Podlahy"),
+        task("cleaning-mop", "Vytřít tvrdé podlahy", "Podlahy"),
+        task("cleaning-dust", "Utřít prach na dostupných površích", "Pokoj"),
+        task("cleaning-bathroom", "Vyčistit umyvadlo, zrcadlo a toaletu", "Koupelna"),
+        task("cleaning-shower", "Vyčistit sprchu nebo vanu", "Koupelna"),
+        task("cleaning-kitchen", "Důkladněji vyčistit kuchyň a dřez", "Kuchyň"),
+        task("cleaning-bins", "Vynést a roztřídit odpad, vyměnit sáčky", "Ostatní"),
+        task("weekly-bed", "Převléknout celou postel", "Ložnice"),
+        task("weekly-towels", "Vyměnit ručníky", "Koupelna"),
+        task("weekly-phone", "Vyčistit mobilní telefon a jeho obal", "Předměty a pomůcky"),
+        task("weekly-headphones", "Vyčistit sluchátka", "Předměty a pomůcky"),
+        task("weekly-brushes", "Vyčistit hřeben a kartáče", "Předměty a pomůcky"),
+        task("weekly-razor", "Vyčistit holicí strojek", "Předměty a pomůcky"),
+      ],
+    },
+  ];
+}
+
+/** Add new cleaning routines to existing user data once, preserving edited Hygiene Day steps. */
+export function installCleaningRoutines(store: HygieneStore, today: string): HygieneStore {
+  if (store.cleaningDefaultsInstalled) return store;
+  const defaults = defaultCleaningRoutines(today);
+  const oldHygieneDay = store.routines.find(routine => routine.id === "hygiene-day");
+  const transferred = (oldHygieneDay?.tasks ?? []).filter(item => CLEANING_TRANSFER_IDS.has(item.id));
+  const sunday = defaults[1];
+  const customMovedIds = new Set(transferred.map(item => item.id));
+  const movedTasks = [
+    ...sunday.tasks.filter(item => !CLEANING_TRANSFER_IDS.has(item.id)),
+    ...transferred.map(item => ({ ...item })),
+    ...sunday.tasks.filter(item => CLEANING_TRANSFER_IDS.has(item.id) && !customMovedIds.has(item.id)),
+  ];
+  return {
+    ...store,
+    cleaningDefaultsInstalled: true,
+    routines: [
+      ...store.routines.map(routine => routine.id === "hygiene-day" ? {
+        ...routine, tasks: routine.tasks.filter(item => !CLEANING_TRANSFER_IDS.has(item.id)),
+      } : routine),
+      ...defaults.filter(routine => !store.routines.some(existing => existing.id === routine.id)).map(routine =>
+        routine.id === "cleaning-sunday" ? { ...routine, tasks: movedTasks } : routine),
+    ],
   };
 }
 
@@ -231,12 +302,6 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
           task("weekly-hand-nails", "Kontrola a případné stříhání nehtů na rukou", "Grooming", { allowSkip: true }),
           task("weekly-eyebrows", "Úprava obočí podle potřeby", "Grooming", { allowSkip: true }),
           task("weekly-nose-ears", "Zastřižení chloupků v nose a uších podle potřeby", "Grooming", { allowSkip: true }),
-          task("weekly-bed", "Převléknout celou postel", "Hygiena prostředí a pomůcek"),
-          task("weekly-phone", "Vyčistit mobilní telefon a jeho obal", "Hygiena prostředí a pomůcek"),
-          task("weekly-headphones", "Vyčistit sluchátka", "Hygiena prostředí a pomůcek"),
-          task("weekly-towels", "Vyměnit ručníky", "Hygiena prostředí a pomůcek"),
-          task("weekly-brushes", "Vyčistit hřeben a kartáče", "Hygiena prostředí a pomůcek"),
-          task("weekly-razor", "Vyčistit holicí strojek", "Hygiena prostředí a pomůcek"),
           task("monthly-moles", "Kontrola znamének a změn pokožky", "Měsíční péče", { schedule: monthlyFirstSunday }),
           task("monthly-toenails", "Kontrola a případné stříhání nehtů na nohou", "Měsíční péče", { schedule: monthlyFirstSunday }),
           task("monthly-razors", "Kontrola stavu žiletek a hygienických pomůcek", "Měsíční péče", { schedule: monthlyFirstSunday }),
@@ -244,6 +309,7 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
           task("monthly-supplies", "Kontrola a výměna opotřebovaných hygienických potřeb podle potřeby", "Měsíční péče", { schedule: monthlyFirstSunday }),
         ],
       },
+      ...defaultCleaningRoutines(today),
     ],
     products: [],
     records: {},
@@ -252,6 +318,7 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
     manualTaskDates: {},
     taskReschedules: {},
     lastMaterializedDate: addDaysKey(today, -1),
+    cleaningDefaultsInstalled: true,
   };
 }
 
@@ -322,12 +389,13 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       }
       const routine = rawRoutine as Partial<HygieneRoutineDefinition>;
       const schedule = cleanSchedule(routine.schedule);
-      if (routine.domain !== undefined && routine.domain !== "health")
+      if (routine.domain !== undefined && routine.domain !== "health" && routine.domain !== "cleaning")
         return { store: createDefaultHygieneStore(today), blocked: true };
       if (
         typeof routine.id !== "string"
         || !routine.id
         || routineIds.has(routine.id)
+        || (routine.startsOn !== undefined && (typeof routine.startsOn !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(routine.startsOn)))
         || typeof routine.title !== "string"
         || !routine.title.trim()
         || typeof routine.active !== "boolean"
@@ -385,6 +453,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       routineIds.add(routine.id);
       routines.push({
         domain: routine.domain,
+        startsOn: routine.startsOn,
         id: routine.id,
         title: routine.title.trim(),
         active: routine.active,
@@ -569,7 +638,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
             completedOn[taskId] = date;
           }
         }
-        if (record.domain !== undefined && record.domain !== "health")
+        if (record.domain !== undefined && record.domain !== "health" && record.domain !== "cleaning")
           return { store: createDefaultHygieneStore(today), blocked: true };
         if (
           (record.archived !== undefined && typeof record.archived !== "boolean")
@@ -638,6 +707,8 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       taskReschedules[key] = date;
     }
 
+    if (candidate.cleaningDefaultsInstalled !== undefined && typeof candidate.cleaningDefaultsInstalled !== "boolean")
+      return { store: createDefaultHygieneStore(today), blocked: true };
     return {
       store: {
         version: 1,
@@ -649,6 +720,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         manualTaskDates,
         taskReschedules,
         lastMaterializedDate: typeof candidate.lastMaterializedDate === "string" ? candidate.lastMaterializedDate : null,
+        cleaningDefaultsInstalled: candidate.cleaningDefaultsInstalled === true,
       },
       blocked: false,
     };
@@ -685,7 +757,7 @@ function routineSuppressedOnDate(store: HygieneStore, routineId: string, dateKey
 }
 
 export function routineScheduledOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
-  if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
+  if (!routine.active || (routine.startsOn && dateKey < routine.startsOn) || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
   if (routine.schedule.type === "manual") return (store.manualDates[dateKey] ?? []).includes(routine.id);
   return scheduleMatches(routine.schedule, dateKey);
 }
@@ -725,6 +797,7 @@ function rescheduleOrigin(store: HygieneStore, routineId: string, taskId: string
 }
 
 function taskDueOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, task: HygieneTaskDefinition, date: string, parentScheduled: boolean): boolean {
+  if (routine.startsOn && date < routine.startsOn) return false;
   if (!task.active) return false;
   if (rescheduleOrigin(store, routine.id, task.id, date)) return true;
   const schedule = task.schedule ?? routine.schedule;
@@ -754,7 +827,7 @@ export function overdueHygieneTasks(store: HygieneStore, today: string) {
         // An unfinished Sunday stays in history instead of becoming a weekday to-do
         // (or a duplicate of the following Sunday's newly scheduled occurrence).
         // Explicit one-off postponements and rolling/manual schedules remain actionable.
-        if (routine.id === "hygiene-day" && !snapshot.originDate
+        if ((routine.id === "hygiene-day" || routine.domain === "cleaning") && !snapshot.originDate
           && ["weekly", "nth-weekday", "monthly", "days", "interval"].includes(scheduleType)) continue;
         if (!pending.has(task.id)) pending.set(task.id, {
           date, routineId, taskId: task.id, title: snapshot.title, routineTitle: record.routineTitle,
@@ -820,7 +893,7 @@ function taskSnapshot(task: HygieneTaskDefinition, schedule: HygieneSchedule): H
 }
 
 function routineHasScheduledWorkOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
-  if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
+  if (!routine.active || (routine.startsOn && dateKey < routine.startsOn) || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
   const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
   return routine.tasks.some((item) => taskDueOnDate(store, routine, item, dateKey, parentScheduled));
 }
@@ -831,7 +904,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
   let changed = false;
 
   for (const routine of store.routines) {
-    if (!routine.active || routineSuppressedOnDate(store, routine.id, dateKey)) continue;
+    if (!routine.active || (routine.startsOn && dateKey < routine.startsOn) || routineSuppressedOnDate(store, routine.id, dateKey)) continue;
     const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
     const scheduledTasks = routine.tasks
       .filter((item) => taskDueOnDate(store, routine, item, dateKey, parentScheduled))
@@ -959,7 +1032,7 @@ export function loadHygieneStore(today: string): { store: HygieneStore; blocked:
 
   const parsed = parseHygieneStore(raw, today);
   if (parsed.blocked) return parsed;
-  const ensured = ensureHygieneHistory(parsed.store, today);
+  const ensured = ensureHygieneHistory(installCleaningRoutines(parsed.store, today), today);
   try {
     window.localStorage.setItem(HYGIENE_STORAGE_KEY, JSON.stringify(ensured));
   } catch {
