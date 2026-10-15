@@ -123,11 +123,13 @@ test("new PPL template is Push / Pull / Lower with real editable exercises, and 
 
 test("curated catalog has stable distinct IDs and broad Push / Pull / Lower / core coverage",()=>{
   const ids=EXERCISE_LIBRARY.map(e=>e.id);
-  assert.equal(ids.length,72);
+  assert.equal(ids.length,83);
   assert.equal(new Set(ids).size,ids.length);
   for(const id of ["pec-deck","machine-chest-press","face-pull","hammer-curl",
     "barbell-row","bulgarian-split-squat","leg-extension","hip-thrust",
-    "hanging-leg-raise","cable-crunch"]){
+    "hanging-leg-raise","cable-crunch","wrist-curl-dumbbell",
+    "reverse-wrist-curl-dumbbell","reverse-ez-curl","wrist-roller","farmer-carry",
+    "dead-hang","plate-pinch","forearm-pronation-supination"]){
     assert.ok(ids.includes(id),"Missing common movement: "+id);
   }
   for(const ex of EXERCISE_LIBRARY){
