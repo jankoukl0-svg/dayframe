@@ -134,6 +134,9 @@ for (const file of changed) {
     || file === "web/app/dayframe-v2.tsx") {
     add("health-manager-stage1.spec.mjs");
   }
+  if (lower.includes("hygiene") || lower.includes("health-page.css")) {
+    add("hygiene-visual-harmony.spec.mjs");
+  }
   if (lower.includes("hygiene")) {
     add("hygiene-cleaning.spec.mjs");
     add("hygiene-care-stage1.spec.mjs");
