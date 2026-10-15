@@ -28,6 +28,12 @@ async function style(locator) {
   });
 }
 
+test("Hygiena header shows the date without a year", async ({ page }) => {
+  await fresh(page);
+  await hygiene(page);
+  await expect(page.locator(".df2-hygiene-head > div > p")).toHaveText("čtvrtek 15. října");
+});
+
 test("Hygiena and Zdraví have the same navigation geometry and active accent", async ({ page }) => {
   await fresh(page);
   await hygiene(page);
