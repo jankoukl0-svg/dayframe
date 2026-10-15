@@ -130,3 +130,22 @@ test("Sunday time can be moved on its day, persists, and cannot move the checkli
   const record = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
   expect(record.routines.find(item => item.id === "hygiene-day").schedule).toEqual({ type: "weekly", weekday: 0 });
 });
+
+test("corrupted placement data leaves Sunday reservations visible but read-only", async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(key => localStorage.setItem(key, "{broken-json"), CARE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator("[data-week-care]")).toHaveCount(2);
+  await expect(page.locator('[data-week-care="hygiene-day"]')).toHaveAttribute("draggable", "false");
+  expect(await page.evaluate(key => localStorage.getItem(key), CARE_KEY)).toBe("{broken-json");
+});
+
+test("Sunday reservation typography fits its actual 30-minute time geometry", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  const tile = page.locator('[data-week-care="hygiene-day"]');
+  await expect(tile).toHaveCSS("min-height", "0px");
+  await expect(tile.locator("strong")).toHaveCSS("font-size", "9px");
+  await expect(tile.locator("span")).toHaveCSS("font-size", "7px");
+});
