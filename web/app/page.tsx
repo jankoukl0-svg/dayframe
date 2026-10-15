@@ -8,6 +8,8 @@ import "./health-supplements.css";
 import "./health-body.css";
 import "./health-sleep.css";
 import "./health-prevention.css";
+// Keep Hygiene styling aligned with Health after both section stylesheets.
+import "./hygiene-health-harmony.css";
 import "./dayframe-countdowns.css";
 import "./week-calendar-polish.css";
 import "./milestone-alignment.css";
