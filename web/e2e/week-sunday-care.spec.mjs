@@ -17,30 +17,53 @@ async function week(page) {
 }
 
 async function dragCare(page, sourceDay, targetDay, id, time) {
-  await page.evaluate(({ sourceDay, targetDay, id, time }) => {
+  // Match real browser event ordering: React commits onDragStart state before drop.
+  await page.evaluate(({ sourceDay, id }) => {
     const source = document.querySelectorAll(".df2-week-day")[sourceDay]
       ?.querySelector('[data-week-care="' + id + '"]');
-    const target = document.querySelectorAll(".df2-week-day")[targetDay]
-      ?.querySelector(".df2-time-body");
-    if (!(source instanceof HTMLElement) || !(target instanceof HTMLElement)) throw Error("Week care drag target missing");
+    if (!(source instanceof HTMLElement)) throw Error("Week care drag source missing");
     const transfer = new DataTransfer();
+    window.__careWeekDragTransfer = transfer;
     const rect = source.getBoundingClientRect();
     source.dispatchEvent(new DragEvent("dragstart", {
       bubbles: true, cancelable: true, dataTransfer: transfer,
       clientX: rect.left + 12, clientY: rect.top + 4,
     }));
+  }, { sourceDay, id });
+
+  await page.evaluate(({ targetDay, time }) => {
+    const target = document.querySelectorAll(".df2-week-day")[targetDay]
+      ?.querySelector(".df2-time-body");
+    if (!(target instanceof HTMLElement)) throw Error("Week care drop column missing");
+    const transfer = window.__careWeekDragTransfer;
+    if (!(transfer instanceof DataTransfer)) throw Error("Missing drag transfer");
     const [h, m] = time.split(":").map(Number);
     const minute = (h < 8 ? h + 24 : h) * 60 + m;
-    const targetRect = target.getBoundingClientRect();
-    const options = {
+    const rect = target.getBoundingClientRect();
+    target.dispatchEvent(new DragEvent("dragover", {
       bubbles: true, cancelable: true, dataTransfer: transfer,
-      clientX: targetRect.left + 25,
-      clientY: targetRect.top + (minute - 8 * 60) * 0.72 + 4,
-    };
-    target.dispatchEvent(new DragEvent("dragover", options));
-    target.dispatchEvent(new DragEvent("drop", options));
-    source.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: transfer }));
-  }, { sourceDay, targetDay, id, time });
+      clientX: rect.left + 25,
+      clientY: rect.top + (minute - 8 * 60) * 0.72 + 4,
+    }));
+  }, { targetDay, time });
+  await expect(page.locator(".df2-week-day").nth(targetDay).locator(".df2-drop-preview")).toBeVisible();
+
+  await page.evaluate(({ targetDay, time }) => {
+    const target = document.querySelectorAll(".df2-week-day")[targetDay]
+      ?.querySelector(".df2-time-body");
+    if (!(target instanceof HTMLElement)) throw Error("Week care drop column missing");
+    const transfer = window.__careWeekDragTransfer;
+    if (!(transfer instanceof DataTransfer)) throw Error("Missing drag transfer");
+    const [h, m] = time.split(":").map(Number);
+    const minute = (h < 8 ? h + 24 : h) * 60 + m;
+    const rect = target.getBoundingClientRect();
+    target.dispatchEvent(new DragEvent("drop", {
+      bubbles: true, cancelable: true, dataTransfer: transfer,
+      clientX: rect.left + 25,
+      clientY: rect.top + (minute - 8 * 60) * 0.72 + 4,
+    }));
+    delete window.__careWeekDragTransfer;
+  }, { targetDay, time });
 }
 
 test("Sunday Hygiene and Cleaning appear as two 30-minute Week reservations, without duplicate calendar tasks", async ({ page }) => {
