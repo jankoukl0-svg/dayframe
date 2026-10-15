@@ -136,7 +136,8 @@ test("curated catalog has stable distinct IDs and broad Push / Pull / Lower / co
     assert.ok(ex.name.trim());
     assert.ok(ex.muscle.trim());
     assert.ok(ex.equipment.trim());
-    assert.ok(ex.technique.trim());
+    assert.ok(ex.kind?.trim(),"Missing type for "+ex.id);
+    assert.ok(ex.technique?.trim(),"Missing technique for "+ex.id);
   }
 });
 test("older existing gym stores gain new catalog entries without changing plans, sessions or customized exercises",()=>{
