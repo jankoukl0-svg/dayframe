@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("week shows planned capacity for each day", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -26,6 +27,7 @@ test("week shows planned capacity for each day", async ({ page }) => {
 });
 
 test("late short blocks stay fully visible at the bottom of week", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
