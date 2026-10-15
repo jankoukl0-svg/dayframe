@@ -792,6 +792,7 @@ export function HygienePage({
                 <div className="df2-hygiene-cleaning-items">
                   {(scheduled ? tasks : routine.tasks.filter(item => item.active)).map(item => {
                     const state = record?.states[item.id];
+                    const definition = routine.tasks.find(task => task.id === item.id);
                     return (
                       <div className={"df2-hygiene-cleaning-item" + (state === "done" ? " is-done" : "")} key={item.id}>
                         <button type="button" className="df2-hygiene-check"
@@ -800,12 +801,14 @@ export function HygienePage({
                           aria-label={state === "done" ? "Vrátit " + item.title + " jako nesplněné" : "Označit " + item.title + " jako hotovo"}
                           onClick={() => updateTask(routine.id, item.id, "done")}>{state === "done" ? "✓" : ""}</button>
                         <span>{item.title}{item.optional ? <small>Podle potřeby</small> : null}</span>
-                        <button type="button" className="df2-hygiene-cleaning-edit"
-                          aria-label={"Upravit úkol " + item.title}
-                          onClick={() => setTaskDraft({
-                            sourceRoutineId: routine.id, targetRoutineId: routine.id,
-                            task: { ...routine.tasks.find(task => task.id === item.id)!, schedule: routine.tasks.find(task => task.id === item.id)?.schedule ? cloneSchedule(routine.tasks.find(task => task.id === item.id)!.schedule!) : undefined },
-                          })}>Upravit</button>
+                        {definition
+                          ? <button type="button" className="df2-hygiene-cleaning-edit"
+                            aria-label={"Upravit úkol " + item.title}
+                            onClick={() => setTaskDraft({
+                              sourceRoutineId: routine.id, targetRoutineId: routine.id,
+                              task: { ...definition, schedule: definition.schedule ? cloneSchedule(definition.schedule) : undefined },
+                            })}>Upravit</button>
+                          : <small>Historický úkon</small>}
                       </div>
                     );
                   })}
