@@ -73,18 +73,18 @@ test("Care modal edits just one day and protects occupied slots", async ({ page 
   await friday.locator('[data-week-care="morning"]').click();
   const dialog = page.getByRole("dialog", { name: "Ranní hygiena" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Začátek bloku").fill("14:00");
+  await dialog.getByLabel("Začátek bloku").fill("18:00");
   await dialog.getByRole("button", { name: "Uložit čas" }).click();
-  await expect(friday.locator('[data-week-care="morning"]')).toHaveAttribute("aria-label","Ranní hygiena, 14:00–14:20");
+  await expect(friday.locator('[data-week-care="morning"]')).toHaveAttribute("aria-label","Ranní hygiena, 18:00–18:20");
   await expect(page.locator(".df2-week-day").nth(5).locator('[data-week-care="morning"]')).toHaveAttribute("aria-label", "Ranní hygiena, 09:00–09:20");
   await friday.locator('[data-week-care="morning"]').click();
   await dialog.getByLabel("Začátek bloku").fill("10:00");
   await dialog.getByRole("button", { name: "Uložit čas" }).click();
   await expect(dialog.getByRole("alert")).toContainText("zabírá jiný blok");
-  await expect(friday.locator('[data-week-care="morning"]')).toHaveAttribute("aria-label","Ranní hygiena, 14:00–14:20");
+  await expect(friday.locator('[data-week-care="morning"]')).toHaveAttribute("aria-label","Ranní hygiena, 18:00–18:20");
   await dialog.getByRole("button", { name: "Zavřít" }).click();
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), CARE_KEY);
-  expect(saved.times["2026-10-16"].morning).toBe("14:00");
+  expect(saved.times["2026-10-16"].morning).toBe("18:00");
 });
 
 test("One-day cancel hides only the calendar reservation, persists and can be restored", async ({ page }) => {
