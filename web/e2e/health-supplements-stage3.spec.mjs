@@ -521,3 +521,44 @@ test("Today supplement summary stays one row and shows taken/skipped progress se
   expect(saved.intakes).toHaveLength(1);
   expect(saved.supplements[0].stock).toBe(3);
 });
+
+
+test("daily checklist bulk supplement checkbox updates doses, stock and history in both directions",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Zinek test",stock:"3",times:"09:00, 20:00"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  const row=page.locator('[data-supplement-checklist="summary"]');
+  await expect(row).toContainText("0/2 užito");
+  const check=row.getByRole("button",{name:"Označit všechny dnešní suplementy jako užité"});
+  await expect(check).toHaveAttribute("aria-pressed","false");
+  await check.click();
+  await expect(row).toContainText("2/2 užito");
+  await expect(row.getByRole("button",{name:"Vrátit užité suplementy jako neužité"})).toHaveAttribute("aria-pressed","true");
+  await row.getByRole("button",{name:"Otevřít suplementy ve Zdraví"}).click();
+  await expect(root.locator('[data-intake-status="taken"]')).toHaveCount(2);
+  let saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].stock).toBe(1);
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await expect(row).toContainText("2/2 užito");
+  await row.getByRole("button",{name:"Vrátit užité suplementy jako neužité"}).click();
+  await expect(row).toContainText("0/2 užito");
+  saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].stock).toBe(3);
+  expect(saved.intakes).toHaveLength(0);
+  await row.getByRole("button",{name:"Otevřít suplementy ve Zdraví"}).click();
+  await expect(root.locator('[data-intake-status="pending"]')).toHaveCount(2);
+});
+
+test("daily checklist does not partially mark supplement doses if stock is insufficient",async({page})=>{
+  await fresh(page);
+  await addOne(page,{name:"Test zásoby",stock:"1",times:"09:00, 20:00"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  const row=page.locator('[data-supplement-checklist="summary"]');
+  await row.getByRole("button",{name:"Označit všechny dnešní suplementy jako užité"}).click();
+  await expect(row).toContainText("0/2 užito");
+  await expect(page.locator("[data-daily-checklist]")).toContainText("Nedostatečná zásoba");
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.intakes).toHaveLength(0);
+  expect(saved.supplements[0].stock).toBe(1);
+});

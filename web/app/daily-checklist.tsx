@@ -9,13 +9,15 @@ import {sleepCalendarDateKey,sleepCheckInStatus} from "@/lib/dayframe-sleep";
 import {useSleepStore} from "./use-sleep-store";
 import {preventionTodayRows} from "@/lib/dayframe-prevention";
 import {usePreventionStore} from "./use-prevention-store";
-import { supplementOccurrences } from "@/lib/dayframe-supplements";
+import { markAllSupplementIntakes, markSupplementIntake, supplementOccurrences } from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
 import { useGymStore } from "./use-gym-store";
 import {
   HYGIENE_STORAGE_KEY,
   HYGIENE_SYNC_EVENT,
   loadHygieneStore,
+  saveHygieneStore,
+  toggleHygieneRoutineCompletion,
   routineDomain,
   scheduledRoutineSummaries,
 } from "@/lib/dayframe-hygiene";
@@ -197,6 +199,7 @@ export function DailyChecklist({
   const [draftDays, setDraftDays] = useState<number[]>([...ALL_DAYS]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [storageError, setStorageError] = useState("");
+  const [bulkError, setBulkError] = useState("");
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [recentlyCompletedId, setRecentlyCompletedId] = useState<string | null>(null);
   const [hygieneItems, setHygieneItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
@@ -454,6 +457,52 @@ export function DailyChecklist({
     setDraggingId(null);
   };
 
+  const toggleHygieneRoutine = (routineId: string) => {
+    const latest = loadHygieneStore(planningKey);
+    if (latest.blocked) {
+      setHygieneBlocked(true);
+      setBulkError("Data Hygieny nelze bezpečně načíst.");
+      return;
+    }
+    const changed = toggleHygieneRoutineCompletion(latest.store, planningKey, routineId);
+    if (changed === latest.store) return;
+    if (!saveHygieneStore(changed)) {
+      setBulkError("Ranní nebo večerní rutinu se nepodařilo uložit.");
+      return;
+    }
+    setBulkError("");
+  };
+
+  const toggleSupplements = () => {
+    if (supplements.blocked) {
+      setBulkError("Data suplementů nelze bezpečně načíst.");
+      return;
+    }
+    let insufficient = false;
+    const saved = supplements.persist(latest => {
+      const due = supplementOccurrences(latest, planningKey);
+      if (!due.length) return latest;
+      if (due.every(item => Boolean(item.intake))) {
+        // Uncheck only taken doses; keep explicit "Vynecháno" decisions.
+        let next = latest;
+        for (const item of due) {
+          if (item.intake?.status === "taken") next = markSupplementIntake(next, item.key, "taken");
+        }
+        return next;
+      }
+      const next = markAllSupplementIntakes(latest, planningKey);
+      if (next === latest) insufficient = true;
+      return next;
+    });
+    if (!saved) {
+      setBulkError("Suplementy se nepodařilo uložit.");
+    } else if (insufficient) {
+      setBulkError("Nedostatečná zásoba pro všechny zbývající dávky. Nic nebylo označeno.");
+    } else {
+      setBulkError("");
+    }
+  };
+
   return (
     <>
       <section className={`df2-daily-checklist ${allDone ? "is-complete" : ""}`} data-daily-checklist aria-label="Denní checklist">
@@ -494,9 +543,13 @@ export function DailyChecklist({
                 data-hygiene-checklist-routine={item.id}
                 className={"df2-checklist-hygiene-row " + (item.complete ? "done" : "")}
               >
-                <span className={"df2-checklist-hygiene-indicator " + (item.complete ? "is-done" : "")} aria-hidden="true">
-                  {item.complete ? "✓" : ""}
-                </span>
+                <button type="button"
+                  className="df2-checklist-check df2-checklist-hygiene-indicator df2-checklist-bulk-check"
+                  aria-label={item.complete ? "Vrátit " + item.title + " jako nesplněnou" : "Označit celou " + item.title + " jako hotovou"}
+                  aria-pressed={item.complete} disabled={!hygieneHydrated || hygieneBlocked}
+                  onClick={() => toggleHygieneRoutine(item.id)}>
+                  <span className="df2-checkmark" aria-hidden="true">{item.complete ? "✓" : ""}</span>
+                </button>
                 <button
                   type="button"
                   className="df2-checklist-copy df2-checklist-hygiene-copy"
@@ -538,7 +591,14 @@ export function DailyChecklist({
             {supplementHasDue && (
               <article data-supplement-checklist="summary"
                 className={"df2-checklist-hygiene-row "+(supplementComplete?"done":"")}>
-                <span className={"df2-checklist-hygiene-indicator "+(supplementComplete?"is-done":"")} aria-hidden="true">{supplementComplete?"✓":""}</span>
+                <button type="button"
+                  className="df2-checklist-check df2-checklist-hygiene-indicator df2-checklist-bulk-check"
+                  aria-label={supplementComplete ? "Vrátit užité suplementy jako neužité" : "Označit všechny dnešní suplementy jako užité"}
+                  aria-pressed={supplementComplete}
+                  disabled={!supplements.hydrated || supplements.blocked || (supplementComplete && supplementTakenCount === 0)}
+                  onClick={toggleSupplements}>
+                  <span className="df2-checkmark" aria-hidden="true">{supplementComplete?"✓":""}</span>
+                </button>
                 <button type="button" className="df2-checklist-copy df2-checklist-hygiene-copy"
                   aria-label="Otevřít suplementy ve Zdraví" onClick={onOpenSupplements}>
                   <strong>Suplementy</strong>
@@ -632,9 +692,9 @@ export function DailyChecklist({
           </div>
         )}
         {allDone && <div className="df2-checklist-complete-note" aria-live="polite">✓ Dnešní checklist hotový</div>}
-        {(storageBlocked || storageError || hygieneBlocked || gym.blocked || supplements.blocked || body.blocked || sleep.blocked || prevention.blocked) && (
+        {(storageBlocked || storageError || bulkError || hygieneBlocked || gym.blocked || supplements.blocked || body.blocked || sleep.blocked || prevention.blocked) && (
           <p className="df2-checklist-error">
-            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : supplements.blocked ? "Data suplementů nelze bezpečně načíst." : body.blocked ? "Data měření nelze bezpečně načíst." : sleep.blocked ? "Data spánku nelze bezpečně načíst." : prevention.blocked ? "Data prevence nelze bezpečně načíst." : storageError}
+            {storageBlocked ? STORAGE_READ_ERROR : hygieneBlocked ? "Hygienické rutiny nelze bezpečně načíst." : gym.blocked ? "Tréninková data nelze bezpečně načíst." : supplements.blocked ? "Data suplementů nelze bezpečně načíst." : body.blocked ? "Data měření nelze bezpečně načíst." : sleep.blocked ? "Data spánku nelze bezpečně načíst." : prevention.blocked ? "Data prevence nelze bezpečně načíst." : bulkError || storageError}
           </p>
         )}
       </section>
