@@ -35,7 +35,7 @@ test("morning routine syncs with the Daily checklist and survives reload", async
   await openSidebar(page, "Dnes");
   await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("Hotovo");
 
-  await checklist.locator('[data-hygiene-checklist-routine="morning"]').getByRole("button").click();
+  await checklist.locator('[data-hygiene-checklist-routine="morning"]').getByRole("button", { name: "Otevřít Ranní rutina v Hygieně" }).click();
   await morning.getByRole("button", { name: "Vrátit Vyčistit zuby jako nesplněné" }).click();
   await openSidebar(page, "Dnes");
   await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("5/6");
