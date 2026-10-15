@@ -66,6 +66,100 @@ async function dragCare(page, sourceDay, targetDay, id, time) {
   }, { targetDay, time });
 }
 
+test("Care modal edits just one day and protects occupied slots", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  const friday = page.locator(".df2-week-day").nth(4);
+  await friday.locator('[data-week-care="morning"]').click();
+  const dialog = page.getByRole("dialog", { name: "Ranní hygiena" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Začátek bloku").fill("18:00");
+  await dialog.getByRole("button", { name: "Uložit čas" }).click();
+  await expect(friday.locator('[data-week-care="morning"]')).toHaveAttribute("aria-label","Ranní hygiena, 18:00–18:20");
+  await expect(page.locator(".df2-week-day").nth(5).locator('[data-week-care="morning"]')).toHaveAttribute("aria-label", "Ranní hygiena, 09:00–09:20");
+  await friday.locator('[data-week-care="morning"]').click();
+  await dialog.getByLabel("Začátek bloku").fill("10:00");
+  await dialog.getByRole("button", { name: "Uložit čas" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("zabírá jiný blok");
+  await expect(friday.locator('[data-week-care="morning"]')).toHaveAttribute("aria-label","Ranní hygiena, 18:00–18:20");
+  await dialog.getByRole("button", { name: "Zavřít" }).click();
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), CARE_KEY);
+  expect(saved.times["2026-10-16"].morning).toBe("18:00");
+});
+
+test("One-day cancel hides only the calendar reservation, persists and can be restored", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  const thursday = page.locator(".df2-week-day").nth(3);
+  const friday = page.locator(".df2-week-day").nth(4);
+  await friday.locator('[data-week-care="morning"]').click();
+  const dialog = page.getByRole("dialog", { name: "Ranní hygiena" });
+  await dialog.getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(friday.locator('[data-week-care="morning"]')).toHaveCount(0);
+  await expect(thursday.locator('[data-week-care="morning"]')).toHaveCount(1);
+  await expect(friday.locator('[data-week-care="evening"]')).toHaveCount(1);
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(1);
+  const hygiene = await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(hygiene.routines.find(r=>r.id==="morning").active).toBe(true);
+  expect(hygiene.records["2026-10-12"].morning).toBeTruthy();
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  const restore = page.getByRole("button",{name:"Obnovit Ranní hygiena v rozvrhu 2026-10-16"});
+  await expect(restore).toBeVisible();
+  await restore.click();
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]')).toBeVisible();
+  expect((await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).hidden,CARE_KEY))?.["2026-10-16"]).toBeUndefined();
+});
+
+test("Restoring a hidden day checks collisions and refuses to overlap another care block", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  const friday = page.locator(".df2-week-day").nth(4);
+  await friday.locator('[data-week-care="morning"]').click();
+  await page.getByRole("dialog", { name: "Ranní hygiena" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await friday.locator('[data-week-care="evening"]').click();
+  const evening = page.getByRole("dialog", { name: "Večerní hygiena" });
+  await evening.getByLabel("Začátek bloku").fill("09:00");
+  await evening.getByRole("button", { name: "Uložit čas" }).click();
+  await expect(friday.locator('[data-week-care="evening"]')).toHaveAttribute("aria-label","Večerní hygiena, 09:00–09:20");
+  await friday.getByRole("button", { name: "Obnovit Ranní hygiena v rozvrhu 2026-10-16" }).click();
+  await expect(friday.locator('[data-week-care="morning"]')).toHaveCount(0);
+  await expect(page.locator(".df2-notice")).toContainText("obsazený");
+  const saved = await page.evaluate(key=>JSON.parse(localStorage.getItem(key)), CARE_KEY);
+  expect(saved.hidden["2026-10-16"]).toContain("morning");
+  expect(saved.times["2026-10-16"].evening).toBe("09:00");
+});
+
+test("Sunday blocks can be cancelled just once; legacy saved times survive suppression", async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(key => localStorage.setItem(key,JSON.stringify({version:1,times:{"2026-10-18":{"hygiene-day":"18:00"}}})),CARE_KEY);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  const sunday=page.locator(".df2-week-day").nth(6);
+  await sunday.locator('[data-week-care="hygiene-day"]').click();
+  await page.getByRole("dialog", {name:"Nedělní hygiena"}).getByRole("button",{name:"Odebrat jen tento den"}).click();
+  await expect(sunday.locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+  await expect(sunday.locator('[data-week-care="cleaning-sunday"]')).toHaveCount(1);
+  await sunday.getByRole("button", {name:"Obnovit Nedělní hygiena v rozvrhu 2026-10-18"}).click();
+  await expect(sunday.locator('[data-week-care="hygiene-day"]')).toContainText("18:00–18:30");
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(saved.times["2026-10-18"]["hygiene-day"]).toBe("18:00");
+});
+
+test("Invalid hidden placement remains read-only, without deleting saved Hygiene data", async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(key => localStorage.setItem(key,JSON.stringify({version:1,times:{},hidden:{"2026-10-13":["cleaning-sunday"]}})),CARE_KEY);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  const block=page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]');
+  await expect(block).toBeVisible();
+  await expect(block).toHaveAttribute("draggable","false");
+  await block.click();
+  await expect(page.getByRole("dialog", {name:"Ranní hygiena"}).getByRole("button",{name:"Odebrat jen tento den"})).toBeDisabled();
+  expect(await page.evaluate(key=>localStorage.getItem(key),CARE_KEY)).toContain('"cleaning-sunday"');
+});
+
 test("Morning and Evening Hygiene appear every day for 20 minutes without duplicating tasks", async ({ page }) => {
   await fresh(page);
   const days = await week(page);
@@ -99,6 +193,7 @@ test("Daily care tile opens its Hygiene routine and mirrors authoritative comple
   });
   await expect(morning).toHaveClass(/done/);
   await morning.click();
+  await page.getByRole("dialog", { name: "Ranní hygiena" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
   await expect(page.getByRole("tab", { name: "Dnes", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-hygiene-routine="morning"]')).toContainText("Hotovo");
 });
@@ -187,11 +282,13 @@ test("clicking each Sunday reservation opens the original Hygiene or Cleaning ro
   await fresh(page);
   await week(page);
   await page.locator('[data-week-care="cleaning-sunday"]').click();
+  await page.getByRole("dialog", { name: "Nedělní úklid" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
   await expect(page.getByRole("tab", { name: "Úklid" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-cleaning-routine="cleaning-sunday"]')).toBeVisible();
 
   await week(page);
   await page.locator('[data-week-care="hygiene-day"]').click();
+  await page.getByRole("dialog", { name: "Nedělní hygiena" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
   await expect(page.getByRole("tab", { name: "Správa rutin" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#hygiene-routine-hygiene-day")).toBeVisible();
 });
