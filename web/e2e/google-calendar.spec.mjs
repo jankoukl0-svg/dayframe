@@ -61,6 +61,8 @@ async function installGoogleMock(page) {
 }
 
 test("Google Calendar connects read-only and renders events in month and week views", async ({ page }) => {
+  const today = localDateKey();
+  await page.clock.setFixedTime(new Date(`${today}T12:00:00`));
   await installGoogleMock(page);
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.evaluate(() => {
@@ -75,7 +77,6 @@ test("Google Calendar connects read-only and renders events in month and week vi
   await connect.click();
   await expect(page.getByRole("button", { name: "Google připojen" })).toBeVisible();
 
-  const today = localDateKey();
   const todayCell = page.locator(`.df2-month-day[data-date="${today}"]`);
   const monthTimedEvent = todayCell.locator(".df2-google-calendar-month-event").filter({ hasText: "Google schůzka" });
   await expect(monthTimedEvent).toContainText("09:15–10:00");

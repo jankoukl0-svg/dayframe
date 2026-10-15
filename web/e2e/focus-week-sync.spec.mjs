@@ -7,6 +7,7 @@ function toTime(value) {
 }
 
 test("focus +15 immediately extends the same block in week view", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });

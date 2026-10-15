@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("week stays usable through 02:00 and ordinary tasks can move to 01:30", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());

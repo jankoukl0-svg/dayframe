@@ -81,6 +81,7 @@ async function clickLiveCompletionChoice(page, matcher) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
