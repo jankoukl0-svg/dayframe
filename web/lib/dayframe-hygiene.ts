@@ -395,7 +395,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         typeof routine.id !== "string"
         || !routine.id
         || routineIds.has(routine.id)
-        || (routine.startsOn !== undefined && (typeof routine.startsOn !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(routine.startsOn)))
+        || (routine.startsOn !== undefined && (typeof routine.startsOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(routine.startsOn)))
         || typeof routine.title !== "string"
         || !routine.title.trim()
         || typeof routine.active !== "boolean"
