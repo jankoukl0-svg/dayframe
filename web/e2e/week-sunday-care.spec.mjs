@@ -173,6 +173,7 @@ test("Daily care tile opens its Hygiene routine and mirrors authoritative comple
   });
   await expect(morning).toHaveClass(/done/);
   await morning.click();
+  await page.getByRole("dialog", { name: "Ranní hygiena" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
   await expect(page.getByRole("tab", { name: "Dnes", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-hygiene-routine="morning"]')).toContainText("Hotovo");
 });
@@ -261,11 +262,13 @@ test("clicking each Sunday reservation opens the original Hygiene or Cleaning ro
   await fresh(page);
   await week(page);
   await page.locator('[data-week-care="cleaning-sunday"]').click();
+  await page.getByRole("dialog", { name: "Nedělní úklid" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
   await expect(page.getByRole("tab", { name: "Úklid" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-cleaning-routine="cleaning-sunday"]')).toBeVisible();
 
   await week(page);
   await page.locator('[data-week-care="hygiene-day"]').click();
+  await page.getByRole("dialog", { name: "Nedělní hygiena" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
   await expect(page.getByRole("tab", { name: "Správa rutin" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#hygiene-routine-hygiene-day")).toBeVisible();
 });
