@@ -74,7 +74,7 @@ test("dropping into an occupied day finds another free slot instead of losing th
   await expect(targetDay.locator(".df2-week-task").filter({ hasText: "Dlouhý blok v cíli" })).toBeVisible();
 
   await page.evaluate(() => {
-    const source = document.querySelector(".df2-week-day.today .df2-week-task");
+    const source = document.querySelector(".df2-week-day.today .df2-week-task:not([data-week-care]):not([data-week-gym])");
     if (!(source instanceof HTMLElement)) throw new Error("Source task not found");
     const rect = source.getBoundingClientRect();
     const transfer = new DataTransfer();

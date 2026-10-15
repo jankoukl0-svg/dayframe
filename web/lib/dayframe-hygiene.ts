@@ -934,7 +934,7 @@ function taskSnapshot(task: HygieneTaskDefinition, schedule: HygieneSchedule): H
   };
 }
 
-function routineHasScheduledWorkOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
+export function routineHasScheduledWorkOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, dateKey: string) {
   if (!routine.active || (routine.startsOn && dateKey < routine.startsOn) || routineSuppressedOnDate(store, routine.id, dateKey)) return false;
   const parentScheduled = routineScheduledOnDate(store, routine, dateKey);
   return routine.tasks.some((item) => taskDueOnDate(store, routine, item, dateKey, parentScheduled));

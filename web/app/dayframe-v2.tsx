@@ -42,7 +42,7 @@ import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
-import { sundayCareBlocks, type SundayCareId } from "@/lib/dayframe-week-care";
+import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
@@ -472,7 +472,7 @@ export function DayframeV2() {
 
   function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
     if(dragging?.kind==="gym"&&date<todayKey)return null;
-    // Sunday care blocks are reservations for that Sunday, not movable checklist dates.
+    // Linked hygiene reservations keep their authoritative routine date; only their clock time moves.
     if(dragging?.kind==="care"&&(date!==dragging.date||date<todayKey))return null;
     const min = calendarBounds.dayStart;
     const max = calendarBounds.dayEnd - duration;
@@ -485,7 +485,7 @@ export function DayframeV2() {
         .filter(time=>time.start!==null)
         .map(time=>({start:timeToMinutes(time.start??undefined),end:timeToMinutes(time.start??undefined)+time.duration}))
       : [];
-    const otherCare=sundayCareBlocks(care.store,date,todayKey,care.times)
+    const otherCare=weekCareBlocks(care.store,date,todayKey,care.times)
       .filter(item=>dragging?.kind!=="care"||item.id!==dragging.id)
       .map(item=>({start:timeToMinutes(item.start),end:timeToMinutes(item.start)+item.duration}));
     const offsets = [0, -15, 15, -30, 30, -45, 45, -60, 60];
@@ -546,8 +546,8 @@ export function DayframeV2() {
     setDragging(null);
     setDropPreview(null);
     if(selection.kind==="care"){
-      if(!care.move(date,selection.id as SundayCareId,preview.start)){
-        setNotice("Čas nedělní rutiny se nepodařilo uložit. Data nebyla změněna.");
+      if(!care.move(date,selection.id as WeekCareId,preview.start)){
+        setNotice("Čas hygienické rutiny se nepodařilo uložit. Data nebyla změněna.");
       }
       return;
     }
@@ -699,7 +699,7 @@ export function DayframeV2() {
                     const unscheduled = tasks.filter((task) => !task.start);
                     const scheduled = tasks.filter((task) => task.start && task.end);
                     const timedCare=care.hydrated
-                      ? sundayCareBlocks(care.store,key,todayKey,care.times) : [];
+                      ? weekCareBlocks(care.store,key,todayKey,care.times) : [];
                     const timedGym=assignmentsOnDate(gym.store,key)
                       .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
                       .filter(item=>item.time.start!==null);
@@ -782,7 +782,7 @@ export function DayframeV2() {
                               && care.hydrated&&!care.blocked;
                             return (
                               <button key={item.id} type="button" data-week-care={item.id}
-                                className={"df2-week-task df2-week-care"+(item.completed?" done":"")}
+                                className={"df2-week-task df2-week-care"+(item.duration===20?" is-short":"")+(item.completed?" done":"")}
                                 style={{
                                   top:((startMinute-calendarBounds.dayStart)*MINUTE_HEIGHT)+"px",
                                   height:(item.duration*MINUTE_HEIGHT)+"px",
@@ -804,7 +804,7 @@ export function DayframeV2() {
                                 title={item.start+"–"+end+" · "+item.title+" · Kliknutím otevřeš rutinu"}
                                 aria-label={item.title+", "+item.start+"–"+end}
                               >
-                                <span>{item.start}–{end}</span>
+                                {item.duration === 30 && <span>{item.start}–{end}</span>}
                                 <strong>{item.title}</strong>
                               </button>
                             );
