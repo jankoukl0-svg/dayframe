@@ -107,7 +107,7 @@ test("weekly chores stay fixed, not-needed and skipped remain distinct, old stor
   expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-beard"]).toBe("omitted");
   expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-eyebrows"]).toBe("skipped");
   expect(data.records["2026-10-11"]["hygiene-day"].completedOn?.["weekly-beard"]).toBeUndefined();
-  expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-bed"]).toBeUndefined();
+  expect(data.records["2026-10-11"]["cleaning-sunday"].states["weekly-bed"]).toBeUndefined();
   await page.reload({ waitUntil: "networkidle" });
   await hygiene(page);
   await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toContainText("Přeskočeno");
