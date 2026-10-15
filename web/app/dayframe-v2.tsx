@@ -473,6 +473,37 @@ export function DayframeV2() {
     setEditing(null);
   }
 
+  function careSlotOpen(date: string, id: WeekCareId, start: string, duration: number): boolean {
+    const minute = timeToMinutes(start);
+    const tasks = getTasksForDate(data, date);
+    const otherCare = weekCareBlocks(care.store, date, todayKey, care.times, care.hidden)
+      .filter(item => item.id !== id)
+      .map(item => ({ start: timeToMinutes(item.start), end: timeToMinutes(item.start) + item.duration }));
+    const otherGym = assignmentsOnDate(gym.store, date)
+      .map(item => gymOccurrenceTime(gym.store, item))
+      .filter(item => item.start !== null)
+      .map(item => ({ start: timeToMinutes(item.start ?? undefined), end: timeToMinutes(item.start ?? undefined) + item.duration }));
+    return canPlaceAt(tasks, minute, duration)
+      && ![...otherCare, ...otherGym].some(item => minute < item.end && minute + duration > item.start);
+  }
+
+  function restoreCareForDate(date: string, id: WeekCareId) {
+    if (care.blocked || date < todayKey) return;
+    // Restore only if the authoritative Hygiene routine still has scheduled work.
+    const restored = weekCareBlocks(care.store, date, todayKey, care.times, {
+      ...care.hidden, [date]: (care.hidden[date] ?? []).filter(item => item !== id),
+    }).find(item => item.id === id);
+    if (!restored) {
+      setNotice("Rutina už není v tomto dni plánovaná.");
+      return;
+    }
+    if (!careSlotOpen(date, id, restored.start, restored.duration)) {
+      setNotice("Původní čas hygieny je obsazený. Nejprve uvolni místo, pak blok obnov.");
+      return;
+    }
+    if (!care.setHiddenForDay(date, id, false)) setNotice("Nepodařilo se obnovit blok hygieny.");
+  }
+
   function saveEditedCare(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingCare || care.blocked || !care.hydrated || editingCare.date < todayKey) return;
@@ -488,16 +519,7 @@ export function DayframeV2() {
       setEditingCareError("Vyber budoucí čas v rámci dne po 15 minutách.");
       return;
     }
-    const tasks = getTasksForDate(data, date);
-    const otherCare = weekCareBlocks(care.store, date, todayKey, care.times, care.hidden)
-      .filter(item => item.id !== id)
-      .map(item => ({ start: timeToMinutes(item.start), end: timeToMinutes(item.start) + item.duration }));
-    const otherGym = assignmentsOnDate(gym.store, date)
-      .map(item => gymOccurrenceTime(gym.store, item))
-      .filter(item => item.start !== null)
-      .map(item => ({ start: timeToMinutes(item.start ?? undefined), end: timeToMinutes(item.start ?? undefined) + item.duration }));
-    if (!canPlaceAt(tasks, minute, duration)
-      || [...otherCare, ...otherGym].some(item => minute < item.end && minute + duration > item.start)) {
+    if (!careSlotOpen(date, id, start, duration)) {
       setEditingCareError("Tento čas už zabírá jiný blok. Vyber jiné místo.");
       return;
     }
@@ -773,7 +795,7 @@ export function DayframeV2() {
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
                           {key >= todayKey && !care.blocked && (care.hidden[key] ?? []).map(id => (
                             <button type="button" key={"restore-"+id} className="df2-week-care-restore"
-                              onClick={() => { if (!care.setHiddenForDay(key,id,false)) setNotice("Nepodařilo se obnovit blok hygieny."); }}
+                              onClick={() => restoreCareForDate(key, id)}
                               aria-label={"Obnovit "+weekCareTitle(id)+" v rozvrhu "+key}>
                               ↺ {weekCareTitle(id)} <small>obnovit</small>
                             </button>
