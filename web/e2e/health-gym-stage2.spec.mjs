@@ -301,7 +301,7 @@ test("the hidden exercise catalog remains searchable and grouped in the plan pic
   await picker.getByRole("searchbox",{name:"Hledat cvik"}).fill("pec deck");
   await picker.locator('[data-gym-picker-exercise="pec-deck"]').click();
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
-  expect(saved.exercises).toHaveLength(72);
+  expect(saved.exercises).toHaveLength(83);
   expect(saved.plans[0].days[0].exercises.some(ex=>ex.exerciseId==="pec-deck")).toBe(true);
 });
 
@@ -338,7 +338,7 @@ test("existing saved plans and user exercises gain new standard exercises withou
   await add.getByRole("searchbox",{name:"Hledat cvik"}).fill("pec deck");
   await add.locator('[data-gym-picker-exercise="pec-deck"]').click();
   const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
-  expect(persisted.exercises).toHaveLength(73);
+  expect(persisted.exercises).toHaveLength(84);
   expect(persisted.plans).toHaveLength(1);
   expect(persisted.plans[0].days[0].exercises.some(e=>e.exerciseId==="pec-deck")).toBe(true);
   expect(persisted.plans[0].id).toBe(original.plans[0].id);
@@ -348,7 +348,7 @@ test("existing saved plans and user exercises gain new standard exercises withou
   const loaded=await gym(page);
   await expect(loaded.getByRole("button",{name:"Cviky",exact:true})).toHaveCount(0);
   const reloadedStore=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
-  expect(reloadedStore.exercises).toHaveLength(73);
+  expect(reloadedStore.exercises).toHaveLength(84);
   expect(reloadedStore.exercises.find(ex=>ex.id==="user-test-cable")?.name).toBe("Můj vlastní tah");
 });
 
@@ -832,4 +832,30 @@ test("past Gym workouts are read-only and future Gym cannot be dropped into an e
   await expect(thursday.locator("[data-week-gym]")).toHaveCount(1);
   const after=await page.evaluate(()=>JSON.stringify(JSON.parse(localStorage.getItem("dayframe-gym-v1")).moves));
   expect(after).toBe(original);
+});
+
+test("forearm and grip exercises are searchable from Pull, can be saved into a plan, and survive reload",async({page})=>{
+  await fresh(page);
+  const root=await gym(page);
+  await root.getByRole("button",{name:"Použít split Push / Pull / Lower →"}).click();
+  await root.getByRole("button",{name:"Plány",exact:true}).click();
+  const pull=root.locator(".df2-gym-day-edit").nth(1);
+  await pull.getByRole("button",{name:"Přidat cvik do Pull"}).click();
+  const picker=pull.getByRole("region",{name:"Výběr cviku – Přidat cvik do Pull"});
+  await expect(picker.getByRole("button",{name:"Pull",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(picker.locator('[data-gym-picker-exercise="wrist-curl-dumbbell"]')).toBeVisible();
+  await picker.getByRole("searchbox",{name:"Hledat cvik"}).fill("farmarska chuze");
+  await expect(picker.locator('[data-gym-picker-exercise="farmer-carry"]')).toBeVisible();
+  await picker.getByRole("searchbox",{name:"Hledat cvik"}).fill("reverse wrist curl");
+  await picker.locator('[data-gym-picker-exercise="reverse-wrist-curl-dumbbell"]').click();
+
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  const added=saved.plans[0].days[1].exercises;
+  expect(added.some(ex=>ex.exerciseId==="reverse-wrist-curl-dumbbell")).toBe(true);
+  expect(saved.exercises).toHaveLength(83);
+  await page.reload({waitUntil:"networkidle"});
+  const restored=await gym(page);
+  await restored.getByRole("button",{name:"Plány",exact:true}).click();
+  const stored=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(stored.plans[0].days[1].exercises.filter(ex=>ex.exerciseId==="reverse-wrist-curl-dumbbell")).toHaveLength(1);
 });
