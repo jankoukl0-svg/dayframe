@@ -89,6 +89,8 @@ export type HygieneTaskSnapshot = {
   allowSkip: boolean;
   products?: HygieneProductSnapshot[];
   originDate?: string;
+  /** The occurrence's scheduling type, preserved when the live routine is edited later. */
+  scheduleType?: HygieneSchedule["type"];
 };
 
 export type HygieneRoutineRecord = {
@@ -464,6 +466,15 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       });
     }
 
+    // Legacy records have no scheduleType; capture the current definition once on upgrade,
+    // before a later schedule edit can change the meaning of a historical occurrence.
+    const scheduleTypes = new Map<string, HygieneSchedule["type"]>();
+    for (const routine of routines) for (const task of routine.tasks) {
+      scheduleTypes.set(routine.id + "|" + task.id, (task.schedule ?? routine.schedule).type);
+    }
+    const validScheduleTypes = new Set<HygieneSchedule["type"]>([
+      "daily", "days", "weekly", "interval", "rolling", "monthly", "nth-weekday", "manual",
+    ]);
     const records: HygieneStore["records"] = {};
     for (const [date, dateRecords] of Object.entries(candidate.records)) {
       if (!dateRecords || typeof dateRecords !== "object" || Array.isArray(dateRecords)) {
@@ -504,6 +515,9 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
           if (snapshot.originDate !== undefined && (
             typeof snapshot.originDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(snapshot.originDate)
           )) return { store: createDefaultHygieneStore(today), blocked: true };
+          if (snapshot.scheduleType !== undefined && !validScheduleTypes.has(snapshot.scheduleType)) {
+            return { store: createDefaultHygieneStore(today), blocked: true };
+          }
           if (snapshot.products !== undefined && (
             !Array.isArray(snapshot.products)
             || snapshot.products.some((product) => !product || typeof product !== "object"
@@ -530,6 +544,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
             })) ?? [],
             id: snapshot.id,
             originDate: snapshot.originDate,
+            scheduleType: snapshot.scheduleType ?? scheduleTypes.get(routineId + "|" + snapshot.id),
             title: snapshot.title,
             section: snapshot.section,
             optional: snapshot.optional,
@@ -732,9 +747,15 @@ export function overdueHygieneTasks(store: HygieneStore, today: string) {
       for (const snapshot of record.scheduledTasks) {
         const task = routine.tasks.find((item) => item.id === snapshot.id && item.active);
         if (!task || record.states[snapshot.id]) continue;
-        const schedule = task.schedule ?? routine.schedule;
+        const scheduleType = snapshot.scheduleType ?? (task.schedule ?? routine.schedule).type;
         // Daily routines are separate expected occurrences; don't flood the backlog with them.
-        if (schedule.type === "daily") continue;
+        if (scheduleType === "daily") continue;
+        // Hygiene Day's calendar-based tasks belong to their scheduled dates only.
+        // An unfinished Sunday stays in history instead of becoming a weekday to-do
+        // (or a duplicate of the following Sunday's newly scheduled occurrence).
+        // Explicit one-off postponements and rolling/manual schedules remain actionable.
+        if (routine.id === "hygiene-day" && !snapshot.originDate
+          && ["weekly", "nth-weekday", "monthly", "days", "interval"].includes(scheduleType)) continue;
         if (!pending.has(task.id)) pending.set(task.id, {
           date, routineId, taskId: task.id, title: snapshot.title, routineTitle: record.routineTitle,
         });
@@ -785,12 +806,13 @@ export function productSnapshotsForTask(store: HygieneStore, task: HygieneTaskDe
     }));
 }
 
-function taskSnapshot(task: HygieneTaskDefinition): HygieneTaskSnapshot {
+function taskSnapshot(task: HygieneTaskDefinition, schedule: HygieneSchedule): HygieneTaskSnapshot {
   return {
     // Avoid duplicating products/instructions for every scheduled or missed day.
     // Capture the actual products only when the task is marked done.
     id: task.id,
     title: task.title,
+    scheduleType: schedule.type,
     section: task.section,
     optional: task.optional,
     allowSkip: task.allowSkip,
@@ -814,7 +836,7 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
     const scheduledTasks = routine.tasks
       .filter((item) => taskDueOnDate(store, routine, item, dateKey, parentScheduled))
       .map((item) => ({
-        ...taskSnapshot(item),
+        ...taskSnapshot(item, item.schedule ?? routine.schedule),
         originDate: rescheduleOrigin(store, routine.id, item.id, dateKey),
       }));
     if (!scheduledTasks.length) continue;
