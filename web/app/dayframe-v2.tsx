@@ -41,6 +41,8 @@ import { DailyChecklist } from "./daily-checklist";
 import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
+import { useWeekCare } from "./use-week-care";
+import { sundayCareBlocks, type SundayCareId } from "@/lib/dayframe-week-care";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
@@ -67,7 +69,7 @@ type Draft = {
 };
 
 type DragState = {
-  kind: "task" | "gym";
+  kind: "task" | "gym" | "care";
   id: string;
   date: string;
   duration: number;
@@ -164,6 +166,7 @@ export function DayframeV2() {
   const [sleepFocusDate,setSleepFocusDate]=useState<string|null>(null);
   const [preventionFocusId,setPreventionFocusId]=useState<string|null>(null);
   const gym = useGymStore();
+  const care = useWeekCare(todayKey);
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
   const completionToastTimers = useRef<Map<string, number>>(new Map());
@@ -469,6 +472,8 @@ export function DayframeV2() {
 
   function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
     if(dragging?.kind==="gym"&&date<todayKey)return null;
+    // Sunday care blocks are reservations for that Sunday, not movable checklist dates.
+    if(dragging?.kind==="care"&&(date!==dragging.date||date<todayKey))return null;
     const min = calendarBounds.dayStart;
     const max = calendarBounds.dayEnd - duration;
     const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
@@ -480,13 +485,18 @@ export function DayframeV2() {
         .filter(time=>time.start!==null)
         .map(time=>({start:timeToMinutes(time.start??undefined),end:timeToMinutes(time.start??undefined)+time.duration}))
       : [];
+    const otherCare=sundayCareBlocks(care.store,date,todayKey,care.times)
+      .filter(item=>dragging?.kind!=="care"||item.id!==dragging.id)
+      .map(item=>({start:timeToMinutes(item.start),end:timeToMinutes(item.start)+item.duration}));
     const offsets = [0, -15, 15, -30, 30, -45, 45, -60, 60];
     for (const offset of offsets) {
       if (Math.abs(offset) > DROP_MAGNET_RANGE) continue;
       const candidate = rounded + offset;
       if (candidate < min || candidate > max) continue;
+      if (dragging?.kind==="care"&&date===todayKey&&candidate<=planningMinute(now))continue;
       if (canPlaceAt(destination, candidate, duration)
-        && !otherGym.some(block=>candidate<block.end && candidate+duration>block.start))return candidate;
+        && !otherGym.some(block=>candidate<block.end && candidate+duration>block.start)
+        && !otherCare.some(block=>candidate<block.end && candidate+duration>block.start))return candidate;
     }
     return null;
   }
@@ -535,6 +545,12 @@ export function DayframeV2() {
     const selection=dragging;
     setDragging(null);
     setDropPreview(null);
+    if(selection.kind==="care"){
+      if(!care.move(date,selection.id as SundayCareId,preview.start)){
+        setNotice("Čas nedělní rutiny se nepodařilo uložit. Data nebyla změněna.");
+      }
+      return;
+    }
     if(selection.kind==="gym"){
       let didChange=false;
       const saved=gym.persist(current=>{
@@ -682,10 +698,15 @@ export function DayframeV2() {
                     const tasks = getTasksForDate(data, key);
                     const unscheduled = tasks.filter((task) => !task.start);
                     const scheduled = tasks.filter((task) => task.start && task.end);
+                    const timedCare=care.hydrated&&!care.blocked
+                      ? sundayCareBlocks(care.store,key,todayKey,care.times) : [];
                     const timedGym=assignmentsOnDate(gym.store,key)
                       .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
                       .filter(item=>item.time.start!==null);
                     const lanePositions=placeWeekGymCollisions([
+                      ...timedCare.map(item=>({
+                        id:"care:"+item.id,start:timeToMinutes(item.start),
+                        end:timeToMinutes(item.start)+item.duration,gym:true})),
                       ...timedGym.map(({occ,time})=>({
                         id:"gym:"+occ.key,start:timeToMinutes(time.start??undefined),
                         end:timeToMinutes(time.start??undefined)+time.duration,gym:true})),
@@ -752,6 +773,41 @@ export function DayframeV2() {
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>;
+                          })}
+                          {timedCare.map(item=>{
+                            const startMinute=timeToMinutes(item.start);
+                            const end=minutesToTime(startMinute+item.duration);
+                            const draggable=key>=todayKey
+                              && (key!==todayKey||startMinute>planningMinute(now))
+                              && care.hydrated&&!care.blocked;
+                            return (
+                              <button key={item.id} type="button" data-week-care={item.id}
+                                className={"df2-week-task df2-week-care"+(item.completed?" done":"")}
+                                style={{
+                                  top:((startMinute-calendarBounds.dayStart)*MINUTE_HEIGHT)+"px",
+                                  height:(item.duration*MINUTE_HEIGHT)+"px",
+                                  ...(lanePositions["care:"+item.id]??{}),
+                                }}
+                                draggable={draggable}
+                                onDragStart={event=>{
+                                  if(!draggable){event.preventDefault();return;}
+                                  const rect=event.currentTarget.getBoundingClientRect();
+                                  const grabbed=Math.max(0,Math.min(rect.height,event.clientY-rect.top));
+                                  const offset=Math.max(0,Math.min(item.duration,grabbed/MINUTE_HEIGHT));
+                                  event.dataTransfer.effectAllowed="move";
+                                  event.dataTransfer.setData("text/plain",item.id);
+                                  setDragging({kind:"care",id:item.id,date:key,duration:item.duration,grabOffsetMinutes:offset});
+                                  setDropPreview({date:key,start:item.start,duration:item.duration,valid:true});
+                                }}
+                                onDragEnd={()=>{setDragging(null);setDropPreview(null);}}
+                                onClick={()=>{setHygieneRoutineFocus(item.id);setView("hygiene");}}
+                                title={item.start+"–"+end+" · "+item.title+" · Kliknutím otevřeš rutinu"}
+                                aria-label={item.title+", "+item.start+"–"+end}
+                              >
+                                <span>{item.start}–{end}</span>
+                                <strong>{item.title}</strong>
+                              </button>
+                            );
                           })}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
