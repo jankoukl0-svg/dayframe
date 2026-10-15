@@ -19,6 +19,7 @@ import {
   postponeHygieneTask,
   refreshHygieneToday,
   routineScheduledOnDate,
+  routineDomain,
   routineStats,
   saveHygieneStore,
   scheduleLabel,
@@ -32,7 +33,7 @@ import {
   type HygieneTaskDefinition,
 } from "@/lib/dayframe-hygiene";
 
-type HygieneTab = "today" | "history" | "manage" | "products";
+type HygieneTab = "today" | "cleaning" | "history" | "manage" | "products";
 
 const WEEKDAYS = [
   { value: 1, label: "Po" },
@@ -329,7 +330,7 @@ export function HygienePage({
 
   useEffect(() => {
     if (!focusRoutineId || !hydrated) return;
-    setTab("today");
+    setTab(focusRoutineId.startsWith("cleaning-") ? "cleaning" : "today");
     const timer = window.setTimeout(() => {
       document.getElementById("hygiene-routine-" + focusRoutineId)?.scrollIntoView({ block: "center", behavior: "smooth" });
       onFocusHandled?.();
@@ -353,6 +354,8 @@ export function HygienePage({
   };
 
   const hygieneStore = useMemo(() => careDomainStore(store, "hygiene"), [store]);
+  const cleaningStore = useMemo(() => careDomainStore(store, "cleaning"), [store]);
+  const cleaningSummaries = useMemo(() => scheduledRoutineSummaries(cleaningStore, planningKey, planningKey), [cleaningStore, planningKey]);
   const summaries = useMemo(() => scheduledRoutineSummaries(hygieneStore, planningKey, planningKey), [hygieneStore, planningKey]);
   const overall = useMemo(() => overallHygieneProgress(summaries), [summaries]);
   const historicalRoutines = useMemo(() => historyRoutines(hygieneStore), [hygieneStore]);
@@ -577,6 +580,7 @@ export function HygienePage({
 
       <div className="df2-hygiene-tabs" role="tablist" aria-label="Hygiena">
         <button type="button" role="tab" aria-selected={tab === "today"} onClick={() => setTab("today")}>Dnes</button>
+        <button type="button" role="tab" aria-selected={tab === "cleaning"} onClick={() => setTab("cleaning")}>Úklid</button>
         <button type="button" role="tab" aria-selected={tab === "history"} onClick={() => setTab("history")}>Historie</button>
         <button type="button" role="tab" aria-selected={tab === "manage"} onClick={() => setTab("manage")}>Správa rutin</button>
         <button type="button" role="tab" aria-selected={tab === "products"} onClick={() => { setTab("products"); setFocusProductId(null); }}>Moje produkty</button>
@@ -752,6 +756,73 @@ export function HygienePage({
             </div>
           )}
         </div>
+      )}
+
+      {tab === "cleaning" && (
+        <section className="df2-hygiene-cleaning" aria-label="Úklid">
+          <header className="df2-hygiene-cleaning-intro">
+            <div><span>Pravidelná péče o domácnost</span><h2>Úklid</h2>
+              <p>Rychlý úklid každý den, důkladnější úklid vždy v neděli. Každý úkol si můžeš upravit.</p>
+            </div>
+          </header>
+          {[...cleaningStore.routines].sort((a, b) => a.order - b.order).map(routine => {
+            const summary = cleaningSummaries.find(item => item.routine.id === routine.id);
+            const record = summary?.record;
+            const tasks = record?.scheduledTasks ?? [];
+            const isSunday = routine.schedule.type === "weekly" && routine.schedule.weekday === 0;
+            const scheduled = Boolean(summary);
+            return (
+              <article className="df2-hygiene-cleaning-card" data-cleaning-routine={routine.id} key={routine.id}
+                id={"hygiene-routine-" + routine.id}>
+                <header>
+                  <div>
+                    <span>{isSunday ? "Každou neděli" : scheduleLabel(routine.schedule)}</span>
+                    <h3>{routine.title}</h3>
+                    {!routine.active && <small>Rutina je pozastavená</small>}
+                    {routine.active && !scheduled && <small>{isSunday ? "Zobrazí se k odškrtnutí v neděli" : "Dnes nenaplánováno"}</small>}
+                  </div>
+                  <div className="df2-hygiene-cleaning-head-actions">
+                    {scheduled && <strong>{summary?.handled}/{summary?.total}</strong>}
+                    <button type="button" onClick={() => setRoutineDraft({
+                      ...routine, schedule: cloneSchedule(routine.schedule),
+                      tasks: routine.tasks.map(item => ({ ...item, schedule: item.schedule ? cloneSchedule(item.schedule) : undefined })),
+                    })}>Upravit rutinu</button>
+                  </div>
+                </header>
+                <div className="df2-hygiene-cleaning-items">
+                  {(scheduled ? tasks : routine.tasks.filter(item => item.active)).map(item => {
+                    const state = record?.states[item.id];
+                    return (
+                      <div className={"df2-hygiene-cleaning-item" + (state === "done" ? " is-done" : "")} key={item.id}>
+                        <button type="button" className="df2-hygiene-check"
+                          disabled={!scheduled || blocked || state === "deferred"}
+                          aria-pressed={state === "done"}
+                          aria-label={state === "done" ? "Vrátit " + item.title + " jako nesplněné" : "Označit " + item.title + " jako hotovo"}
+                          onClick={() => updateTask(routine.id, item.id, "done")}>{state === "done" ? "✓" : ""}</button>
+                        <span>{item.title}{item.optional ? <small>Podle potřeby</small> : null}</span>
+                        <button type="button" className="df2-hygiene-cleaning-edit"
+                          aria-label={"Upravit úkol " + item.title}
+                          onClick={() => setTaskDraft({
+                            sourceRoutineId: routine.id, targetRoutineId: routine.id,
+                            task: { ...routine.tasks.find(task => task.id === item.id)!, schedule: routine.tasks.find(task => task.id === item.id)?.schedule ? cloneSchedule(routine.tasks.find(task => task.id === item.id)!.schedule!) : undefined },
+                          })}>Upravit</button>
+                      </div>
+                    );
+                  })}
+                  {!routine.tasks.length && <p>Rutina je prázdná. Přidej první úkol.</p>}
+                </div>
+                <footer>
+                  <button type="button" onClick={() => setTaskDraft({
+                    sourceRoutineId: routine.id, targetRoutineId: routine.id,
+                    task: { id: createTaskId(), title: "", section: "Úklid", active: true, optional: false, allowSkip: false },
+                  })}>+ Přidat úkol</button>
+                  {summary?.status === "complete" && <span>✓ Dnes hotovo</span>}
+                </footer>
+              </article>
+            );
+          })}
+          {!cleaningStore.routines.length && <p>Úklidové rutiny zatím nejsou vytvořené.</p>}
+        </section>
       )}
 
       {tab === "products" && (
@@ -1009,7 +1080,9 @@ export function HygienePage({
             <label>
               Rutina
               <select aria-label="Rutina" value={taskDraft.targetRoutineId} onChange={(event) => setTaskDraft({ ...taskDraft, targetRoutineId: event.target.value })}>
-                {hygieneStore.routines.map((routine) => <option key={routine.id} value={routine.id}>{routine.title}</option>)}
+                {store.routines.filter(routine => routineDomain(routine) ===
+                  routineDomain(store.routines.find(item => item.id === taskDraft.sourceRoutineId) ?? { domain: undefined }))
+                  .map(routine => <option key={routine.id} value={routine.id}>{routine.title}</option>)}
               </select>
             </label>
             <label>
