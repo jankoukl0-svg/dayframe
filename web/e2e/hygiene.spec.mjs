@@ -907,3 +907,22 @@ test("bulk morning check preserves previously skipped individual steps", async (
   await row.getByRole("button", { name: "Vrátit Večerní rutina jako nesplněnou" }).click();
   await expect(row).toContainText("0/5");
 });
+
+
+test("bulk hygiene completion does not undo existing work when one required step is deferred", async ({ page }) => {
+  await openFresh(page, "2026-10-12T12:00:00");
+  await page.evaluate(() => {
+    const store=JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const record=store.records["2026-10-12"].morning;
+    for(const item of record.scheduledTasks) record.states[item.id]="done";
+    record.states[record.scheduledTasks[0].id]="deferred";
+    localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  const row=page.locator('[data-hygiene-checklist-routine="morning"]');
+  await expect(row.getByRole("button", { name: "Označit celou Ranní rutina jako hotovou" })).toBeVisible();
+  await row.getByRole("button", { name: "Označit celou Ranní rutina jako hotovou" }).click();
+  const record=await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")).records["2026-10-12"].morning);
+  expect(Object.values(record.states).filter(value=>value==="done")).toHaveLength(5);
+  expect(Object.values(record.states).filter(value=>value==="deferred")).toHaveLength(1);
+});
