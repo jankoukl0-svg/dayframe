@@ -50,7 +50,6 @@ function longDate(key: string) {
     weekday: "long",
     day: "numeric",
     month: "long",
-    year: "numeric",
   }).format(dateFromKey(key));
 }
 
