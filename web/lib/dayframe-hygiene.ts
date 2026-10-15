@@ -1081,8 +1081,8 @@ export function toggleHygieneRoutineCompletion(store: HygieneStore, dateKey: str
   const record = store.records[dateKey]?.[routineId];
   const routine = store.routines.find(item => item.id === routineId && item.active);
   if (!record || !routine || record.archived || !routineHasScheduledWorkOnDate(store, routine, dateKey)) return store;
-  const required = record.scheduledTasks.filter(task => !task.optional);
-  const complete = required.length === 0 || required.every(task => Boolean(record.states[task.id]));
+  const summary = routineSummary(routine, record, dateKey);
+  const complete = summary.status === "complete" || summary.status === "skipped";
   let next = store;
   for (const task of record.scheduledTasks) {
     const status = record.states[task.id];
