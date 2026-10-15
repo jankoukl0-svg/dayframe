@@ -137,6 +137,9 @@ for (const file of changed) {
   if (lower.includes("hygiene") || lower.includes("health-page.css")) {
     add("hygiene-visual-harmony.spec.mjs");
   }
+  if (lower.includes("hygiene") || lower.includes("week-care") || file === "web/app/dayframe-v2.tsx") {
+    add("week-sunday-care.spec.mjs");
+  }
   if (lower.includes("hygiene")) {
     add("hygiene-cleaning.spec.mjs");
     add("hygiene-care-stage1.spec.mjs");
