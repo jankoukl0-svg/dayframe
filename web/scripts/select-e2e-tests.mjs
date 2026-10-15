@@ -134,6 +134,7 @@ for (const file of changed) {
     add("health-manager-stage1.spec.mjs");
   }
   if (lower.includes("hygiene")) {
+    add("hygiene-cleaning.spec.mjs");
     add("hygiene-care-stage1.spec.mjs");
     add("hygiene-smart-scheduling.spec.mjs");
     add("hygiene-inventory.spec.mjs");
