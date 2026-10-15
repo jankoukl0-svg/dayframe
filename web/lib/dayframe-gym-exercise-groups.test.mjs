@@ -7,9 +7,10 @@ import {defaultGymExerciseFilter,gymExerciseGroup,searchGymExercises,matchesGymE
 test("standard movements are grouped by split and remain alphabetized inside each group",()=>{
   const groups=searchGymExercises(EXERCISE_LIBRARY,"");
   assert.deepEqual(groups.map(g=>g.group),["Push","Pull","Lower","Core"]);
-  assert.equal(groups.reduce((sum,g)=>sum+g.items.length,0),72);
+  assert.equal(groups.reduce((sum,g)=>sum+g.items.length,0),83);
   assert.ok(groups.find(g=>g.group==="Push").items.some(ex=>ex.id==="bench-press"));
   assert.ok(groups.find(g=>g.group==="Pull").items.some(ex=>ex.id==="hammer-curl"));
+  assert.ok(groups.find(g=>g.group==="Pull").items.some(ex=>ex.id==="wrist-curl-dumbbell"));
   assert.ok(groups.find(g=>g.group==="Lower").items.some(ex=>ex.id==="bulgarian-split-squat"));
   assert.ok(groups.find(g=>g.group==="Core").items.some(ex=>ex.id==="plank"));
   for(const g of groups){
@@ -74,4 +75,32 @@ test("pec deck chest and reverse rear-delt deck are distinct existing exercises 
   assert.equal(gymExerciseGroup(EXERCISE_LIBRARY.find(e=>e.id==="face-pull")),"Pull");
   assert.equal(matchesGymExerciseSearch(rear,"zadni ramena"),true);
   assert.equal(gymExerciseGroup({...rear,id:"user-rear",muscle:"Zadní ramena"}),"Pull");
+});
+
+test("forearm and grip exercises are grouped in Pull and searchable in Czech and English",()=>{
+  const ids=(query,group="Vše")=>searchGymExercises(EXERCISE_LIBRARY,query,group)
+    .flatMap(bucket=>bucket.items.map(ex=>ex.id));
+  const forearmIds=[
+    "wrist-curl-dumbbell","reverse-wrist-curl-dumbbell","wrist-curl-barbell",
+    "behind-back-wrist-curl","reverse-ez-curl","zottman-curl",
+    "wrist-roller","farmer-carry","dead-hang","plate-pinch",
+    "forearm-pronation-supination",
+  ];
+  for(const id of forearmIds){
+    const exercise=EXERCISE_LIBRARY.find(ex=>ex.id===id);
+    assert.ok(exercise,id+" must exist in the built-in catalogue");
+    assert.equal(gymExerciseGroup(exercise),"Pull",id+" should be selectable in Pull");
+  }
+  assert.deepEqual(ids("predlokti","Push"),[]);
+  assert.ok(ids("predlokti","Pull").includes("wrist-curl-dumbbell"));
+  assert.ok(ids("uchop","Pull").includes("farmer-carry"));
+  assert.ok(ids("wrist curl","Pull").includes("wrist-curl-dumbbell"));
+  assert.ok(ids("reverse wrist curl","Pull").includes("reverse-wrist-curl-dumbbell"));
+  assert.ok(ids("farmarska chuze","Pull").includes("farmer-carry"));
+  assert.ok(ids("farmers walk","Pull").includes("farmer-carry"));
+  assert.ok(ids("plate pinch","Pull").includes("plate-pinch"));
+  assert.ok(ids("vis na hrazde","Pull").includes("dead-hang"));
+  assert.ok(ids("pronace supinace","Pull").includes("forearm-pronation-supination"));
+  assert.equal(gymExerciseGroup({id:"custom-forearm",muscle:"Předloktí"}),"Pull");
+  assert.equal(gymExerciseGroup({id:"custom-grip",muscle:"Úchop"}),"Pull");
 });
