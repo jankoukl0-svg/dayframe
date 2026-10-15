@@ -1071,6 +1071,30 @@ export function setHygieneTaskStatus(
   };
 }
 
+/**
+ * Check or uncheck a whole scheduled routine from the daily checklist.
+ * Reuse normal task transitions so historical products and completion dates
+ * stay in the same authoritative hygiene store. Explicit skipped/omitted/
+ * deferred decisions remain untouched.
+ */
+export function toggleHygieneRoutineCompletion(store: HygieneStore, dateKey: string, routineId: string): HygieneStore {
+  const record = store.records[dateKey]?.[routineId];
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!record || !routine || record.archived || !routineHasScheduledWorkOnDate(store, routine, dateKey)) return store;
+  const required = record.scheduledTasks.filter(task => !task.optional);
+  const complete = required.length === 0 || required.every(task => Boolean(record.states[task.id]));
+  let next = store;
+  for (const task of record.scheduledTasks) {
+    const status = record.states[task.id];
+    if (complete) {
+      if (status === "done") next = setHygieneTaskStatus(next, dateKey, routineId, task.id, null);
+    } else if (!status) {
+      next = setHygieneTaskStatus(next, dateKey, routineId, task.id, "done");
+    }
+  }
+  return next;
+}
+
 export function toggleManualRoutine(store: HygieneStore, dateKey: string, routineId: string, enabled: boolean) {
   const currentManual = store.manualDates[dateKey] ?? [];
   const currentSuppressed = store.suppressedDates[dateKey] ?? [];
