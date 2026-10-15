@@ -1,0 +1,338 @@
+/*
+ * Hygiene ⇄ Health visual alignment.
+ * Use the same Dayframe tokens, typography, card geometry and interaction
+ * states as the Health, Gym and Supplements screens. All selectors are scoped
+ * to the Hygiene page; no task scheduling or storage logic is changed.
+ */
+
+.df2-hygiene-page {
+  min-width: 0;
+  gap: 21px;
+  --hygiene-card-radius: 14px;
+  --hygiene-control-radius: 9px;
+}
+
+/* Health-style page masthead and segmented section navigation. */
+.df2-hygiene-page .df2-hygiene-head {
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.df2-hygiene-page .df2-hygiene-head > div:first-child { min-width: 0; }
+.df2-hygiene-page .df2-hygiene-overall {
+  min-width: 132px;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 3px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.df2-hygiene-page .df2-hygiene-overall strong {
+  color: var(--ink);
+  font: inherit;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -.025em;
+  font-variant-numeric: tabular-nums;
+}
+.df2-hygiene-page .df2-hygiene-overall span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.df2-hygiene-page .df2-hygiene-tabs {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.df2-hygiene-page .df2-hygiene-tabs button {
+  min-height: 38px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+  white-space: nowrap;
+}
+.df2-hygiene-page .df2-hygiene-tabs button:hover:not([aria-selected="true"]) {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--paper) 85%, var(--accent-wash));
+}
+.df2-hygiene-page .df2-hygiene-tabs button[aria-selected="true"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+  box-shadow: none;
+}
+
+/* Consistent spacing, emphasis and completion visuals. */
+.df2-hygiene-page .df2-hygiene-today,
+.df2-hygiene-page .df2-hygiene-cleaning { gap: 16px; }
+.df2-hygiene-page .df2-hygiene-progress-track {
+  height: 6px;
+  background: var(--accent-wash);
+}
+.df2-hygiene-page .df2-hygiene-progress-track span { background: var(--accent-dark); }
+.df2-hygiene-page .df2-hygiene-routine,
+.df2-hygiene-page .df2-hygiene-cleaning-card,
+.df2-hygiene-page .df2-hygiene-manage-list > article,
+.df2-hygiene-page .df2-hygiene-stats-grid article,
+.df2-hygiene-page .df2-hygiene-overdue {
+  border: 1px solid var(--line);
+  border-radius: var(--hygiene-card-radius);
+  background: var(--paper);
+  box-shadow: none;
+}
+.df2-hygiene-page .df2-hygiene-routine:target,
+.df2-hygiene-page .df2-hygiene-routine:focus-within,
+.df2-hygiene-page .df2-hygiene-cleaning-card:target { border-color: var(--accent); }
+.df2-hygiene-page .df2-hygiene-routine > header,
+.df2-hygiene-page .df2-hygiene-cleaning-card > header {
+  min-height: 0;
+  padding: 16px 18px;
+  align-items: center;
+  gap: 14px;
+}
+.df2-hygiene-page .df2-hygiene-routine > header span,
+.df2-hygiene-page .df2-hygiene-cleaning-card > header span,
+.df2-hygiene-page .df2-hygiene-section-title span,
+.df2-hygiene-page .df2-hygiene-manage-head span,
+.df2-hygiene-page .df2-hygiene-overdue > header span,
+.df2-hygiene-page .df2-hygiene-cleaning-intro span {
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.df2-hygiene-page .df2-hygiene-routine h2,
+.df2-hygiene-page .df2-hygiene-cleaning-card h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+.df2-hygiene-page .df2-hygiene-routine-progress strong {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.df2-hygiene-page .df2-hygiene-task-group { padding-inline: 18px; }
+.df2-hygiene-page .df2-hygiene-task-group h3 {
+  padding: 14px 0 8px;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 750;
+}
+.df2-hygiene-page .df2-hygiene-task { min-height: 54px; }
+.df2-hygiene-page .df2-hygiene-task > div strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.df2-hygiene-page .df2-hygiene-task > div small,
+.df2-hygiene-page .df2-hygiene-routine > header small { font-size: 11px; }
+.df2-hygiene-page .df2-hygiene-check { background: var(--paper); }
+.df2-hygiene-page .df2-hygiene-check[aria-pressed="true"] {
+  background: var(--success);
+  color: #fff;
+}
+.df2-hygiene-page .df2-hygiene-skip,
+.df2-hygiene-page .df2-hygiene-overdue-actions button,
+.df2-hygiene-page .df2-hygiene-postpone button,
+.df2-hygiene-page .df2-hygiene-manage-list > article > header button,
+.df2-hygiene-page .df2-hygiene-manage-tasks > div > button:not(.df2-hygiene-manage-task-copy),
+.df2-hygiene-page .df2-hygiene-add-task,
+.df2-hygiene-page .df2-hygiene-cleaning-head-actions button,
+.df2-hygiene-page .df2-hygiene-cleaning-card > footer button,
+.df2-hygiene-page .df2-hygiene-cleaning-edit,
+.df2-hygiene-page .df2-care-timer button,
+.df2-hygiene-page .df2-products-toolbar button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--hygiene-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.df2-hygiene-page .df2-hygiene-skip:hover,
+.df2-hygiene-page .df2-hygiene-cleaning-edit:hover,
+.df2-hygiene-page .df2-hygiene-overdue-actions button:hover,
+.df2-hygiene-page .df2-hygiene-manage-list button:hover,
+.df2-hygiene-page .df2-products-toolbar button:hover {
+  border-color: var(--accent);
+}
+.df2-hygiene-page .df2-hygiene-skip[aria-pressed="true"],
+.df2-hygiene-page .df2-products-toolbar button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+}
+
+/* Household cleaning uses the same card/row hierarchy as daily hygiene. */
+.df2-hygiene-page .df2-hygiene-cleaning-intro { align-items: center; }
+.df2-hygiene-page .df2-hygiene-cleaning-intro h2,
+.df2-hygiene-page .df2-hygiene-manage-head h2,
+.df2-hygiene-page .df2-hygiene-section-title h2 {
+  font-size: 18px;
+  font-weight: 720;
+  letter-spacing: -.02em;
+}
+.df2-hygiene-page .df2-hygiene-cleaning-intro p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.df2-hygiene-page .df2-hygiene-cleaning-item { min-height: 54px; gap: 11px; }
+.df2-hygiene-page .df2-hygiene-cleaning-item > span { font-size: 12px; font-weight: 650; }
+.df2-hygiene-page .df2-hygiene-cleaning-edit {
+  min-height: 30px;
+  padding: 5px 9px;
+  background: transparent;
+  color: var(--muted);
+}
+.df2-hygiene-page .df2-hygiene-cleaning-head-actions strong {
+  font-size: 13px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+/* History and management follow Health's compact rows and quiet statistics. */
+.df2-hygiene-page .df2-hygiene-history { gap: 26px; }
+.df2-hygiene-page .df2-hygiene-history-day,
+.df2-hygiene-page .df2-hygiene-month-day,
+.df2-hygiene-page .df2-product-history > button,
+.df2-hygiene-page .df2-product-history > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.df2-hygiene-page .df2-hygiene-history-day > strong { font-size: 12px; }
+.df2-hygiene-page .df2-hygiene-history-day > small { font-size: 10px; }
+.df2-hygiene-page .df2-hygiene-stats-grid article { padding: 16px 18px; gap: 12px; }
+.df2-hygiene-page .df2-hygiene-stats-grid article > header span {
+  color: var(--accent-dark);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.df2-hygiene-page .df2-hygiene-stats-grid dt,
+.df2-hygiene-page .df2-hygiene-stats-grid dd,
+.df2-hygiene-page .df2-hygiene-stats-grid article > small { font-size: 11px; }
+.df2-hygiene-page .df2-hygiene-manage-list { gap: 12px; }
+.df2-hygiene-page .df2-hygiene-manage-list > article > header { padding: 14px 16px; }
+.df2-hygiene-page .df2-hygiene-manage-list > article > header strong { font-size: 14px; font-weight: 750; }
+.df2-hygiene-page .df2-hygiene-manage-list > article > header span,
+.df2-hygiene-page .df2-hygiene-manage-task-copy span { font-size: 11px; }
+.df2-hygiene-page .df2-hygiene-manage-task-copy strong { font-size: 12px; }
+
+/* Product library, inventory and editors match Supplements' control density. */
+.df2-hygiene-page .df2-products-top h2 {
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -.035em;
+}
+.df2-hygiene-page .df2-products-top p { font-size: 12px; }
+.df2-hygiene-page .df2-products-category-heading h3 { font-size: 17px; }
+.df2-hygiene-page .df2-products-grid { gap: 12px; }
+.df2-hygiene-page .df2-product-card,
+.df2-hygiene-page .df2-inventory-summary,
+.df2-hygiene-page .df2-inventory-shopping > article,
+.df2-hygiene-page .df2-inventory-alerts > article {
+  border: 1px solid var(--line);
+  border-radius: var(--hygiene-card-radius);
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .018);
+}
+.df2-hygiene-page .df2-product-card {
+  transition: border-color .16s ease, background-color .16s ease;
+}
+.df2-hygiene-page .df2-product-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--paper) 97%, var(--accent-wash));
+  transform: none;
+}
+.df2-hygiene-page .df2-product-card-copy { padding: 15px; gap: 6px; }
+.df2-hygiene-page .df2-product-card-copy strong { font-size: 13px; font-weight: 750; }
+.df2-hygiene-page .df2-product-card-copy > span { font-size: 11px; }
+.df2-hygiene-page .df2-inventory-summary { padding: 19px 20px; }
+.df2-hygiene-page .df2-inventory-summary strong {
+  font-size: 21px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.df2-hygiene-page .df2-products-toolbar input,
+.df2-hygiene-page .df2-product-form-grid input:not([type="checkbox"]),
+.df2-hygiene-page .df2-product-form-grid select,
+.df2-hygiene-page .df2-product-form-grid textarea,
+.df2-hygiene-page .df2-hygiene-modal input:not([type="checkbox"]),
+.df2-hygiene-page .df2-hygiene-modal select,
+.df2-hygiene-page .df2-hygiene-schedule-editor input:not([type="checkbox"]),
+.df2-hygiene-page .df2-hygiene-schedule-editor select,
+.df2-hygiene-page .df2-hygiene-task-products > select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--hygiene-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+}
+.df2-hygiene-page .df2-hygiene-weekdays button,
+.df2-hygiene-page .df2-hygiene-task-product-editor button,
+.df2-hygiene-page .df2-product-replace button,
+.df2-hygiene-page .df2-find-packshot {
+  border-radius: var(--hygiene-control-radius);
+}
+.df2-hygiene-page .df2-hygiene-weekdays button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+}
+.df2-hygiene-page .df2-hygiene-empty,
+.df2-hygiene-page .df2-hygiene-loading {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 12px;
+}
+.df2-hygiene-page :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .df2-hygiene-page .df2-hygiene-head { align-items: flex-start; }
+  .df2-hygiene-page .df2-hygiene-head h1 { font-size: 30px; }
+  .df2-hygiene-page .df2-hygiene-overall {
+    min-width: 0;
+    padding: 9px 12px;
+  }
+  .df2-hygiene-page .df2-hygiene-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 14px;
+    scrollbar-width: thin;
+  }
+  .df2-hygiene-page .df2-hygiene-tabs button { flex: 0 0 auto; }
+  .df2-hygiene-page .df2-hygiene-routine > header,
+  .df2-hygiene-page .df2-hygiene-cleaning-card > header { padding: 15px 14px; }
+  .df2-hygiene-page .df2-hygiene-task-group { padding-inline: 14px; }
+  .df2-hygiene-page .df2-hygiene-cleaning-item { gap: 8px; }
+  .df2-hygiene-page .df2-products-grid { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .df2-hygiene-page .df2-product-card { transition: none; }
+}
