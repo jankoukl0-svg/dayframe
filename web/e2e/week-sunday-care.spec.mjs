@@ -71,8 +71,8 @@ test("clicking each Sunday reservation opens the original Hygiene or Cleaning ro
 
   await week(page);
   await page.locator('[data-week-care="hygiene-day"]').click();
-  await expect(page.getByRole("tab", { name: "Dnes", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("heading", { name: "Hygiena", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Správa rutin" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#hygiene-routine-hygiene-day")).toBeVisible();
 });
 
 test("Sunday reservation reflects Hygiene completion, not its own independent checkmark", async ({ page }) => {
@@ -99,12 +99,12 @@ test("Sunday reservation reflects Hygiene completion, not its own independent ch
 test("disabling a Hygiene source routine removes only its linked Week reservation", async ({ page }) => {
   await fresh(page);
   await week(page);
-  await page.evaluate(() => {
-    const store = JSON.parse(localStorage.getItem(HYGIENE_KEY));
+  await page.evaluate((key) => {
+    const store = JSON.parse(localStorage.getItem(key));
     const routine = store.routines.find(item => item.id === "cleaning-sunday");
     if (!routine) throw Error("Missing Sunday cleaning definition");
     routine.active = false;
-    localStorage.setItem(HYGIENE_KEY, JSON.stringify(store));
+    localStorage.setItem(key, JSON.stringify(store));
     window.dispatchEvent(new Event("dayframe-hygiene-sync"));
   }, HYGIENE_KEY);
   await expect(page.locator('[data-week-care="cleaning-sunday"]')).toHaveCount(0);
