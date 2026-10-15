@@ -66,11 +66,94 @@ async function dragCare(page, sourceDay, targetDay, id, time) {
   }, { targetDay, time });
 }
 
+test("Morning and Evening Hygiene appear every day for 20 minutes without duplicating tasks", async ({ page }) => {
+  await fresh(page);
+  const days = await week(page);
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+  await expect(page.locator('[data-week-care="evening"]')).toHaveCount(7);
+  for (let day = 0; day < 7; day++) {
+    const morning = days.nth(day).locator('[data-week-care="morning"]');
+    const evening = days.nth(day).locator('[data-week-care="evening"]');
+    await expect(morning).toHaveAttribute("aria-label", "Ranní hygiena, 09:00–09:20");
+    await expect(evening).toHaveAttribute("aria-label", "Večerní hygiena, 21:30–21:50");
+    await expect(morning).toHaveClass(/is-short/);
+    await expect(morning.locator("span")).toHaveCount(0);
+    expect(await morning.evaluate(el => Math.abs(el.getBoundingClientRect().height - 14.4))).toBeLessThan(0.5);
+  }
+  const calendar = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-v1")));
+  expect(Object.values(calendar.plans).flat().filter(task => task.routineId === "morning" || task.routineId === "evening")).toHaveLength(0);
+});
+
+test("Daily care tile opens its Hygiene routine and mirrors authoritative completion", async ({ page }) => {
+  await fresh(page, "2026-10-12T08:20:00");
+  await week(page);
+  const morning = page.locator(".df2-week-day").first().locator('[data-week-care="morning"]');
+  await expect(morning).not.toHaveClass(/done/);
+  await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const record = store.records["2026-10-12"].morning;
+    if (!record) throw Error("Missing morning hygiene record");
+    for (const task of record.scheduledTasks) if (!task.optional) record.states[task.id] = "done";
+    localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  });
+  await expect(morning).toHaveClass(/done/);
+  await morning.click();
+  await expect(page.getByRole("tab", { name: "Dnes", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-hygiene-routine="morning"]')).toContainText("Hotovo");
+});
+
+test("Daily blocks move only within their own day, persist, and preserve older Sunday placements", async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(key => localStorage.setItem(key, JSON.stringify({ version: 1, times: { "2026-10-18": { "hygiene-day": "18:00" } } })), CARE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const friday = days.nth(4).locator('[data-week-care="morning"]');
+  await expect(friday).toHaveAttribute("draggable", "true");
+  await dragCare(page, 4, 5, "morning", "16:00");
+  await expect(friday).toHaveAttribute("aria-label", "Ranní hygiena, 09:00–09:20");
+
+  await dragCare(page, 4, 4, "morning", "16:00");
+  await expect(friday).toHaveAttribute("aria-label", "Ranní hygiena, 16:00–16:20");
+  const times = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).times, CARE_KEY);
+  expect(times["2026-10-16"].morning).toBe("16:00");
+  expect(times["2026-10-18"]["hygiene-day"]).toBe("18:00");
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]')).toHaveAttribute("aria-label", "Ranní hygiena, 16:00–16:20");
+  await expect(page.locator('[data-week-care="hygiene-day"]')).toContainText("18:00–18:30");
+});
+
+test("Disabling a daily Hygiene source hides only that routine's calendar blocks", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.find(item => item.id === "evening").active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await expect(page.locator('[data-week-care="evening"]')).toHaveCount(0);
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+  await expect(page.locator('[data-week-care="cleaning-sunday"]')).toHaveCount(1);
+});
+
+test("Malformed daily care placement stays read-only, and invalid Sundays cannot be saved", async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(key => localStorage.setItem(key, JSON.stringify({version: 1, times: {"2026-10-12": {"hygiene-day": "18:00"}}})), CARE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator('[data-week-care="morning"]').first()).toHaveAttribute("draggable", "false");
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+  const saved = await page.evaluate(key => localStorage.getItem(key), CARE_KEY);
+  expect(saved).toContain('"hygiene-day"');
+});
+
 test("Sunday Hygiene and Cleaning appear as two 30-minute Week reservations, without duplicate calendar tasks", async ({ page }) => {
   await fresh(page);
   const days = await week(page);
-  await expect(page.locator("[data-week-care]")).toHaveCount(2);
-  for (let i = 0; i < 6; i++) await expect(days.nth(i).locator("[data-week-care]")).toHaveCount(0);
+  await expect(page.locator("[data-week-care]")).toHaveCount(16);
+  for (let i = 0; i < 6; i++) await expect(days.nth(i).locator("[data-week-care]")).toHaveCount(2);
   await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toContainText("10:00–10:30");
   await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toContainText("Nedělní hygiena");
   await expect(days.nth(6).locator('[data-week-care="cleaning-sunday"]')).toContainText("10:30–11:00");
@@ -79,7 +162,7 @@ test("Sunday Hygiene and Cleaning appear as two 30-minute Week reservations, wit
   expect(Object.values(calendar.plans).flat().filter(task => task.routineId === "hygiene-day" || task.routineId === "cleaning-sunday")).toHaveLength(0);
 
   await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
-  await expect(page.locator("[data-week-care]")).toHaveCount(2);
+  await expect(page.locator("[data-week-care]")).toHaveCount(16);
   await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
   await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
   await expect(page.locator("[data-week-care]")).toHaveCount(0); // No retroactive projections.
@@ -159,8 +242,9 @@ test("corrupted placement data leaves Sunday reservations visible but read-only"
   await page.evaluate(key => localStorage.setItem(key, "{broken-json"), CARE_KEY);
   await page.reload({ waitUntil: "networkidle" });
   await week(page);
-  await expect(page.locator("[data-week-care]")).toHaveCount(2);
+  await expect(page.locator("[data-week-care]")).toHaveCount(16);
   await expect(page.locator('[data-week-care="hygiene-day"]')).toHaveAttribute("draggable", "false");
+  await expect(page.locator('[data-week-care="evening"]').first()).toHaveAttribute("draggable", "false");
   expect(await page.evaluate(key => localStorage.getItem(key), CARE_KEY)).toBe("{broken-json");
 });
 

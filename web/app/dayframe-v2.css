@@ -417,7 +417,7 @@
 .df2-week-task:hover { z-index: 4; border-color: var(--line-strong); background: var(--paper); }
 .df2-week-task.done { opacity: .42; }
 .df2-week-task.done strong { text-decoration: line-through; }
-/* Sunday care is a timed projection of Hygiene, not another completion record. */
+/* Care cards project authoritative Hygiene routines; the calendar stores only clock placements. */
 .df2-week-task.df2-week-care {
   min-height: 0;
   padding: 1px 4px;
@@ -427,6 +427,8 @@
 }
 .df2-week-task.df2-week-care > span { font-size: 7px; line-height: 1; }
 .df2-week-task.df2-week-care > strong { font-size: 9px; line-height: 1.05; white-space: nowrap; }
+.df2-week-task.df2-week-care.is-short { align-content: center; }
+.df2-week-task.df2-week-care.is-short > strong { font-size: 9px; line-height: 1; }
 .df2-week-care.done { opacity: .6; }
 .df2-week-task > span { color: var(--muted); font: 8px/1.2 "Cascadia Mono", monospace; }
 .df2-week-task > strong { overflow: hidden; font-size: 11px; line-height: 1.15; font-weight: 700; text-overflow: ellipsis; }
