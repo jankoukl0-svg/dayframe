@@ -166,11 +166,11 @@ export function DayframeV2() {
   const [sleepFocusDate,setSleepFocusDate]=useState<string|null>(null);
   const [preventionFocusId,setPreventionFocusId]=useState<string|null>(null);
   const gym = useGymStore();
-  const care = useWeekCare(todayKey);
   const focusTimer = useRef<number | null>(null);
   const completionTimers = useRef<Map<string, number>>(new Map());
   const completionToastTimers = useRef<Map<string, number>>(new Map());
   const todayKey = planningDateKey(now);
+  const care = useWeekCare(todayKey);
   const sleepTodayKey = sleepCalendarDateKey(now);
 
   useEffect(() => {
