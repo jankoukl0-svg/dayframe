@@ -231,20 +231,21 @@ export function installCleaningRoutines(store: HygieneStore, today: string): Hyg
   if (store.cleaningDefaultsInstalled) return store;
   const defaults = defaultCleaningRoutines(today);
   const oldHygieneDay = store.routines.find(routine => routine.id === "hygiene-day");
-  const transferred = (oldHygieneDay?.tasks ?? []).filter(item => CLEANING_TRANSFER_IDS.has(item.id));
+  const transferred = (oldHygieneDay?.tasks ?? []).filter(item => CLEANING_TRANSFER_IDS.has(item.id)
+    && (!item.schedule || (item.schedule.type === "weekly" && item.schedule.weekday === 0)));
   const sunday = defaults[1];
   const customMovedIds = new Set(transferred.map(item => item.id));
   const movedTasks = [
     ...sunday.tasks.filter(item => !CLEANING_TRANSFER_IDS.has(item.id)),
     ...transferred.map(item => ({ ...item })),
-    ...sunday.tasks.filter(item => CLEANING_TRANSFER_IDS.has(item.id) && !customMovedIds.has(item.id)),
+    ...(!oldHygieneDay ? sunday.tasks.filter(item => CLEANING_TRANSFER_IDS.has(item.id)) : []),
   ];
   return {
     ...store,
     cleaningDefaultsInstalled: true,
     routines: [
       ...store.routines.map(routine => routine.id === "hygiene-day" ? {
-        ...routine, tasks: routine.tasks.filter(item => !CLEANING_TRANSFER_IDS.has(item.id)),
+        ...routine, tasks: routine.tasks.filter(item => !customMovedIds.has(item.id)),
       } : routine),
       ...defaults.filter(routine => !store.routines.some(existing => existing.id === routine.id)).map(routine =>
         routine.id === "cleaning-sunday" ? { ...routine, tasks: movedTasks } : routine),
