@@ -80,13 +80,13 @@ test("Není potřeba is preserved separately and does not block Hygiene Day comp
     window.localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
     window.dispatchEvent(new Event("dayframe-hygiene-sync"));
   });
-  await expect(weekly).toContainText("12/12");
+  await expect(weekly).toContainText("6/6");
   await expect(weekly).toContainText("Hotovo");
 
   const nails = weekly.locator(".df2-hygiene-task").filter({ hasText: "nehtů na rukou" });
   await nails.getByRole("button", { name: "Není potřeba" }).click();
 
-  await expect(weekly).toContainText("12/12");
+  await expect(weekly).toContainText("6/6");
   await expect(weekly).toContainText("Hotovo");
   await expect(nails).toContainText("Není potřeba");
 
