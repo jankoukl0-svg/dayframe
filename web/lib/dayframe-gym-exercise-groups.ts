@@ -11,7 +11,7 @@ export function gymExerciseGroup(exercise:Pick<GymExercise,"id"|"muscle">):GymEx
   if(exercise.id==="reverse-pec-deck"||exercise.id==="face-pull")return "Pull";
   if(["zadni ramena","zadni delty","posterior delts","rear delts"].includes(m))return "Pull";
   if(["hrudnik","ramena","triceps"].includes(m))return "Push";
-  if(["zada","biceps","trapezy"].includes(m))return "Pull";
+  if(["zada","biceps","trapezy","predlokti","uchop","zapesti","forearms","grip"].includes(m))return "Pull";
   if(["nohy","hamstringy","hyzde","vnitrni stehna","lytka","kvadricepsy"].includes(m))return "Lower";
   if(["core","bricho","brucho","brisni svaly"].includes(m))return "Core";
   return "Ostatní";
@@ -41,6 +41,17 @@ const EXERCISE_ALIASES:Record<string,readonly string[]>={
     "rear delt pec deck","rear delt fly","reverse fly machine",
     "obraceny motylek","rozpazovani na zadni ramena",
   ],
+  "wrist-curl-dumbbell":["wrist curls","flexe zapesti","predlokti ohybani"],
+  "reverse-wrist-curl-dumbbell":["reverse wrist curls","extenze zapesti","predlokti nadhmat"],
+  "wrist-curl-barbell":["barbell wrist curl","zapesti osa","wrist curl osa"],
+  "behind-back-wrist-curl":["behind the back wrist curl","behind back wrist curl","wrist curl za zady"],
+  "reverse-ez-curl":["reverse curl","reverse biceps curl","ez curl nadhmat","obraceny zdvih"],
+  "zottman-curl":["zottman curls","zottman curl","rotacni zdvih"],
+  "wrist-roller":["wrist roller","navijeni zapesti","roller predlokti"],
+  "farmer-carry":["farmer walk","farmers walk","farmer's walk","farmer carry","farmers carry","farmarska chuze","chuze s jednoruckami"],
+  "dead-hang":["dead hang","hanging grip","vis na hrazde","drzeni na hrazde"],
+  "plate-pinch":["plate pinch grip","pinch grip","stisk kotoucu","drzeni kotoucu"],
+  "forearm-pronation-supination":["forearm rotation","wrist rotation","pronation supination","pronace supinace","rotace zapesti"],
 };
 
 export function matchesGymExerciseSearch(exercise:GymExercise,query:string):boolean{
