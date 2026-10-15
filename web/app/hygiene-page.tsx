@@ -329,13 +329,15 @@ export function HygienePage({
 
   useEffect(() => {
     if (!focusRoutineId || !hydrated) return;
-    setTab(focusRoutineId.startsWith("cleaning-") ? "cleaning" : "today");
+    const selected = store.routines.find(item => item.id === focusRoutineId);
+    const scheduledToday = selected ? routineScheduledOnDate(store, selected, planningKey) : false;
+    setTab(focusRoutineId.startsWith("cleaning-") ? "cleaning" : scheduledToday ? "today" : "manage");
     const timer = window.setTimeout(() => {
       document.getElementById("hygiene-routine-" + focusRoutineId)?.scrollIntoView({ block: "center", behavior: "smooth" });
       onFocusHandled?.();
     }, 60);
     return () => window.clearTimeout(timer);
-  }, [focusRoutineId, hydrated, onFocusHandled]);
+  }, [focusRoutineId, hydrated, onFocusHandled, planningKey, store]);
 
   const persist = (next: HygieneStore) => {
     if (blocked) {
@@ -957,7 +959,7 @@ export function HygienePage({
             {[...hygieneStore.routines].sort((left, right) => left.order - right.order).map((routine) => {
               const routineRunningToday = summaries.some((summary) => summary.routine.id === routine.id);
               return (
-                <article className={routine.active ? "" : "is-inactive"} key={routine.id}>
+                <article className={routine.active ? "" : "is-inactive"} key={routine.id} id={"hygiene-routine-" + routine.id}>
                   <header>
                     <div>
                       <strong>{routine.title}</strong>
