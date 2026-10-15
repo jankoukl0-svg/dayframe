@@ -857,3 +857,53 @@ test("moving a completed task preserves its original product snapshot", async ({
   await expect(history).toContainText("Původní návod");
   await expect(history).not.toContainText("Nový návod");
 });
+
+
+test("daily checklist checks every morning or evening hygiene step and syncs both directions", async ({ page }) => {
+  await openFresh(page, "2026-10-12T12:00:00");
+  const morning = page.locator('[data-hygiene-checklist-routine="morning"]');
+  const evening = page.locator('[data-hygiene-checklist-routine="evening"]');
+  await expect(morning).toContainText("0/6");
+  await expect(evening).toContainText("0/5");
+
+  await morning.getByRole("button", { name: "Označit celou Ranní rutina jako hotovou" }).click();
+  await expect(morning).toContainText("Hotovo");
+  await expect(evening).toContainText("0/5");
+  await expect(morning.getByRole("button", { name: "Vrátit Ranní rutina jako nesplněnou" }))
+    .toHaveAttribute("aria-pressed", "true");
+
+  await openSidebar(page, "Hygiena");
+  await expect(page.locator('[data-hygiene-routine="morning"]')).toContainText("6/6");
+  await expect(page.locator('[data-hygiene-routine="evening"]')).toContainText("0/5");
+  await openSidebar(page, "Dnes");
+  await evening.getByRole("button", { name: "Označit celou Večerní rutina jako hotovou" }).click();
+  await expect(evening).toContainText("Hotovo");
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(morning).toContainText("Hotovo");
+  await expect(evening).toContainText("Hotovo");
+
+  await morning.getByRole("button", { name: "Vrátit Ranní rutina jako nesplněnou" }).click();
+  await expect(morning).toContainText("0/6");
+  await expect(evening).toContainText("Hotovo");
+  await openSidebar(page, "Hygiena");
+  await expect(page.locator('[data-hygiene-routine="morning"]')).toContainText("0/6");
+  await expect(page.locator('[data-hygiene-routine="evening"]')).toContainText("5/5");
+});
+
+test("bulk morning check preserves previously skipped individual steps", async ({ page }) => {
+  await openFresh(page, "2026-10-12T12:00:00");
+  await openSidebar(page, "Hygiena");
+  const evening=page.locator('[data-hygiene-routine="evening"]');
+  const one=evening.locator(".df2-hygiene-task").first();
+  await one.getByRole("button", { name: "Hotovo" }).click();
+  await openSidebar(page, "Dnes");
+  const row=page.locator('[data-hygiene-checklist-routine="evening"]');
+  await expect(row).toContainText("1/5");
+  await row.getByRole("button", { name: "Označit celou Večerní rutina jako hotovou" }).click();
+  await expect(row).toContainText("Hotovo");
+  const saved=await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  const record=saved.records["2026-10-12"].evening;
+  expect(Object.values(record.states).filter(x=>x==="done")).toHaveLength(5);
+  await row.getByRole("button", { name: "Vrátit Večerní rutina jako nesplněnou" }).click();
+  await expect(row).toContainText("0/5");
+});
