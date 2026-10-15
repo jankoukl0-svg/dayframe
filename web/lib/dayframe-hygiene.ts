@@ -735,6 +735,12 @@ export function overdueHygieneTasks(store: HygieneStore, today: string) {
         const schedule = task.schedule ?? routine.schedule;
         // Daily routines are separate expected occurrences; don't flood the backlog with them.
         if (schedule.type === "daily") continue;
+        // Hygiene Day's calendar-based tasks belong to their scheduled dates only.
+        // An unfinished Sunday stays in history instead of becoming a weekday to-do
+        // (or a duplicate of the following Sunday's newly scheduled occurrence).
+        // Explicit one-off postponements and rolling/manual schedules remain actionable.
+        if (routine.id === "hygiene-day" && !snapshot.originDate
+          && ["weekly", "nth-weekday", "monthly", "days", "interval"].includes(schedule.type)) continue;
         if (!pending.has(task.id)) pending.set(task.id, {
           date, routineId, taskId: task.id, title: snapshot.title, routineTitle: record.routineTitle,
         });
