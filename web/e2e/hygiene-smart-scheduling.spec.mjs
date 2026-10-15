@@ -177,3 +177,47 @@ test("Hygiene Day monthly tasks remain on first Sunday, not in Monday overdue re
   const history = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   expect(history.records["2026-11-01"]["hygiene-day"].scheduledTasks.some((item) => item.id === "monthly-moles")).toBe(true);
 });
+
+
+test("editing a Sunday task to rolling keeps the old weekly occurrence out of overdue", async ({ page }) => {
+  await fresh(page, "2026-10-11T12:00:00");
+  await changeDay(page, "2026-10-12");
+  await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const task = store.routines.find((item) => item.id === "hygiene-day").tasks.find((item) => item.id === "weekly-feet");
+    task.schedule = { type: "rolling", everyDays: 7, anchorDate: "2026-10-12", unit: "days" };
+    localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await hygiene(page);
+  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toContainText("Péče o chodidla");
+  await expect(page.getByRole("region", { name: "Zmeškané hygienické úkoly" })).toHaveCount(0);
+  const store = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(store.records["2026-10-11"]["hygiene-day"].scheduledTasks.find((task) => task.id === "weekly-feet").scheduleType).toBe("weekly");
+  expect(store.records["2026-10-12"]["hygiene-day"].scheduledTasks.find((task) => task.id === "weekly-feet").scheduleType).toBe("rolling");
+});
+
+test("changing a rolling task back to weekly does not erase the older rolling reminder", async ({ page }) => {
+  await fresh(page, "2026-10-11T12:00:00");
+  await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const task = store.routines.find((item) => item.id === "hygiene-day").tasks.find((item) => item.id === "weekly-feet");
+    task.schedule = { type: "rolling", everyDays: 7, anchorDate: "2026-10-11", unit: "days" };
+    localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await changeDay(page, "2026-10-12");
+  await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const task = store.routines.find((item) => item.id === "hygiene-day").tasks.find((item) => item.id === "weekly-feet");
+    task.schedule = { type: "weekly", weekday: 0 };
+    localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(store));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await hygiene(page);
+  const overdue = page.getByRole("region", { name: "Zmeškané hygienické úkoly" });
+  await expect(overdue).toContainText("Péče o chodidla");
+  await expect(overdue).not.toContainText("Jemná exfoliace těla kartáčem");
+  const store = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(store.records["2026-10-11"]["hygiene-day"].scheduledTasks.find((task) => task.id === "weekly-feet").scheduleType).toBe("rolling");
+});
