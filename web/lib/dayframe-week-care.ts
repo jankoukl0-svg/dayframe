@@ -6,6 +6,7 @@ export const WEEK_CARE_STORAGE_KEY = "dayframe-week-care-v1";
 export const WEEK_CARE_SYNC_EVENT = "dayframe-week-care-sync";
 export type WeekCareId = "morning" | "evening" | "hygiene-day" | "cleaning-sunday";
 export type WeekCareTimes = Record<string, Partial<Record<WeekCareId, string>>>;
+export type WeekCareHidden = Record<string, WeekCareId[]>;
 export type WeekCareBlock = {
   id: WeekCareId;
   title: string;
@@ -41,33 +42,49 @@ function validCareDate(date: string, config: (typeof DEFAULTS)[number]) {
 }
 
 /** Malformed or inaccessible saved positions must never be overwritten. */
-export function readWeekCareTimes(): { times: WeekCareTimes; blocked: boolean } {
-  if (typeof window === "undefined") return { times: {}, blocked: false };
+export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHidden; blocked: boolean } {
+  if (typeof window === "undefined") return { times: {}, hidden: {}, blocked: false };
   try {
     const raw = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
-    if (!raw) return { times: {}, blocked: false };
+    if (!raw) return { times: {}, hidden: {}, blocked: false };
     const data = JSON.parse(raw);
     if (!data || data.version !== 1 || !data.times || typeof data.times !== "object" || Array.isArray(data.times)) {
-      return { times: {}, blocked: true };
+      return { times: {}, hidden: {}, blocked: true };
     }
     const times: WeekCareTimes = {};
     for (const [date, values] of Object.entries(data.times)) {
       if (!calendarDate(date) || !values || typeof values !== "object" || Array.isArray(values)) {
-        return { times: {}, blocked: true };
+        return { times: {}, hidden: {}, blocked: true };
       }
       const found: Partial<Record<WeekCareId, string>> = {};
       for (const [id, value] of Object.entries(values)) {
         const config = DEFAULTS.find(item => item.id === id);
         if (!config || !validCareDate(date, config) || !validTime(value, config.duration)) {
-          return { times: {}, blocked: true };
+          return { times: {}, hidden: {}, blocked: true };
         }
         found[config.id] = value as string;
       }
       times[date] = found;
     }
-    return { times, blocked: false };
+    const hidden: WeekCareHidden = {};
+    if (data.hidden !== undefined) {
+      if (!data.hidden || typeof data.hidden !== "object" || Array.isArray(data.hidden)) {
+        return { times: {}, hidden: {}, blocked: true };
+      }
+      for (const [date, ids] of Object.entries(data.hidden)) {
+        if (!calendarDate(date) || !Array.isArray(ids)) return { times: {}, hidden: {}, blocked: true };
+        const validated: WeekCareId[] = [];
+        for (const id of ids) {
+          const config = DEFAULTS.find(item => item.id === id);
+          if (!config || !validCareDate(date, config)) return { times: {}, hidden: {}, blocked: true };
+          if (!validated.includes(config.id)) validated.push(config.id);
+        }
+        hidden[date] = validated;
+      }
+    }
+    return { times, hidden, blocked: false };
   } catch {
-    return { times: {}, blocked: true };
+    return { times: {}, hidden: {}, blocked: true };
   }
 }
 
@@ -78,7 +95,27 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string): b
   if (current.blocked || typeof window === "undefined") return false;
   try {
     const times = { ...current.times, [date]: { ...(current.times[date] ?? {}), [id]: start } };
-    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times }));
+    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times, hidden: current.hidden }));
+    window.dispatchEvent(new Event(WEEK_CARE_SYNC_EVENT));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Hide or restore a single calendar projection without altering any Hygiene tasks. */
+export function saveWeekCareHidden(date: string, id: WeekCareId, hide: boolean): boolean {
+  const config = DEFAULTS.find(item => item.id === id);
+  if (!config || !validCareDate(date, config) || typeof window === "undefined") return false;
+  const current = readWeekCareTimes();
+  if (current.blocked) return false;
+  const previous = current.hidden[date] ?? [];
+  const next = hide ? [...new Set([...previous, id])] : previous.filter(item => item !== id);
+  const hidden = { ...current.hidden };
+  if (next.length) hidden[date] = next;
+  else delete hidden[date];
+  try {
+    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times: current.times, hidden }));
     window.dispatchEvent(new Event(WEEK_CARE_SYNC_EVENT));
     return true;
   } catch {
@@ -87,10 +124,10 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string): b
 }
 
 /** Pure week projection. Never creates tasks, checkmarks or historical routine records. */
-export function weekCareBlocks(store: HygieneStore | null, date: string, today: string, times: WeekCareTimes): WeekCareBlock[] {
+export function weekCareBlocks(store: HygieneStore | null, date: string, today: string, times: WeekCareTimes, hidden: WeekCareHidden = {}): WeekCareBlock[] {
   if (!store || date < today || !calendarDate(date)) return [];
   return DEFAULTS.flatMap(config => {
-    if (!validCareDate(date, config)) return [];
+    if (!validCareDate(date, config) || hidden[date]?.includes(config.id)) return [];
     const routine = store.routines.find(item => item.id === config.id);
     if (!routine || !routineHasScheduledWorkOnDate(store, routine, date)) return [];
     const record = store.records[date]?.[config.id];
@@ -100,4 +137,9 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
       duration: config.duration, completed,
     }];
   });
+}
+
+/** Names for optional one-day restore controls. No completion state is stored here. */
+export function weekCareTitle(id: WeekCareId): string {
+  return DEFAULTS.find(item => item.id === id)?.title ?? id;
 }

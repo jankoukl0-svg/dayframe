@@ -42,7 +42,7 @@ import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
-import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
+import { weekCareBlocks, weekCareTitle, type WeekCareId } from "@/lib/dayframe-week-care";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
@@ -145,6 +145,9 @@ export function DayframeV2() {
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const [addingTask, setAddingTask] = useState(false);
   const [editing, setEditing] = useState<CalendarTask | null>(null);
+  const [editingCare, setEditingCare] = useState<{ date: string; id: WeekCareId; duration: number; title: string } | null>(null);
+  const [editingCareStart, setEditingCareStart] = useState("");
+  const [editingCareError, setEditingCareError] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState<DragState | null>(null);
@@ -470,6 +473,52 @@ export function DayframeV2() {
     setEditing(null);
   }
 
+  function saveEditedCare(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingCare || care.blocked || !care.hydrated || editingCare.date < todayKey) return;
+    const date = editingCare.date;
+    const id = editingCare.id;
+    const start = editingCareStart;
+    const minute = timeToMinutes(start);
+    const duration = editingCare.duration;
+    if (!/^\\d{2}:\\d{2}$/.test(start)
+      || minute < calendarBounds.dayStart || minute + duration > calendarBounds.dayEnd
+      || minute % calendarBounds.slot !== 0
+      || (date === todayKey && minute <= planningMinute(now))) {
+      setEditingCareError("Vyber budoucí čas v rámci dne po 15 minutách.");
+      return;
+    }
+    const tasks = getTasksForDate(data, date);
+    const otherCare = weekCareBlocks(care.store, date, todayKey, care.times, care.hidden)
+      .filter(item => item.id !== id)
+      .map(item => ({ start: timeToMinutes(item.start), end: timeToMinutes(item.start) + item.duration }));
+    const otherGym = assignmentsOnDate(gym.store, date)
+      .map(item => gymOccurrenceTime(gym.store, item))
+      .filter(item => item.start !== null)
+      .map(item => ({ start: timeToMinutes(item.start ?? undefined), end: timeToMinutes(item.start ?? undefined) + item.duration }));
+    if (!canPlaceAt(tasks, minute, duration)
+      || [...otherCare, ...otherGym].some(item => minute < item.end && minute + duration > item.start)) {
+      setEditingCareError("Tento čas už zabírá jiný blok. Vyber jiné místo.");
+      return;
+    }
+    if (!care.move(date, id, start)) {
+      setEditingCareError("Nový čas se nepodařilo uložit. Data zůstala beze změny.");
+      return;
+    }
+    setEditingCare(null);
+    setEditingCareError("");
+  }
+
+  function hideEditedCare() {
+    if (!editingCare || care.blocked || editingCare.date < todayKey) return;
+    if (!care.setHiddenForDay(editingCare.date, editingCare.id, true)) {
+      setEditingCareError("Blok se nepodařilo odebrat. Data zůstala beze změny.");
+      return;
+    }
+    setEditingCare(null);
+    setEditingCareError("");
+  }
+
   function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
     if(dragging?.kind==="gym"&&date<todayKey)return null;
     // Linked hygiene reservations keep their authoritative routine date; only their clock time moves.
@@ -485,7 +534,7 @@ export function DayframeV2() {
         .filter(time=>time.start!==null)
         .map(time=>({start:timeToMinutes(time.start??undefined),end:timeToMinutes(time.start??undefined)+time.duration}))
       : [];
-    const otherCare=weekCareBlocks(care.store,date,todayKey,care.times)
+    const otherCare=weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
       .filter(item=>dragging?.kind!=="care"||item.id!==dragging.id)
       .map(item=>({start:timeToMinutes(item.start),end:timeToMinutes(item.start)+item.duration}));
     const offsets = [0, -15, 15, -30, 30, -45, 45, -60, 60];
@@ -699,7 +748,7 @@ export function DayframeV2() {
                     const unscheduled = tasks.filter((task) => !task.start);
                     const scheduled = tasks.filter((task) => task.start && task.end);
                     const timedCare=care.hydrated
-                      ? weekCareBlocks(care.store,key,todayKey,care.times) : [];
+                      ? weekCareBlocks(care.store,key,todayKey,care.times,care.hidden) : [];
                     const timedGym=assignmentsOnDate(gym.store,key)
                       .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
                       .filter(item=>item.time.start!==null);
@@ -722,6 +771,13 @@ export function DayframeV2() {
                         </header>
                         <div className="df2-unscheduled">
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
+                          {key >= todayKey && !care.blocked && (care.hidden[key] ?? []).map(id => (
+                            <button type="button" key={"restore-"+id} className="df2-week-care-restore"
+                              onClick={() => { if (!care.setHiddenForDay(key,id,false)) setNotice("Nepodařilo se obnovit blok hygieny."); }}
+                              aria-label={"Obnovit "+weekCareTitle(id)+" v rozvrhu "+key}>
+                              ↺ {weekCareTitle(id)} <small>obnovit</small>
+                            </button>
+                          ))}
                           {/* Unscheduled Gym items remain in the Gym planner and daily checklist.
                                We never fabricate an hour or float them above the week grid. */}
                         </div>
@@ -800,8 +856,12 @@ export function DayframeV2() {
                                   setDropPreview({date:key,start:item.start,duration:item.duration,valid:true});
                                 }}
                                 onDragEnd={()=>{setDragging(null);setDropPreview(null);}}
-                                onClick={()=>{setHygieneRoutineFocus(item.id);setView("hygiene");}}
-                                title={item.start+"–"+end+" · "+item.title+" · Kliknutím otevřeš rutinu"}
+                                onClick={()=>{
+                                  setEditingCare({date:key,id:item.id,duration:item.duration,title:item.title});
+                                  setEditingCareStart(item.start);
+                                  setEditingCareError("");
+                                }}
+                                title={item.start+"–"+end+" · "+item.title+" · Kliknutím upravíš nebo odebereš tento den"}
                                 aria-label={item.title+", "+item.start+"–"+end}
                               >
                                 {item.duration === 30 && <span>{item.start}–{end}</span>}
@@ -895,6 +955,32 @@ export function DayframeV2() {
             {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
+          </form>
+        </div>
+      )}
+
+      {editingCare && (
+        <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingCare(null); }}>
+          <form className="df2-modal df2-week-care-modal" role="dialog" aria-modal="true" aria-labelledby="df2-week-care-title" onSubmit={saveEditedCare}>
+            <header>
+              <div><h2 id="df2-week-care-title">{editingCare.title}</h2><small>{shortDate(editingCare.date)} · {editingCare.duration} min · pouze tento den</small></div>
+              <button type="button" aria-label="Zavřít" onClick={() => setEditingCare(null)}>×</button>
+            </header>
+            <label>Začátek bloku<input autoFocus type="time" step={900} value={editingCareStart}
+              onChange={(event) => { setEditingCareStart(event.target.value); setEditingCareError(""); }} /></label>
+            <p className="df2-week-care-help">Čas lze také změnit přetažením v Týdnu. Úprava platí pouze pro vybraný den.</p>
+            {editingCareError && <p className="df2-error" role="alert">{editingCareError}</p>}
+            <div className="df2-modal-actions">
+              <button className="df2-primary" type="submit" disabled={care.blocked || editingCare.date < todayKey}>Uložit čas</button>
+              <button type="button" onClick={()=>{
+                setHygieneRoutineFocus(editingCare.id);
+                setEditingCare(null);
+                setView("hygiene");
+              }}>Otevřít v Hygieně</button>
+              <button type="button" className="danger" disabled={care.blocked || editingCare.date < todayKey}
+                onClick={hideEditedCare}>Odebrat jen tento den</button>
+            </div>
+            <p className="df2-week-care-help">Odebrání skryje pouze blok v rozvrhu, nikoli úkoly ani jejich stav v Hygieně. Blok lze v Týdnu obnovit.</p>
           </form>
         </div>
       )}
