@@ -8,6 +8,7 @@ function planningDateKeyInBrowser() {
 }
 
 async function openFreshToday(page) {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
   await page.route("https://api.open-meteo.com/**", async (route) => {
     await route.fulfill({
