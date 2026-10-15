@@ -79,7 +79,14 @@
   .df2-gym-day-edit,
   .df2-gym-workout-preview,
   .df2-gym-week-strip,
-  .df2-gym-kpis article
+  .df2-gym-kpis article,
+  .df2-body-kpis article,
+  .df2-body-section,
+  .df2-body-photo-card,
+  .df2-sleep-kpis article,
+  .df2-sleep-card,
+  .df2-prevention-stats article,
+  .df2-prevention-card
 ) {
   border: 1px solid var(--line);
   border-radius: var(--care-radius);
@@ -240,4 +247,44 @@
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.df2-hygiene-page,.df2-health-page) * { scroll-behavior: auto; }
+}
+
+/* Remaining Health tabs use the exact same card and control scale. */
+.df2-health-page :is(.df2-body-section,.df2-body-photo-card,.df2-sleep-card,.df2-prevention-card) {
+  box-shadow: none;
+}
+.df2-health-page :is(.df2-body-section h3,.df2-sleep-card h3,.df2-prevention-card h3) {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 740;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+}
+.df2-health-page :is(.df2-body-kpis strong,.df2-sleep-kpis strong,.df2-prevention-stats strong) {
+  font-size: 23px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+}
+.df2-health-page :is(.df2-body-content button:not(.df2-primary):not(.df2-accent-button),
+ .df2-prevention-nav button,.df2-prevention-actions button:not(.df2-primary),
+ .df2-prevention-section-head > button) {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--care-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.df2-health-page :is(.df2-body-content button:not(.df2-primary):not(.df2-accent-button),
+ .df2-prevention-nav button,.df2-prevention-actions button:not(.df2-primary)):hover:not(:disabled) {
+  border-color: var(--accent);
+}
+@media(max-width:720px) {
+  .df2-health-page :is(.df2-body-section,.df2-sleep-card,.df2-prevention-card) {
+    padding: 15px var(--care-card-padding);
+  }
 }
