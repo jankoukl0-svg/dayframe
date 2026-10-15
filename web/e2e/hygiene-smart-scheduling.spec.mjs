@@ -94,7 +94,10 @@ test("weekly chores stay fixed, not-needed and skipped remain distinct, old stor
   });
   await changeDay(page, "2026-10-11");
   const sunday = page.locator('[data-hygiene-routine="hygiene-day"]');
-  await expect(sunday).toContainText("Převléknout celou postel");
+  await expect(sunday).not.toContainText("Převléknout celou postel");
+  await page.getByRole("tab", { name: "Úklid" }).click();
+  await expect(page.locator('[data-cleaning-routine="cleaning-sunday"]')).toContainText("Převléknout celou postel");
+  await page.getByRole("tab", { name: "Dnes" }).click();
   await expect(sunday).not.toContainText("Kontrola a případné stříhání nehtů na rukou");
   const skipped = sunday.locator(".df2-hygiene-task").filter({ hasText: "Holení nebo úprava vousů" });
   await skipped.getByRole("button", { name: "Přeskočit Holení nebo úprava vousů" }).click();
@@ -104,7 +107,7 @@ test("weekly chores stay fixed, not-needed and skipped remain distinct, old stor
   expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-beard"]).toBe("omitted");
   expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-eyebrows"]).toBe("skipped");
   expect(data.records["2026-10-11"]["hygiene-day"].completedOn?.["weekly-beard"]).toBeUndefined();
-  expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-bed"]).toBeUndefined();
+  expect(data.records["2026-10-11"]["cleaning-sunday"].states["weekly-bed"]).toBeUndefined();
   await page.reload({ waitUntil: "networkidle" });
   await hygiene(page);
   await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).toContainText("Přeskočeno");
