@@ -65,7 +65,8 @@ test("Hygiena cards across Today, Cleaning, History and Management share Health 
   await page.locator(".df2-hygiene-manage-list > article > header button").first().click();
   const modal = page.getByRole("dialog", { name: "Upravit hygienickou rutinu" });
   await expect(modal).toBeVisible();
-  await expect(modal.locator("input:not([type=checkbox])").first()).toHaveCSS("border-radius", "9px");
+  // Modal fields share the global Dayframe input design (10px in both sections).
+  await expect(modal.locator("input:not([type=checkbox])").first()).toHaveCSS("border-radius", "10px");
   await modal.getByRole("button", { name: "Zavřít" }).click();
 
   await page.getByRole("tab", { name: "Moje produkty" }).click();
