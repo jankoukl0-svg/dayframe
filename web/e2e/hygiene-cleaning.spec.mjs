@@ -29,6 +29,7 @@ test("Úklid separates daily chores and Sunday-only chores without weekday overd
   await daily.getByRole("button", { name: "Označit Ustlat postel jako hotovo" }).click();
   await expect(daily.getByRole("button", { name: "Vrátit Ustlat postel jako nesplněné" })).toHaveAttribute("aria-pressed", "true");
   await page.reload({ waitUntil: "networkidle" });
+  await cleaning(page);
   await expect(root.locator('[data-cleaning-routine="cleaning-daily"]')).toContainText("1/5");
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
   expect(saved.records["2026-10-12"]["cleaning-daily"].states["cleaning-make-bed"]).toBe("done");
