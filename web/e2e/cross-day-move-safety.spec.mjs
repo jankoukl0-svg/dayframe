@@ -59,7 +59,7 @@ test("dragging a task between week days keeps the same user task instead of losi
   await expect(source).toBeVisible();
 
   await page.evaluate(({ todayIndex }) => {
-    const source = [...document.querySelectorAll(".df2-week-day")][todayIndex]?.querySelector(".df2-week-task");
+    const source = [...document.querySelectorAll(".df2-week-day")][todayIndex]?.querySelector(".df2-week-task:not([data-week-care]):not([data-week-gym])");
     if (!(source instanceof HTMLElement)) throw new Error("Source task not found");
     const rect = source.getBoundingClientRect();
     const transfer = new DataTransfer();

@@ -124,6 +124,21 @@ test("Daily blocks move only within their own day, persist, and preserve older S
   await expect(page.locator('[data-week-care="hygiene-day"]')).toContainText("18:00–18:30");
 });
 
+test("A task with its own daily schedule keeps the Morning care block visible even when the parent is weekly", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const morning = store.routines.find(item => item.id === "morning");
+    morning.schedule = { type: "weekly", weekday: 0 };
+    morning.tasks[0].schedule = { type: "daily" };
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+  await expect(page.locator('[data-week-care="evening"]')).toHaveCount(7);
+});
+
 test("Disabling a daily Hygiene source hides only that routine's calendar blocks", async ({ page }) => {
   await fresh(page);
   await week(page);

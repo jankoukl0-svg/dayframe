@@ -1,5 +1,5 @@
 import { calendarBounds, dateFromKey, localDateKey, timeToMinutes } from "./dayframe-calendar";
-import { routineScheduledOnDate, routineSummary, taskScheduledOnDate, type HygieneStore } from "./dayframe-hygiene";
+import { routineHasScheduledWorkOnDate, routineSummary, type HygieneStore } from "./dayframe-hygiene";
 
 /** Calendar time reservations only; completion always belongs to Hygiene records. */
 export const WEEK_CARE_STORAGE_KEY = "dayframe-week-care-v1";
@@ -92,8 +92,7 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
   return DEFAULTS.flatMap(config => {
     if (!validCareDate(date, config)) return [];
     const routine = store.routines.find(item => item.id === config.id);
-    if (!routine || !routineScheduledOnDate(store, routine, date)) return [];
-    if (!routine.tasks.some(task => taskScheduledOnDate(task, date, true))) return [];
+    if (!routine || !routineHasScheduledWorkOnDate(store, routine, date)) return [];
     const record = store.records[date]?.[config.id];
     const completed = record ? routineSummary(routine, record, today).status === "complete" : false;
     return [{
