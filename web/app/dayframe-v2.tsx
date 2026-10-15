@@ -478,7 +478,7 @@ export function DayframeV2() {
     const max = calendarBounds.dayEnd - duration;
     const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
     const destination = getTasksForDate(data, date).filter(task => dragging?.kind==="task" ? task.id!==id : true);
-    const otherGym = dragging?.kind==="gym"
+    const otherGym = dragging?.kind==="gym"||dragging?.kind==="care"
       ? assignmentsOnDate(gym.store,date)
         .filter(occ=>occ.key!==id)
         .map(occ=>gymOccurrenceTime(gym.store,occ))
@@ -698,7 +698,7 @@ export function DayframeV2() {
                     const tasks = getTasksForDate(data, key);
                     const unscheduled = tasks.filter((task) => !task.start);
                     const scheduled = tasks.filter((task) => task.start && task.end);
-                    const timedCare=care.hydrated&&!care.blocked
+                    const timedCare=care.hydrated
                       ? sundayCareBlocks(care.store,key,todayKey,care.times) : [];
                     const timedGym=assignmentsOnDate(gym.store,key)
                       .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
