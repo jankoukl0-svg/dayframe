@@ -174,7 +174,7 @@ test("daily cleaning checkbox completes actual chores and remains in sync with �
   await expect(daily).toBeVisible();
   await expect(sunday).toHaveCount(0);
   await expect(daily).toContainText("0/5");
-  await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("0/9");
+  await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("0/6");
 
   await daily.getByRole("button", { name: "Označit celý Denní úklid jako hotový" }).click();
   await expect(daily).toContainText("Hotovo");
@@ -190,7 +190,7 @@ test("daily cleaning checkbox completes actual chores and remains in sync with �
   await card.getByRole("button", { name: "Vrátit Ustlat postel jako nesplněné" }).click();
   await page.locator(".df2-sidebar nav button").filter({ hasText: "Dnes" }).click();
   await expect(daily).toContainText("4/5");
-  await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("0/9");
+  await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("0/6");
 
   await daily.getByRole("button", { name: "Označit celý Denní úklid jako hotový" }).click();
   await page.reload({ waitUntil: "networkidle" });
