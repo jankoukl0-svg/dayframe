@@ -481,7 +481,7 @@ export function DayframeV2() {
     const start = editingCareStart;
     const minute = timeToMinutes(start);
     const duration = editingCare.duration;
-    if (!/^\\d{2}:\\d{2}$/.test(start)
+    if (!/^\d{2}:\d{2}$/.test(start)
       || minute < calendarBounds.dayStart || minute + duration > calendarBounds.dayEnd
       || minute % calendarBounds.slot !== 0
       || (date === todayKey && minute <= planningMinute(now))) {
