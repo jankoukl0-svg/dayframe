@@ -240,8 +240,49 @@ export function installCleaningRoutines(store: HygieneStore, today: string): Hyg
     ...transferred.map(item => ({ ...item })),
     ...(!oldHygieneDay ? sunday.tasks.filter(item => CLEANING_TRANSFER_IDS.has(item.id)) : []),
   ];
+  // If the upgrade runs during an already-started Sunday, carry the current
+  // checkmarks/products into the new Sunday record. Earlier history is untouched.
+  // The transferred tasks disappear from today's Hygiene Day snapshot, so there
+  // are no duplicate actionable rows and no already-completed chores reset.
+  const todayRecords = store.records[today];
+  const oldOccurrence = todayRecords?.["hygiene-day"];
+  const onSunday = dateFromKey(today).getDay() === 0;
+  const transferToday = onSunday && oldOccurrence && !store.routines.some(routine => routine.id === "cleaning-sunday");
+  const movedSnapshotIds = new Set((oldOccurrence?.scheduledTasks ?? [])
+    .filter(item => customMovedIds.has(item.id)).map(item => item.id));
+  let records = store.records;
+  if (transferToday && movedSnapshotIds.size > 0) {
+    const relevantStatuses = Object.fromEntries(Object.entries(oldOccurrence.states)
+      .filter(([id]) => movedSnapshotIds.has(id)));
+    const relevantCompletedOn = Object.fromEntries(Object.entries(oldOccurrence.completedOn ?? {})
+      .filter(([id]) => movedSnapshotIds.has(id)));
+    const newSundayRecord: HygieneRoutineRecord = {
+      domain: "cleaning",
+      date: today, routineId: "cleaning-sunday", routineTitle: sunday.title,
+      scheduledTasks: movedTasks.filter(item => item.active).map(item => {
+        const previous = oldOccurrence.scheduledTasks.find(snap => snap.id === item.id);
+        return previous && oldOccurrence.states[item.id]
+          ? previous : taskSnapshot(item, item.schedule ?? sunday.schedule);
+      }),
+      states: relevantStatuses,
+      completedOn: relevantCompletedOn,
+    };
+    records = { ...store.records, [today]: {
+      ...todayRecords,
+      "hygiene-day": {
+        ...oldOccurrence,
+        scheduledTasks: oldOccurrence.scheduledTasks.filter(item => !movedSnapshotIds.has(item.id)),
+        states: Object.fromEntries(Object.entries(oldOccurrence.states)
+          .filter(([id]) => !movedSnapshotIds.has(id))),
+        completedOn: Object.fromEntries(Object.entries(oldOccurrence.completedOn ?? {})
+          .filter(([id]) => !movedSnapshotIds.has(id))),
+      },
+      "cleaning-sunday": newSundayRecord,
+    } };
+  }
   return {
     ...store,
+    records,
     cleaningDefaultsInstalled: true,
     routines: [
       ...store.routines.map(routine => routine.id === "hygiene-day" ? {
