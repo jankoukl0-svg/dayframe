@@ -64,6 +64,7 @@ for (const file of changed) {
     add("daily-checklist.spec.mjs");
     add("completion-ux.spec.mjs");
     add("hygiene.spec.mjs");
+    add("hygiene-cleaning.spec.mjs");
   }
 
   if (
