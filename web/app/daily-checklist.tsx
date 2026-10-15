@@ -203,6 +203,7 @@ export function DailyChecklist({
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [recentlyCompletedId, setRecentlyCompletedId] = useState<string | null>(null);
   const [hygieneItems, setHygieneItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
+  const [cleaningItems, setCleaningItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
   const [healthItems, setHealthItems] = useState<Array<{ id: string; title: string; handled: number; total: number; complete: boolean }>>([]);
   const [hygieneHydrated, setHygieneHydrated] = useState(false);
   const gym=useGymStore();
@@ -223,6 +224,7 @@ export function DailyChecklist({
   const completedIds = new Set(store.completedByDate[planningKey] ?? []);
   const completedCount = visibleItems.filter((item) => completedIds.has(item.id)).length;
   const hygieneCompletedCount = hygieneItems.filter((item) => item.complete).length;
+  const cleaningCompletedCount = cleaningItems.filter((item) => item.complete).length;
   const healthCompletedCount = healthItems.filter((item) => item.complete).length;
   const gymItems = useMemo(()=>assignmentsOnDate(gym.store,planningKey),[gym.store,planningKey]);
   const gymCompletedCount = gymItems.filter(x=>x.completed).length;
@@ -238,8 +240,8 @@ export function DailyChecklist({
   const preventionCompleted=preventionRows.filter(row=>row.status==="done").length;
   // One checklist entry represents the entire supplement routine; individual
   // dose status and inventory continue to live in the Supplements module.
-  const totalVisibleCount = visibleItems.length + hygieneItems.length + healthItems.length + gymItems.length + (supplementHasDue?1:0) + (bodyStatus.due?1:0) + (sleepStatus.due?1:0) + preventionRows.length;
-  const totalCompletedCount = completedCount + hygieneCompletedCount + healthCompletedCount + gymCompletedCount + (supplementComplete?1:0) + (bodyStatus.due&&bodyStatus.complete?1:0) + (sleepStatus.due&&sleepStatus.complete?1:0) + preventionCompleted;
+  const totalVisibleCount = visibleItems.length + hygieneItems.length + cleaningItems.length + healthItems.length + gymItems.length + (supplementHasDue?1:0) + (bodyStatus.due?1:0) + (sleepStatus.due?1:0) + preventionRows.length;
+  const totalCompletedCount = completedCount + hygieneCompletedCount + cleaningCompletedCount + healthCompletedCount + gymCompletedCount + (supplementComplete?1:0) + (bodyStatus.due&&bodyStatus.complete?1:0) + (sleepStatus.due&&sleepStatus.complete?1:0) + preventionCompleted;
   const allDone = totalVisibleCount > 0 && totalCompletedCount === totalVisibleCount;
   const progressPercent = totalVisibleCount ? (totalCompletedCount / totalVisibleCount) * 100 : 0;
 
@@ -277,6 +279,8 @@ export function DailyChecklist({
         complete: summary.status === "complete" || summary.status === "skipped",
       });
       setHygieneItems(summaries.filter((summary) => routineDomain(summary.routine) === "hygiene").map(summaryItem));
+      // Only actual scheduled occurrences appear: daily every day, Sunday on Sunday.
+      setCleaningItems(summaries.filter((summary) => routineDomain(summary.routine) === "cleaning").map(summaryItem));
       setHealthItems(summaries.filter((summary) => routineDomain(summary.routine) === "health").map(summaryItem));
       setHygieneBlocked(result.blocked);
       setHygieneHydrated(true);
@@ -467,7 +471,7 @@ export function DailyChecklist({
     const changed = toggleHygieneRoutineCompletion(latest.store, planningKey, routineId);
     if (changed === latest.store) return;
     if (!saveHygieneStore(changed)) {
-      setBulkError("Ranní nebo večerní rutinu se nepodařilo uložit.");
+      setBulkError("Rutinu se nepodařilo uložit.");
       return;
     }
     setBulkError("");
@@ -556,6 +560,30 @@ export function DailyChecklist({
                   onClick={() => onOpenHygiene?.(item.id)}
                   aria-label={"Otevřít " + item.title + " v Hygieně"}
                 >
+                  <strong>{item.title}</strong>
+                  <small>{item.complete ? "Hotovo" : item.handled + "/" + item.total + " · otevřít detail"}</small>
+                </button>
+                <span className="df2-checklist-hygiene-link" aria-hidden="true">→</span>
+              </article>
+            ))}
+            {cleaningItems.map((item) => (
+              <article
+                key={"cleaning-" + item.id}
+                data-cleaning-checklist-routine={item.id}
+                className={"df2-checklist-hygiene-row " + (item.complete ? "done" : "")}
+              >
+                <button type="button"
+                  className="df2-checklist-check df2-checklist-hygiene-indicator df2-checklist-bulk-check"
+                  aria-label={item.complete ? "Vrátit " + item.title + " jako nesplněný" : "Označit celý " + item.title + " jako hotový"}
+                  aria-pressed={item.complete}
+                  disabled={!hygieneHydrated || hygieneBlocked}
+                  onClick={() => toggleHygieneRoutine(item.id)}>
+                  <span className="df2-checkmark" aria-hidden="true">{item.complete ? "✓" : ""}</span>
+                </button>
+                <button type="button"
+                  className="df2-checklist-copy df2-checklist-hygiene-copy"
+                  onClick={() => onOpenHygiene?.(item.id)}
+                  aria-label={"Otevřít " + item.title + " v Úklidu"}>
                   <strong>{item.title}</strong>
                   <small>{item.complete ? "Hotovo" : item.handled + "/" + item.total + " · otevřít detail"}</small>
                 </button>

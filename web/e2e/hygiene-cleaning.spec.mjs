@@ -164,3 +164,88 @@ test("a deleted completed task is displayed read-only without crashing its edito
   await expect(daily.getByRole("button",{name:"Upravit úkol Ustlat postel"})).toHaveCount(0);
   await expect(page.getByRole("heading",{name:"Hygiena"})).toBeVisible();
 });
+
+
+test("daily cleaning checkbox completes actual chores and remains in sync with Úklid", async ({ page }) => {
+  await fresh(page, "2026-10-12T12:00:00");
+  const checklist = page.locator("[data-daily-checklist]");
+  const daily = checklist.locator('[data-cleaning-checklist-routine="cleaning-daily"]');
+  const sunday = checklist.locator('[data-cleaning-checklist-routine="cleaning-sunday"]');
+  await expect(daily).toBeVisible();
+  await expect(sunday).toHaveCount(0);
+  await expect(daily).toContainText("0/5");
+  await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("0/6");
+
+  await daily.getByRole("button", { name: "Označit celý Denní úklid jako hotový" }).click();
+  await expect(daily).toContainText("Hotovo");
+  await expect(daily.getByRole("button", { name: "Vrátit Denní úklid jako nesplněný" })).toHaveAttribute("aria-pressed", "true");
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(Object.values(saved.records["2026-10-12"]["cleaning-daily"].states).filter(v => v === "done")).toHaveLength(6);
+  await daily.getByRole("button", { name: "Otevřít Denní úklid v Úklidu" }).click();
+  await expect(page.getByRole("tab", { name: "Úklid" })).toHaveAttribute("aria-selected", "true");
+  const card = page.locator('[data-cleaning-routine="cleaning-daily"]');
+  await expect(card).toContainText("5/5");
+
+  await card.getByRole("button", { name: "Vrátit Ustlat postel jako nesplněné" }).click();
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Dnes" }).click();
+  await expect(daily).toContainText("4/5");
+  await expect(checklist.locator('[data-hygiene-checklist-routine="morning"]')).toContainText("0/6");
+
+  await daily.getByRole("button", { name: "Označit celý Denní úklid jako hotový" }).click();
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(daily).toContainText("Hotovo");
+  await daily.getByRole("button", { name: "Vrátit Denní úklid jako nesplněný" }).click();
+  await expect(daily).toContainText("0/5");
+  const cleared = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(Object.keys(cleared.records["2026-10-12"]["cleaning-daily"].states)).toHaveLength(0);
+});
+
+test("Sunday cleaning is an independent bulk checklist item only on its scheduled day", async ({ page }) => {
+  await fresh(page, "2026-10-18T12:00:00");
+  const checklist = page.locator("[data-daily-checklist]");
+  const daily = checklist.locator('[data-cleaning-checklist-routine="cleaning-daily"]');
+  const sunday = checklist.locator('[data-cleaning-checklist-routine="cleaning-sunday"]');
+  await expect(daily).toBeVisible();
+  await expect(sunday).toBeVisible();
+  await expect(sunday).toContainText("0/13");
+  await sunday.getByRole("button", { name: "Označit celý Nedělní úklid jako hotový" }).click();
+  await expect(sunday).toContainText("Hotovo");
+  await expect(daily).toContainText("0/5");
+
+  await sunday.getByRole("button", { name: "Otevřít Nedělní úklid v Úklidu" }).click();
+  await expect(page.getByRole("tab", { name: "Úklid" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-cleaning-routine="cleaning-sunday"]')).toContainText("13/13");
+
+  await page.clock.setFixedTime(new Date("2026-10-19T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(checklist.locator('[data-cleaning-checklist-routine="cleaning-sunday"]')).toHaveCount(0);
+  await expect(checklist.locator('[data-cleaning-checklist-routine="cleaning-daily"]')).toContainText("0/5");
+
+  const past = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(Object.values(past.records["2026-10-18"]["cleaning-sunday"].states).filter(v => v === "done")).toHaveLength(13);
+  await page.clock.setFixedTime(new Date("2026-10-25T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(sunday).toContainText("0/13");
+  await expect(sunday.getByRole("button", { name: "Označit celý Nedělní úklid jako hotový" })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("only scheduled custom cleaning routines enter the checklist and keep edited titles", async ({ page }) => {
+  await fresh(page, "2026-10-12T12:00:00");
+  await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    stored.routines.find(r => r.id === "cleaning-daily").title = "Večerní pořádek";
+    stored.routines.find(r => r.id === "cleaning-sunday").schedule = { type: "weekly", weekday: 2 };
+    localStorage.setItem("dayframe-hygiene-v1", JSON.stringify(stored));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  const checklist = page.locator("[data-daily-checklist]");
+  await expect(checklist.locator('[data-cleaning-checklist-routine="cleaning-daily"]')).toContainText("Večerní pořádek");
+  await expect(checklist.locator('[data-cleaning-checklist-routine="cleaning-sunday"]')).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-10-13T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(checklist.locator('[data-cleaning-checklist-routine="cleaning-sunday"]')).toBeVisible();
+  await page.clock.setFixedTime(new Date("2026-10-18T12:00:00"));
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(checklist.locator('[data-cleaning-checklist-routine="cleaning-sunday"]')).toHaveCount(0);
+});

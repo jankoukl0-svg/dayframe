@@ -100,21 +100,21 @@ test("task progress and checklist progress stay separate and unlock a quiet day-
 
   await expect(page.locator(".df2-today-plan .df2-section-head")).toContainText("1/1 úkolů");
   const checklist = page.locator("[data-daily-checklist]");
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/3");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/4");
   await expect(page.locator(".df2-day-complete")).toHaveCount(0);
 
   await checklist.getByRole("button", { name: "Označit Vitamíny jako hotovo" }).click();
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/3");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/4");
   await expect(page.locator(".df2-day-complete")).toHaveCount(0);
 
   await completeHygieneForDate(page, "2026-10-06");
 
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("3/3");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("4/4");
   await expect(checklist.getByText("Dnešní checklist hotový")).toBeVisible();
   const dayComplete = page.locator(".df2-day-complete");
   await expect(dayComplete).toBeVisible();
   await expect(dayComplete).toContainText("Dnešek hotový");
-  await expect(dayComplete).toContainText("1 úkolů · checklist 3/3");
+  await expect(dayComplete).toContainText("1 úkolů · checklist 4/4");
 });
 
 
@@ -354,14 +354,14 @@ test("planning-day rollover updates checklist immediately with the parent day", 
   await page.reload({ waitUntil: "networkidle" });
 
   const checklist = page.locator("[data-daily-checklist]");
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/3");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("1/4");
   await completeHygieneForDate(page, "2026-10-06");
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("3/3");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("4/4");
   await expect(page.locator(".df2-day-complete")).toBeVisible();
 
   await page.clock.setFixedTime(new Date("2026-10-07T02:00:01"));
   await page.waitForTimeout(1300);
 
-  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/3");
+  await expect(checklist.locator("[data-checklist-progress]")).toHaveText("0/4");
   await expect(page.locator(".df2-day-complete")).toHaveCount(0);
 });
