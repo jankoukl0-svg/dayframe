@@ -383,7 +383,7 @@
 }
 
 
-/* Aggregated Hygiene routines share the checklist surface but remain read-only here. */
+/* Aggregated routines use shared checkmarks; labels still open the detailed modules. */
 .df2-checklist-hygiene-row {
   background: color-mix(in srgb, var(--paper) 72%, transparent);
 }
@@ -420,4 +420,18 @@
 
 .df2-checklist-hygiene-row:hover .df2-checklist-hygiene-link {
   color: var(--accent-dark);
+}
+
+/* Keyboard- and pointer-accessible bulk checkmarks for Hygiene and Supplements. */
+.df2-checklist-bulk-check {
+  padding: 0;
+  cursor: pointer;
+}
+.df2-checklist-bulk-check:focus-visible {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 3px;
+}
+.df2-checklist-bulk-check:disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
