@@ -36,6 +36,8 @@ import "./visual-harmony-state-fixes.css";
 import "./week-category-tints.css";
 import "./retroactive-week-controller.css";
 import "./personal-block-controller.css";
+// Last stylesheet: same card, tab and control language throughout Hygiene and Health.
+import "./care-shared-design.css";
 import { MilestoneFeaturedController } from "./milestone-featured-controller";
 import { MilestoneHistoryController } from "./milestone-history-controller";
 import { MilestoneMonthGroupsController } from "./milestone-month-groups-controller";

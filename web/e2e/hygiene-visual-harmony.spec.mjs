@@ -48,25 +48,25 @@ test("Hygiena cards across Today, Cleaning, History and Management share Health 
   await hygiene(page);
   const routine = page.locator(".df2-hygiene-routine").first();
   await expect(routine).toBeVisible();
-  await expect(routine).toHaveCSS("border-radius", "14px");
+  await expect(routine).toHaveCSS("border-radius", "12px");
   await expect(routine).toHaveCSS("box-shadow", "none");
   await expect(page.locator(".df2-hygiene-overall")).toHaveCSS("background-color", "rgb(252, 251, 248)");
   await expect(page.locator(".df2-hygiene-overall")).toHaveCSS("border-radius", "12px");
 
   await page.getByRole("tab", { name: "Úklid" }).click();
-  await expect(page.locator('[data-cleaning-routine="cleaning-daily"]')).toHaveCSS("border-radius", "14px");
-  await expect(page.locator('[data-cleaning-routine="cleaning-sunday"]')).toHaveCSS("border-radius", "14px");
+  await expect(page.locator('[data-cleaning-routine="cleaning-daily"]')).toHaveCSS("border-radius", "12px");
+  await expect(page.locator('[data-cleaning-routine="cleaning-sunday"]')).toHaveCSS("border-radius", "12px");
 
   await page.getByRole("tab", { name: "Historie" }).click();
-  await expect(page.locator(".df2-hygiene-stats-grid article").first()).toHaveCSS("border-radius", "14px");
+  await expect(page.locator(".df2-hygiene-stats-grid article").first()).toHaveCSS("border-radius", "12px");
 
   await page.getByRole("tab", { name: "Správa rutin" }).click();
-  await expect(page.locator(".df2-hygiene-manage-list > article").first()).toHaveCSS("border-radius", "14px");
+  await expect(page.locator(".df2-hygiene-manage-list > article").first()).toHaveCSS("border-radius", "12px");
   await page.locator(".df2-hygiene-manage-list > article > header button").first().click();
   const modal = page.getByRole("dialog", { name: "Upravit hygienickou rutinu" });
   await expect(modal).toBeVisible();
-  // Modal fields share the global Dayframe input design (10px in both sections).
-  await expect(modal.locator("input:not([type=checkbox])").first()).toHaveCSS("border-radius", "10px");
+  // Modal fields share the care input design (9px in both sections).
+  await expect(modal.locator("input:not([type=checkbox])").first()).toHaveCSS("border-radius", "9px");
   await modal.getByRole("button", { name: "Zavřít" }).click();
 
   await page.getByRole("tab", { name: "Moje produkty" }).click();
@@ -87,4 +87,22 @@ test("Hygiene tabs are accessible on mobile without wrapping into extra rows", a
   await expect(page.locator(".df2-products-top")).toBeVisible();
   await page.getByRole("tab", { name: "Úklid" }).click();
   await expect(page.locator('[data-cleaning-routine="cleaning-daily"]')).toBeVisible();
+});
+
+test("Body, Sleep, Prevention and Supplements reuse the shared care card radius", async ({ page }) => {
+  await fresh(page);
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Zdraví" }).click();
+  const cases = [
+    ["Tělo & Progress", ".df2-body-kpis article"],
+    ["Spánek & Regenerace", ".df2-sleep-kpis article"],
+    ["Prevence", ".df2-prevention-stats article"],
+    ["Suplementy", ".df2-supplements-overview"],
+  ];
+  for (const [tab, selector] of cases) {
+    await page.getByRole("tab", { name: tab }).click();
+    const card = page.locator(selector).first();
+    await expect(card).toBeVisible();
+    await expect(card).toHaveCSS("border-radius", "12px");
+    await expect(card).toHaveCSS("box-shadow", "none");
+  }
 });

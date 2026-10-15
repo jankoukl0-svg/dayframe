@@ -1,0 +1,290 @@
+/*
+ * Dayframe care UI — one shared visual vocabulary for Hygiene + Health.
+ * Loaded after module styles. Presentation only: no storage, schedule or
+ * checkbox behavior is modified here.
+ */
+:is(.df2-hygiene-page,.df2-health-page) {
+  --care-radius: 12px;
+  --care-control-radius: 9px;
+  --care-spacing: 18px;
+  --care-card-padding: 17px;
+  min-width: 0;
+  gap: 21px;
+  color: var(--ink);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-head,.df2-health-head) {
+  align-items: center;
+  gap: 20px;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-overall,.df2-health-today-progress) {
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--care-radius);
+  box-shadow: none;
+  background: var(--paper);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-overall,.df2-health-today-progress) strong {
+  font-size: 21px;
+  font-weight: 750;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-tabs,.df2-health-tabs) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-tabs,.df2-health-tabs) button {
+  min-height: 38px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--care-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-tabs,.df2-health-tabs) button[aria-selected="true"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-tabs,.df2-health-tabs) button:hover:not([aria-selected="true"]) {
+  border-color: var(--line-strong);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-routine,
+  .df2-hygiene-cleaning-card,
+  .df2-hygiene-overdue,
+  .df2-hygiene-stats-grid article,
+  .df2-hygiene-manage-list > article,
+  .df2-hygiene-history-section,
+  .df2-health-routine,
+  .df2-health-manage,
+  .df2-health-history,
+  .df2-health-habits-details,
+  .df2-product-card,
+  .df2-supplements-due article,
+  .df2-supplements-library article,
+  .df2-supplements-shopping article,
+  .df2-supplements-stats article,
+  .df2-supplements-overview,
+  .df2-gym-log-exercise,
+  .df2-gym-day-edit,
+  .df2-gym-workout-preview,
+  .df2-gym-week-strip,
+  .df2-gym-kpis article,
+  .df2-body-kpis article,
+  .df2-body-section,
+  .df2-body-photo-card,
+  .df2-sleep-kpis article,
+  .df2-sleep-card,
+  .df2-prevention-stats article,
+  .df2-prevention-card
+) {
+  border: 1px solid var(--line);
+  border-radius: var(--care-radius);
+  background: var(--paper);
+  box-shadow: none;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+ .df2-hygiene-routine > header,
+ .df2-hygiene-cleaning-card > header
+) {
+  min-height: 0;
+  padding: 16px var(--care-card-padding);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-routine h2,
+  .df2-hygiene-cleaning-card h3,
+  .df2-health-section-heading h2,
+  .df2-gym-section-head h3
+) {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 740;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-section-title span,
+  .df2-hygiene-cleaning-intro span,
+  .df2-hygiene-manage-head span,
+  .df2-health-section-heading span,
+  .df2-supplements-head > span,
+  .df2-gym-section-head > span
+) {
+  color: var(--accent-dark);
+  font-size: 10px;
+  letter-spacing: .075em;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-task > div strong,
+  .df2-hygiene-cleaning-item > span,
+  .df2-health-task > span,
+  .df2-supplements-due-copy strong,
+  .df2-gym-preview-row strong
+) {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+  line-height: 1.5;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-routine > header small,
+  .df2-hygiene-task > div small,
+  .df2-hygiene-cleaning-card small,
+  .df2-health-task small,
+  .df2-supplements-due-copy small,
+  .df2-gym-section-head small
+) {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-skip,
+  .df2-hygiene-overdue-actions button,
+  .df2-hygiene-cleaning-head-actions button,
+  .df2-hygiene-cleaning-edit,
+  .df2-hygiene-cleaning-card > footer button,
+  .df2-hygiene-add-task,
+  .df2-health-task button,
+  .df2-health-manage button,
+  .df2-products-toolbar button,
+  .df2-supplements-due-actions button,
+  .df2-supplements-card-actions button,
+  .df2-gym-section-head > button
+) {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--care-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-skip,
+  .df2-hygiene-overdue-actions button,
+  .df2-hygiene-cleaning-head-actions button,
+  .df2-hygiene-cleaning-edit,
+  .df2-health-task button,
+  .df2-supplements-due-actions button
+):hover:not(:disabled) {
+  border-color: var(--accent);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-weekdays button,
+  .df2-hygiene-skip,
+  .df2-health-task button,
+  .df2-supplements-due-actions button
+)[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(
+  .df2-hygiene-modal input:not([type="checkbox"]),
+  .df2-hygiene-modal select,
+  .df2-hygiene-modal textarea,
+  .df2-hygiene-schedule-editor input:not([type="checkbox"]),
+  .df2-hygiene-schedule-editor select,
+  .df2-product-form-grid input:not([type="checkbox"]),
+  .df2-product-form-grid select,
+  .df2-product-form-grid textarea,
+  .df2-supplements-editor-fields input,
+  .df2-supplements-editor-fields textarea,
+  .df2-gym input,
+  .df2-gym select,
+  .df2-gym textarea
+) {
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--care-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+}
+:is(.df2-hygiene-page,.df2-health-page) :is(button,input,select,textarea,a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:is(.df2-hygiene-page,.df2-health-page) button:disabled { cursor: not-allowed; opacity: .5; }
+
+/* Keep section-specific completion semantics and accent buttons. */
+:is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-check,.df2-primary,.df2-accent-button,.df2-supplements-mark-all) {
+  opacity: 1;
+}
+.df2-hygiene-page .df2-hygiene-cleaning-items { padding-inline: var(--care-card-padding); }
+.df2-hygiene-page .df2-hygiene-cleaning-item { min-height: 54px; }
+.df2-health-page .df2-health-routine { padding: var(--care-card-padding); }
+.df2-health-page .df2-health-manage article { padding: 14px var(--care-card-padding); }
+.df2-health-page .df2-health-habits-details > summary { padding: 16px var(--care-card-padding); }
+.df2-health-page .df2-supplements-nav button[aria-current="page"],
+.df2-health-page .df2-gym-nav button[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-dark);
+}
+@media (max-width: 720px) {
+  :is(.df2-hygiene-page,.df2-health-page) { --care-card-padding: 14px; }
+  :is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-tabs,.df2-health-tabs) {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding-bottom: 14px;
+  }
+  :is(.df2-hygiene-page,.df2-health-page) :is(.df2-hygiene-tabs,.df2-health-tabs) button { flex: 0 0 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.df2-hygiene-page,.df2-health-page) * { scroll-behavior: auto; }
+}
+
+/* Remaining Health tabs use the exact same card and control scale. */
+.df2-health-page :is(.df2-body-section,.df2-body-photo-card,.df2-sleep-card,.df2-prevention-card) {
+  box-shadow: none;
+}
+.df2-health-page :is(.df2-body-section h3,.df2-sleep-card h3,.df2-prevention-card h3) {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 740;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+}
+.df2-health-page :is(.df2-body-kpis strong,.df2-sleep-kpis strong,.df2-prevention-stats strong) {
+  font-size: 23px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+}
+.df2-health-page :is(.df2-body-content button:not(.df2-primary):not(.df2-accent-button),
+ .df2-prevention-nav button,.df2-prevention-actions button:not(.df2-primary),
+ .df2-prevention-section-head > button) {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--care-control-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.df2-health-page :is(.df2-body-content button:not(.df2-primary):not(.df2-accent-button),
+ .df2-prevention-nav button,.df2-prevention-actions button:not(.df2-primary)):hover:not(:disabled) {
+  border-color: var(--accent);
+}
+@media(max-width:720px) {
+  .df2-health-page :is(.df2-body-section,.df2-sleep-card,.df2-prevention-card) {
+    padding: 15px var(--care-card-padding);
+  }
+}

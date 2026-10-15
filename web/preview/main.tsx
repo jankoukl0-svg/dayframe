@@ -88,6 +88,7 @@ import "../app/visual-harmony-state-fixes.css";
 import "../app/week-category-tints.css";
 import "../app/retroactive-week-controller.css";
 import "../app/personal-block-controller.css";
+import "../app/care-shared-design.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Preview root element was not found.");

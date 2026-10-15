@@ -194,7 +194,7 @@ test("Body overview uses the Gym/Supplements card style and a compact single-rea
     const plot=el.querySelector("[data-body-chart]").getBoundingClientRect();
     return {navRadius:nav.borderRadius,kpiRadius:kpi.borderRadius,sectionRadius:section.borderRadius,chartHeight:plot.height};
   });
-  expect(design).toMatchObject({navRadius:"12px",kpiRadius:"14px",sectionRadius:"16px"});
+  expect(design).toMatchObject({navRadius:"12px",kpiRadius:"12px",sectionRadius:"12px"});
   expect(design.chartHeight).toBeLessThan(150);
   await root.getByRole("combobox",{name:"Metrika grafu"}).selectOption("waistCm");
   await expect(root.locator(".df2-body-chart.is-single")).toContainText("81 cm");
