@@ -417,6 +417,17 @@
 .df2-week-task:hover { z-index: 4; border-color: var(--line-strong); background: var(--paper); }
 .df2-week-task.done { opacity: .42; }
 .df2-week-task.done strong { text-decoration: line-through; }
+/* Sunday care is a timed projection of Hygiene, not another completion record. */
+.df2-week-task.df2-week-care {
+  min-height: 0;
+  padding: 2px 5px;
+  gap: 0;
+  border-left-color: var(--accent);
+  background: var(--accent-wash);
+}
+.df2-week-care > span { font-size: 7px; line-height: 1; }
+.df2-week-care > strong { font-size: 10px; line-height: 1.1; }
+.df2-week-care.done { opacity: .6; }
 .df2-week-task > span { color: var(--muted); font: 8px/1.2 "Cascadia Mono", monospace; }
 .df2-week-task > strong { overflow: hidden; font-size: 11px; line-height: 1.15; font-weight: 700; text-overflow: ellipsis; }
 .df2-week-task > small { overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
