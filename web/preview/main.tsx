@@ -48,6 +48,7 @@ import "../app/health-supplements.css";
 import "../app/health-body.css";
 import "../app/health-sleep.css";
 import "../app/health-prevention.css";
+import "../app/hygiene-health-harmony.css";
 import "../app/dayframe-countdowns.css";
 import "../app/milestone-alignment.css";
 import "../app/week-calendar-polish.css";
