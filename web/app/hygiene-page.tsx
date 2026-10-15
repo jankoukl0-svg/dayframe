@@ -573,8 +573,8 @@ export function HygienePage({
           <h1>Hygiena</h1>
         </div>
         <div className="df2-hygiene-overall" aria-label={"Celkový progres " + overall.handled + " z " + overall.total}>
-          <strong>{overall.percent}%</strong>
-          <span>{overall.handled}/{overall.total} dnes</span>
+          <strong>{overall.handled}/{overall.total}</strong>
+          <span>dnešní hygiena · {overall.percent}%</span>
         </div>
       </header>
 
