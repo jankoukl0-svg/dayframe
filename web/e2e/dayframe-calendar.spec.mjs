@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 
+// Most calendar tests use the real "today". Keep them away from the 02:00–08:00 planning-day handover.
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
+});
+
 test("adds a task from the week without leaking internal scheduling syntax", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.clear());
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
