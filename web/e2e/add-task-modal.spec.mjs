@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 const baseUrl = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-15T12:00:00"));
   await page.addInitScript(() => window.localStorage.clear());
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 });
