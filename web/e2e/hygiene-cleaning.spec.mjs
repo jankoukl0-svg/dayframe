@@ -115,3 +115,52 @@ test("deleting a cleaning task does not re-install it from defaults", async ({ p
   expect(data.cleaningDefaultsInstalled).toBe(true);
   expect(data.routines.find(r => r.id === "cleaning-daily").tasks.some(t => t.id === "cleaning-make-bed")).toBe(false);
 });
+
+
+test("current Sunday completion is transferred without asking to redo a finished chore", async ({ page }) => {
+  await fresh(page, "2026-10-11T12:00:00");
+  await page.evaluate(() => {
+    const store=JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const hygiene=store.routines.find(r=>r.id==="hygiene-day");
+    const sunday=store.routines.find(r=>r.id==="cleaning-sunday");
+    hygiene.tasks.push(...sunday.tasks.filter(t=>t.id.startsWith("weekly-")));
+    const old=store.records["2026-10-11"]["hygiene-day"];
+    const current=store.records["2026-10-11"]["cleaning-sunday"];
+    old.scheduledTasks.push(...current.scheduledTasks.filter(t=>t.id.startsWith("weekly-")));
+    old.states["weekly-bed"]="done";
+    old.completedOn={"weekly-bed":"2026-10-11"};
+    delete store.records["2026-10-11"]["cleaning-sunday"];
+    store.routines=store.routines.filter(r=>r.domain!=="cleaning");
+    delete store.cleaningDefaultsInstalled;
+    localStorage.setItem("dayframe-hygiene-v1",JSON.stringify(store));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  const root=await cleaning(page);
+  const sunday=root.locator('[data-cleaning-routine="cleaning-sunday"]');
+  await expect(sunday.getByRole("button",{name:"Vrátit Převléknout celou postel jako nesplněné"})).toHaveAttribute("aria-pressed","true");
+  await page.getByRole("tab",{name:"Dnes"}).click();
+  await expect(page.locator('[data-hygiene-routine="hygiene-day"]')).not.toContainText("Převléknout celou postel");
+  const data=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-hygiene-v1")));
+  expect(data.records["2026-10-11"]["cleaning-sunday"].states["weekly-bed"]).toBe("done");
+  expect(data.records["2026-10-11"]["cleaning-sunday"].completedOn["weekly-bed"]).toBe("2026-10-11");
+  expect(data.records["2026-10-11"]["hygiene-day"].states["weekly-bed"]).toBeUndefined();
+});
+
+test("a deleted completed task is displayed read-only without crashing its editor", async ({ page }) => {
+  await fresh(page);
+  const root=await cleaning(page);
+  const daily=root.locator('[data-cleaning-routine="cleaning-daily"]');
+  await daily.getByRole("button",{name:"Označit Ustlat postel jako hotovo"}).click();
+  await page.evaluate(()=>{
+    const store=JSON.parse(localStorage.getItem("dayframe-hygiene-v1"));
+    const routine=store.routines.find(r=>r.id==="cleaning-daily");
+    routine.tasks=routine.tasks.filter(t=>t.id!=="cleaning-make-bed");
+    localStorage.setItem("dayframe-hygiene-v1",JSON.stringify(store));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await cleaning(page);
+  await expect(daily).toContainText("Ustlat postel");
+  await expect(daily).toContainText("Historický úkon");
+  await expect(daily.getByRole("button",{name:"Upravit úkol Ustlat postel"})).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:"Hygiena"})).toBeVisible();
+});
