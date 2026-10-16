@@ -139,7 +139,3 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
   });
 }
 
-/** Names for optional one-day restore controls. No completion state is stored here. */
-export function weekCareTitle(id: WeekCareId): string {
-  return DEFAULTS.find(item => item.id === id)?.title ?? id;
-}

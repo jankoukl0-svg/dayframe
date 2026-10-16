@@ -87,7 +87,7 @@ test("Care modal edits just one day and protects occupied slots", async ({ page 
   expect(saved.times["2026-10-16"].morning).toBe("18:00");
 });
 
-test("One-day cancel hides only the calendar reservation, persists and can be restored", async ({ page }) => {
+test("One-day removal leaves no restore option, persists, and preserves other dates", async ({ page }) => {
   await fresh(page);
   await week(page);
   const thursday = page.locator(".df2-week-day").nth(3);
@@ -104,14 +104,18 @@ test("One-day cancel hides only the calendar reservation, persists and can be re
   expect(hygiene.records["2026-10-12"].morning).toBeTruthy();
   await page.reload({waitUntil:"networkidle"});
   await week(page);
-  const restore = page.getByRole("button",{name:"Obnovit Ranní hygiena v rozvrhu 2026-10-16"});
-  await expect(restore).toBeVisible();
-  await restore.click();
-  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]')).toBeVisible();
-  expect((await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).hidden,CARE_KEY))?.["2026-10-16"]).toBeUndefined();
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]')).toHaveCount(0);
+  await expect(page.locator(".df2-week-day").nth(4).getByText(/obnovit/i)).toHaveCount(0);
+  await expect(page.locator(".df2-week-day").nth(5).locator('[data-week-care="morning"]')).toHaveCount(1);
+  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), CARE_KEY);
+  expect(stored.hidden["2026-10-16"]).toContain("morning");
+  await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
+  await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]')).toHaveCount(0);
+  await expect(page.locator(".df2-week-day").nth(4).getByText(/obnovit/i)).toHaveCount(0);
 });
 
-test("Restoring a hidden day checks collisions and refuses to overlap another care block", async ({ page }) => {
+test("Removed reservation stays absent when another block takes its former slot", async ({ page }) => {
   await fresh(page);
   await week(page);
   const friday = page.locator(".df2-week-day").nth(4);
@@ -123,9 +127,12 @@ test("Restoring a hidden day checks collisions and refuses to overlap another ca
   await evening.getByLabel("Začátek bloku").fill("09:00");
   await evening.getByRole("button", { name: "Uložit čas" }).click();
   await expect(friday.locator('[data-week-care="evening"]')).toHaveAttribute("aria-label","Večerní hygiena, 09:00–09:20");
-  await friday.getByRole("button", { name: "Obnovit Ranní hygiena v rozvrhu 2026-10-16" }).click();
   await expect(friday.locator('[data-week-care="morning"]')).toHaveCount(0);
-  await expect(page.locator(".df2-notice")).toContainText("obsazený");
+  await expect(friday.getByText(/obnovit/i)).toHaveCount(0);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="morning"]')).toHaveCount(0);
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="evening"]')).toHaveAttribute("aria-label","Večerní hygiena, 09:00–09:20");
   const saved = await page.evaluate(key=>JSON.parse(localStorage.getItem(key)), CARE_KEY);
   expect(saved.hidden["2026-10-16"]).toContain("morning");
   expect(saved.times["2026-10-16"].evening).toBe("09:00");
@@ -141,10 +148,15 @@ test("Sunday blocks can be cancelled just once; legacy saved times survive suppr
   await page.getByRole("dialog", {name:"Nedělní hygiena"}).getByRole("button",{name:"Odebrat jen tento den"}).click();
   await expect(sunday.locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
   await expect(sunday.locator('[data-week-care="cleaning-sunday"]')).toHaveCount(1);
-  await sunday.getByRole("button", {name:"Obnovit Nedělní hygiena v rozvrhu 2026-10-18"}).click();
-  await expect(sunday.locator('[data-week-care="hygiene-day"]')).toContainText("18:00–18:30");
+  await expect(sunday.getByText(/obnovit/i)).toHaveCount(0);
   const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
   expect(saved.times["2026-10-18"]["hygiene-day"]).toBe("18:00");
+  expect(saved.hidden["2026-10-18"]).toContain("hygiene-day");
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+  await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(1);
 });
 
 test("Invalid hidden placement remains read-only, without deleting saved Hygiene data", async ({ page }) => {

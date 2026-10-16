@@ -42,7 +42,7 @@ import { HygienePage } from "./hygiene-page";
 import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
-import { weekCareBlocks, weekCareTitle, type WeekCareId } from "@/lib/dayframe-week-care";
+import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
@@ -487,23 +487,6 @@ export function DayframeV2() {
       && ![...otherCare, ...otherGym].some(item => minute < item.end && minute + duration > item.start);
   }
 
-  function restoreCareForDate(date: string, id: WeekCareId) {
-    if (care.blocked || date < todayKey) return;
-    // Restore only if the authoritative Hygiene routine still has scheduled work.
-    const restored = weekCareBlocks(care.store, date, todayKey, care.times, {
-      ...care.hidden, [date]: (care.hidden[date] ?? []).filter(item => item !== id),
-    }).find(item => item.id === id);
-    if (!restored) {
-      setNotice("Rutina už není v tomto dni plánovaná.");
-      return;
-    }
-    if (!careSlotOpen(date, id, restored.start, restored.duration)) {
-      setNotice("Původní čas hygieny je obsazený. Nejprve uvolni místo, pak blok obnov.");
-      return;
-    }
-    if (!care.setHiddenForDay(date, id, false)) setNotice("Nepodařilo se obnovit blok hygieny.");
-  }
-
   function saveEditedCare(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingCare || care.blocked || !care.hydrated || editingCare.date < todayKey) return;
@@ -793,13 +776,6 @@ export function DayframeV2() {
                         </header>
                         <div className="df2-unscheduled">
                           {unscheduled.map((task) => <button key={task.id} onClick={() => setEditing(task)}>{task.title}<small>bez času</small></button>)}
-                          {key >= todayKey && !care.blocked && (care.hidden[key] ?? []).map(id => (
-                            <button type="button" key={"restore-"+id} className="df2-week-care-restore"
-                              onClick={() => restoreCareForDate(key, id)}
-                              aria-label={"Obnovit "+weekCareTitle(id)+" v rozvrhu "+key}>
-                              ↺ {weekCareTitle(id)} <small>obnovit</small>
-                            </button>
-                          ))}
                           {/* Unscheduled Gym items remain in the Gym planner and daily checklist.
                                We never fabricate an hour or float them above the week grid. */}
                         </div>
