@@ -171,6 +171,43 @@ test("Friday repeat can move in time or be removed just for Friday with no Resto
   expect(saved.hidden["2026-10-16"]).toContain(REPEATED_CARE_ID);
 });
 
+test("A fixed Tuesday occurrence moves to Wednesday without changing other weeks or duplicating Hygiene tasks", async ({ page }) => {
+  await fresh(page, "2026-10-12T12:00:00");
+  await seedRepeatedHygiene(page);
+  const days = await week(page);
+  await days.nth(1).locator('[data-week-care="' + REPEATED_CARE_ID + '"]').click();
+  const dialog=page.getByRole("dialog",{name:"Opakovaná rutina"});
+  await dialog.getByLabel("Den výskytu").fill("2026-10-14");
+  await dialog.getByLabel("Začátek bloku").fill("19:00");
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(days.nth(1).locator('[data-week-care="' + REPEATED_CARE_ID + '"]')).toHaveCount(0);
+  await expect(days.nth(2).locator('[data-week-care="' + REPEATED_CARE_ID + '"]'))
+    .toHaveAttribute("aria-label","Opakovaná rutina, 19:00–19:30");
+  await expect(days.nth(4).locator('[data-week-care="' + REPEATED_CARE_ID + '"]')).toHaveCount(1);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(2).locator('[data-week-care="' + REPEATED_CARE_ID + '"]')).toHaveCount(1);
+  const hygiene=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(hygiene.suppressedDates["2026-10-13"]).toContain(REPEATED_ID);
+  expect(hygiene.taskReschedules["2026-10-13|"+REPEATED_ID+"|repeat-e2e-1"]).toBe("2026-10-14");
+  const placement=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(placement.times["2026-10-14"][REPEATED_CARE_ID]).toBe("19:00");
+  await page.locator(".df2-week-controls button").filter({hasText:"→"}).click();
+  await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-care="'+REPEATED_CARE_ID+'"]')).toHaveCount(1);
+});
+
+test("Sunday already covered by Hygiene Day and cannot receive a second repeated occurrence", async ({ page }) => {
+  await fresh(page, "2026-10-12T12:00:00");
+  await seedRepeatedHygiene(page);
+  const days=await week(page);
+  await days.nth(1).locator('[data-week-care="'+REPEATED_CARE_ID+'"]').click();
+  const dialog=page.getByRole("dialog",{name:"Opakovaná rutina"});
+  await dialog.getByLabel("Den výskytu").fill("2026-10-18");
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(dialog.getByRole("alert")).toContainText("mimo neděli");
+  await expect(days.nth(1).locator('[data-week-care="'+REPEATED_CARE_ID+'"]')).toHaveCount(1);
+});
+
 test("Care modal edits just one day and protects occupied slots", async ({ page }) => {
   await fresh(page);
   await week(page);

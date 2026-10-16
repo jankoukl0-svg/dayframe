@@ -939,6 +939,38 @@ export function overdueHygieneTasks(store: HygieneStore, today: string) {
   return [...pending.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** Move one unstarted Tuesday/Friday Hygiene occurrence, keeping the original
+ * recurrence and existing history. A moved task retains its origin date.
+ * Sunday remains exclusively represented by Hygiene Day and cannot receive
+ * a second copy of these same steps.
+ */
+export function moveFixedRepeatOccurrence(store: HygieneStore, routineId: string, fromDate: string, toDate: string): HygieneStore {
+  if (store.fixedRepeatRoutineId !== routineId || fromDate === toDate
+    || !/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)
+    || !Number.isFinite(dateFromKey(fromDate).getTime())
+    || !Number.isFinite(dateFromKey(toDate).getTime())
+    || dateFromKey(toDate).getDay() === 0) return store;
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!routine || !routineHasScheduledWorkOnDate(store, routine, fromDate)
+    || routineHasScheduledWorkOnDate(store, routine, toDate)) return store;
+  const source = materializeHygieneDate(store, fromDate);
+  const record = source.records[fromDate]?.[routineId];
+  if (!record || !record.scheduledTasks.length || Object.keys(record.states).length > 0) return store;
+  const taskReschedules = { ...store.taskReschedules };
+  for (const snapshot of record.scheduledTasks) {
+    const origin = snapshot.originDate ?? fromDate;
+    taskReschedules[origin + "|" + routineId + "|" + snapshot.id] = toDate;
+  }
+  return {
+    ...store,
+    taskReschedules,
+    suppressedDates: {
+      ...store.suppressedDates,
+      [fromDate]: [...new Set([...(store.suppressedDates[fromDate] ?? []), routineId])],
+    },
+  };
+}
+
 export function postponeHygieneTask(store: HygieneStore, fromDate: string, routineId: string, taskId: string, toDate: string): HygieneStore {
   if (toDate <= fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) return store;
   const record = store.records[fromDate]?.[routineId];
