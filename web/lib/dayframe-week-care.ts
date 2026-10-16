@@ -167,7 +167,8 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
     const record = store.records[date]?.[config.routineId];
     const completed = record ? routineSummary(routine, record, today).status === "complete" : false;
     return [{
-      id: config.id, routineId: config.routineId, title: config.title,
+      id: config.id, routineId: config.routineId,
+      title: config.id === "cleaning-daily" ? routine.title : config.title,
       start: times[date]?.[config.id] ?? config.start,
       duration: config.duration, completed,
     }];

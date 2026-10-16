@@ -455,6 +455,28 @@ test("Daily Cleaning is a linked 20-minute morning reservation every day includi
   expect(Object.values(calendar.plans).flat().filter(task => task.routineId === "cleaning-daily")).toHaveLength(0);
 });
 
+test("Daily Cleaning Week label tracks edits to the original Cleaning routine", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const source = store.routines.find(item => item.id === "cleaning-daily");
+    if (!source) throw Error("Daily Cleaning routine missing");
+    source.title = "Ranní rychloúklid";
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await expect(page.locator('[data-week-care="cleaning-daily"]')).toHaveCount(7);
+  await expect(page.locator('[data-week-care="cleaning-daily"]').first())
+    .toHaveAttribute("aria-label", "Ranní rychloúklid, 09:30–09:50");
+  await page.locator('[data-week-care="cleaning-daily"]').first().click();
+  const dialog = page.getByRole("dialog", { name: "Ranní rychloúklid" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Otevřít v Hygieně" }).click();
+  await expect(page.getByRole("tab", { name: "Úklid" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-cleaning-routine="cleaning-daily"]')).toContainText("Ranní rychloúklid");
+});
+
 test("Daily Cleaning opens the real Cleaning checklist and reflects its completion", async ({ page }) => {
   await fresh(page, "2026-10-12T08:20:00");
   const days = await week(page);
