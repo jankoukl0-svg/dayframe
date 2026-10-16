@@ -438,6 +438,102 @@ test("Invalid hidden placement remains read-only, without deleting saved Hygiene
   expect(await page.evaluate(key=>localStorage.getItem(key),CARE_KEY)).toContain('"cleaning-sunday"');
 });
 
+test("Daily Cleaning is a linked 20-minute morning reservation every day including Sunday", async ({ page }) => {
+  await fresh(page);
+  const days = await week(page);
+  await expect(page.locator('[data-week-care="cleaning-daily"]')).toHaveCount(7);
+  for (let i = 0; i < 7; i++) {
+    const block = days.nth(i).locator('[data-week-care="cleaning-daily"]');
+    await expect(block).toHaveAttribute("aria-label", "Denní úklid, 09:30–09:50");
+    await expect(block).toHaveClass(/is-short/);
+    expect(await block.evaluate(node => Math.abs(node.getBoundingClientRect().height - 14.4))).toBeLessThan(0.5);
+    await expect(days.nth(i).locator('[data-week-care="morning"]')).toHaveAttribute("aria-label", "Ranní hygiena, 09:00–09:20");
+  }
+  await expect(days.nth(6).locator('[data-week-care="cleaning-sunday"]')).toHaveCount(1);
+  await expect(days.nth(6).locator('[data-week-care="cleaning-daily"]')).toHaveCount(1);
+  const calendar = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-v1")));
+  expect(Object.values(calendar.plans).flat().filter(task => task.routineId === "cleaning-daily")).toHaveLength(0);
+});
+
+test("Daily Cleaning opens the real Cleaning checklist and reflects its completion", async ({ page }) => {
+  await fresh(page, "2026-10-12T08:20:00");
+  const days = await week(page);
+  const block = days.first().locator('[data-week-care="cleaning-daily"]');
+  await expect(block).not.toHaveClass(/done/);
+  await block.click();
+  await page.getByRole("dialog", { name: "Denní úklid" }).getByRole("button", { name: "Otevřít v Hygieně" }).click();
+  await expect(page.getByRole("tab", { name: "Úklid" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-cleaning-routine="cleaning-daily"]')).toBeVisible();
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const record = store.records["2026-10-12"]["cleaning-daily"];
+    if (!record?.scheduledTasks.length) throw Error("Missing today's daily Cleaning checklist");
+    record.states ??= {};
+    for (const task of record.scheduledTasks) if (!task.optional) record.states[task.id] = "done";
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await expect(block).toHaveClass(/done/);
+});
+
+test("Daily Cleaning can be moved later today after its original time passes, without altering Hygiene history", async ({ page }) => {
+  await fresh(page, "2026-10-16T16:49:00");
+  const days = await week(page);
+  const block = days.nth(4).locator('[data-week-care="cleaning-daily"]');
+  await expect(block).toHaveAttribute("aria-label", "Denní úklid, 09:30–09:50");
+  await expect(block).toHaveAttribute("draggable", "true");
+  await dragCare(page, 4, 4, "cleaning-daily", "23:00");
+  await expect(block).toHaveAttribute("aria-label", "Denní úklid, 23:00–23:20");
+  const placement = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), CARE_KEY);
+  expect(placement.times["2026-10-16"]["cleaning-daily"]).toBe("23:00");
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="cleaning-daily"]'))
+    .toHaveAttribute("aria-label", "Denní úklid, 23:00–23:20");
+  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(stored.routines.find(r => r.id === "cleaning-daily").schedule).toEqual({ type: "daily" });
+});
+
+test("Daily Cleaning removal is only for that day, has no Restore UI and leaves its checklist untouched", async ({ page }) => {
+  await fresh(page);
+  const days = await week(page);
+  await days.nth(4).locator('[data-week-care="cleaning-daily"]').click();
+  await page.getByRole("dialog", { name: "Denní úklid" }).getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(days.nth(4).locator('[data-week-care="cleaning-daily"]')).toHaveCount(0);
+  await expect(days.nth(3).locator('[data-week-care="cleaning-daily"]')).toHaveCount(1);
+  await expect(days.nth(5).locator('[data-week-care="cleaning-daily"]')).toHaveCount(1);
+  await expect(days.nth(4).getByText(/obnovit/i)).toHaveCount(0);
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(4).locator('[data-week-care="cleaning-daily"]')).toHaveCount(0);
+  const stored = await page.evaluate(({ placementKey, hygieneKey }) => ({
+    care: JSON.parse(localStorage.getItem(placementKey)),
+    hygiene: JSON.parse(localStorage.getItem(hygieneKey)),
+  }), { placementKey: CARE_KEY, hygieneKey: HYGIENE_KEY });
+  expect(stored.care.hidden["2026-10-16"]).toContain("cleaning-daily");
+  expect(stored.hygiene.routines.find(r => r.id === "cleaning-daily").active).toBe(true);
+});
+
+test("Disabled Daily Cleaning shows no Week reservation and invalid placement remains read-only", async ({ page }) => {
+  await fresh(page);
+  await week(page);
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.find(item => item.id === "cleaning-daily").active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await expect(page.locator('[data-week-care="cleaning-daily"]')).toHaveCount(0);
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+  await page.evaluate(key => localStorage.setItem(key, "{corrupt-json"), CARE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator('[data-week-care="morning"]').first()).toHaveAttribute("draggable", "false");
+  await expect(page.locator('[data-week-care="cleaning-sunday"]')).toHaveCount(1);
+  expect(await page.evaluate(key => localStorage.getItem(key), CARE_KEY)).toBe("{corrupt-json");
+});
+
 test("Morning and Evening Hygiene appear every day for 20 minutes without duplicating tasks", async ({ page }) => {
   await fresh(page);
   const days = await week(page);
@@ -540,8 +636,8 @@ test("Malformed daily care placement stays read-only, and invalid Sundays cannot
 test("Sunday Hygiene and Cleaning appear as two 30-minute Week reservations, without duplicate calendar tasks", async ({ page }) => {
   await fresh(page);
   const days = await week(page);
-  await expect(page.locator("[data-week-care]")).toHaveCount(16);
-  for (let i = 0; i < 6; i++) await expect(days.nth(i).locator("[data-week-care]")).toHaveCount(2);
+  await expect(page.locator("[data-week-care]")).toHaveCount(23);
+  for (let i = 0; i < 6; i++) await expect(days.nth(i).locator("[data-week-care]")).toHaveCount(3);
   await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toContainText("10:00–10:30");
   await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toContainText("Nedělní hygiena");
   await expect(days.nth(6).locator('[data-week-care="cleaning-sunday"]')).toContainText("10:30–11:00");
@@ -550,7 +646,7 @@ test("Sunday Hygiene and Cleaning appear as two 30-minute Week reservations, wit
   expect(Object.values(calendar.plans).flat().filter(task => task.routineId === "hygiene-day" || task.routineId === "cleaning-sunday")).toHaveLength(0);
 
   await page.locator(".df2-week-controls button").filter({ hasText: "→" }).click();
-  await expect(page.locator("[data-week-care]")).toHaveCount(16);
+  await expect(page.locator("[data-week-care]")).toHaveCount(23);
   await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
   await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
   await expect(page.locator("[data-week-care]")).toHaveCount(0); // No retroactive projections.
@@ -632,7 +728,7 @@ test("corrupted placement data leaves Sunday reservations visible but read-only"
   await page.evaluate(key => localStorage.setItem(key, "{broken-json"), CARE_KEY);
   await page.reload({ waitUntil: "networkidle" });
   await week(page);
-  await expect(page.locator("[data-week-care]")).toHaveCount(16);
+  await expect(page.locator("[data-week-care]")).toHaveCount(23);
   await expect(page.locator('[data-week-care="hygiene-day"]')).toHaveAttribute("draggable", "false");
   await expect(page.locator('[data-week-care="evening"]').first()).toHaveAttribute("draggable", "false");
   expect(await page.evaluate(key => localStorage.getItem(key), CARE_KEY)).toBe("{broken-json");
