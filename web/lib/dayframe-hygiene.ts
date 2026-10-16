@@ -326,8 +326,8 @@ export function installFixedRepeatedCare(store: HygieneStore): HygieneStore {
   for (const task of repeated.tasks) {
     if (!task.active) continue;
     const key = simplified(task.title);
-    const existing = sundayTasks.some(item => item.active && (
-      simplified(item.title) === key || item.id === sundayAliases[key]));
+    const existing = sundayTasks.some(item =>
+      simplified(item.title) === key || item.id === sundayAliases[key]);
     if (existing) continue;
     sundayTasks.push({
       ...task,
@@ -805,9 +805,9 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
 
     if (candidate.cleaningDefaultsInstalled !== undefined && typeof candidate.cleaningDefaultsInstalled !== "boolean")
       return { store: createDefaultHygieneStore(today), blocked: true };
+    // This ID doubles as a migration tombstone; deleting the owner must remain valid.
     if (candidate.fixedRepeatRoutineId !== undefined && (
-      typeof candidate.fixedRepeatRoutineId !== "string"
-      || !routines.some(routine => routine.id === candidate.fixedRepeatRoutineId)
+      typeof candidate.fixedRepeatRoutineId !== "string" || !candidate.fixedRepeatRoutineId
     )) return { store: createDefaultHygieneStore(today), blocked: true };
     return {
       store: {

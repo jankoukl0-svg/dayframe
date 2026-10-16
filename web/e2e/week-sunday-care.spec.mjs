@@ -104,6 +104,44 @@ async function seedRepeatedHygiene(page) {
   }, { key: HYGIENE_KEY, routineId: REPEATED_ID, names: REPEATED_TASKS });
 }
 
+test("Conversion respects disabled Sunday equivalents instead of silently reactivating them", async ({ page }) => {
+  await fresh(page);
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.find(item => item.id === "hygiene-day").tasks
+      .find(item => item.id === "weekly-body-hydration").active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+  }, HYGIENE_KEY);
+  await seedRepeatedHygiene(page);
+  await week(page);
+  const saved = await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  const related = saved.routines.find(item=>item.id==="hygiene-day").tasks
+    .filter(item=>item.id==="weekly-body-hydration" || item.title==="Hydratace těla");
+  expect(related).toHaveLength(1);
+  expect(related[0].active).toBe(false);
+});
+
+test("Deleting the converted routine never corrupts the shared Hygiene store", async ({ page }) => {
+  await fresh(page);
+  await seedRepeatedHygiene(page);
+  await week(page);
+  await page.evaluate(({key,id}) => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines = store.routines.filter(routine=>routine.id!==id);
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },{key:HYGIENE_KEY,id:REPEATED_ID});
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator('[data-week-care="'+REPEATED_CARE_ID+'"]')).toHaveCount(0);
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+  const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(persisted.fixedRepeatRoutineId).toBe(REPEATED_ID);
+  expect(persisted.routines.some(routine=>routine.id===REPEATED_ID)).toBe(false);
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Hygiena"}).click();
+  await expect(page.locator(".df2-hygiene-error")).toHaveCount(0);
+});
+
 test("Named rolling care migrates once to Tuesday and Friday, and keeps history", async ({ page }) => {
   await fresh(page, "2026-10-12T12:00:00");
   await seedRepeatedHygiene(page);
