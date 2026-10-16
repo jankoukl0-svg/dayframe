@@ -89,14 +89,14 @@ async function seedRepeatedHygiene(page) {
         active: true, optional: false, allowSkip: false,
       })),
     });
-    store.records["2026-10-13"] = {
-      ...(store.records["2026-10-13"] ?? {}),
+    store.records["2026-10-09"] = {
+      ...(store.records["2026-10-09"] ?? {}),
       [routineId]: {
-        date: "2026-10-13", routineId, routineTitle: "Opakovaná rutina",
+        date: "2026-10-09", routineId, routineTitle: "Opakovaná rutina",
         scheduledTasks: [{ id: "repeat-e2e-0", title: names[0], section: "Péče",
           optional: false, allowSkip: false, scheduleType: "rolling" }],
         states: { "repeat-e2e-0": "done" },
-        completedOn: { "repeat-e2e-0": "2026-10-13" },
+        completedOn: { "repeat-e2e-0": "2026-10-09" },
       },
     };
     localStorage.setItem(key, JSON.stringify(store));
@@ -119,7 +119,7 @@ test("Named rolling care migrates once to Tuesday and Friday, and keeps history"
   expect(repeated.schedule).toEqual({ type: "days", weekdays: [2, 5] });
   expect(repeated.tasks).toHaveLength(7);
   expect(stored.fixedRepeatRoutineId).toBe(REPEATED_ID);
-  expect(stored.records["2026-10-13"][REPEATED_ID].states["repeat-e2e-0"]).toBe("done");
+  expect(stored.records["2026-10-09"][REPEATED_ID].states["repeat-e2e-0"]).toBe("done");
   await page.reload({ waitUntil: "networkidle" });
   const again = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
   expect(again.routines.find(item => item.id === "hygiene-day").tasks)
