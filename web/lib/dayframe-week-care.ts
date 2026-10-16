@@ -4,7 +4,7 @@ import { routineDomain, routineHasScheduledWorkOnDate, routineSummary, type Hygi
 /** Calendar time reservations only; completion always belongs to Hygiene records. */
 export const WEEK_CARE_STORAGE_KEY = "dayframe-week-care-v1";
 export const WEEK_CARE_SYNC_EVENT = "dayframe-week-care-sync";
-export type WeekCareId = "morning" | "evening" | "hygiene-day" | "cleaning-sunday" | `rolling:${string}`;
+export type WeekCareId = "morning" | "evening" | "cleaning-daily" | "hygiene-day" | "cleaning-sunday" | `rolling:${string}`;
 export type WeekCareTimes = Record<string, Partial<Record<WeekCareId, string>>>;
 export type WeekCareHidden = Record<string, WeekCareId[]>;
 export type WeekCareBlock = {
@@ -18,6 +18,7 @@ export type WeekCareBlock = {
 
 const DEFAULTS: Array<{ id: WeekCareId; title: string; start: string; duration: 20 | 30; sundayOnly: boolean }> = [
   { id: "morning", title: "Ranní hygiena", start: "09:00", duration: 20, sundayOnly: false },
+  { id: "cleaning-daily", title: "Denní úklid", start: "09:30", duration: 20, sundayOnly: false },
   { id: "evening", title: "Večerní hygiena", start: "21:30", duration: 20, sundayOnly: false },
   { id: "hygiene-day", title: "Nedělní hygiena", start: "10:00", duration: 30, sundayOnly: true },
   { id: "cleaning-sunday", title: "Nedělní úklid", start: "10:30", duration: 30, sundayOnly: true },
@@ -166,7 +167,8 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
     const record = store.records[date]?.[config.routineId];
     const completed = record ? routineSummary(routine, record, today).status === "complete" : false;
     return [{
-      id: config.id, routineId: config.routineId, title: config.title,
+      id: config.id, routineId: config.routineId,
+      title: config.id === "cleaning-daily" ? routine.title : config.title,
       start: times[date]?.[config.id] ?? config.start,
       duration: config.duration, completed,
     }];
