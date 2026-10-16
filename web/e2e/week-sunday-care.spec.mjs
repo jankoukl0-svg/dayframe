@@ -94,6 +94,7 @@ test("One-day removal leaves no restore option, persists, and preserves other da
   const friday = page.locator(".df2-week-day").nth(4);
   await friday.locator('[data-week-care="morning"]').click();
   const dialog = page.getByRole("dialog", { name: "Ranní hygiena" });
+  await expect(dialog.getByText(/obnovit/i)).toHaveCount(0);
   await dialog.getByRole("button", { name: "Odebrat jen tento den" }).click();
   await expect(friday.locator('[data-week-care="morning"]')).toHaveCount(0);
   await expect(thursday.locator('[data-week-care="morning"]')).toHaveCount(1);

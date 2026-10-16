@@ -978,7 +978,7 @@ export function DayframeV2() {
               <button type="button" className="danger" disabled={care.blocked || editingCare.date < todayKey}
                 onClick={hideEditedCare}>Odebrat jen tento den</button>
             </div>
-            <p className="df2-week-care-help">Odebrání skryje pouze blok v rozvrhu, nikoli úkoly ani jejich stav v Hygieně. Blok lze v Týdnu obnovit.</p>
+            <p className="df2-week-care-help">Odebrání odstraní blok pouze z tohoto dne v Týdnu. Úkoly a jejich stav v Hygieně se nezmění.</p>
           </form>
         </div>
       )}
