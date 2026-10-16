@@ -234,6 +234,41 @@ test("An elapsed Hygiene reservation can be edited later today but never moved i
   await expect(repeated).toHaveAttribute("aria-label", "Opakovaná rutina, 23:00–23:30");
 });
 
+test("Elapsed Hygiene block with any saved progress stays locked and cannot be rescheduled via dialog", async ({ page }) => {
+  await fresh(page, "2026-10-16T16:49:00");
+  await seedRepeatedHygiene(page);
+  await page.evaluate(({ key, id }) => {
+    localStorage.setItem(key, JSON.stringify({
+      version: 1, times: { "2026-10-16": { [id]: "15:15" } },
+    }));
+    window.dispatchEvent(new Event("dayframe-week-care-sync"));
+  }, { key: CARE_KEY, id: REPEATED_CARE_ID });
+  const days = await week(page);
+  const repeated = days.nth(4).locator('[data-week-care="' + REPEATED_CARE_ID + '"]');
+  await expect(repeated).toHaveAttribute("draggable", "true");
+  await page.evaluate(({ key, id }) => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const date = "2026-10-16";
+    const routine = store.routines.find(item => item.id === id);
+    const record = store.records[date]?.[id];
+    if (!routine || !record || !record.scheduledTasks.length) throw Error("Missing Friday Hygiene occurrence");
+    const taskId = record.scheduledTasks[0].id;
+    record.states[taskId] = "done";
+    record.completedOn = { ...(record.completedOn ?? {}), [taskId]: date };
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, { key: HYGIENE_KEY, id: REPEATED_ID });
+  await expect(repeated).toHaveAttribute("draggable", "false");
+  await repeated.click();
+  const dialog = page.getByRole("dialog", { name: "Opakovaná rutina" });
+  await dialog.getByLabel("Začátek bloku").fill("23:00");
+  await dialog.getByRole("button", { name: "Uložit čas" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Rozpracovanou nebo splněnou");
+  await expect(repeated).toHaveAttribute("aria-label", "Opakovaná rutina, 15:15–15:45");
+  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(stored.records["2026-10-16"][REPEATED_ID].states["repeat-e2e-0"]).toBe("done");
+});
+
 test("Friday repeat can move in time or be removed just for Friday with no Restore", async ({ page }) => {
   await fresh(page);
   await seedRepeatedHygiene(page);

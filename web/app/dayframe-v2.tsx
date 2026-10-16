@@ -474,6 +474,10 @@ export function DayframeV2() {
     setEditing(null);
   }
 
+  function careHasRecordedProgress(date: string, routineId: string): boolean {
+    return Object.keys(care.store?.records[date]?.[routineId]?.states ?? {}).length > 0;
+  }
+
   function careSlotOpen(date: string, id: WeekCareId, start: string, duration: number): boolean {
     const minute = timeToMinutes(start);
     const tasks = getTasksForDate(data, date);
@@ -494,6 +498,14 @@ export function DayframeV2() {
     const date = editingCareDate || editingCare.date;
     const id = editingCare.id;
     const movedDay = date !== editingCare.date;
+    const source = weekCareBlocks(care.store, editingCare.date, todayKey, care.times, care.hidden)
+      .find(item => item.id === id);
+    if (editingCare.date === todayKey && source
+      && timeToMinutes(source.start) <= planningMinute(now)
+      && (source.completed || careHasRecordedProgress(editingCare.date, source.routineId))) {
+      setEditingCareError("Rozpracovanou nebo splněnou hygienu již nelze přesunout.");
+      return;
+    }
     const movableDay = care.store?.fixedRepeatRoutineId === id.slice("rolling:".length);
     if (movedDay && (!movableDay || date < todayKey || dateFromKey(date).getDay() === 0)) {
       setEditingCareError("Tento výskyt lze přesunout jen na budoucí den mimo neděli.");
@@ -855,7 +867,11 @@ export function DayframeV2() {
                             // original time has passed today. Drop/edit validation still
                             // requires the destination to be in the future; past dates
                             // and saved completion history remain untouched.
-                            const draggable=key>=todayKey && care.hydrated&&!care.blocked;
+                            const elapsedToday = key===todayKey && startMinute<=planningMinute(now);
+                            const recordedProgress = elapsedToday && careHasRecordedProgress(key, item.routineId);
+                            const draggable=key>=todayKey
+                              && (!elapsedToday || (!item.completed && !recordedProgress))
+                              && care.hydrated&&!care.blocked;
                             return (
                               <button key={item.id} type="button" data-week-care={item.id}
                                 className={"df2-week-task df2-week-care"+(item.duration===20?" is-short":"")+(item.completed?" done":"")}
