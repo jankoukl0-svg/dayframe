@@ -851,9 +851,11 @@ export function DayframeV2() {
                           {timedCare.map(item=>{
                             const startMinute=timeToMinutes(item.start);
                             const end=minutesToTime(startMinute+item.duration);
-                            const draggable=key>=todayKey
-                              && (key!==todayKey||startMinute>planningMinute(now))
-                              && care.hydrated&&!care.blocked;
+                            // An unhandled Hygiene block can be rescheduled after its
+                            // original time has passed today. Drop/edit validation still
+                            // requires the destination to be in the future; past dates
+                            // and saved completion history remain untouched.
+                            const draggable=key>=todayKey && care.hydrated&&!care.blocked;
                             return (
                               <button key={item.id} type="button" data-week-care={item.id}
                                 className={"df2-week-task df2-week-care"+(item.duration===20?" is-short":"")+(item.completed?" done":"")}
