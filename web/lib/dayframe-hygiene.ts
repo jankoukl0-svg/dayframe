@@ -139,6 +139,8 @@ export type HygieneStore = {
   lastMaterializedDate: string | null;
   /** One-time installation marker; deleting a cleaning task/routine must stay deleted. */
   cleaningDefaultsInstalled?: boolean;
+  /** Stable owner for the converted Tuesday/Friday routine, surviving user renames. */
+  fixedRepeatRoutineId?: string;
 };
 
 export type HygieneRoutineStatus = "complete" | "partial" | "missed" | "skipped" | "deferred" | "scheduled";
@@ -292,6 +294,58 @@ export function installCleaningRoutines(store: HygieneStore, today: string): Hyg
         routine.id === "cleaning-sunday" ? { ...routine, tasks: movedTasks } : routine),
     ],
   };
+}
+
+/** Convert only the user's existing named three-day routine once.
+ * Tuesday and Friday are the fixed occurrence days. On Sunday, missing steps
+ * are added to Hygiene Day; already-present steps keep their original IDs.
+ * Existing records, edited routine data and historical completions are untouched.
+ */
+export function installFixedRepeatedCare(store: HygieneStore): HygieneStore {
+  if (store.fixedRepeatRoutineId) return store;
+  const repeated = store.routines.find(routine =>
+    routineDomain(routine) === "hygiene"
+    && routine.id.startsWith("hygiene-routine-")
+    && routine.title.trim().toLocaleLowerCase("cs-CZ") === "opakovaná rutina"
+    && routine.schedule.type === "rolling"
+    && routine.schedule.everyDays === 3
+    && routine.schedule.unit === "days");
+  if (!repeated) return store;
+
+  const sunday = store.routines.find(routine => routine.id === "hygiene-day");
+  const sundayTasks = sunday ? [...sunday.tasks] : [];
+  const simplified = (title: string) => title.toLocaleLowerCase("cs-CZ")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ").trim();
+  const sundayAliases: Record<string, string> = {
+    "masaz obliceje gua sha": "weekly-gua-sha",
+    "holeni nebo uprava vousu": "weekly-beard",
+    "hydratace tela": "weekly-body-hydration",
+    "uprava oboci": "weekly-eyebrows",
+  };
+  for (const task of repeated.tasks) {
+    if (!task.active) continue;
+    const key = simplified(task.title);
+    const existing = sundayTasks.some(item => item.active && (
+      simplified(item.title) === key || item.id === sundayAliases[key]));
+    if (existing) continue;
+    sundayTasks.push({
+      ...task,
+      id: "sunday-repeat-" + repeated.id + "-" + task.id,
+      schedule: undefined,
+    });
+  }
+  const routines = store.routines.map(routine => {
+    if (routine.id === repeated.id) return {
+      ...routine, schedule: { type: "days" as const, weekdays: [2, 5] },
+      tasks: routine.tasks.map(task => task.active ? { ...task, schedule: undefined } : task),
+    };
+    if (routine.id === "hygiene-day" && sunday) return {
+      ...routine, tasks: sundayTasks,
+    };
+    return routine;
+  });
+  return { ...store, routines, fixedRepeatRoutineId: repeated.id };
 }
 
 export function createDefaultHygieneStore(today: string): HygieneStore {
@@ -751,6 +805,10 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
 
     if (candidate.cleaningDefaultsInstalled !== undefined && typeof candidate.cleaningDefaultsInstalled !== "boolean")
       return { store: createDefaultHygieneStore(today), blocked: true };
+    if (candidate.fixedRepeatRoutineId !== undefined && (
+      typeof candidate.fixedRepeatRoutineId !== "string"
+      || !routines.some(routine => routine.id === candidate.fixedRepeatRoutineId)
+    )) return { store: createDefaultHygieneStore(today), blocked: true };
     return {
       store: {
         version: 1,
@@ -763,6 +821,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         taskReschedules,
         lastMaterializedDate: typeof candidate.lastMaterializedDate === "string" ? candidate.lastMaterializedDate : null,
         cleaningDefaultsInstalled: candidate.cleaningDefaultsInstalled === true,
+        fixedRepeatRoutineId: candidate.fixedRepeatRoutineId,
       },
       blocked: false,
     };
@@ -1074,7 +1133,7 @@ export function loadHygieneStore(today: string): { store: HygieneStore; blocked:
 
   const parsed = parseHygieneStore(raw, today);
   if (parsed.blocked) return parsed;
-  const ensured = ensureHygieneHistory(installCleaningRoutines(parsed.store, today), today);
+  const ensured = ensureHygieneHistory(installFixedRepeatedCare(installCleaningRoutines(parsed.store, today)), today);
   try {
     window.localStorage.setItem(HYGIENE_STORAGE_KEY, JSON.stringify(ensured));
   } catch {
