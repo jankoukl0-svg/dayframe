@@ -971,7 +971,7 @@ export function DayframeV2() {
             <div className="df2-modal-actions">
               <button className="df2-primary" type="submit" disabled={care.blocked || editingCare.date < todayKey}>Uložit čas</button>
               <button type="button" onClick={()=>{
-                setHygieneRoutineFocus(editingCare.id);
+                setHygieneRoutineFocus(editingCare.id.startsWith("rolling:") ? editingCare.id.slice("rolling:".length) : editingCare.id);
                 setEditingCare(null);
                 setView("hygiene");
               }}>Otevřít v Hygieně</button>

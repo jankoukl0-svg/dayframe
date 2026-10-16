@@ -19,6 +19,7 @@ import {
   postponeHygieneTask,
   refreshHygieneToday,
   routineScheduledOnDate,
+  routineHasScheduledWorkOnDate,
   routineDomain,
   routineStats,
   saveHygieneStore,
@@ -330,7 +331,7 @@ export function HygienePage({
   useEffect(() => {
     if (!focusRoutineId || !hydrated) return;
     const selected = store.routines.find(item => item.id === focusRoutineId);
-    const scheduledToday = selected ? routineScheduledOnDate(store, selected, planningKey) : false;
+    const scheduledToday = selected ? routineHasScheduledWorkOnDate(store, selected, planningKey) : false;
     setTab(focusRoutineId.startsWith("cleaning-") ? "cleaning" : scheduledToday ? "today" : "manage");
     const timer = window.setTimeout(() => {
       document.getElementById("hygiene-routine-" + focusRoutineId)?.scrollIntoView({ block: "center", behavior: "smooth" });
