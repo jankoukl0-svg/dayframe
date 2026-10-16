@@ -151,7 +151,8 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
   if (!store || date < today || !calendarDate(date)) return [];
   const configs = [
     ...DEFAULTS.map(config => ({ ...config, routineId: config.id })),
-    ...store.routines.filter(eligibleRollingRoutine).map(routine => ({
+    ...store.routines.filter(routine => eligibleRollingRoutine(routine)
+      || (store.fixedRepeatRoutineId === routine.id && routineDomain(routine) === "hygiene")).map(routine => ({
       id: (ROLLING_PREFIX + routine.id) as WeekCareId,
       routineId: routine.id,
       title: routine.title,
