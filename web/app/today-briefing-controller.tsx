@@ -11,7 +11,10 @@ import {
   type DayframeState,
 } from "@/lib/dayframe-calendar";
 import { daysUntilDate } from "@/lib/dayframe-countdown";
-import {readTravelStore,travelDirectionsUrl,upcomingTravelTrips,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readTravelStore,travelDirectionsUrl,upcomingTravelTrips,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readGymStore,assignmentsOnDate,gymOccurrenceTime,GYM_SYNC_EVENT} from "@/lib/dayframe-gym";
+import {loadHygieneStore,HYGIENE_SYNC_EVENT} from "@/lib/dayframe-hygiene";
+import {readWeekCareTimes,weekCareBlocks,WEEK_CARE_SYNC_EVENT} from "@/lib/dayframe-week-care";
 import {markSupplementIntake,readSupplementStore,saveSupplementStore,
   supplementOccurrences,SUPPLEMENTS_SYNC_EVENT} from "@/lib/dayframe-supplements";
 
@@ -328,7 +331,34 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
       .sort((a,b)=>supplementClockMinute(b.time)-supplementClockMinute(a.time)||a.name.localeCompare(b.name,"cs"));
   const tripData=readTravelStore();
   const allTasks=Object.values(state.plans).flat();
-  const travelTrip=tripData.blocked?undefined:upcomingTravelTrips(tripData.store,now,allTasks)[0];
+  const otherTrips:Array<{key:string;date:string;start?:string;title:string;completed:boolean}>=[];
+  if(!tripData.blocked){
+    const entries=Object.entries(tripData.store.blocks);
+    const gymDates=[...new Set(entries.filter(([key])=>key.startsWith("gym:")).map(([,trip])=>trip.date))];
+    const careDates=[...new Set(entries.filter(([key])=>key.startsWith("care:")).map(([,trip])=>trip.date))];
+    if(gymDates.length){
+      const gym=readGymStore();
+      if(!gym.blocked)for(const date of gymDates){
+        for(const occ of assignmentsOnDate(gym.store,date)){
+          const t=gymOccurrenceTime(gym.store,occ);
+          if(t.start)otherTrips.push({key:travelBlockKey("gym",occ.key),date,
+            start:t.start,title:occ.name,completed:occ.completed||Boolean(occ.session)});
+        }
+      }
+    }
+    if(careDates.length){
+      const hygiene=loadHygieneStore(today);
+      const placement=readWeekCareTimes();
+      if(!hygiene.blocked&&!placement.blocked)for(const date of careDates){
+        for(const item of weekCareBlocks(hygiene.store,date,today,placement.times,placement.hidden)){
+          otherTrips.push({key:travelBlockKey("care",item.id,date),date,start:item.start,
+            title:item.title,completed:item.completed});
+        }
+      }
+    }
+  }
+  const travelTrip=tripData.blocked?undefined
+    :upcomingTravelTrips(tripData.store,now,allTasks,otherTrips)[0];
   const tasks = getTasksForDate(state, today) as BriefingTask[];
   const scheduled = tasks.filter((task) => task.start && task.end).sort(byStart);
   const unfinished = tasks.filter((task) => !task.completed);
@@ -882,6 +912,9 @@ export function TodayBriefingController() {
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener(SUPPLEMENTS_SYNC_EVENT, sync);
     window.addEventListener(TRAVEL_SYNC_EVENT, sync);
+    window.addEventListener(GYM_SYNC_EVENT, sync);
+    window.addEventListener(HYGIENE_SYNC_EVENT, sync);
+    window.addEventListener(WEEK_CARE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
@@ -891,6 +924,9 @@ export function TodayBriefingController() {
       window.removeEventListener(STATE_SYNC_EVENT, sync);
       window.removeEventListener(SUPPLEMENTS_SYNC_EVENT, sync);
       window.removeEventListener(TRAVEL_SYNC_EVENT, sync);
+      window.removeEventListener(GYM_SYNC_EVENT, sync);
+      window.removeEventListener(HYGIENE_SYNC_EVENT, sync);
+      window.removeEventListener(WEEK_CARE_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);
