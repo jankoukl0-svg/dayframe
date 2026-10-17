@@ -235,6 +235,7 @@ function renderHourlyWeather(card: HTMLElement, hours: WeatherHour[], todayDate:
   const forecast = document.createElement("section");
   forecast.className = "df2-jarvis-hourly";
   forecast.dataset.jarvisHourly = "true";
+  forecast.dataset.jarvisHourCount = String(hours.length);
   forecast.setAttribute("aria-label", "Hodinový výhled počasí");
 
   const headline = document.createElement("div");
@@ -628,7 +629,7 @@ async function refreshWeather() {
     daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
     timezone: "auto",
     timeformat: "unixtime",
-    forecast_days: "2",
+    forecast_days: "3",
   });
 
   try {
