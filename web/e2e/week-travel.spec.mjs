@@ -3,8 +3,10 @@ const base=process.env.DAYFRAME_BASE_URL||"http://127.0.0.1:4173";
 test.beforeEach(async({page})=>{
   await page.clock.setFixedTime(new Date("2026-10-18T08:00:00"));
   await page.route("https://unpkg.com/leaflet@**",route=>route.abort());
-  await page.addInitScript(()=>localStorage.clear());
   await page.goto(base,{waitUntil:"networkidle"});
+  // Clear once for isolation, but do not wipe persisted travel data on a test reload.
+  await page.evaluate(()=>localStorage.clear());
+  await page.reload({waitUntil:"networkidle"});
 });
 async function makeTask(page,title="Pracovní schůzka"){
   await page.getByRole("button",{name:"+ Nový úkol"}).click();
