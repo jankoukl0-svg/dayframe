@@ -7,7 +7,8 @@ import {deleteSupplementPhoto,saveSupplementPhoto,validSupplementPhoto} from "@/
 import {readSupplementStore} from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
 import { buySupplement, lowStockSupplements, markSupplementIntake, newSupplement, supplementOccurrences,
-  supplementStats, withSupplementSchedule, markAllSupplementIntakes, type Supplement } from "@/lib/dayframe-supplements";
+  supplementStats, withSupplementSchedule, markAllSupplementIntakes, supplementDaypartForTime,
+  SUPPLEMENT_DAYPARTS, type Supplement, type SupplementDaypart } from "@/lib/dayframe-supplements";
 import { addDaysKey } from "@/lib/dayframe-calendar";
 
 type Tab="today"|"library"|"shopping"|"history";
@@ -35,15 +36,25 @@ export function SupplementsPage({today}:{today:string}){
   const takenCount=due.filter(x=>x.intake?.status==="taken").length;
   const skippedCount=due.filter(x=>x.intake?.status==="skipped").length;
   const pendingCount=due.length-takenCount-skippedCount;
-  const dueGroups=useMemo(()=>{
-    const groups:Array<{time:string;items:typeof due}>=[];
-    for(const occurrence of due){
-      const last=groups[groups.length-1];
-      if(last?.time===occurrence.time)last.items.push(occurrence);
-      else groups.push({time:occurrence.time,items:[occurrence]});
+  const dueGroups=useMemo(()=>SUPPLEMENT_DAYPARTS.map(part=>({
+    ...part,
+    items:due.filter(item=>supplementDaypartForTime(item.time)===part.id),
+  })),[due]);
+  const draftDayparts=useMemo(()=>{
+    const selected=new Set<SupplementDaypart>();
+    for(const time of draftTimes.split(/[;,\n]+/).map(value=>value.trim())){
+      if(/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))selected.add(supplementDaypartForTime(time));
     }
-    return groups;
-  },[due]);
+    return selected;
+  },[draftTimes]);
+  const toggleDaypart=(part:SupplementDaypart)=>{
+    const entered=[...new Set(draftTimes.split(/[;,\n]+/).map(v=>v.trim()).filter(Boolean))];
+    const matching=entered.filter(time=>/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)
+      &&supplementDaypartForTime(time)===part);
+    const times=matching.length?entered.filter(time=>!matching.includes(time))
+      :[...entered,SUPPLEMENT_DAYPARTS.find(item=>item.id===part)!.example];
+    setDraftTimes(times.sort().join(", "));
+  };
   const low=useMemo(()=>lowStockSupplements(store),[store]);
   const stats=useMemo(()=>supplementStats(store,addDaysKey(today,-29),today),[store,today]);
   const records=store.intakes.filter(x=>x.date>=addDaysKey(today,-29)&&x.date<=today)
@@ -224,9 +235,9 @@ export function SupplementsPage({today}:{today:string}){
         </div>
       </div>
       {due.length?<div className="df2-supplements-groups">
-        {dueGroups.map(group=><section className="df2-supplements-time-group" key={group.time} aria-label={"Dávky v "+group.time}>
+        {dueGroups.map(group=><section className="df2-supplements-time-group" key={group.id} data-supplement-daypart={group.id} aria-label={"Dávky: "+group.label}>
           <div className="df2-supplements-group-heading">
-            <h3><time dateTime={today+"T"+group.time}>{group.time}</time></h3>
+            <h3>{group.label}</h3>
             <span>{group.items.length} {group.items.length===1?"dávka":group.items.length<5?"dávky":"dávek"}</span>
           </div>
           <div className="df2-supplements-due">
@@ -236,6 +247,8 @@ export function SupplementsPage({today}:{today:string}){
                 <SupplementPhoto photoId={x.supplement.photoId} name={x.supplement.name}/>
                 <div className="df2-supplements-due-copy">
                   <div className="df2-supplements-dose-status">
+                    <time dateTime={today+"T"+x.time}>{x.time}</time>
+                    <span aria-hidden="true">·</span>
                     {x.intake?.status==="taken"?<span className="is-taken">✓ Užito</span>:
                       x.intake?.status==="skipped"?<span className="is-skipped">Vynecháno</span>:<span>Naplánováno</span>}
                   </div>
@@ -251,6 +264,7 @@ export function SupplementsPage({today}:{today:string}){
                   onClick={()=>mark(x.key,"skipped")}>{x.intake?.status==="skipped"?"✓ Vynecháno":"Vynechat"}</button>
               </div>
             </article>)}
+            {!group.items.length&&<p className="df2-supplements-group-empty">Žádné naplánované dávky.</p>}
           </div>
         </section>)}
       </div>:<div className="df2-supplements-empty"><strong>Žádné dávky na dnešek.</strong>
@@ -267,6 +281,10 @@ export function SupplementsPage({today}:{today:string}){
               <span className={"df2-supplements-product-status"+(!item.active?" is-paused":"")}>{item.active?"● Aktivní":"Pozastaveno"}</span>
               <h3>{item.name}</h3><p>{item.brand||"Bez značky"}</p>
               <small>{item.doseLabel} · {item.times.join(", ")}</small>
+              <div className="df2-supplements-library-dayparts" aria-label="Části dne">
+                {SUPPLEMENT_DAYPARTS.filter(part=>item.times.some(time=>supplementDaypartForTime(time)===part.id))
+                  .map(part=><span key={part.id}>{part.label}</span>)}
+              </div>
               <small>{item.stock===null?"Zásoby nesledovány":"Na skladě "+czNum(item.stock)+" "+item.units}</small>
               {!!item.notes&&<p className="df2-supplements-note">{item.notes}</p>}
             </div>
@@ -357,6 +375,15 @@ export function SupplementsPage({today}:{today:string}){
           <label>Časy (HH:MM, více odděl čárkou)<input aria-label="Časy užívání" value={draftTimes}
             onChange={e=>setDraftTimes(e.target.value)}/></label>
         </div>
+        <fieldset className="df2-supplements-daypart-picker" aria-label="Části dne užívání">
+          <legend>Kdy užívat</legend>
+          <div>
+            {SUPPLEMENT_DAYPARTS.map(part=><button type="button" key={part.id}
+              aria-pressed={draftDayparts.has(part.id)}
+              onClick={()=>toggleDaypart(part.id)}>{part.label}</button>)}
+          </div>
+          <p>Vyber jednu nebo více částí dne. Orientační čas můžeš upravit výše. Řiď se dávkováním na obalu nebo doporučením odborníka.</p>
+        </fieldset>
         <fieldset className="df2-supplements-weekdays"><legend>Dny užívání</legend>
           {DAYS.map((label,n)=><label key={n}><input type="checkbox" checked={draft.weekdays.includes(n)}
             onChange={e=>setDraft({...draft,weekdays:e.target.checked?[...draft.weekdays,n]:draft.weekdays.filter(x=>x!==n)})}/>{label}</label>)}
