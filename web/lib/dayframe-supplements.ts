@@ -1,4 +1,4 @@
-import { planningDateKey } from "./dayframe-calendar";
+import { planningDateKey } from "./dayframe-calendar.ts";
 
 /** Planning categories, not medical dosing advice. Exact HH:MM remains authoritative. */
 export const SUPPLEMENT_DAYPARTS = [
