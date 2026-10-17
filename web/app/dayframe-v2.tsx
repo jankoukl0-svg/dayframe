@@ -46,6 +46,8 @@ import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
+import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
+import {readTravelStore,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -145,6 +147,28 @@ export function DayframeV2() {
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const [addingTask, setAddingTask] = useState(false);
   const [editing, setEditing] = useState<CalendarTask | null>(null);
+  const [tripTarget,setTripTarget] = useState<TripTarget|null>(null);
+  const [travelStore,setTravelStore] = useState(()=>readTravelStore().store);
+  const [offsiteOnCreate,setOffsiteOnCreate] = useState(false);
+  useEffect(()=>{
+    const refresh=()=>setTravelStore(readTravelStore().store);
+    window.addEventListener(TRAVEL_SYNC_EVENT,refresh);window.addEventListener("storage",refresh);
+    return ()=>{window.removeEventListener(TRAVEL_SYNC_EVENT,refresh);window.removeEventListener("storage",refresh);};
+  },[]);
+  function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string){
+    setTripTarget({key:travelBlockKey(kind,id,date),title,date,start});
+  }
+  function travelPin(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,
+    top:number,lane?:{left:string;width:string}){
+    const key=travelBlockKey(kind,id,date),assigned=Boolean(travelStore.blocks[key]);
+    return <button type="button" className={"df2-week-location-btn"+(assigned?" has-location":"")}
+      key={"loc-"+key} aria-label={"Místo konání: "+title}
+      title={"Místo konání – "+title} data-week-place={key}
+      style={{top:top+3,...(lane?{left:"calc("+lane.left+" + "+lane.width+" - 25px)",right:"auto"}:{})}}
+      onClick={e=>{e.stopPropagation();openTrip(kind,id,date,title,start);}}>
+      {assigned?"📍":"⌖"}
+    </button>;
+  }
   const [editingCare, setEditingCare] = useState<{ date: string; id: WeekCareId; duration: number; title: string } | null>(null);
   const [editingCareStart, setEditingCareStart] = useState("");
   const [editingCareDate, setEditingCareDate] = useState("");
@@ -860,6 +884,9 @@ export function DayframeV2() {
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>;
                           })}
+                          {timedGym.map(({occ,time})=>time.start?travelPin("gym",occ.key,key,occ.name,time.start,
+                            (timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                            lanePositions["gym:"+occ.key]):null)}
                           {timedCare.map(item=>{
                             const startMinute=timeToMinutes(item.start);
                             const end=minutesToTime(startMinute+item.duration);
@@ -906,6 +933,9 @@ export function DayframeV2() {
                               </button>
                             );
                           })}
+                          {timedCare.map(item=>travelPin("care",item.id,key,item.title,item.start,
+                            (timeToMinutes(item.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                            lanePositions["care:"+item.id]))}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
                             const height = task.duration * MINUTE_HEIGHT;
@@ -932,6 +962,9 @@ export function DayframeV2() {
                               </button>
                             );
                           })}
+                          {scheduled.map(task=>travelPin("task",task.id,key,task.title,task.start!,
+                            (timeToMinutes(task.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                            lanePositions["task:"+task.id]))}
                         </div>
                       </article>
                     );
