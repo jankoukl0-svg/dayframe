@@ -158,6 +158,35 @@ export function DayframeV2() {
   function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string){
     setTripTarget({key:travelBlockKey(kind,id,date),title,date,start});
   }
+  function migrateTaskTrip(oldId:string,newId:string,newDate:string,newStart:string){
+    if(oldId===newId)return;
+    const latest=readTravelStore();
+    if(latest.blocked)return;
+    const from=travelBlockKey("task",oldId),record=latest.store.blocks[from];
+    if(!record)return;
+    const blocks={...latest.store.blocks};delete blocks[from];
+    blocks[travelBlockKey("task",newId)]={...record,date:newDate,start:newStart};
+    saveTravelStore({...latest.store,blocks});
+  }
+  function removeMissingTaskTrips(nextState:DayframeState){
+    const latest=readTravelStore();
+    if(latest.blocked)return;
+    const live=new Set(Object.values(nextState.plans).flat().map(task=>travelBlockKey("task",task.id)));
+    const blocks={...latest.store.blocks};let removed=false;
+    for(const key of Object.keys(blocks)){
+      if(key.startsWith("task:")&&!live.has(key)){delete blocks[key];removed=true;}
+    }
+    if(removed)saveTravelStore({...latest.store,blocks});
+  }
+  function postponeWithTrip(id:string){
+    const source=taskById(data,id);
+    if(!source)return;
+    const before=new Set(Object.values(data.plans).flat().map(t=>t.id));
+    const next=moveTaskToTomorrow(data,id,now);
+    const created=Object.values(next.plans).flat().find(t=>!before.has(t.id)&&t.title===source.title);
+    setData(next);
+    if(created)migrateTaskTrip(id,created.id,created.date,created.start??"");
+  }
   function removeStoredTrip(key:string){
     const current=readTravelStore();
     if(current.blocked||!current.store.blocks[key])return;
@@ -701,6 +730,8 @@ export function DayframeV2() {
     const result=moveTask(data,selection.id,date,preview.start);
     if(result.error){setNotice(result.error);return;}
     setData(result.state);
+    if(result.task&&result.task.id!==selection.id)
+      migrateTaskTrip(selection.id,result.task.id,result.task.date,result.task.start??"");
   }
 
   function startFocus(task: CalendarTask | null) {
@@ -777,7 +808,7 @@ export function DayframeV2() {
               onEdit={setEditing}
               onDone={requestTaskCompletion}
               completingTaskIds={completingTaskIds}
-              onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
+              onTomorrow={postponeWithTrip}
                onDelete={(id) => {removeStoredTrip(travelBlockKey("task",id));setData((current) => deleteTask(current, id));}}
               onFocus={startFocus}
               onMilestones={() => setView("milestones")}
