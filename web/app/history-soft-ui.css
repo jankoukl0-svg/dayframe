@@ -2,8 +2,10 @@
    how much was completed in this period, and is the trend moving? */
 
 .df2-history-view {
-  width: min(100%, 980px);
-  margin: 0 auto;
+  /* Share the same full-width content gutter as Týden, Zdraví and other pages. */
+  width: 100%;
+  min-width: 0;
+  margin: 0;
   padding: 10px 0 72px;
   font-variant-numeric: tabular-nums;
 }

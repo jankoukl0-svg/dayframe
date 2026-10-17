@@ -1,5 +1,48 @@
 import { test, expect } from "@playwright/test";
 
+test("overview uses the same left and right content edges as Week instead of a centered narrow column", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  const bounds = (locator) => locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, width: rect.width };
+  });
+
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
+  const week = page.locator(".df2-week-view");
+  await expect(week).toBeVisible();
+  const weekBounds = await bounds(week);
+
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Přehled" }).click();
+  const overview = page.locator(".df2-history-view");
+  await expect(overview).toBeVisible();
+  const overviewBounds = await bounds(overview);
+  expect(Math.abs(overviewBounds.left - weekBounds.left)).toBeLessThan(1);
+  expect(Math.abs(overviewBounds.right - weekBounds.right)).toBeLessThan(1);
+  expect(overviewBounds.width).toBeGreaterThan(980);
+
+  const headingBounds = await bounds(overview.locator(".df2-history-head"));
+  const summaryBounds = await bounds(overview.locator(".df2-overview-summary"));
+  const activityBounds = await bounds(overview.locator(".df2-history-trend"));
+  for (const child of [headingBounds, summaryBounds, activityBounds]) {
+    expect(Math.abs(child.left - overviewBounds.left)).toBeLessThan(1);
+    expect(Math.abs(child.right - overviewBounds.right)).toBeLessThan(1);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileMain = await bounds(page.locator(".df2-main"));
+  const mobileOverview = await bounds(overview);
+  expect(Math.abs(mobileOverview.left - mobileMain.left)).toBeGreaterThan(0);
+  const contentPadding = await page.locator(".df2-main").evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { left: parseFloat(computed.paddingLeft), right: parseFloat(computed.paddingRight) };
+  });
+  expect(Math.abs(mobileOverview.left - (mobileMain.left + contentPadding.left))).toBeLessThan(1);
+  expect(Math.abs(mobileOverview.right - (mobileMain.right - contentPadding.right))).toBeLessThan(1);
+});
+
 test("history overview stays minimal, stacks activity by category, keeps category colors, and keeps only Overview visually active", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
