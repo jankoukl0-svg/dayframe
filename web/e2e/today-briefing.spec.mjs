@@ -331,6 +331,48 @@ test("Jarvis understands after-midnight doses before Dayframe planning day close
   await expect(briefing.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
 });
 
+test("supplements at 03:00 arrive exactly at their time, not after 08:00",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-02T02:59:00Z"));
+  await mockWeather(page);
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[{name:"Ranní test",times:["03:00"]}]);
+  const briefing=await openBriefing(page);
+  const card=briefing.locator("[data-jarvis-supplements]");
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-10-02T03:00:00Z"));
+  await page.evaluate(()=>window.dispatchEvent(new Event("dayframe-supplements-sync")));
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(1);
+  await expect(card).toContainText("Ranní test");
+});
+
+test("Jarvis supplement action buttons are keyboard reachable inside the modal focus trap",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-02T22:30:00Z"));
+  await mockWeather(page);
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[{name:"Zinek",times:["22:00"]}]);
+  const briefing=await openBriefing(page);
+  const close=page.getByRole("button",{name:"Zavřít briefing"});
+  const taken=briefing.getByRole("button",{name:"Užito: Zinek (22:00)"});
+  const skipped=briefing.getByRole("button",{name:"Vynechat: Zinek (22:00)"});
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(taken).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(skipped).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(skipped).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(briefing.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  const state=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-supplements-v1")));
+  expect(state.intakes[0].status).toBe("skipped");
+});
+
 test("Jarvis weather remains useful even if no supplements are configured",async({page})=>{
   await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page,{current:{temperature_2m:9,apparent_temperature:7,weather_code:61,wind_speed_10m:18},
