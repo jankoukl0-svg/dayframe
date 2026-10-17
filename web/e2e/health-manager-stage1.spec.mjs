@@ -20,6 +20,37 @@ async function openHabits(health) {
   await expect(details).toHaveAttribute("open", "");
 }
 
+test("Health aligns its header, navigation and Gym panel to the Week page without double spacing", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await fresh(page);
+  const health = await goHealth(page);
+  const header = health.locator(":scope > .df2-page-head");
+  const tabs = health.locator(":scope > .df2-health-tabs");
+  const gym = health.locator(":scope > [data-gym-root]");
+  await expect(gym).toBeVisible();
+  const rect = async (locator) => locator.evaluate((el) => {
+    const { x, y, width, height } = el.getBoundingClientRect();
+    return { x, y, width, height };
+  });
+  const [healthHeader, healthTabs, healthGym] = await Promise.all([
+    rect(header), rect(tabs), rect(gym),
+  ]);
+  expect(Math.abs(healthHeader.x - healthTabs.x)).toBeLessThan(1);
+  expect(Math.abs(healthHeader.x - healthGym.x)).toBeLessThan(1);
+  expect(Math.abs(healthHeader.width - healthGym.width)).toBeLessThan(1);
+  const headerGap = healthTabs.y - (healthHeader.y + healthHeader.height);
+  expect(headerGap).toBeGreaterThanOrEqual(18);
+  expect(headerGap).toBeLessThanOrEqual(30);
+
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Týden" }).click();
+  const weekHeader = await rect(page.locator(".df2-week-view > .df2-page-head"));
+  expect(Math.abs(healthHeader.x - weekHeader.x)).toBeLessThan(1);
+  expect(Math.abs(healthHeader.width - weekHeader.width)).toBeLessThan(1);
+
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Zdraví" }).click();
+  await expect(health.getByRole("heading", { name: "Gym & Tréninky" })).toBeVisible();
+});
+
 test("Health has five direct module tabs, opens Gym first and no longer shows overview", async ({ page }) => {
   await fresh(page);
   const health = await goHealth(page);
