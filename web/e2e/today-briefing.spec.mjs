@@ -103,7 +103,7 @@ test("Jarvis shows the next 24 hours and uses their weather changes for outfit a
   await expect(points.first()).toHaveAttribute("data-jarvis-hour", "2026-10-02T23:00");
   await expect(points.nth(1)).toHaveAttribute("data-jarvis-hour", "2026-10-03T02:00");
   await expect(hourly).toContainText("zítra");
-  await expect(points.nth(5)).toContainText("75 %");
+  await expect(points.nth(4)).toContainText("75 %");
   await expect(weather.locator("[data-jarvis-outfit]")).toContainText("bunda");
   await expect(weather.locator("[data-jarvis-outfit]")).toContainText("deštník");
   await expect(weather.locator("[data-jarvis-outfit]")).toContainText("větrem");
