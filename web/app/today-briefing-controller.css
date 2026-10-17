@@ -752,3 +752,99 @@ body.df2-briefing-modal-open {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* Jarvis is a situational assistant, not another task dashboard. */
+.df2-jarvis-supplement-reminders{
+  min-width:0;
+  padding:22px;
+  border:1px solid var(--line);
+  border-radius:22px;
+  background:color-mix(in srgb,var(--paper) 94%,#fff);
+  box-shadow:0 12px 32px rgba(35,33,29,.035);
+  display:flex;
+  flex-direction:column;
+}
+.df2-jarvis-supplement-all-clear{
+  display:block;
+  color:var(--ink);
+  font-size:18px;
+  line-height:1.35;
+  font-weight:680;
+}
+.df2-jarvis-supplement-empty,.df2-jarvis-supplement-lead{
+  margin:9px 0 0;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.6;
+}
+.df2-jarvis-supplement-list{
+  display:grid;
+  gap:10px;
+  margin-top:15px;
+  max-height:520px;
+  overflow-y:auto;
+  scrollbar-width:thin;
+}
+.df2-jarvis-supplement-item{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:12px;
+  background:var(--paper);
+}
+.df2-jarvis-supplement-detail{
+  min-width:0;
+  display:grid;
+  gap:4px;
+}
+.df2-jarvis-supplement-detail time{
+  color:var(--accent-dark);
+  font-size:11px;
+  font-weight:750;
+  font-variant-numeric:tabular-nums;
+}
+.df2-jarvis-supplement-detail strong{
+  color:var(--ink);
+  font-size:13px;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.df2-jarvis-supplement-detail span{
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.45;
+}
+.df2-jarvis-supplement-actions{display:flex;flex-shrink:0;gap:6px}
+.df2-jarvis-supplement-actions button{
+  padding:8px 11px;
+  border:1px solid var(--line-strong);
+  border-radius:9px;
+  background:var(--paper);
+  color:var(--ink);
+  font:inherit;
+  font-weight:650;
+  font-size:11px;
+  cursor:pointer;
+}
+.df2-jarvis-supplement-actions button:first-child{
+  background:var(--accent-wash);
+  color:var(--accent-dark);
+  border-color:color-mix(in srgb,var(--accent) 35%,var(--line));
+}
+.df2-jarvis-supplement-actions button:hover{
+  border-color:var(--accent);
+}
+.df2-jarvis-supplement-actions button:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+.df2-jarvis-supplement-error{font-size:11px;color:var(--accent-dark);grid-column:1/-1}
+@media(max-width:720px){
+  .df2-jarvis-supplement-reminders{padding:17px}
+  .df2-jarvis-supplement-item{align-items:stretch;flex-direction:column}
+  .df2-jarvis-supplement-actions button{flex:1}
+}

@@ -139,31 +139,9 @@ test("Jarvis behaves like an advisor: hides activity KPIs, surfaces relevant adv
   const briefing = await openBriefing(page);
 
   await expect(briefing.locator(".df2-briefing-signals")).not.toBeVisible();
-  const advisor = briefing.locator("[data-jarvis-advisor]");
-  await expect(advisor).toBeVisible();
-  await expect(advisor).toContainText("Příprava na Cambridge C1 test");
-  await expect(advisor).not.toContainText("Příprava na zápis");
-  await expect(advisor).toContainText("v plánu nemáš žádný související blok");
-  await expect(advisor).toContainText("Tomáš · za 5 dní");
-  await expect(advisor).toContainText("koupit dárek");
-  await expect(advisor).toContainText("Zítra je plán výrazně plnější");
-  await expect(advisor).toContainText("5 h v 2 blocích");
-  await expect(briefing.locator("[data-jarvis-advice]")).toHaveCount(3);
-
-  await page.evaluate(({ todayKey }) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const far = new Date(`${todayKey}T12:00:00`);
-    far.setDate(far.getDate() + 40);
-    const farKey = `${far.getFullYear()}-${String(far.getMonth() + 1).padStart(2, "0")}-${String(far.getDate()).padStart(2, "0")}`;
-    state.milestones = [{ id: "far", title: "Vzdálený termín", date: farKey, note: "" }];
-    state.plans = { [todayKey]: state.plans[todayKey] || [] };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    window.localStorage.setItem("dayframe-birthdays-v1", "[]");
-    window.dispatchEvent(new Event("dayframe-state-sync"));
-    window.dispatchEvent(new Event("dayframe-birthdays-sync"));
-  }, { todayKey: today });
-
   await expect(briefing.locator("[data-jarvis-advisor]")).toHaveCount(0);
+  await expect(briefing.locator("[data-jarvis-supplements]")).toBeVisible();
+  await expect(briefing.locator("[data-jarvis-tomorrow]")).toHaveCount(0);
 });
 
 test("Jarvis challenges a weak seven-day plan without becoming a productivity score", async ({ page }) => {
@@ -222,14 +200,6 @@ test("Jarvis challenges a weak seven-day plan without becoming a productivity sc
 
   await page.reload({ waitUntil: "networkidle" });
   const briefing = await openBriefing(page);
-  const advisor = briefing.locator("[data-jarvis-advisor]");
-
-  await expect(advisor).toBeVisible();
-  await expect(advisor).toContainText("Přípravy na Cambridge C1 test je zatím málo");
-  await expect(advisor).toContainText("2 h související přípravy");
-  await expect(advisor).toContainText("Zvaž ještě jeden soustředěný blok");
-  await expect(advisor).toContainText("Valuation model by měl lepší místo jinde");
-  await expect(advisor).toContainText("5 h 30 min v plánu");
-  await expect(advisor).not.toContainText("score");
-  await expect(briefing.locator("[data-jarvis-advice]")).toHaveCount(2);
+  await expect(briefing.locator("[data-jarvis-advisor]")).toHaveCount(0);
+  await expect(briefing.locator("[data-jarvis-supplements]")).toBeVisible();
 });

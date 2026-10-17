@@ -197,300 +197,190 @@ test("Jarvis handles missing hourly data without inventing an outfit forecast", 
   await expect(weather.locator("[data-jarvis-hourly-unavailable]")).toBeVisible();
 });
 
-test("Today Jarvis briefing combines the plan, live weather and useful context in a separate modal", async ({ page }) => {
+
+async function seedJarvisSupplements(page, date, rows) {
+  await page.evaluate(({ date, rows }) => {
+    const supplements = rows.map((item, index) => {
+      const weekdays = [0,1,2,3,4,5,6];
+      return {
+        id: "supp-jarvis-" + index,
+        scheduleHistory: [{ effectiveFrom: date, weekdays, times: item.times, active: true }],
+        name: item.name, brand: "Test", doseLabel: "Podle etikety",
+        servingsPerIntake: 1, units: "kapsle", weekdays, times: item.times,
+        active: true, stock: item.stock ?? 5, lowStockAt: 1, packServings: 30,
+        packPriceCzk: null, sourceUrl: "", notes: "", shopping: false,
+      };
+    });
+    localStorage.setItem("dayframe-supplements-v1",JSON.stringify({version:1,supplements,intakes:[],purchases:[]}));
+    window.dispatchEvent(new Event("dayframe-supplements-sync"));
+  },{date,rows});
+}
+
+test("Jarvis keeps weather and replaces duplicated planner cards with situational supplements",async({page})=>{
   await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page);
   await openFreshToday(page);
-
-  await page.evaluate((date) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const now = new Date().toISOString();
-    state.routines = [];
-    state.plans = {
-      [date]: [
-        {
-          id: "briefing-priority",
-          title: "Cambridge essay",
-          date,
-          duration: 90,
-          start: "23:00",
-          end: "00:30",
-          requestedStart: "23:00",
-          deadlineTime: "01:30",
-          priority: "high",
-          category: "Angličtina",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: false,
-          createdAt: now,
-        },
-        {
-          id: "briefing-math",
-          title: "Matematika",
-          date,
-          duration: 60,
-          start: "00:30",
-          end: "01:30",
-          requestedStart: "00:30",
-          deadlineTime: "01:45",
-          priority: "normal",
-          category: "Matika",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: false,
-          createdAt: now,
-        },
-        {
-          id: "briefing-overdue",
-          title: "Starý rest",
-          date,
-          duration: 0,
-          start: "14:00",
-          end: "14:00",
-          requestedStart: "14:00",
-          deadlineTime: "14:00",
-          priority: "normal",
-          category: "Studium",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: false,
-          createdAt: now,
-        },
-      ],
-
-    };
-    state.backlog = [];
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, await page.evaluate(planningDateKeyInBrowser));
   await seedWeatherLocation(page);
-
-  await page.reload({ waitUntil: "networkidle" });
-
-  await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
-  await expect(page.locator("[data-today-briefing-launcher]")).toContainText("Jarvis briefing");
-  const briefing = await openBriefing(page);
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[{name:"Zinek",times:["22:00"]}]);
+  const briefing=await openBriefing(page);
   await expect(briefing).toContainText("JARVIS · LIVE");
-  await expect(briefing).toContainText("Z dřívějška zůstává 1 rest.");
-  await expect(briefing).not.toContainText("Na dnešek je naplánováno");
-  await expect(briefing).not.toContainText("Hlavní blok je");
-  await expect(briefing).toContainText("Cambridge essay");
-  await expect(briefing).toContainText("2 h 30 min");
-  await expect(briefing).toContainText("0/3");
-
-  const weather = briefing.locator(".df2-jarvis-weather");
-  await expect(weather).toContainText("Moje poloha");
-  await expect(weather).toContainText("18°");
-  await expect(weather).toContainText("Polojasno");
-  await expect(weather).toContainText("21° / 11°");
-  await expect(weather).toContainText("20 %");
-  await expect(weather).toContainText("06:58");
-  await expect(weather).toContainText("18:40");
-
-  await expect(briefing.locator(".df2-jarvis-sequence")).toContainText("Matematika");
-  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Pozornost: 1 rest");
-
-  await page.evaluate(() => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    for (const tasks of Object.values(state.plans || {})) {
-      const task = tasks.find((item) => item.id === "briefing-priority");
-      if (task) task.completed = true;
-    }
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    window.dispatchEvent(new Event("dayframe-state-sync"));
-  });
-
-  await expect(briefing).toContainText("1/3");
-  await expect(briefing.locator(".df2-briefing-priority")).toContainText("Matematika");
-  await expect(briefing).toContainText("1 h");
-
-  const closeButton = page.getByRole("button", { name: "Zavřít briefing" });
-  await expect(closeButton).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(closeButton).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(closeButton).toBeFocused();
-
+  await expect(briefing.locator(".df2-jarvis-weather")).toContainText("18°");
+  await expect(briefing.locator("[data-jarvis-supplements]")).toBeVisible();
+  await expect(briefing.locator("[data-jarvis-supplements]")).toContainText("Teď není žádný suplement k užití");
+  await expect(briefing.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  await expect(briefing.locator(".df2-jarvis-command")).toHaveCount(0);
+  await expect(briefing.locator(".df2-briefing-signals")).toHaveCount(0);
+  await expect(briefing.locator(".df2-jarvis-sequence")).toHaveCount(0);
+  await expect(briefing.locator(".df2-jarvis-insight")).toHaveCount(0);
+  const close=page.getByRole("button",{name:"Zavřít briefing"});
+  await expect(close).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
   await expect(page.locator("[data-today-briefing-launcher]")).toBeFocused();
-
   await openBriefing(page);
   await page.keyboard.press("w");
   await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Týden" })).toBeVisible();
-  await expect(page.locator("[data-today-briefing-launcher]")).toHaveCount(0);
-
-  await page.getByRole("button", { name: /Dnes/ }).click();
-  await expect(page.locator("[data-today-briefing-launcher]")).toBeVisible();
-  await expect(page.locator("[data-today-briefing]")).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:"Týden"})).toBeVisible();
 });
 
-
-test("Today briefing treats a manually running Focus session as the source of truth", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
+test("supplement appears only once its assigned time arrives and syncs an intake",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-02T21:59:00Z"));
   await mockWeather(page);
   await openFreshToday(page);
-  const date = await page.evaluate(planningDateKeyInBrowser);
-
-  await page.evaluate((planningDate) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const now = new Date().toISOString();
-    state.routines = [];
-    state.backlog = [];
-    state.plans = {
-      [planningDate]: [
-        {
-          id: "running-focus",
-          title: "Ruční Focus",
-          date: planningDate,
-          duration: 30,
-          start: "08:00",
-          end: "08:30",
-          requestedStart: "08:00",
-          deadlineTime: "22:30",
-          priority: "normal",
-          category: "Studium",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: false,
-          actualRunningSince: now,
-          createdAt: now,
-        },
-        {
-          id: "unscheduled-high",
-          title: "Pozdější priorita",
-          date: planningDate,
-          duration: 45,
-          deadlineTime: "22:30",
-          priority: "high",
-          category: "Angličtina",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: true,
-          createdAt: now,
-        },
-      ],
-    };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, date);
   await seedWeatherLocation(page);
-
-  await page.reload({ waitUntil: "networkidle" });
-
-  const briefing = await openBriefing(page);
-  await expect(briefing.locator(".df2-briefing-priority")).toContainText("Ruční Focus");
-  await expect(briefing.locator(".df2-jarvis-command")).toContainText("Právě teď");
-  await expect(briefing.locator(".df2-jarvis-command")).toContainText("Ruční Focus");
-
-  await page.getByRole("button", { name: "Zavřít briefing" }).click();
-  await expect(page.locator("[data-today-briefing-modal]")).toHaveCount(0);
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[{name:"Zinek",times:["22:00"],stock:3}]);
+  const briefing=await openBriefing(page);
+  const card=briefing.locator("[data-jarvis-supplements]");
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-10-02T22:00:00Z"));
+  await page.evaluate(()=>window.dispatchEvent(new Event("dayframe-supplements-sync")));
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(1);
+  await expect(card).toContainText("Zinek");
+  await expect(card).toContainText("22:00");
+  await card.getByRole("button",{name:"Užito: Zinek (22:00)"}).click();
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  const store=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-supplements-v1")));
+  expect(store.intakes).toHaveLength(1);
+  expect(store.intakes[0].status).toBe("taken");
+  expect(store.intakes[0].time).toBe("22:00");
+  expect(store.supplements[0].stock).toBe(2);
+  await page.reload({waitUntil:"networkidle"});
+  const reloaded=await openBriefing(page);
+  await expect(reloaded.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
 });
 
-test("Jarvis remaining work includes an unfinished task without a time slot", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
+test("Jarvis shows only pending doses whose times passed, skips without deducting stock and reacts to external check-ins",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-02T15:00:00Z"));
   await mockWeather(page);
   await openFreshToday(page);
-  const date = await page.evaluate(planningDateKeyInBrowser);
-
-  await page.evaluate((planningDate) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const createdAt = new Date().toISOString();
-    state.routines = [];
-    state.backlog = [];
-    state.plans = {
-      [planningDate]: [
-        {
-          id: "occupied-auto-window",
-          title: "Obsazený den",
-          date: planningDate,
-          duration: 870,
-          start: "08:00",
-          end: "22:30",
-          requestedStart: "08:00",
-          deadlineTime: "22:30",
-          priority: "normal",
-          category: "Studium",
-          mode: "fixed",
-          completed: true,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: false,
-          createdAt,
-        },
-        {
-          id: "unscheduled-work",
-          title: "Nezařazený úkol",
-          date: planningDate,
-          duration: 45,
-          deadlineTime: "22:30",
-          priority: "normal",
-          category: "Studium",
-          mode: "flexible",
-          completed: false,
-          source: "user",
-          dateLocked: true,
-          autoScheduled: true,
-          createdAt,
-        },
-      ],
-    };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, date);
   await seedWeatherLocation(page);
-  await page.reload({ waitUntil: "networkidle" });
-
-  await expect.poll(() => page.evaluate(() => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const task = Object.values(state.plans || {}).flat().find((item) => item.id === "unscheduled-work");
-    return Boolean(task) && !task.start && !task.end;
-  })).toBe(true);
-
-  const briefing = await openBriefing(page);
-  const signals = briefing.locator(".df2-briefing-signals");
-  await expect(signals).toContainText("Zbývá");
-  await expect(signals).toContainText("45 min");
-  await expect(briefing.locator(".df2-jarvis-command")).toContainText("Bez času");
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[
+    {name:"Omega 3",times:["14:00"],stock:5},
+    {name:"Magnesium",times:["14:30","22:00"],stock:5},
+    {name:"Zinek",times:["22:00"],stock:5},
+  ]);
+  const briefing=await openBriefing(page);
+  const card=briefing.locator("[data-jarvis-supplements]");
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(2);
+  await expect(card).toContainText("Omega 3");
+  await expect(card).toContainText("Magnesium");
+  await expect(card).not.toContainText("Zinek");
+  await card.getByRole("button",{name:"Vynechat: Omega 3 (14:00)"}).click();
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(1);
+  await page.evaluate(()=>{
+    const store=JSON.parse(localStorage.getItem("dayframe-supplements-v1"));
+    const magnesium=store.supplements.find(x=>x.name==="Magnesium");
+    const date=magnesium.scheduleHistory[0].effectiveFrom;
+    store.intakes.push({
+      key:magnesium.id+"|"+date+"|14:30",supplementId:magnesium.id,
+      date,time:"14:30",status:"taken",recordedAt:new Date().toISOString(),
+      servings:1,stockDeducted:1,
+    });
+    magnesium.stock-=1;
+    localStorage.setItem("dayframe-supplements-v1",JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-supplements-sync"));
+  });
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-supplements-v1")));
+  expect(saved.intakes.map(x=>x.status)).toEqual(["skipped","taken"]);
+  expect(saved.supplements.find(x=>x.name==="Omega 3").stock).toBe(5);
 });
 
-test("Jarvis weather turns strong rain probability into a useful alert", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
-  await mockWeather(page, {
-    current: {
-      temperature_2m: 9,
-      apparent_temperature: 7,
-      weather_code: 61,
-      wind_speed_10m: 18,
-    },
-    daily: {
-      temperature_2m_max: [11],
-      temperature_2m_min: [6],
-      precipitation_probability_max: [85],
-      sunrise: ["2026-10-02T06:58"],
-      sunset: ["2026-10-02T18:40"],
-    },
-  });
+test("Jarvis understands after-midnight doses before Dayframe planning day closes at 02:00",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-03T00:59:00Z"));
+  await mockWeather(page);
   await openFreshToday(page);
-  await page.evaluate(() => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    state.plans = {};
-    state.backlog = [];
-    state.routines = [];
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  });
   await seedWeatherLocation(page);
-  await page.reload({ waitUntil: "networkidle" });
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  expect(date).toBe("2026-10-02");
+  await seedJarvisSupplements(page,date,[{name:"Noční doplněk",times:["01:00"]}]);
+  const briefing=await openBriefing(page);
+  await expect(briefing.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-10-03T01:00:00Z"));
+  await page.evaluate(()=>window.dispatchEvent(new Event("dayframe-supplements-sync")));
+  const row=briefing.locator("[data-jarvis-supplement-key]");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("01:00");
+  await row.getByRole("button",{name:"Užito: Noční doplněk (01:00)"}).click();
+  await expect(row).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-10-03T02:01:00Z"));
+  await page.evaluate(()=>window.dispatchEvent(new Event("dayframe-supplements-sync")));
+  await expect(briefing.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+});
 
-  const briefing = await openBriefing(page);
+test("supplements at 03:00 arrive exactly at their time, not after 08:00",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-02T02:59:00Z"));
+  await mockWeather(page);
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[{name:"Ranní test",times:["03:00"]}]);
+  const briefing=await openBriefing(page);
+  const card=briefing.locator("[data-jarvis-supplements]");
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-10-02T03:00:00Z"));
+  await page.evaluate(()=>window.dispatchEvent(new Event("dayframe-supplements-sync")));
+  await expect(card.locator("[data-jarvis-supplement-key]")).toHaveCount(1);
+  await expect(card).toContainText("Ranní test");
+});
+
+test("Jarvis supplement action buttons are keyboard reachable inside the modal focus trap",async({page})=>{
+  await page.clock.setFixedTime(new Date("2026-10-02T22:30:00Z"));
+  await mockWeather(page);
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  const date=await page.evaluate(planningDateKeyInBrowser);
+  await seedJarvisSupplements(page,date,[{name:"Zinek",times:["22:00"]}]);
+  const briefing=await openBriefing(page);
+  const close=page.getByRole("button",{name:"Zavřít briefing"});
+  const taken=briefing.getByRole("button",{name:"Užito: Zinek (22:00)"});
+  const skipped=briefing.getByRole("button",{name:"Vynechat: Zinek (22:00)"});
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(taken).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(skipped).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(skipped).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(briefing.locator("[data-jarvis-supplement-key]")).toHaveCount(0);
+  const state=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-supplements-v1")));
+  expect(state.intakes[0].status).toBe("skipped");
+});
+
+test("Jarvis weather remains useful even if no supplements are configured",async({page})=>{
+  await page.clock.setFixedTime(FIXED_NOW);
+  await mockWeather(page,{current:{temperature_2m:9,apparent_temperature:7,weather_code:61,wind_speed_10m:18},
+    daily:{temperature_2m_max:[11],temperature_2m_min:[6],precipitation_probability_max:[85],
+      sunrise:["2026-10-02T06:58"],sunset:["2026-10-02T18:40"]}});
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  const briefing=await openBriefing(page);
   await expect(briefing.locator(".df2-jarvis-weather")).toContainText("Déšť");
-  await expect(briefing.locator(".df2-jarvis-insight")).toContainText("Deštník se může hodit");
+  await expect(briefing.locator("[data-jarvis-supplements]")).toContainText("Teď není žádný suplement k užití");
 });

@@ -374,6 +374,12 @@ function renderAdvisor(host: HTMLElement, advice: Advice[]) {
 function syncAdvisor() {
   const host = document.querySelector<HTMLElement>("[data-today-briefing]");
   if (!host) return;
+  // Avoid augmenting the live Jarvis with task/milestone recommendations.
+  // Existing isolated advisor tests can still exercise ranking separately.
+  if (host.querySelector("[data-jarvis-supplements]")) {
+    host.querySelector("[data-jarvis-advisor]")?.remove();
+    return;
+  }
   const state = readState();
   if (!state) return;
   const birthdays = readBirthdays();

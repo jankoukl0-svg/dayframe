@@ -13,7 +13,8 @@ test("Jarvis omits the redundant daily sequence and note cards", async ({ page }
   const briefing = page.locator("[data-today-briefing]");
   await expect(briefing).toBeVisible();
   await expect(briefing.locator(".df2-jarvis-weather")).toBeVisible();
-  await expect(briefing.locator(".df2-jarvis-command")).toBeVisible();
-  await expect(briefing.locator(".df2-jarvis-sequence")).toBeHidden();
-  await expect(briefing.locator(".df2-jarvis-insight")).toBeHidden();
+  await expect(briefing.locator("[data-jarvis-supplements]")).toBeVisible();
+  await expect(briefing.locator(".df2-jarvis-command")).toHaveCount(0);
+  await expect(briefing.locator(".df2-jarvis-sequence")).toHaveCount(0);
+  await expect(briefing.locator(".df2-jarvis-insight")).toHaveCount(0);
 });

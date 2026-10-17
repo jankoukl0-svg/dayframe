@@ -65,130 +65,31 @@ async function openBriefing(page) {
   return briefing;
 }
 
-test("Jarvis shows what awaits tomorrow", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
-  await mockWeather(page);
-  await openFresh(page);
-  const today = await page.evaluate(planningDateKeyInBrowser);
-  const tomorrow = addDaysKey(today, 1);
-
-  await page.evaluate(({ today, tomorrow }) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const now = new Date().toISOString();
-    const make = (id, title, date, duration, start, end, category, priority = "normal") => ({
-      id, title, date, duration, start, end, requestedStart: start,
-      deadlineTime: "22:30", priority, category, mode: "flexible",
-      completed: false, source: "user", dateLocked: true, autoScheduled: false,
-      createdAt: now,
-    });
-    state.routines = [];
-    state.backlog = [];
-    state.plans = {
-      [today]: [make("today-anchor", "Dnešní fokus", today, 60, "23:00", "00:00", "Studium", "high")],
-      [tomorrow]: [
-        make("tomorrow-english", "Cambridge C1", tomorrow, 60, "09:00", "10:00", "Angličtina"),
-        make("tomorrow-math", "Matematika", tomorrow, 90, "11:00", "12:30", "Matika"),
-      ],
-    };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, { today, tomorrow });
-  await seedWeatherLocation(page);
-  await page.reload({ waitUntil: "networkidle" });
-
-  const briefing = await openBriefing(page);
-  const tomorrowCard = briefing.locator("[data-jarvis-tomorrow]");
-  await expect(tomorrowCard).toBeVisible();
-  await expect(tomorrowCard).toContainText("Zítra");
-  await expect(tomorrowCard).toContainText("2 h 30 min · 2 bloky");
-  await expect(tomorrowCard).toContainText("První: 09:00 · Cambridge C1");
-  await expect(tomorrowCard).toContainText("09:00–10:00");
-  await expect(tomorrowCard).toContainText("11:00–12:30");
-  await expect(tomorrowCard).toContainText("Matematika");
-});
-
-test("Jarvis milestone shows completed and planned preparation", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
-  await mockWeather(page);
-  await openFresh(page);
-  const today = await page.evaluate(planningDateKeyInBrowser);
-  const yesterday = addDaysKey(today, -1);
-  const prepDay = addDaysKey(today, 2);
-  const milestoneDate = addDaysKey(today, 7);
-
-  await page.evaluate(({ today, yesterday, prepDay, milestoneDate }) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    const make = (id, title, date, duration, start, end, category, completed) => ({
-      id, title, date, duration, start, end, requestedStart: start,
-      deadlineTime: "22:30", priority: "normal", category, mode: "flexible",
-      completed, source: "user", dateLocked: true, autoScheduled: false,
-      createdAt: new Date().toISOString(),
-    });
-    state.routines = [];
-    state.backlog = [];
-    state.milestones = [{ id: "vse-mock", title: "VŠE nanečisto", date: milestoneDate, note: "Přijímačky" }];
-    state.plans = {
-      [yesterday]: [make("prep-done", "Matematika přijímačky", yesterday, 60, "17:00", "18:00", "Matika", true)],
-      [today]: [],
-      [prepDay]: [make("prep-planned", "VŠE angličtina", prepDay, 90, "16:00", "17:30", "Angličtina", false)],
-    };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, { today, yesterday, prepDay, milestoneDate });
-  await page.reload({ waitUntil: "networkidle" });
-
-  const briefing = await openBriefing(page);
-  await expect(briefing.locator(".df2-jarvis-milestone")).toContainText("VŠE nanečisto");
-  const prep = briefing.locator("[data-jarvis-milestone-prep]");
-  await expect(prep).toBeVisible();
-  await expect(prep).toContainText("Příprava aktivní");
-  await expect(prep).toContainText("1 h hotovo");
-  await expect(prep).toContainText("1 h 30 min v plánu");
-  await expect(prep).toHaveClass(/active/);
-});
-
-test("Jarvis does not invent preparation requirements for an administrative milestone", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
-  await mockWeather(page);
-  await openFresh(page);
-  const today = await page.evaluate(planningDateKeyInBrowser);
-  const milestoneDate = addDaysKey(today, 5);
-
-  await page.evaluate(({ today, milestoneDate }) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    state.routines = [];
-    state.backlog = [];
-    state.milestones = [{ id: "registration", title: "zápis", date: milestoneDate, note: "Vlastní termín" }];
-    state.plans = { [today]: [] };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, { today, milestoneDate });
-  await page.reload({ waitUntil: "networkidle" });
-
-  const briefing = await openBriefing(page);
-  const prep = briefing.locator("[data-jarvis-milestone-prep]");
-  await expect(prep).toBeVisible();
-  await expect(prep).toContainText("Bez nutné přípravy");
-  await expect(prep).toHaveClass(/neutral/);
-});
-
-test("Jarvis flags missing preparation for an unknown near-term milestone", async ({ page }) => {
-  await page.clock.setFixedTime(FIXED_NOW);
-  await mockWeather(page);
-  await openFresh(page);
-  const today = await page.evaluate(planningDateKeyInBrowser);
-  const milestoneDate = addDaysKey(today, 6);
-
-  await page.evaluate(({ today, milestoneDate }) => {
-    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
-    state.routines = [];
-    state.backlog = [];
-    state.milestones = [{ id: "graduation-exam", title: "Maturita", date: milestoneDate, note: "Vlastní termín" }];
-    state.plans = { [today]: [] };
-    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
-  }, { today, milestoneDate });
-  await page.reload({ waitUntil: "networkidle" });
-
-  const briefing = await openBriefing(page);
-  const prep = briefing.locator("[data-jarvis-milestone-prep]");
-  await expect(prep).toBeVisible();
-  await expect(prep).toContainText("Bez přípravy v plánu");
-  await expect(prep).toHaveClass(/warning/);
+test("Jarvis does not duplicate tomorrow's schedule or milestone-prep summaries",async({page})=>{
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173",{waitUntil:"networkidle"});
+  await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const now=new Date(); const today=new Date(now);
+    if(now.getHours()<2)today.setDate(today.getDate()-1);
+    const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
+    const key=date=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
+    const tomorrowKey=key(tomorrow);
+    state.plans[tomorrowKey]=[{id:"future-jarvis",title:"Cambridge C1",date:tomorrowKey,
+      duration:60,start:"09:00",end:"10:00",requestedStart:"09:00",priority:"high",
+      category:"Angličtina",mode:"fixed",completed:false,source:"user",dateLocked:true,autoScheduled:false}];
+    state.milestones=[{id:"milestone-jarvis",title:"VŠE přijímačky",date:tomorrowKey,note:"Test"}];
+    localStorage.setItem("dayframe-v1",JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  });
+  const launcher=page.locator("[data-today-briefing-launcher]");
+  await expect(launcher).toBeVisible();
+  await launcher.click();
+  const briefing=page.locator("[data-today-briefing]");
+  await expect(briefing.locator(".df2-jarvis-weather")).toBeVisible();
+  await expect(briefing.locator("[data-jarvis-supplements]")).toBeVisible();
+  await expect(briefing.locator("[data-jarvis-tomorrow]")).toHaveCount(0);
+  await expect(briefing.locator(".df2-jarvis-milestone")).toHaveCount(0);
+  await expect(briefing.locator("[data-jarvis-milestone-prep]")).toHaveCount(0);
+  await expect(briefing.locator("[data-jarvis-advisor]")).toHaveCount(0);
 });
