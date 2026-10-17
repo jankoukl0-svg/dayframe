@@ -26,3 +26,16 @@ test("moved task times are live, completed or deleted tasks are hidden",()=>{
   assert.equal(upcomingTravelTrips(store,now,[{...live[0],completed:true}]).length,0);
   assert.equal(upcomingTravelTrips(store,now,[]).length,0);
 });
+
+test("gym and hygiene location is actionable only with a live incomplete occurrence",()=>{
+  const store=emptyTravelStore();
+  store.blocks["gym:occ-1"]={place,mode:"driving",bufferMinutes:15,typicalMinutes:30,
+    title:"Pull",date:"2026-10-19",start:"09:00"};
+  store.blocks["care:2026-10-19:morning"]={place,mode:"walking",bufferMinutes:5,typicalMinutes:12,
+    title:"Hygiena",date:"2026-10-19",start:"09:30"};
+  const now=new Date("2026-10-19T08:00:00");
+  assert.equal(upcomingTravelTrips(store,now,[]).length,0);
+  const live=[{key:"gym:occ-1",date:"2026-10-19",start:"10:00",title:"Pull",completed:false},
+    {key:"care:2026-10-19:morning",date:"2026-10-19",start:"09:30",title:"Hygiena",completed:true}];
+  assert.deepEqual(upcomingTravelTrips(store,now,[],live).map(x=>x.title),["Pull"]);
+});
