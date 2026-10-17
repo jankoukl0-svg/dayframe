@@ -409,8 +409,101 @@ test("daypart editor lets the user pick multiple periods and fine tune exact tim
   const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
   expect(after.supplements[0].times).toEqual(["08:20"]);
   await root.getByRole("button",{name:"Dnes",exact:true}).click();
-  await expect(root.locator("[data-supplement-daypart=afternoon] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=morning] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=afternoon] [data-supplement-occurrence]")).toHaveCount(0);
+  await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(0);
+});
+
+
+test("an existing supplement moves from morning to bedtime today without a reload",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Magnesium",stock:"3",times:"09:00"});
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
+  await dialog.getByRole("textbox",{name:"Časy užívání"}).fill("22:00");
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  await root.getByRole("button",{name:"Dnes",exact:true}).click();
+  await expect(root.locator("[data-supplement-daypart=morning] [data-supplement-occurrence]")).toHaveCount(0);
   await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=bedtime]")).toContainText("22:00");
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Dnes"}).click();
+  await expect(page.locator('[data-supplement-checklist="summary"]')).toContainText("0/1 užito");
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].scheduleHistory.at(-1).effectiveFrom).toBe("2026-10-12");
+  await page.reload({waitUntil:"networkidle"});
+  const again=await supplements(page);
+  await expect(again.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(1);
+});
+
+test("older edits set to tomorrow migrate to today and appear in the correct group",async({page})=>{
+  await fresh(page);
+  await addOne(page,{name:"Psyllium",stock:"3",times:"09:00"});
+  await page.evaluate(key=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    const item=store.supplements[0];
+    item.times=["15:00"];
+    item.scheduleHistory.push({effectiveFrom:"2026-10-13",weekdays:[...item.weekdays],times:["15:00"],active:true});
+    localStorage.setItem(key,JSON.stringify(store));
+  },SUP_KEY);
+  await page.reload({waitUntil:"networkidle"});
+  const root=await supplements(page);
+  await expect(root.locator("[data-supplement-daypart=morning] [data-supplement-occurrence]")).toHaveCount(0);
+  await expect(root.locator("[data-supplement-daypart=afternoon] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=afternoon]")).toContainText("15:00");
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SUP_KEY);
+  expect(saved.supplements[0].scheduleHistory).toHaveLength(1);
+  expect(saved.supplements[0].scheduleHistory[0].effectiveFrom).toBe("2026-10-12");
+});
+
+test("post-midnight schedule changes use Dayframe's 02:00 planning-day cutoff",async({page})=>{
+  await fresh(page);
+  await addOne(page,{name:"Noční magnesium",times:"09:00"});
+  await page.clock.setFixedTime(new Date("2026-10-13T01:00:00"));
+  await page.evaluate(key=>{
+    const state=JSON.parse(localStorage.getItem(key));
+    const item=state.supplements[0];
+    item.times=["01:00"];
+    item.scheduleHistory.push({effectiveFrom:"2026-10-13",weekdays:[...item.weekdays],times:["01:00"],active:true});
+    localStorage.setItem(key,JSON.stringify(state));
+  },SUP_KEY);
+  await page.reload({waitUntil:"networkidle"});
+  const root=await supplements(page);
+  await expect(root.locator("[data-supplement-daypart=morning] [data-supplement-occurrence]")).toHaveCount(0);
+  await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=bedtime]")).toContainText("01:00");
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].scheduleHistory[0].effectiveFrom).toBe("2026-10-12");
+});
+
+test("moving a taken dose never offers the same serving twice or consumes extra stock",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Zinek",stock:"3",times:"09:00"});
+  await root.locator("[data-supplement-occurrence]").getByRole("button",{name:"Užito",exact:true}).click();
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
+  await dialog.getByRole("textbox",{name:"Časy užívání"}).fill("22:00");
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  await root.getByRole("button",{name:"Dnes",exact:true}).click();
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(1);
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="pending"]')).toHaveCount(0);
+  await expect(root.locator("[data-supplement-daypart=morning]")).toContainText("09:00");
+  await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(0);
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.intakes).toHaveLength(1);
+  expect(saved.supplements[0].stock).toBe(2);
+  await root.locator("[data-supplement-daypart=morning] [data-supplement-occurrence]").getByRole("button",{name:/Užito/}).click();
+  await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(1);
+});
+
+test("pausing a supplement removes today's unlogged doses",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Pozastavený",stock:"2",times:"09:00"});
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Pozastavit"}).click();
+  await root.getByRole("button",{name:"Dnes",exact:true}).click();
+  await expect(root.locator("[data-supplement-occurrence]")).toHaveCount(0);
 });
 
 test("compact daily cards group doses by time, show live progress and preserve quick check-in",async({page})=>{

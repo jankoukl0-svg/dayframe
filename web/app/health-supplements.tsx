@@ -406,7 +406,7 @@ export function SupplementsPage({today}:{today:string}){
           <label>Poznámky a upozornění<textarea aria-label="Poznámky suplementu" rows={2} value={draft.notes} maxLength={1500}
             onChange={e=>setDraft({...draft,notes:e.target.value})}/></label>
         </div>
-        <p className="df2-health-helper">Dávkování dle etikety nebo odborníka. Změny rozvrhu platí od zítřka. Interakce s léky konzultuj s lékárníkem či lékařem.</p>
+        <p className="df2-health-helper">Dávkování dle etikety nebo odborníka. Změny rozvrhu se zobrazí i dnes; již zaznamenané dávky zůstanou zachované. Interakce s léky konzultuj s lékárníkem či lékařem.</p>
         {editError&&<p className="df2-hygiene-error" role="alert">{editError}</p>}
         <div className="df2-modal-actions"><button className="df2-primary" disabled={blocked||photoBusy||autoPhotoBusy} type="button" onClick={saveDraft}>{photoBusy?"Ukládám…":"Uložit suplement"}</button></div>
       </section>
