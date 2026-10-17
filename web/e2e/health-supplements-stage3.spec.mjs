@@ -463,7 +463,7 @@ test("responsive supplement cards stack on mobile without hiding inventory and h
   await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toBeVisible();
   await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Užito",exact:true})).toBeVisible();
   await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Vynechat"})).toBeVisible();
-  expect(await root.locator(".df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(1);
+  expect(await root.locator("[data-supplement-daypart=morning] .df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(1);
   await root.getByRole("button",{name:"Moje suplementy"}).click();
   await expect(root.locator("[data-supplements-library] [data-supplement-id]")).toHaveCount(1);
   await root.locator("[data-supplement-id]").getByRole("button",{name:"Přidat k nákupu"}).click();
