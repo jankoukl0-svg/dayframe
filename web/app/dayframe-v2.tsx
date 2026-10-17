@@ -158,6 +158,13 @@ export function DayframeV2() {
   function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string){
     setTripTarget({key:travelBlockKey(kind,id,date),title,date,start});
   }
+  function removeStoredTrip(key:string){
+    const current=readTravelStore();
+    if(current.blocked||!current.store.blocks[key])return;
+    const blocks={...current.store.blocks};
+    delete blocks[key];
+    saveTravelStore({...current.store,blocks});
+  }
   function moveSavedTrip(kind:"gym"|"care",id:string,oldDate:string,newDate:string,newStart:string){
     const current=readTravelStore();
     if(current.blocked)return;
@@ -770,7 +777,7 @@ export function DayframeV2() {
               onDone={requestTaskCompletion}
               completingTaskIds={completingTaskIds}
               onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
-              onDelete={(id) => setData((current) => deleteTask(current, id))}
+               onDelete={(id) => {removeStoredTrip(travelBlockKey("task",id));setData((current) => deleteTask(current, id));}}
               onFocus={startFocus}
               onMilestones={() => setView("milestones")}
               onOpenHygiene={(routineId) => {
@@ -1119,7 +1126,7 @@ export function DayframeV2() {
                 onClick={() => requestTaskCompletion(editing.id)}
               >
                 {editing.completed ? "Vrátit jako nesplněné" : completingTaskIds.has(editing.id) ? "✓ Hotovo" : "Označit hotovo"}
-              </button><button type="button" className="danger" onClick={() => { setData((current) => deleteTask(current, editing.id)); setEditing(null); }}>Smazat</button></div>
+              </button><button type="button" className="danger" onClick={() => { removeStoredTrip(travelBlockKey("task",editing.id));setData((current) => deleteTask(current, editing.id)); setEditing(null); }}>Smazat</button></div>
           </form>
         </div>
       )}
