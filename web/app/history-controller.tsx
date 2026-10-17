@@ -386,7 +386,6 @@ export function HistoryController() {
         <header className="df2-history-head">
           <div>
             <h1>Přehled</h1>
-            <span>{periodLabel(mode, range)}</span>
           </div>
           <div className="df2-history-period-switch" role="group" aria-label="Rozsah přehledu">
             {(["week", "month", "year"] as PeriodMode[]).map((value) => (

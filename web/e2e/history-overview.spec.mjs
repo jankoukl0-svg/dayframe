@@ -1,5 +1,21 @@
 import { test, expect } from "@playwright/test";
 
+test("overview has a clean title without a duplicate period subtitle", async ({ page }) => {
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.locator(".df2-sidebar nav button").filter({ hasText: "Přehled" }).click();
+
+  const view = page.locator(".df2-history-view");
+  const heading = view.locator(".df2-history-head");
+  await expect(heading.getByRole("heading", { name: "Přehled", exact: true })).toBeVisible();
+  await expect(heading.locator(":scope > div:first-child > span")).toHaveCount(0);
+  await expect(view.locator(".df2-history-period-nav > strong")).toBeVisible();
+
+  await heading.getByRole("button", { name: "Měsíc" }).click();
+  await expect(view.locator(".df2-history-period-nav > strong")).toHaveText(/\\p{L}+/u);
+  await expect(heading.locator(":scope > div:first-child > span")).toHaveCount(0);
+});
+
 test("overview uses the same left and right content edges as Week instead of a centered narrow column", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });

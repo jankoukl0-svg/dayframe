@@ -32,14 +32,6 @@
   letter-spacing: -.045em;
 }
 
-.df2-history-head > div:first-child > span {
-  display: block;
-  margin-top: 6px;
-  color: #85847e;
-  font-size: 13px;
-  font-weight: 500;
-}
-
 .df2-history-period-switch {
   display: inline-flex;
   gap: 2px;
