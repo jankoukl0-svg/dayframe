@@ -359,6 +359,60 @@ test("corrupt image bytes with a PNG MIME type show a neutral placeholder, not a
 });
 
 
+test("dayparts classify morning, afternoon and bedtime without changing saved intake times",async({page})=>{
+  await fresh(page);
+  const root=await addOne(page,{name:"Dávka test",stock:"6",times:"08:30,15:45,22:15"});
+  const groups=root.locator("[data-supplement-daypart]");
+  await expect(groups).toHaveCount(3);
+  for(const [index,part,time] of [[0,"morning","08:30"],[1,"afternoon","15:45"],[2,"bedtime","22:15"]]){
+    await expect(groups.nth(index)).toHaveAttribute("data-supplement-daypart",part);
+    await expect(groups.nth(index).locator("[data-supplement-occurrence]")).toHaveCount(1);
+    await expect(groups.nth(index)).toContainText(time);
+  }
+  await groups.last().getByRole("button",{name:"Užito",exact:true}).click();
+  await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toHaveAttribute("aria-valuenow","1");
+  const stored=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(stored.supplements[0].times).toEqual(["08:30","15:45","22:15"]);
+  expect(stored.intakes).toHaveLength(1);
+  expect(stored.intakes[0].time).toBe("22:15");
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await expect(root.locator(".df2-supplements-library-dayparts span")).toHaveText(["Ráno","Odpoledne","Před spaním"]);
+  await page.reload({waitUntil:"networkidle"});
+  await supplements(page);
+  await expect(root.locator('[data-supplement-occurrence][data-intake-status="taken"]')).toHaveCount(1);
+});
+
+test("daypart editor lets the user pick multiple periods and fine tune exact times",async({page})=>{
+  await fresh(page);
+  const root=await supplements(page);
+  await root.getByRole("button",{name:"+ Přidat suplement"}).click();
+  const dialog=page.getByRole("dialog",{name:"Editor suplementu"});
+  await dialog.getByRole("textbox",{name:"Název suplementu"}).fill("Hořčík test");
+  await dialog.getByRole("textbox",{name:"Dávkování"}).fill("Dle etikety");
+  const picker=dialog.getByRole("group",{name:"Části dne užívání"});
+  await expect(picker.getByRole("button",{name:"Ráno"})).toHaveAttribute("aria-pressed","true");
+  await picker.getByRole("button",{name:"Odpoledne"}).click();
+  await picker.getByRole("button",{name:"Před spaním"}).click();
+  await expect(dialog.getByRole("textbox",{name:"Časy užívání"})).toHaveValue("09:00, 15:00, 22:00");
+  await picker.getByRole("button",{name:"Ráno"}).click();
+  await expect(dialog.getByRole("textbox",{name:"Časy užívání"})).toHaveValue("15:00, 22:00");
+  await dialog.getByRole("textbox",{name:"Časy užívání"}).fill("14:40, 23:15");
+  await dialog.getByRole("button",{name:"Uložit suplement"}).click();
+  const stored=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(stored.supplements[0].times).toEqual(["14:40","23:15"]);
+  await expect(root.locator("[data-supplement-occurrence]")).toHaveCount(2);
+  await root.getByRole("button",{name:"Moje suplementy"}).click();
+  await root.locator("[data-supplement-id]").getByRole("button",{name:"Upravit"}).click();
+  const modal=page.getByRole("dialog",{name:"Editor suplementu"});
+  await modal.getByRole("textbox",{name:"Časy užívání"}).fill("08:20");
+  await modal.getByRole("button",{name:"Uložit suplement"}).click();
+  const after=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(after.supplements[0].times).toEqual(["08:20"]);
+  await root.getByRole("button",{name:"Dnes",exact:true}).click();
+  await expect(root.locator("[data-supplement-daypart=afternoon] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(1);
+});
+
 test("compact daily cards group doses by time, show live progress and preserve quick check-in",async({page})=>{
   await page.setViewportSize({width:1440,height:900});
   await fresh(page);
@@ -366,10 +420,15 @@ test("compact daily cards group doses by time, show live progress and preserve q
   await addOne(page,{name:"Kreatin test",stock:"4",times:"09:00"});
   const root=await supplements(page);
   const groups=root.locator(".df2-supplements-time-group");
-  await expect(groups).toHaveCount(2);
+  await expect(groups).toHaveCount(3);
+  await expect(groups.nth(0)).toHaveAttribute("data-supplement-daypart","morning");
+  await expect(groups.nth(1)).toHaveAttribute("data-supplement-daypart","afternoon");
+  await expect(groups.nth(2)).toHaveAttribute("data-supplement-daypart","bedtime");
   await expect(groups.first().locator("[data-supplement-occurrence]")).toHaveCount(2);
-  await expect(groups.last().locator("[data-supplement-occurrence]")).toHaveCount(1);
-  await expect(groups.first().getByRole("heading",{name:"09:00"})).toBeVisible();
+  await expect(groups.nth(1).locator("[data-supplement-occurrence]")).toHaveCount(1);
+  await expect(groups.last().locator("[data-supplement-occurrence]")).toHaveCount(0);
+  await expect(groups.first().getByRole("heading",{name:"Ráno"})).toBeVisible();
+  await expect(groups.first()).toContainText("09:00");
   const progress=root.getByRole("progressbar",{name:"Dnes užité dávky"});
   await expect(progress).toHaveAttribute("aria-valuemax","3");
   await expect(progress).toHaveAttribute("aria-valuenow","0");
@@ -404,7 +463,7 @@ test("responsive supplement cards stack on mobile without hiding inventory and h
   await expect(root.getByRole("progressbar",{name:"Dnes užité dávky"})).toBeVisible();
   await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Užito",exact:true})).toBeVisible();
   await expect(root.locator(".df2-supplements-dose-card").first().getByRole("button",{name:"Vynechat"})).toBeVisible();
-  expect(await root.locator(".df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(1);
+  expect(await root.locator("[data-supplement-daypart=morning] .df2-supplements-due").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(1);
   await root.getByRole("button",{name:"Moje suplementy"}).click();
   await expect(root.locator("[data-supplements-library] [data-supplement-id]")).toHaveCount(1);
   await root.locator("[data-supplement-id]").getByRole("button",{name:"Přidat k nákupu"}).click();
