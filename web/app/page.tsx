@@ -12,6 +12,7 @@ import "./health-prevention.css";
 import "./hygiene-health-harmony.css";
 import "./dayframe-countdowns.css";
 import "./week-calendar-polish.css";
+import "./week-trip-location.css";
 import "./milestone-alignment.css";
 
 export default function Home() {
