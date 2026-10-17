@@ -1,5 +1,8 @@
 /* Stage 1: Health uses the same quiet Dayframe visual language as Hygiena. */
-.df2-health-page { display: grid; gap: 21px; min-width: 0; }
+.df2-health-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 21px; min-width: 0; }
+/* The shared page header already has a bottom margin for normal views.
+   In Health the parent grid owns that spacing, otherwise it gets counted twice. */
+.df2-health-page > .df2-page-head { margin-bottom: 0; }
 .df2-health-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .df2-health-head > div:first-child { min-width: 0; }
 .df2-health-head small { display: block; margin-top: 7px; font-size: 12px; color: var(--muted); line-height: 1.5; }
