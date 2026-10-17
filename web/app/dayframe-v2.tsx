@@ -573,6 +573,7 @@ export function DayframeV2() {
       setEditingCareError("Přesun se nepodařilo uložit. Rutina už mohla být zahájená, nebo má zvolený den jiný výskyt.");
       return;
     }
+    moveSavedTrip("care",id,editingCare.date,date,start);
     setEditingCare(null);
     setEditingCareError("");
   }
