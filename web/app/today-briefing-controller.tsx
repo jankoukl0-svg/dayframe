@@ -811,7 +811,8 @@ function syncBriefing() {
 
   ensureLauncher(todayView);
 
-  const host = document.querySelector<HTMLElement>("[data-today-briefing]");
+  // Render only into Jarvis\u0027s real modal; standalone hosts are used by isolated advisor tests.
+  const host = document.querySelector<HTMLElement>("[data-today-briefing-modal] [data-today-briefing]");
   if (!host) return;
   ensureWeather();
   const state = readState();
