@@ -46,6 +46,7 @@ type WeatherSnapshot = {
   sunrise?: string;
   sunset?: string;
   hours?: WeatherHour[];
+  forecastFrom?: string;
 };
 
 type BriefingModel = {
@@ -429,7 +430,7 @@ function renderWeather(parent: HTMLElement, weather: WeatherSnapshot) {
     metrics.appendChild(item);
   });
   card.appendChild(metrics);
-  renderHourlyWeather(card, weather.hours ?? [], weather.hours?.[0]?.time.slice(0, 10) ?? "");
+  renderHourlyWeather(card, weather.hours ?? [], weather.forecastFrom ?? "");
   parent.appendChild(card);
 }
 
@@ -651,6 +652,7 @@ async function refreshWeather() {
       sunrise: payload.daily?.sunrise?.[0],
       sunset: payload.daily?.sunset?.[0],
       hours: parseWeatherHours(payload.hourly, payload.current?.time),
+      forecastFrom: payload.current?.time?.slice(0, 10),
     };
   } catch {
     weatherSnapshot = { status: "error", location: location.label };
