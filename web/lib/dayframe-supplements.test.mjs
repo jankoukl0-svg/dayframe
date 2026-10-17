@@ -2,7 +2,8 @@ import test from "node:test";
 import {validSupplementPhoto,validSupplementPhotoId,SUPPLEMENT_PHOTO_MAX_SIZE} from "./dayframe-supplement-photos.ts";
 import assert from "node:assert/strict";
 import {emptySupplementStore,parseSupplementStore,newSupplement,supplementOccurrences,supplementIntakeKey,
-  markSupplementIntake,markAllSupplementIntakes,buySupplement,lowStockSupplements,supplementStats,withSupplementSchedule} from "./dayframe-supplements.ts";
+  markSupplementIntake,markAllSupplementIntakes,buySupplement,lowStockSupplements,supplementStats,withSupplementSchedule,
+  migratePendingSupplementSchedules} from "./dayframe-supplements.ts";
 
 const date="2026-10-12";
 function setup(){
@@ -20,7 +21,7 @@ test("schedule creates one occurrence per chosen time and weekday with stable ID
   assert.equal(day[0].key,supplementIntakeKey(item.id,date,"08:00"));
   assert.equal(supplementOccurrences(store,"2026-10-13").length,2);
   const next=withSupplementSchedule({...item,weekdays:[1]},"2026-10-13",item);
-  assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-13").length,2);
+  assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-13").length,0);
   assert.equal(supplementOccurrences({...store,supplements:[next]},"2026-10-14").length,0);
   assert.equal(supplementOccurrences({...store,supplements:[next]},date).length,2);
 });
@@ -74,10 +75,10 @@ test("schedule-effective dates preserve historical denominator on creation, day 
   assert.equal(supplementStats(store,"2026-10-09","2026-10-12").planned,1);
   const changed=withSupplementSchedule({...first,times:["08:00","20:00"]},"2026-10-13",first);
   const next={...store,supplements:[changed]};
-  assert.equal(supplementStats(next,"2026-10-12","2026-10-13").planned,2);
-  assert.equal(supplementStats(next,"2026-10-12","2026-10-14").planned,4);
+  assert.equal(supplementStats(next,"2026-10-12","2026-10-13").planned,3);
+  assert.equal(supplementStats(next,"2026-10-12","2026-10-14").planned,5);
   const paused=withSupplementSchedule({...changed,active:false},"2026-10-14",changed);
-  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,4);
+  assert.equal(supplementStats({...next,supplements:[paused]},"2026-10-12","2026-10-15").planned,3);
 });
 
 test("an intake logged while stock tracking is off cannot add phantom stock when undone later",()=>{
@@ -92,16 +93,67 @@ test("an intake logged while stock tracking is off cannot add phantom stock when
   assert.equal(undone.intakes.length,0);
 });
 
-test("several same-day edits keep already scheduled doses until tomorrow",()=>{
+test("several same-day edits replace the current schedule without duplicating revisions",()=>{
   const item=newSupplement("Zinc test");
   const initial=withSupplementSchedule(item,date);
   const changed=withSupplementSchedule({...initial,times:["07:00"],active:true},date,initial);
   const paused=withSupplementSchedule({...changed,active:false},date,changed);
   const s={...emptySupplementStore(),supplements:[paused]};
-  assert.equal(supplementOccurrences(s,date).length,1);
-  assert.equal(supplementOccurrences(s,date)[0].time,"09:00");
+  assert.equal(supplementOccurrences(s,date).length,0);
   assert.equal(supplementOccurrences(s,"2026-10-13").length,0);
-  assert.equal(paused.scheduleHistory.length,2);
+  assert.equal(paused.scheduleHistory.length,1);
+});
+
+test("moving a logged dose keeps its check-in without scheduling a duplicate serving",()=>{
+  const item=newSupplement("Večerní doplněk");
+  const saved=withSupplementSchedule(item,date);
+  const state={...emptySupplementStore(),supplements:[saved]};
+  const morningKey=supplementIntakeKey(saved.id,date,"09:00");
+  const taken=markSupplementIntake(state,morningKey,"taken");
+  const changed=withSupplementSchedule({...taken.supplements[0],times:["22:00"]},date,taken.supplements[0]);
+  let updated={...taken,supplements:[changed]};
+  assert.deepEqual(supplementOccurrences(updated,date).map(x=>[x.time,x.intake?.status]),[["09:00","taken"]]);
+  assert.equal(markAllSupplementIntakes(updated,date),updated,"Already taken cannot be consumed again");
+  updated=markSupplementIntake(updated,morningKey,"taken");
+  assert.equal(updated.intakes.length,0);
+  assert.deepEqual(supplementOccurrences(updated,date).map(x=>x.time),["22:00"]);
+  const marked=markSupplementIntake(updated,supplementIntakeKey(saved.id,date,"22:00"),"taken");
+  assert.equal(marked.intakes[0].status,"taken");
+});
+
+test("moving two planned doses retains one old check-in and only the remaining new dose",()=>{
+  const item=newSupplement("Magnesium");
+  item.times=["09:00","15:00"];
+  const initial=withSupplementSchedule(item,date);
+  let state={...emptySupplementStore(),supplements:[initial]};
+  state=markSupplementIntake(state,supplementIntakeKey(initial.id,date,"09:00"),"taken");
+  const next=withSupplementSchedule({...state.supplements[0],times:["15:00","22:00"]},date,state.supplements[0]);
+  state={...state,supplements:[next]};
+  assert.deepEqual(supplementOccurrences(state,date).map(x=>[x.time,x.intake?.status??"pending"]),
+    [["09:00","taken"],["22:00","pending"]]);
+  assert.equal(supplementStats(state,date,date).planned,2);
+});
+
+test("legacy next-day changes migrate to today without rewriting past days or stock",()=>{
+  const item=newSupplement("Zinek");
+  const original=withSupplementSchedule(item,date);
+  const following="2026-10-13";
+  const yesterday="2026-10-11";
+  const oldIntake={key:supplementIntakeKey(original.id,yesterday,"09:00"),
+    supplementId:original.id,date:yesterday,time:"09:00",status:"taken",
+    recordedAt:"2026-10-11T09:00:00Z",servings:1,stockDeducted:0};
+  const stale={...original,times:["22:00"],scheduleHistory:[
+    ...original.scheduleHistory,{effectiveFrom:following,times:["22:00"],weekdays:[...original.weekdays],active:true},
+  ]};
+  const state={...emptySupplementStore(),supplements:[stale],intakes:[oldIntake]};
+  const migrated=migratePendingSupplementSchedules(state,date);
+  assert.notEqual(migrated,state);
+  assert.deepEqual(migrated.supplements[0].scheduleHistory.map(x=>[x.effectiveFrom,x.times]),
+    [[date,["22:00"]]]);
+  assert.deepEqual(migrated.intakes,[oldIntake]);
+  assert.deepEqual(supplementOccurrences(migrated,date).map(x=>x.time),["22:00"]);
+  assert.equal(migratePendingSupplementSchedules(migrated,date),migrated,"migration idempotent");
+  assert.equal(parseSupplementStore(JSON.stringify(migrated)).blocked,false);
 });
 
 test("supplement photo references are optional, validated and backwards-compatible",()=>{
