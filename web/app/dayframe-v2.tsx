@@ -47,7 +47,7 @@ import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
-import {readTravelStore,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readTravelStore,saveTravelStore,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -157,6 +157,17 @@ export function DayframeV2() {
   },[]);
   function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string){
     setTripTarget({key:travelBlockKey(kind,id,date),title,date,start});
+  }
+  function moveSavedTrip(kind:"gym"|"care",id:string,oldDate:string,newDate:string,newStart:string){
+    const current=readTravelStore();
+    if(current.blocked)return;
+    const oldKey=travelBlockKey(kind,id,oldDate),newKey=travelBlockKey(kind,id,newDate);
+    const saved=current.store.blocks[oldKey];
+    if(!saved)return;
+    const blocks={...current.store.blocks};
+    delete blocks[oldKey];
+    blocks[newKey]={...saved,date:newDate,start:newStart};
+    saveTravelStore({...current.store,blocks});
   }
   function travelPin(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,
     top:number,lane?:{left:string;width:string}){
@@ -657,11 +668,11 @@ export function DayframeV2() {
     setDragging(null);
     setDropPreview(null);
     if(selection.kind==="care"){
-      if(!(date===selection.date
+      const success=date===selection.date
         ? care.move(date,selection.id as WeekCareId,preview.start)
-        : care.moveDate(selection.date,date,selection.id as WeekCareId,preview.start))){
-        setNotice("Čas hygienické rutiny se nepodařilo uložit. Data nebyla změněna.");
-      }
+        : care.moveDate(selection.date,date,selection.id as WeekCareId,preview.start);
+      if(!success)setNotice("Čas hygienické rutiny se nepodařilo uložit. Data nebyla změněna.");
+      else moveSavedTrip("care",selection.id,selection.date,date,preview.start);
       return;
     }
     if(selection.kind==="gym"){
@@ -673,6 +684,7 @@ export function DayframeV2() {
       });
       if(!saved)setNotice("Nepodařilo se uložit nový čas tréninku.");
       else if(!didChange)setNotice("Tento trénink nelze přesunout. Již zahájené tréninky zůstávají na svém místě.");
+      else moveSavedTrip("gym",selection.id,selection.date,date,preview.start);
       return;
     }
     const result=moveTask(data,selection.id,date,preview.start);
