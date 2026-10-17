@@ -62,9 +62,9 @@ async function openBriefing(page) {
 
 test("Jarvis shows the next 24 hours and uses their weather changes for outfit advice", async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
-  const start = new Date("2026-10-02T17:00:00Z");
+  const start = new Date("2026-10-02T15:00:00Z");
   const times = Array.from({ length: 40 }, (_, i) =>
-    new Date(start.getTime() + i * 3_600_000).toISOString().slice(0, 16));
+    Math.floor((start.getTime() + i * 3_600_000) / 1000));
   const temperatures = times.map((_, i) => i <= 12 ? 19 - i : 7 + Math.round((i - 12) * 0.5));
   let requested = false;
   await page.route("https://api.open-meteo.com/**", async (route) => {
@@ -72,13 +72,15 @@ test("Jarvis shows the next 24 hours and uses their weather changes for outfit a
     expect(url.searchParams.get("hourly")).toContain("temperature_2m");
     expect(url.searchParams.get("hourly")).toContain("precipitation_probability");
     expect(url.searchParams.get("forecast_days")).toBe("2");
+    expect(url.searchParams.get("timeformat")).toBe("unixtime");
     requested = true;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        current: { time: "2026-10-02T22:15", temperature_2m: 14, apparent_temperature: 12, weather_code: 3, wind_speed_10m: 15 },
-        daily: { temperature_2m_max: [19], temperature_2m_min: [7], precipitation_probability_max: [75], sunrise: ["2026-10-02T07:00"], sunset: ["2026-10-02T18:00"] },
+        timezone: "Europe/Prague",
+        current: { time: Date.parse("2026-10-02T20:15:00Z") / 1000, temperature_2m: 14, apparent_temperature: 12, weather_code: 3, wind_speed_10m: 15 },
+        daily: { temperature_2m_max: [19], temperature_2m_min: [7], precipitation_probability_max: [75], sunrise: [Date.parse("2026-10-02T05:00:00Z") / 1000], sunset: [Date.parse("2026-10-02T16:00:00Z") / 1000] },
         hourly: {
           time: times,
           temperature_2m: temperatures,
@@ -112,6 +114,38 @@ test("Jarvis shows the next 24 hours and uses their weather changes for outfit a
   const overflow = await hourly.locator(".df2-jarvis-hourly-scroll").evaluate((node) =>
     ({ content: node.scrollWidth, viewport: node.clientWidth }));
   expect(overflow.content).toBeGreaterThanOrEqual(overflow.viewport);
+});
+
+test("Jarvis hourly slots keep the correct local clock when winter time begins", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-25T00:30:00Z"));
+  const from = Date.parse("2026-10-24T22:00:00Z") / 1000;
+  const times = Array.from({ length: 48 }, (_, i) => from + i * 3600);
+  await page.route("https://api.open-meteo.com/**", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      timezone: "Europe/Prague",
+      current: { time: Date.parse("2026-10-25T00:30:00Z") / 1000, temperature_2m: 9, apparent_temperature: 7, weather_code: 3, wind_speed_10m: 10 },
+      daily: { temperature_2m_max: [12], temperature_2m_min: [5], precipitation_probability_max: [10], sunrise: [Date.parse("2026-10-25T05:30:00Z") / 1000], sunset: [Date.parse("2026-10-25T15:00:00Z") / 1000] },
+      hourly: {
+        time: times,
+        temperature_2m: times.map(() => 9),
+        apparent_temperature: times.map(() => 7),
+        weather_code: times.map(() => 3),
+        precipitation_probability: times.map(() => 10),
+        wind_speed_10m: times.map(() => 10),
+      },
+    }),
+  }));
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  await page.reload({ waitUntil: "networkidle" });
+  const weather = (await openBriefing(page)).locator(".df2-jarvis-weather");
+  const slots = weather.locator("[data-jarvis-hour]");
+  await expect(slots).toHaveCount(8);
+  await expect(slots.first()).toHaveAttribute("data-jarvis-hour", "2026-10-25T02:00");
+  await expect(slots.nth(1)).toHaveAttribute("data-jarvis-hour", "2026-10-25T05:00");
+  await expect(weather.locator(".df2-jarvis-weather-metrics")).toContainText("06:30");
+  await expect(weather.locator(".df2-jarvis-weather-metrics")).toContainText("16:00");
 });
 
 test("Jarvis handles missing hourly data without inventing an outfit forecast", async ({ page }) => {
