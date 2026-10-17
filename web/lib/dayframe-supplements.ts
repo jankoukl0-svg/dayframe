@@ -1,3 +1,16 @@
+/** Planning categories, not medical dosing advice. Exact HH:MM remains authoritative. */
+export const SUPPLEMENT_DAYPARTS = [
+  { id: "morning", label: "Ráno", example: "08:00" },
+  { id: "afternoon", label: "Odpoledne", example: "15:00" },
+  { id: "bedtime", label: "Před spaním", example: "22:00" },
+] as const;
+export type SupplementDaypart = (typeof SUPPLEMENT_DAYPARTS)[number]["id"];
+export function supplementDaypartForTime(time: string): SupplementDaypart {
+  const hour = Number(time.slice(0, 2));
+  if (hour < 4 || hour >= 21) return "bedtime";
+  return hour < 12 ? "morning" : "afternoon";
+}
+
 export const SUPPLEMENTS_STORAGE_KEY = "dayframe-supplements-v1";
 export const SUPPLEMENTS_SYNC_EVENT = "dayframe-supplements-sync";
 
