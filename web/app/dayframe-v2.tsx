@@ -290,6 +290,7 @@ export function DayframeV2() {
       const target = event.target as HTMLElement | null;
       if (event.key === "Escape") {
         setAddingTask(false);
+        setOffsiteOnCreate(false);
         setEditing(null);
         setEditingMilestoneId(null);
         return;
@@ -351,6 +352,7 @@ export function DayframeV2() {
 
   function closeAdd() {
     setAddingTask(false);
+    setOffsiteOnCreate(false);
     setDraft(emptyDraft());
     setError("");
   }
