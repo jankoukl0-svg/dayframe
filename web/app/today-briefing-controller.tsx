@@ -11,6 +11,8 @@ import {
   type DayframeState,
 } from "@/lib/dayframe-calendar";
 import { daysUntilDate } from "@/lib/dayframe-countdown";
+import {markSupplementIntake,readSupplementStore,saveSupplementStore,
+  supplementOccurrences,SUPPLEMENTS_SYNC_EVENT} from "@/lib/dayframe-supplements";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -68,6 +70,8 @@ type BriefingModel = {
   milestoneDays: string;
   insight: string;
   weather: WeatherSnapshot;
+  dueSupplements: Array<{ key: string; name: string; time: string; doseLabel: string; brand: string }>;
+  supplementsBlocked: boolean;
 };
 
 let weatherSnapshot: WeatherSnapshot = { status: "loading", location: "Zjišťuji polohu…" };
@@ -304,6 +308,13 @@ function buildInsight(missedCount: number, milestoneTitle: string, milestoneDays
 
 function buildModel(state: DayframeState, now: Date): BriefingModel {
   const today = planningDateKey(now);
+  const supplementData = readSupplementStore();
+  const dueSupplements = supplementData.blocked ? [] :
+    supplementOccurrences(supplementData.store,today)
+      .filter(occurrence=>!occurrence.intake && timeToMinutes(occurrence.time)<=planningMinute(now))
+      .map(occurrence=>({key:occurrence.key,name:occurrence.supplement.name,time:occurrence.time,
+        doseLabel:occurrence.supplement.doseLabel,brand:occurrence.supplement.brand}))
+      .sort((a,b)=>timeToMinutes(b.time)-timeToMinutes(a.time)||a.name.localeCompare(b.name,"cs"));
   const tasks = getTasksForDate(state, today) as BriefingTask[];
   const scheduled = tasks.filter((task) => task.start && task.end).sort(byStart);
   const unfinished = tasks.filter((task) => !task.completed);
@@ -376,6 +387,8 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
     milestoneDays: nextMilestoneDays === null ? "—" : `${nextMilestoneDays} dní`,
     insight: buildInsight(missed.length, nextMilestone?.title ?? "Milník", nextMilestoneDays, weatherSnapshot),
     weather: weatherSnapshot,
+    dueSupplements,
+    supplementsBlocked:supplementData.blocked,
   };
 }
 
@@ -466,7 +479,6 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
   addText(eyebrow, "strong", "JARVIS · LIVE");
   copy.appendChild(eyebrow);
   addText(copy, "h2", model.greeting);
-  if (model.overdueSummary) addText(copy, "p", model.overdueSummary);
   hero.appendChild(copy);
 
   const clock = document.createElement("div");
@@ -480,96 +492,72 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
   primaryGrid.className = "df2-jarvis-primary-grid";
   renderWeather(primaryGrid, model.weather);
 
-  const command = document.createElement("section");
-  command.className = "df2-jarvis-command";
-  const commandHead = document.createElement("div");
-  commandHead.className = "df2-jarvis-card-head";
-  addText(commandHead, "span", "Operační fokus");
-  addText(commandHead, "small", "Dayframe");
-  command.appendChild(commandHead);
-  const priority = document.createElement("div");
-  priority.className = "df2-briefing-priority";
-  addText(priority, "span", "Hlavní priorita");
-  addText(priority, "strong", model.priority);
-  command.appendChild(priority);
-  const next = document.createElement("div");
-  next.className = "df2-jarvis-next";
-  addText(next, "span", model.nextLabel);
-  addText(next, "strong", model.nextValue);
-  command.appendChild(next);
-  const milestone = document.createElement("div");
-  milestone.className = "df2-jarvis-milestone";
-  const milestoneCopy = document.createElement("div");
-  addText(milestoneCopy, "span", "Nejbližší milník");
-  addText(milestoneCopy, "strong", model.milestoneTitle);
-  milestone.appendChild(milestoneCopy);
-  addText(milestone, "b", model.milestoneDays);
-  command.appendChild(milestone);
-  primaryGrid.appendChild(command);
-  host.appendChild(primaryGrid);
+  const supplements = document.createElement("section");
+  supplements.className = "df2-jarvis-supplement-reminders";
+  supplements.dataset.jarvisSupplements = "true";
+  const supplementsHead = document.createElement("div");
+  supplementsHead.className = "df2-jarvis-card-head";
+  addText(supplementsHead, "span", "Suplementy · čas užívání");
+  if (model.dueSupplements.length) addText(supplementsHead, "small", String(model.dueSupplements.length) + " k vyřízení");
+  supplements.appendChild(supplementsHead);
 
-  const signals = document.createElement("div");
-  signals.className = "df2-briefing-signals";
-  const items = [
-    ["Dnešní plán", model.plan],
-    ["Zbývá", model.remainingPlan],
-    ["Hotovo", model.progress],
-    [model.contextLabel, model.contextValue],
-  ];
-  items.forEach(([label, value]) => {
-    const item = document.createElement("div");
-    addText(item, "span", label);
-    addText(item, "strong", value);
-    signals.appendChild(item);
-  });
-  host.appendChild(signals);
-
-  const lower = document.createElement("div");
-  lower.className = "df2-jarvis-lower-grid";
-  const sequence = document.createElement("section");
-  sequence.className = "df2-jarvis-sequence";
-  const sequenceHead = document.createElement("div");
-  sequenceHead.className = "df2-jarvis-card-head";
-  addText(sequenceHead, "span", "Dnešní sekvence");
-  addText(sequenceHead, "small", `${model.timeline.length} další`);
-  sequence.appendChild(sequenceHead);
-  const list = document.createElement("div");
-  list.className = "df2-jarvis-sequence-list";
-  if (!model.timeline.length) {
-    const empty = document.createElement("p");
-    empty.textContent = "Žádný další časovaný blok.";
-    list.appendChild(empty);
+  if (model.supplementsBlocked) {
+    addText(supplements, "p", "Suplementy nelze bezpečně načíst. Zkontroluj je v sekci Zdraví.",
+      "df2-jarvis-supplement-empty");
+  } else if (!model.dueSupplements.length) {
+    addText(supplements, "strong", "Teď není žádný suplement k užití.", "df2-jarvis-supplement-all-clear");
+    addText(supplements, "p", "Jarvis zobrazí dávku až v nastavený čas a skryje ji po označení jako užitou nebo vynechanou.",
+      "df2-jarvis-supplement-empty");
   } else {
-    model.timeline.forEach((task) => {
-      const row = document.createElement("div");
-      row.dataset.jarvisTask = task.id;
-      addText(row, "time", task.time);
-      const taskCopy = document.createElement("div");
-      addText(taskCopy, "strong", task.title);
-      addText(taskCopy, "span", task.category);
-      row.appendChild(taskCopy);
-      if (task.priority === "high") addText(row, "b", "Priorita");
+    addText(supplements, "p", "Tyto dávky už dosáhly svého naplánovaného času.",
+      "df2-jarvis-supplement-lead");
+    const list = document.createElement("div");
+    list.className = "df2-jarvis-supplement-list";
+    for (const dose of model.dueSupplements) {
+      const row = document.createElement("article");
+      row.className = "df2-jarvis-supplement-item";
+      row.dataset.jarvisSupplementKey = dose.key;
+      const details = document.createElement("div");
+      details.className = "df2-jarvis-supplement-detail";
+      const when = addText(details, "time", dose.time);
+      when.setAttribute("datetime", dose.time);
+      addText(details, "strong", dose.name);
+      if (dose.doseLabel) addText(details, "span", dose.doseLabel);
+      else if (dose.brand) addText(details, "span", dose.brand);
+      row.appendChild(details);
+      const actions = document.createElement("div");
+      actions.className = "df2-jarvis-supplement-actions";
+      const statuses: Array<["taken" | "skipped", string]> = [["taken","Užito"],["skipped","Vynechat"]];
+      for (const [status, label] of statuses) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.dataset.jarvisSupplementAction = status;
+        button.setAttribute("aria-label", label + ": " + dose.name + " (" + dose.time + ")");
+        button.addEventListener("click", () => {
+          const current = readSupplementStore();
+          if (current.blocked) return;
+          const now = new Date();
+          const valid = supplementOccurrences(current.store, planningDateKey(now))
+            .some(x=>x.key===dose.key && !x.intake && timeToMinutes(x.time)<=planningMinute(now));
+          if (!valid) { syncBriefing(); return; }
+          const updated = markSupplementIntake(current.store,dose.key,status);
+          if (updated===current.store || !saveSupplementStore(updated)){
+            addText(row, "p", "Záznam se nepodařilo uložit. Zkontroluj zásoby nebo data v sekci Zdraví.",
+              "df2-jarvis-supplement-error");
+            return;
+          }
+          syncBriefing();
+        });
+        actions.appendChild(button);
+      }
+      row.appendChild(actions);
       list.appendChild(row);
-    });
+    }
+    supplements.appendChild(list);
   }
-  sequence.appendChild(list);
-  lower.appendChild(sequence);
-
-  const insight = document.createElement("section");
-  insight.className = "df2-jarvis-insight";
-  const insightHead = document.createElement("div");
-  insightHead.className = "df2-jarvis-card-head";
-  addText(insightHead, "span", "Jarvis poznámka");
-  addText(insightHead, "small", "Automatický kontext");
-  insight.appendChild(insightHead);
-  addText(insight, "p", model.insight);
-  const status = document.createElement("div");
-  status.className = "df2-jarvis-system-status";
-  addText(status, "i", "", undefined).setAttribute("aria-hidden", "true");
-  addText(status, "span", "Dayframe online");
-  insight.appendChild(status);
-  lower.appendChild(insight);
-  host.appendChild(lower);
+  primaryGrid.appendChild(supplements);
+  host.appendChild(primaryGrid);
 }
 
 function readStoredCoordinates() {
@@ -834,6 +822,7 @@ export function TodayBriefingController() {
 
     sync();
     window.addEventListener(STATE_SYNC_EVENT, sync);
+    window.addEventListener(SUPPLEMENTS_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
@@ -841,6 +830,7 @@ export function TodayBriefingController() {
 
     return () => {
       window.removeEventListener(STATE_SYNC_EVENT, sync);
+      window.removeEventListener(SUPPLEMENTS_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);
