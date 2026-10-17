@@ -73,8 +73,19 @@ const isOptionalMoney=(v:unknown)=>v===null || isNumber(v,0,1000000);
 const distinct = (arr:string[]) => new Set(arr).size === arr.length;
 export function emptySupplementStore():SupplementStore {return {version:1,supplements:[],intakes:[],purchases:[]};}
 export function supplementIntakeKey(id:string,date:string,time:string){return id+"|"+date+"|"+time;}
+function localTodayKey():string {
+  const d=new Date();
+  return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+}
 export function scheduleOnDate(s:Supplement,date:string):SupplementScheduleRevision | null {
   if(!validDate(date))return null;
+  // Compatibility for existing records: older Dayframe versions wrote edits
+  // to scheduleHistory effective tomorrow even though the library immediately
+  // showed the new times. Use those current settings for TODAY only. Never
+  // rewrite the user's stored history or reinterpret prior calendar dates.
+  if(date===localTodayKey() && s.scheduleHistory.some(x=>x.effectiveFrom<=date)){
+    return {effectiveFrom:date,weekdays:s.weekdays,times:s.times,active:s.active};
+  }
   return s.scheduleHistory.filter(x=>x.effectiveFrom<=date)
     .sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0]??null;
 }
@@ -82,25 +93,37 @@ export function supplementDue(s:Supplement,date:string):boolean {
   const revision=scheduleOnDate(s,date);
   return !!revision?.active && revision.weekdays.includes(new Date(date+"T12:00:00").getDay());
 }
-/** Apply a schedule change prospectively; historical dates continue using their old snapshot. */
+/** Apply schedule edits today, while keeping earlier calendar dates' revisions. */
 export function withSupplementSchedule(next:Supplement,date:string,previous?:Supplement):Supplement {
   if(!validDate(date))throw Error("Invalid effective date");
   const changed=!previous || previous.active!==next.active
     || previous.weekdays.join(",")!==next.weekdays.join(",") || previous.times.join(",")!==next.times.join(",");
   const history=previous?.scheduleHistory??[];
   if(!changed)return {...next,scheduleHistory:history};
-  // Edits become effective tomorrow. Today's earlier scheduled doses and
-  // completed check-ins must not be removed by later same-day edits/pauses.
-  const effectiveFrom=previous?nextDate(date):date;
-  const revision:SupplementScheduleRevision={effectiveFrom,weekdays:[...next.weekdays],times:[...next.times],active:next.active};
-  return {...next,scheduleHistory:[...history.filter(x=>x.effectiveFrom<effectiveFrom),revision]
-    .sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))};
+  const revision:SupplementScheduleRevision={effectiveFrom:date,weekdays:[...next.weekdays],times:[...next.times],active:next.active};
+  // Replace this day's revision and supersede obsolete next-day edits from
+  // the old editor. Earlier completed doses survive in store.intakes.
+  return {...next,scheduleHistory:[...history.filter(x=>x.effectiveFrom<date),revision]};
 }
 export function supplementOccurrences(store:SupplementStore,date:string):SupplementOccurrence[]{
-  return store.supplements.filter(s=>supplementDue(s,date)).flatMap(s=>scheduleOnDate(s,date)!.times.map(time=>{
-    const key=supplementIntakeKey(s.id,date,time);
-    return {key,date,time,supplement:s,intake:store.intakes.find(x=>x.key===key)??null};
-  })).sort((a,b)=>a.time.localeCompare(b.time)||a.supplement.name.localeCompare(b.supplement.name,"cs"));
+  if(!validDate(date))return [];
+  const weekday=new Date(date+"T12:00:00").getDay();
+  return store.supplements.flatMap(s=>{
+    const schedule=scheduleOnDate(s,date);
+    const planned=schedule?.active && schedule.weekdays.includes(weekday)?schedule.times:[];
+    const recorded=store.intakes.filter(x=>x.supplementId===s.id && x.date===date);
+    const recordedByTime=new Map(recorded.map(x=>[x.time,x]));
+    // Keep today's completed/skipped old-time records visible and reversible.
+    // One previously handled dose also fulfills one changed schedule slot,
+    // preventing a time edit from silently scheduling a duplicate dose.
+    const unmatchedRecorded=recorded.filter(x=>!planned.includes(x.time)).length;
+    const pending=planned.filter(time=>!recordedByTime.has(time)).slice(unmatchedRecorded);
+    const times=[...new Set([...recorded.map(x=>x.time),...pending])];
+    return times.map(time=>{
+      const key=supplementIntakeKey(s.id,date,time);
+      return {key,date,time,supplement:s,intake:recordedByTime.get(time)??null};
+    });
+  }).sort((a,b)=>a.time.localeCompare(b.time)||a.supplement.name.localeCompare(b.supplement.name,"cs"));
 }
 export function parseSupplementStore(raw:string|null):{store:SupplementStore;blocked:boolean}{
   if(raw===null)return {store:emptySupplementStore(),blocked:false};
@@ -164,7 +187,7 @@ export function markSupplementIntake(store:SupplementStore,key:string,status:"ta
   if(!item)return store;
   // Only an explicitly scheduled occurrence, or its historical record, may be edited.
   const existing=store.intakes.find(x=>x.key===key);
-  if(!existing && !(supplementDue(item,date) && scheduleOnDate(item,date)?.times.includes(time)))return store;
+  if(!existing && !supplementOccurrences(store,date).some(x=>x.key===key))return store;
   const isUndo=existing?.status===status;
   const nextStatus=isUndo?null:status;
   // Never silently invent stock on an undo when the original intake had
