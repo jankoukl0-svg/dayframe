@@ -1,3 +1,5 @@
+import { planningDateKey } from "./dayframe-calendar";
+
 /** Planning categories, not medical dosing advice. Exact HH:MM remains authoritative. */
 export const SUPPLEMENT_DAYPARTS = [
   { id: "morning", label: "Ráno", example: "08:00" },
@@ -73,9 +75,9 @@ const isOptionalMoney=(v:unknown)=>v===null || isNumber(v,0,1000000);
 const distinct = (arr:string[]) => new Set(arr).size === arr.length;
 export function emptySupplementStore():SupplementStore {return {version:1,supplements:[],intakes:[],purchases:[]};}
 export function supplementIntakeKey(id:string,date:string,time:string){return id+"|"+date+"|"+time;}
-function localTodayKey():string {
-  const d=new Date();
-  return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+function currentPlanningDayKey():string {
+  // Dayframe's planning day closes at 02:00 rather than midnight.
+  return planningDateKey(new Date());
 }
 export function scheduleOnDate(s:Supplement,date:string):SupplementScheduleRevision | null {
   if(!validDate(date))return null;
@@ -83,7 +85,7 @@ export function scheduleOnDate(s:Supplement,date:string):SupplementScheduleRevis
   // to scheduleHistory effective tomorrow even though the library immediately
   // showed the new times. Use those current settings for TODAY only. Never
   // rewrite the user's stored history or reinterpret prior calendar dates.
-  if(date===localTodayKey() && s.scheduleHistory.some(x=>x.effectiveFrom<=date)){
+  if(date===currentPlanningDayKey() && s.scheduleHistory.some(x=>x.effectiveFrom<=date)){
     return {effectiveFrom:date,weekdays:s.weekdays,times:s.times,active:s.active};
   }
   return s.scheduleHistory.filter(x=>x.effectiveFrom<=date)
@@ -190,7 +192,7 @@ export function readSupplementStore():{store:SupplementStore;blocked:boolean}{
   try{
     const parsed=parseSupplementStore(window.localStorage.getItem(SUPPLEMENTS_STORAGE_KEY));
     if(parsed.blocked)return parsed;
-    const migrated=migratePendingSupplementSchedules(parsed.store,localTodayKey());
+    const migrated=migratePendingSupplementSchedules(parsed.store,currentPlanningDayKey());
     if(migrated!==parsed.store){
       if(!saveSupplementStore(migrated))return {store:parsed.store,blocked:true};
       return {store:migrated,blocked:false};
