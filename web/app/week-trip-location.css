@@ -28,3 +28,8 @@
 .df2-jarvis-travel h3{margin:0;font-size:16px}.df2-jarvis-travel p,.df2-jarvis-travel span{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
 .df2-jarvis-travel strong{font-size:18px}.df2-jarvis-travel a{font-size:12px;color:var(--accent-dark);text-decoration:underline;text-underline-offset:3px}
 @media(max-width:720px){.df2-travel-dialog{padding:14px}.df2-travel-overlay{padding:8px}.df2-travel-map{height:210px}.df2-travel-options{grid-template-columns:1fr}.df2-week-location-btn{width:20px;height:20px}}
+
+.df2-jarvis-travel{grid-column:1/-1}
+.df2-trip-in-edit{display:block;padding:10px 13px;border:1px solid var(--line-strong);border-radius:9px;background:var(--accent-wash);color:var(--accent-dark);font-weight:700;text-align:left;cursor:pointer}
+.df2-week-location-btn:hover,.df2-trip-in-edit:hover{border-color:var(--accent-dark)}
+.df2-week-location-btn:focus-visible,.df2-trip-in-edit:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
