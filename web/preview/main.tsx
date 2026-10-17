@@ -52,6 +52,7 @@ import "../app/hygiene-health-harmony.css";
 import "../app/dayframe-countdowns.css";
 import "../app/milestone-alignment.css";
 import "../app/week-calendar-polish.css";
+import "../app/week-trip-location.css";
 import "../app/milestone-featured-controller.css";
 import "../app/milestone-history-controller.css";
 import "../app/milestone-month-groups-controller.css";
