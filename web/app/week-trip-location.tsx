@@ -11,21 +11,29 @@ function getLeaflet():Promise<any>{
   if((window as any).L)return Promise.resolve((window as any).L);
   if(loader)return loader;
   if(!document.querySelector('link[data-df2-map]')){
-    const css=document.createElement("link");css.rel="stylesheet";css.href=CSS_URL;css.dataset.df2Map="true";document.head.appendChild(css);
+    const css=document.createElement("link");css.rel="stylesheet";css.href=CSS_URL;css.dataset.df2Map="true";css.crossOrigin="anonymous";css.integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";document.head.appendChild(css);
   }
   loader=new Promise((resolve,reject)=>{
-    const script=document.createElement("script");script.src=JS_URL;script.async=true;
+    const script=document.createElement("script");script.src=JS_URL;script.async=true;script.crossOrigin="anonymous";script.integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
     script.onload=()=>resolve((window as any).L);
     script.onerror=()=>reject(new Error("Leaflet unavailable"));
     document.head.appendChild(script);
   }).catch(e=>{loader=undefined;throw e;});
   return loader;
 }
-function MapPicker({point,setPoint}:{point?:TravelPoint;setPoint:(v:TravelPoint)=>void}){
+function MapPicker({point,setPoint}:{point?:TravelPoint;setPoint:(v:TravelPoint|undefined)=>void}){
   const container=useRef<HTMLDivElement>(null);
   const map=useRef<any>(null),marker=useRef<any>(null),latest=useRef(setPoint);
   const [text,setText]=useState(""),[results,setResults]=useState<TravelPoint[]>([]);
   const [hint,setHint]=useState("Načítám mapu…"),[busy,setBusy]=useState(false);
+  const [latDraft,setLatDraft]=useState("");
+  const [lonDraft,setLonDraft]=useState("");
+  function commitCoordinates(lat:string,lon:string){
+    if(!lat.trim()||!lon.trim())return;
+    const a=Number(lat),b=Number(lon);
+    if(Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a)<=90&&Math.abs(b)<=180)
+      setPoint({lat:a,lon:b,label:"Vybrané souřadnice"});
+  }
   useEffect(()=>{latest.current=setPoint},[setPoint]);
   useEffect(()=>{
     let canceled=false;
@@ -84,20 +92,17 @@ function MapPicker({point,setPoint}:{point?:TravelPoint;setPoint:(v:TravelPoint)
     </div>}
     <div ref={container} className="df2-travel-map" aria-label="Mapa – kliknutím vyber bod"/>
     <p className="df2-travel-hint" role="status">{hint} Podklady © OpenStreetMap.</p>
-    <div className="df2-travel-coords">
+    {point?<div className="df2-travel-coords-read">
+      <small>Zvolené souřadnice: {point.lat.toFixed(6)}, {point.lon.toFixed(6)}</small>
+      <button type="button" onClick={()=>{setLatDraft(String(point.lat));setLonDraft("");setPoint(undefined);}}>
+        Upravit souřadnice
+      </button>
+    </div>:<div className="df2-travel-coords">
       <label>Šířka<input type="number" aria-label="Zeměpisná šířka" min="-90" max="90" step="any"
-        value={point?.lat??""} onChange={e=>{
-          if(e.target.value==="")return;
-          const lat=Number(e.target.value);
-          if(Number.isFinite(lat)&&Math.abs(lat)<=90)setPoint({lat,lon:point?.lon??14.4,label:point?.label??"Souřadnice"});
-        }}/></label>
+        value={latDraft} onChange={e=>{setLatDraft(e.target.value);commitCoordinates(e.target.value,lonDraft);}}/></label>
       <label>Délka<input type="number" aria-label="Zeměpisná délka" min="-180" max="180" step="any"
-        value={point?.lon??""} onChange={e=>{
-          if(e.target.value==="")return;
-          const lon=Number(e.target.value);
-          if(Number.isFinite(lon)&&Math.abs(lon)<=180)setPoint({lat:point?.lat??50.1,lon,label:point?.label??"Souřadnice"});
-        }}/></label>
-    </div>
+        value={lonDraft} onChange={e=>{setLonDraft(e.target.value);commitCoordinates(latDraft,e.target.value);}}/></label>
+    </div>}
     {point&&<label>Popis vybraného místa<input aria-label="Popis vybraného místa" value={point.label}
       onChange={e=>setPoint({...point,label:e.target.value})}/></label>}
   </div>;
@@ -106,6 +111,32 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   target:TripTarget;onClose:()=>void;onSaved:()=>void;
 }){
   const data=readTravelStore();
+  const dialogRef=useRef<HTMLElement>(null);
+  const closeRef=useRef(onClose);
+  useEffect(()=>{closeRef.current=onClose;},[onClose]);
+  useEffect(()=>{
+    const opener=document.activeElement as HTMLElement|null;
+    window.requestAnimationFrame(()=>dialogRef.current?.querySelector<HTMLElement>('input[type="checkbox"]')?.focus());
+    const handler=(event:KeyboardEvent)=>{
+      const dialog=dialogRef.current;
+      if(!dialog)return;
+      if(event.key==="Escape"){
+        event.preventDefault();event.stopImmediatePropagation();
+        closeRef.current();return;
+      }
+      if(event.key!=="Tab")return;
+      const candidates=[...dialog.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],textarea:not([disabled])')]
+        .filter(node=>node.getClientRects().length>0);
+      if(!candidates.length)return;
+      const i=candidates.indexOf(document.activeElement as HTMLElement);
+      const index=i<0?(event.shiftKey?candidates.length-1:0)
+        :(i+(event.shiftKey?-1:1)+candidates.length)%candidates.length;
+      event.preventDefault();event.stopPropagation();
+      candidates[index].focus();
+    };
+    document.addEventListener("keydown",handler,true);
+    return ()=>{document.removeEventListener("keydown",handler,true);opener?.focus();};
+  },[]);
   const current=data.store.blocks[target.key];
   const [offsite,setOffsite]=useState(Boolean(current));
   const [destination,setDestination]=useState<TravelPoint|undefined>(current?.place);
@@ -134,7 +165,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     onSaved();onClose();
   }
   return <div className="df2-travel-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <section className="df2-travel-dialog" role="dialog" aria-modal="true" aria-label={"Místo konání: "+target.title}>
+    <section ref={dialogRef} className="df2-travel-dialog" role="dialog" aria-modal="true" aria-label={"Místo konání: "+target.title}>
       <header><div><small>CESTA A MÍSTO</small><h2>{target.title}</h2><p>{target.date} · {target.start||"bez času"}</p></div>
         <button type="button" onClick={onClose} aria-label="Zavřít místo konání">×</button></header>
       {data.blocked?<p role="alert">Uložená data o cestách jsou neplatná a nebyla přepsána.</p>:<>
