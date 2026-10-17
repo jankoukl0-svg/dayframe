@@ -114,6 +114,13 @@ function formatDate(now: Date) {
   return new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long" }).format(now);
 }
 
+function supplementClockMinute(time: string) {
+  // Supplements use the 02:00 planning-day cutoff, not the
+  // 08:00 task-scheduling boundary used by timeToMinutes().
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute + (hour < 2 ? 1440 : 0);
+}
+
 function byStart(a: CalendarTask, b: CalendarTask) {
   const aMinute = Number.isFinite(timeToMinutes(a.start)) ? timeToMinutes(a.start) : Number.POSITIVE_INFINITY;
   const bMinute = Number.isFinite(timeToMinutes(b.start)) ? timeToMinutes(b.start) : Number.POSITIVE_INFINITY;
@@ -311,10 +318,10 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
   const supplementData = readSupplementStore();
   const dueSupplements = supplementData.blocked ? [] :
     supplementOccurrences(supplementData.store,today)
-      .filter(occurrence=>!occurrence.intake && timeToMinutes(occurrence.time)<=planningMinute(now))
+      .filter(occurrence=>!occurrence.intake && supplementClockMinute(occurrence.time)<=planningMinute(now))
       .map(occurrence=>({key:occurrence.key,name:occurrence.supplement.name,time:occurrence.time,
         doseLabel:occurrence.supplement.doseLabel,brand:occurrence.supplement.brand}))
-      .sort((a,b)=>timeToMinutes(b.time)-timeToMinutes(a.time)||a.name.localeCompare(b.name,"cs"));
+      .sort((a,b)=>supplementClockMinute(b.time)-supplementClockMinute(a.time)||a.name.localeCompare(b.name,"cs"));
   const tasks = getTasksForDate(state, today) as BriefingTask[];
   const scheduled = tasks.filter((task) => task.start && task.end).sort(byStart);
   const unfinished = tasks.filter((task) => !task.completed);
@@ -539,7 +546,7 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
           if (current.blocked) return;
           const now = new Date();
           const valid = supplementOccurrences(current.store, planningDateKey(now))
-            .some(x=>x.key===dose.key && !x.intake && timeToMinutes(x.time)<=planningMinute(now));
+            .some(x=>x.key===dose.key && !x.intake && supplementClockMinute(x.time)<=planningMinute(now));
           if (!valid) { syncBriefing(); return; }
           const updated = markSupplementIntake(current.store,dose.key,status);
           if (updated===current.store || !saveSupplementStore(updated)){
@@ -702,10 +709,14 @@ function handleModalDocumentKeydown(event: KeyboardEvent) {
   }
 
   if (event.key === "Tab") {
-    const close = overlay.querySelector<HTMLElement>("[data-today-briefing-close]");
+    const close = overlay.querySelector<HTMLButtonElement>("[data-today-briefing-close]");
     if (!close) return;
+    const buttons = [close,...overlay.querySelectorAll<HTMLButtonElement>("[data-jarvis-supplement-action]")];
+    const index = buttons.findIndex(button=>button===document.activeElement);
+    const next = index<0?(event.shiftKey?buttons.length-1:0)
+      :(index+(event.shiftKey?-1:1)+buttons.length)%buttons.length;
     event.preventDefault();
-    close.focus();
+    buttons[next].focus();
   }
 }
 
