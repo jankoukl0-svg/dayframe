@@ -43,10 +43,11 @@ type WeatherSnapshot = {
   high?: number;
   low?: number;
   precipitationProbability?: number;
-  sunrise?: string;
-  sunset?: string;
+  sunrise?: string | number;
+  sunset?: string | number;
   hours?: WeatherHour[];
   forecastFrom?: string;
+  timezone?: string;
 };
 
 type BriefingModel = {
@@ -150,42 +151,53 @@ function weatherIcon(code = -1) {
   return "·";
 }
 
-function isoClock(value?: string) {
-  if (!value) return "—";
+function isoClock(value?: string | number, timezone = "UTC") {
+  if (typeof value === "number" && Number.isFinite(value)) return localWeatherTime(value, timezone).slice(11, 16);
+  if (typeof value !== "string") return "—";
   const match = value.match(/T(\d{2}:\d{2})/);
   return match?.[1] ?? "—";
 }
 
+function localWeatherTime(epochSeconds: number, timezone: string): string {
+  const timestamp = new Date(epochSeconds * 1000);
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(timestamp);
+    const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+    return part("year") + "-" + part("month") + "-" + part("day")
+      + "T" + part("hour") + ":" + part("minute");
+  } catch {
+    return timestamp.toISOString().slice(0, 16);
+  }
+}
 
 function parseWeatherHours(hourly: {
-  time?: string[];
+  time?: number[];
   temperature_2m?: number[];
   apparent_temperature?: number[];
   weather_code?: number[];
   precipitation_probability?: number[];
   wind_speed_10m?: number[];
-} | undefined, currentTime?: string): WeatherHour[] {
+} | undefined, currentTime: number | undefined, timezone: string): WeatherHour[] {
   if (!hourly?.time || !hourly.temperature_2m || !hourly.apparent_temperature
       || !hourly.weather_code || !hourly.precipitation_probability || !hourly.wind_speed_10m) return [];
 
-  // Open-Meteo returns local ISO times with timezone=auto; compare those strings
-  // directly instead of treating the station's local times as browser UTC times.
-  const now = new Date();
-  const fallbackTime = String(now.getFullYear()) + "-" + String(now.getMonth() + 1).padStart(2, "0")
-    + "-" + String(now.getDate()).padStart(2, "0") + "T"
-    + String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
-  const fromTime = currentTime ?? fallbackTime;
+  // Compare Unix instants, not fixed-offset ISO strings, across DST transitions.
+  const fromTime = typeof currentTime === "number" && Number.isFinite(currentTime)
+    ? currentTime : Math.floor(Date.now() / 1000);
   const hours: WeatherHour[] = [];
   for (let i = 0; i < hourly.time.length && hours.length < 24; i += 1) {
-    const time = hourly.time[i];
-    if (typeof time !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time) || time < fromTime) continue;
+    const timestamp = hourly.time[i];
+    if (typeof timestamp !== "number" || !Number.isFinite(timestamp) || timestamp < fromTime) continue;
     const values = [
       hourly.temperature_2m[i], hourly.apparent_temperature[i],
       hourly.weather_code[i], hourly.precipitation_probability[i], hourly.wind_speed_10m[i],
     ];
     if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) continue;
     hours.push({
-      time,
+      time: localWeatherTime(timestamp, timezone),
       temperature: values[0],
       apparent: values[1],
       code: values[2],
@@ -420,8 +432,8 @@ function renderWeather(parent: HTMLElement, weather: WeatherSnapshot) {
     ["Max / min", `${Math.round(weather.high ?? 0)}° / ${Math.round(weather.low ?? 0)}°`],
     ["Déšť", `${Math.round(weather.precipitationProbability ?? 0)} %`],
     ["Vítr", `${Math.round(weather.wind ?? 0)} km/h`],
-    ["Východ", isoClock(weather.sunrise)],
-    ["Západ", isoClock(weather.sunset)],
+    ["Východ", isoClock(weather.sunrise, weather.timezone)],
+    ["Západ", isoClock(weather.sunset, weather.timezone)],
   ];
   metricItems.forEach(([label, value]) => {
     const item = document.createElement("div");
@@ -615,6 +627,7 @@ async function refreshWeather() {
     hourly: "temperature_2m,apparent_temperature,weather_code,precipitation_probability,wind_speed_10m",
     daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
     timezone: "auto",
+    timeformat: "unixtime",
     forecast_days: "2",
   });
 
@@ -622,9 +635,10 @@ async function refreshWeather() {
     const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
     if (!response.ok) throw new Error("Weather request failed");
     const payload = await response.json() as {
-      current?: { time?: string; temperature_2m?: number; apparent_temperature?: number; weather_code?: number; wind_speed_10m?: number };
+      timezone?: string;
+      current?: { time?: number; temperature_2m?: number; apparent_temperature?: number; weather_code?: number; wind_speed_10m?: number };
       hourly?: {
-        time?: string[];
+        time?: number[];
         temperature_2m?: number[];
         apparent_temperature?: number[];
         weather_code?: number[];
@@ -635,8 +649,8 @@ async function refreshWeather() {
         temperature_2m_max?: number[];
         temperature_2m_min?: number[];
         precipitation_probability_max?: number[];
-        sunrise?: string[];
-        sunset?: string[];
+        sunrise?: Array<string | number>;
+        sunset?: Array<string | number>;
       };
     };
     weatherSnapshot = {
@@ -651,8 +665,10 @@ async function refreshWeather() {
       precipitationProbability: payload.daily?.precipitation_probability_max?.[0],
       sunrise: payload.daily?.sunrise?.[0],
       sunset: payload.daily?.sunset?.[0],
-      hours: parseWeatherHours(payload.hourly, payload.current?.time),
-      forecastFrom: payload.current?.time?.slice(0, 10),
+      hours: parseWeatherHours(payload.hourly, payload.current?.time, payload.timezone ?? "UTC"),
+      forecastFrom: typeof payload.current?.time === "number"
+        ? localWeatherTime(payload.current.time, payload.timezone ?? "UTC").slice(0, 10) : undefined,
+      timezone: payload.timezone,
     };
   } catch {
     weatherSnapshot = { status: "error", location: location.label };
