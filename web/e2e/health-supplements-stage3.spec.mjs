@@ -456,6 +456,26 @@ test("older edits set to tomorrow migrate to today and appear in the correct gro
   expect(saved.supplements[0].scheduleHistory[0].effectiveFrom).toBe("2026-10-12");
 });
 
+test("post-midnight schedule changes use Dayframe's 02:00 planning-day cutoff",async({page})=>{
+  await fresh(page);
+  await addOne(page,{name:"Noční magnesium",times:"09:00"});
+  await page.clock.setFixedTime(new Date("2026-10-13T01:00:00"));
+  await page.evaluate(key=>{
+    const state=JSON.parse(localStorage.getItem(key));
+    const item=state.supplements[0];
+    item.times=["01:00"];
+    item.scheduleHistory.push({effectiveFrom:"2026-10-13",weekdays:[...item.weekdays],times:["01:00"],active:true});
+    localStorage.setItem(key,JSON.stringify(state));
+  },SUP_KEY);
+  await page.reload({waitUntil:"networkidle"});
+  const root=await supplements(page);
+  await expect(root.locator("[data-supplement-daypart=morning] [data-supplement-occurrence]")).toHaveCount(0);
+  await expect(root.locator("[data-supplement-daypart=bedtime] [data-supplement-occurrence]")).toHaveCount(1);
+  await expect(root.locator("[data-supplement-daypart=bedtime]")).toContainText("01:00");
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),SUP_KEY);
+  expect(saved.supplements[0].scheduleHistory[0].effectiveFrom).toBe("2026-10-12");
+});
+
 test("moving a taken dose never offers the same serving twice or consumes extra stock",async({page})=>{
   await fresh(page);
   const root=await addOne(page,{name:"Zinek",stock:"3",times:"09:00"});
