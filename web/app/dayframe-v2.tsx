@@ -465,6 +465,9 @@ export function DayframeV2() {
       : `${effective.title} je uložený, ale zatím nemá volný čas.`);
     setDraft(emptyDraft());
     setAddingTask(false);
+    if(offsiteOnCreate&&result.status==="scheduled")
+      openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"");
+    setOffsiteOnCreate(false);
   }
 
   function saveEdit(event: React.FormEvent<HTMLFormElement>) {
@@ -1023,6 +1026,10 @@ export function DayframeV2() {
               </div>
             </details>
             {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
+            <label className="df2-travel-offsite"><input type="checkbox" checked={offsiteOnCreate}
+              onChange={e=>setOffsiteOnCreate(e.target.checked)}/>
+              Odehrává se mimo domov · následně vyber místo na mapě
+            </label>
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
           </form>
@@ -1044,6 +1051,10 @@ export function DayframeV2() {
               onChange={(event) => { setEditingCareStart(event.target.value); setEditingCareError(""); }} /></label>
             <p className="df2-week-care-help">Čas lze změnit přetažením. Opakovanou rutinu lze přesunout i na jiný den mimo neděli; úprava se týká pouze tohoto výskytu.</p>
             {editingCareError && <p className="df2-error" role="alert">{editingCareError}</p>}
+            <button type="button" className="df2-trip-in-edit"
+              onClick={()=>openTrip("care",editingCare.id,editingCare.date,editingCare.title,editingCareStart)}>
+              📍 Místo konání / cesta
+            </button>
             <div className="df2-modal-actions">
               <button className="df2-primary" type="submit" disabled={care.blocked || editingCare.date < todayKey}>Uložit čas</button>
               <button type="button" onClick={()=>{
@@ -1070,6 +1081,8 @@ export function DayframeV2() {
         </div>
       )}
 
+      {tripTarget&&<WeekTripLocationModal key={tripTarget.key} target={tripTarget}
+        onClose={()=>setTripTarget(null)} onSaved={()=>setTravelStore(readTravelStore().store)}/>}
       {editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
           <form className="df2-modal" onSubmit={saveEdit}>
@@ -1079,6 +1092,10 @@ export function DayframeV2() {
             <label>Začátek<input name="start" type="time" defaultValue={editing.start ?? ""} /><small>Prázdné = Dayframe najde volný čas automaticky.</small></label>
             <div className="df2-form-grid"><label>Priorita<select name="priority" defaultValue={editing.priority}><option value="high">Vysoká</option><option value="normal">Běžná</option><option value="low">Nízká</option></select></label><label>Oblast<select name="category" defaultValue={editing.category}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
             <div className="df2-form-grid"><label>Dokončit do<input name="dueDate" type="date" defaultValue={editing.dueDate ?? ""} /></label><label>Nejpozději v<input name="deadlineTime" type="time" defaultValue={editing.deadlineTime ?? "22:30"} /></label></div>
+            <button type="button" className="df2-trip-in-edit"
+              onClick={()=>openTrip("task",editing.id,editing.date,editing.title,editing.start??"")}>
+              📍 Místo konání / cesta
+            </button>
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button
                 type="button"
