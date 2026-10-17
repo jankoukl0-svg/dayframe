@@ -66,12 +66,16 @@ export function eventStart(date:string,time:string):Date|null{
   return d;
 }
 export function upcomingTravelTrips(store:TravelStore,now:Date,
-  liveTasks:Array<{id:string;date:string;start?:string;title:string;completed:boolean}>=[]){
+  liveTasks:Array<{id:string;date:string;start?:string;title:string;completed:boolean}>=[],
+  liveOther:Array<{key:string;date:string;start?:string;title:string;completed:boolean}>=[]){
   const current=new Map(liveTasks.map(t=>[travelBlockKey("task",t.id),t]));
+  const additional=new Map(liveOther.map(t=>[t.key,t]));
   return Object.entries(store.blocks).flatMap(([key,trip])=>{
-    const actual=key.startsWith("task:")?current.get(key):undefined;
-    if(key.startsWith("task:")&&(!actual||actual.completed))return [];
-    const date=actual?.date??trip.date,time=actual?.start??trip.start,title=actual?.title??trip.title;
+    const task=key.startsWith("task:");
+    const actual=task?current.get(key):additional.get(key);
+    // Never advise travel for a deleted, hidden, deactivated or completed occurrence.
+    if(!actual||actual.completed)return [];
+    const date=actual.date,time=actual.start,title=actual.title;
     const when=time?eventStart(date,time):null;
     if(!when)return [];
     const minutesUntil=(when.getTime()-now.getTime())/60000;
