@@ -593,6 +593,7 @@ export function DayframeV2() {
       setEditingCareError("Blok se nepodařilo odebrat. Data zůstala beze změny.");
       return;
     }
+    removeStoredTrip(travelBlockKey("care",editingCare.id,editingCare.date));
     setEditingCare(null);
     setEditingCareError("");
   }
