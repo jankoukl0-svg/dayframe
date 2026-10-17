@@ -54,10 +54,6 @@ function longDate(key: string) {
   }).format(dateFromKey(key));
 }
 
-function shortDay(key: string) {
-  return new Intl.DateTimeFormat("cs-CZ", { weekday: "short", day: "numeric" }).format(dateFromKey(key)).replace(".", "");
-}
-
 function statusLabel(status: string) {
   if (status === "complete") return "Splněno";
   if (status === "partial") return "Částečně";
@@ -370,10 +366,6 @@ export function HygienePage({
         .flatMap((task) => (task.products ?? []).map((product) => ({
           date, task: task.title, product, routine: record.routineTitle,
         }))))), [hygieneStore.records, planningKey]);
-  const weekDates = useMemo(
-    () => Array.from({ length: 7 }, (_, index) => addDaysKey(planningKey, index - 6)),
-    [planningKey],
-  );
   const calendarDates = useMemo(() => monthDays(monthKey), [monthKey]);
   const overdue = useMemo(() => overdueHygieneTasks(hygieneStore, planningKey), [hygieneStore, planningKey]);
 
@@ -837,25 +829,6 @@ export function HygienePage({
 
       {tab === "history" && (
         <div className="df2-hygiene-history">
-          <section className="df2-hygiene-history-section">
-            <div className="df2-hygiene-section-title">
-              <div><span>Posledních 7 dní</span><h2>Týdenní přehled</h2></div>
-            </div>
-            <div className="df2-hygiene-week-history">
-              {weekDates.map((date) => {
-                const status = overallDateStatus(hygieneStore, date, planningKey);
-                const planned = Object.keys(hygieneStore.records[date] ?? {}).length;
-                return (
-                  <div className={"df2-hygiene-history-day is-" + status} key={date}>
-                    <span>{shortDay(date)}</span>
-                    <strong>{statusLabel(status)}</strong>
-                    <small>{planned ? planned + " rutin" : "bez plánu"}</small>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
           <section className="df2-hygiene-history-section">
             <div className="df2-hygiene-section-title">
               <div><span>Habit tracking</span><h2>Měsíční kalendář</h2></div>

@@ -265,6 +265,20 @@ test("optional-only routines never turn optional tasks into completion requireme
 });
 
 
+test("history omits the redundant seven-day panel while preserving monthly tracking and data", async ({ page }) => {
+  await openFresh(page, "2026-10-08T12:00:00");
+  await openSidebar(page, "Hygiena");
+  const savedBefore = await page.evaluate(() => localStorage.getItem("dayframe-hygiene-v1"));
+
+  await page.getByRole("tab", { name: "Historie" }).click();
+  await expect(page.getByRole("heading", { name: "Týdenní přehled" })).toHaveCount(0);
+  await expect(page.locator(".df2-hygiene-week-history")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Měsíční kalendář" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Statistiky" })).toBeVisible();
+  await expect(page.locator('[data-calendar-date="2026-10-08"]')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("dayframe-hygiene-v1"))).toEqual(savedBefore);
+});
+
 test("history preserves skipped-only status and aligns month dates to weekdays", async ({ page }) => {
   await openFresh(page, "2026-10-08T12:00:00");
   await page.evaluate(() => {
@@ -295,8 +309,9 @@ test("history preserves skipped-only status and aligns month dates to weekdays",
   await routine.getByRole("button", { name: "Není potřeba" }).click();
 
   await page.getByRole("tab", { name: "Historie" }).click();
-  const today = page.locator(".df2-hygiene-history-day").filter({ hasText: "čt 8" });
-  await expect(today).toContainText("Přeskočeno");
+  const today = page.locator('[data-calendar-date="2026-10-08"]');
+  await expect(today).toHaveAttribute("title", "Přeskočeno");
+  await expect(today).toHaveClass(/is-skipped/);
 
   const octoberFirst = page.locator('[data-calendar-date="2026-10-01"]');
   await expect(octoberFirst).toHaveCSS("grid-column-start", "4");
