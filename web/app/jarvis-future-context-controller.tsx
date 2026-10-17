@@ -269,6 +269,14 @@ function renderMilestonePrep(host: HTMLElement, state: DayframeState, now: Date)
 function syncFutureContext() {
   const host = document.querySelector<HTMLElement>("[data-today-briefing]");
   if (!host) return;
+  // The actual Jarvis modal no longer duplicates Tomorrow or Milestones.
+  // Keep the legacy helper for isolated diagnostics but never inject it into
+  // the new weather + time-due supplements assistant.
+  if (host.querySelector("[data-jarvis-supplements]")) {
+    host.querySelector("[data-jarvis-tomorrow]")?.remove();
+    host.querySelector("[data-jarvis-milestone-prep]")?.remove();
+    return;
+  }
   const state = readState();
   if (!state) return;
 
