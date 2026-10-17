@@ -1052,7 +1052,14 @@ export function DayframeV2() {
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><h1>Nastavení</h1></div></header>
               <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>{minutesToTime(calendarBounds.dayStart)}–{minutesToTime(calendarBounds.dayEnd)} · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>02:00</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min · standardně do 22:30</span></div></div>
-              <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => { const enabled = event.target.checked; setData((current) => { const reference = new Date(); const changed = editRoutineFutureOnly(current, routine.id, { active: enabled }, reference); return enabled ? materializeRange(changed, planningDateKey(reference), addDaysKey(planningDateKey(reference), 28), reference) : changed; }); }} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id, new Date()))}>Smazat</button></article>)}</section>
+              <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => { const enabled = event.target.checked; const reference=new Date();
+      const changed=editRoutineFutureOnly(data,routine.id,{active:enabled},reference);
+      const next=enabled?materializeRange(changed,planningDateKey(reference),addDaysKey(planningDateKey(reference),28),reference):changed;
+      setData(next);
+      removeMissingTaskTrips(next); }} /> aktivní</label><button onClick={() => {
+      const next=deleteRoutine(data,routine.id,new Date());
+      setData(next);removeMissingTaskTrips(next);
+    }}>Smazat</button></article>)}</section>
             </section>
           )}
         </section>
