@@ -245,7 +245,7 @@ function renderHourlyWeather(card: HTMLElement, hours: WeatherHour[], todayDate:
     const previousDate = index ? hours[(index - 1) * 3]?.time.slice(0, 10) : todayDate;
     addText(point, "span", date !== previousDate ? "zítra" : " ", "df2-jarvis-hourly-day");
     const clock = addText(point, "time", hour.time.slice(11, 16));
-    clock.dateTime = hour.time;
+    clock.setAttribute("datetime", hour.time);
     addText(point, "span", weatherIcon(hour.code), "df2-jarvis-hourly-icon");
 
     const barTrack = document.createElement("div");
