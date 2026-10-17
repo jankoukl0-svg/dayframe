@@ -162,10 +162,41 @@ export function parseSupplementStore(raw:string|null):{store:SupplementStore;blo
     return {store:s,blocked:false};
   }catch{return {store:emptySupplementStore(),blocked:true};}
 }
+/**
+ * Old Dayframe versions wrote today's editor changes as a revision starting
+ * tomorrow. On the edit day, migrate that still-pending snapshot to TODAY
+ * so historical adherence won't revert to the original 09:00 next morning.
+ * No intakes, stock, purchases or earlier calendar dates are altered.
+ */
+export function migratePendingSupplementSchedules(store:SupplementStore,date:string):SupplementStore {
+  if(!validDate(date))return store;
+  const tomorrow=nextDate(date);
+  let changed=false;
+  const supplements=store.supplements.map(item=>{
+    const pending=item.scheduleHistory.find(x=>x.effectiveFrom===tomorrow);
+    if(!pending || !item.scheduleHistory.some(x=>x.effectiveFrom<=date)
+      || pending.active!==item.active
+      || pending.weekdays.join(",")!==item.weekdays.join(",")
+      || pending.times.join(",")!==item.times.join(","))return item;
+    changed=true;
+    const revision:SupplementScheduleRevision={effectiveFrom:date,weekdays:[...item.weekdays],
+      times:[...item.times],active:item.active};
+    return {...item,scheduleHistory:[...item.scheduleHistory.filter(x=>x.effectiveFrom<date),revision]};
+  });
+  return changed?{...store,supplements}:store;
+}
 export function readSupplementStore():{store:SupplementStore;blocked:boolean}{
   if(typeof window==="undefined")return {store:emptySupplementStore(),blocked:false};
-  try{return parseSupplementStore(window.localStorage.getItem(SUPPLEMENTS_STORAGE_KEY));}
-  catch{return {store:emptySupplementStore(),blocked:true};}
+  try{
+    const parsed=parseSupplementStore(window.localStorage.getItem(SUPPLEMENTS_STORAGE_KEY));
+    if(parsed.blocked)return parsed;
+    const migrated=migratePendingSupplementSchedules(parsed.store,localTodayKey());
+    if(migrated!==parsed.store){
+      if(!saveSupplementStore(migrated))return {store:parsed.store,blocked:true};
+      return {store:migrated,blocked:false};
+    }
+    return parsed;
+  }catch{return {store:emptySupplementStore(),blocked:true};}
 }
 export function saveSupplementStore(s:SupplementStore):boolean {
   if(typeof window==="undefined")return false;
