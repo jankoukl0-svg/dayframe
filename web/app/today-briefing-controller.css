@@ -638,3 +638,117 @@ body.df2-briefing-modal-open {
     animation: none;
   }
 }
+
+
+/* Jarvis: concise 24-hour outlook with temperature change and dressing guidance. */
+.df2-jarvis-hourly {
+  min-width: 0;
+  display: grid;
+  gap: 11px;
+  margin-top: 18px;
+  padding-top: 17px;
+  border-top: 1px solid var(--line);
+}
+.df2-jarvis-hourly-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.df2-jarvis-hourly-head strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 720;
+}
+.df2-jarvis-hourly-head span,
+.df2-jarvis-weather-trend {
+  color: var(--muted);
+  font-size: 10px;
+}
+.df2-jarvis-hourly-scroll {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(69px, 1fr);
+  gap: 6px;
+  overflow-x: auto;
+  padding: 1px 0 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.df2-jarvis-hourly-point {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 12px 16px 22px 44px 22px 16px 16px;
+  justify-items: center;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 76%, var(--paper));
+  font-variant-numeric: tabular-nums;
+}
+.df2-jarvis-hourly-point .df2-jarvis-hourly-day {
+  color: var(--accent-dark);
+  font-size: 9px;
+  font-weight: 680;
+}
+.df2-jarvis-hourly-point time {
+  color: var(--muted);
+  font-size: 10px;
+}
+.df2-jarvis-hourly-icon {
+  color: var(--ink);
+  font-size: 21px;
+}
+.df2-jarvis-hourly-track {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  width: 24px;
+  height: 42px;
+}
+.df2-jarvis-hourly-track i {
+  display: block;
+  width: 20px;
+  min-height: 5px;
+  border-radius: 6px 6px 3px 3px;
+  background: color-mix(in srgb, var(--accent) 66%, #f2c98c);
+}
+.df2-jarvis-hourly-point strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 720;
+}
+.df2-jarvis-hourly-point small {
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.df2-jarvis-weather-trend { margin: 0; line-height: 1.45; }
+.df2-jarvis-outfit {
+  display: grid;
+  gap: 6px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent-wash) 37%, var(--paper));
+}
+.df2-jarvis-outfit > span {
+  color: var(--accent-dark);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .055em;
+}
+.df2-jarvis-outfit p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.df2-jarvis-weather-no-hours {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}

@@ -24,6 +24,15 @@ type BriefingTask = CalendarTask & {
   actualRunningSince?: string;
 };
 
+type WeatherHour = {
+  time: string;
+  temperature: number;
+  apparent: number;
+  code: number;
+  rain: number;
+  wind: number;
+};
+
 type WeatherSnapshot = {
   status: "loading" | "ready" | "error";
   location: string;
@@ -34,8 +43,11 @@ type WeatherSnapshot = {
   high?: number;
   low?: number;
   precipitationProbability?: number;
-  sunrise?: string;
-  sunset?: string;
+  sunrise?: string | number;
+  sunset?: string | number;
+  hours?: WeatherHour[];
+  forecastFrom?: string;
+  timezone?: string;
 };
 
 type BriefingModel = {
@@ -139,10 +151,145 @@ function weatherIcon(code = -1) {
   return "·";
 }
 
-function isoClock(value?: string) {
-  if (!value) return "—";
+function isoClock(value?: string | number, timezone = "UTC") {
+  if (typeof value === "number" && Number.isFinite(value)) return localWeatherTime(value, timezone).slice(11, 16);
+  if (typeof value !== "string") return "—";
   const match = value.match(/T(\d{2}:\d{2})/);
   return match?.[1] ?? "—";
+}
+
+function localWeatherTime(epochSeconds: number, timezone: string): string {
+  const timestamp = new Date(epochSeconds * 1000);
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(timestamp);
+    const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+    return part("year") + "-" + part("month") + "-" + part("day")
+      + "T" + part("hour") + ":" + part("minute");
+  } catch {
+    return timestamp.toISOString().slice(0, 16);
+  }
+}
+
+function parseWeatherHours(hourly: {
+  time?: number[];
+  temperature_2m?: number[];
+  apparent_temperature?: number[];
+  weather_code?: number[];
+  precipitation_probability?: number[];
+  wind_speed_10m?: number[];
+} | undefined, currentTime: number | undefined, timezone: string): WeatherHour[] {
+  if (!hourly?.time || !hourly.temperature_2m || !hourly.apparent_temperature
+      || !hourly.weather_code || !hourly.precipitation_probability || !hourly.wind_speed_10m) return [];
+
+  // Compare Unix instants, not fixed-offset ISO strings, across DST transitions.
+  const fromTime = typeof currentTime === "number" && Number.isFinite(currentTime)
+    ? currentTime : Math.floor(Date.now() / 1000);
+  const hours: WeatherHour[] = [];
+  for (let i = 0; i < hourly.time.length && hours.length < 24; i += 1) {
+    const timestamp = hourly.time[i];
+    if (typeof timestamp !== "number" || !Number.isFinite(timestamp) || timestamp < fromTime) continue;
+    const values = [
+      hourly.temperature_2m[i], hourly.apparent_temperature[i],
+      hourly.weather_code[i], hourly.precipitation_probability[i], hourly.wind_speed_10m[i],
+    ];
+    if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) continue;
+    hours.push({
+      time: localWeatherTime(timestamp, timezone),
+      temperature: values[0],
+      apparent: values[1],
+      code: values[2],
+      rain: Math.min(100, Math.max(0, values[3])),
+      wind: Math.max(0, values[4]),
+    });
+  }
+  return hours;
+}
+
+function outfitAdvice(hours: WeatherHour[]): string {
+  const minimumFeelsLike = Math.min(...hours.map((hour) => hour.apparent));
+  const tempRange = Math.max(...hours.map((hour) => hour.temperature))
+    - Math.min(...hours.map((hour) => hour.temperature));
+  const wet = Math.max(...hours.map((hour) => hour.rain)) >= 45;
+  const windy = Math.max(...hours.map((hour) => hour.wind)) >= 35;
+  let clothing = "tričko a lehké oblečení";
+  if (minimumFeelsLike <= 0) clothing = "zimní bunda, teplé vrstvy, čepice a rukavice";
+  else if (minimumFeelsLike <= 7) clothing = "teplá bunda a vrstvy";
+  else if (minimumFeelsLike <= 13) clothing = "přechodná bunda nebo mikina";
+  else if (minimumFeelsLike <= 19) clothing = "mikina nebo lehká bunda";
+  return "Orientačně: " + clothing
+    + (tempRange >= 8 ? "; vrstvy se hodí kvůli změnám teplot" : "")
+    + (wet ? "; přibal deštník nebo nepromokavou vrstvu" : "")
+    + (windy ? "; počítej i s větrem" : "") + ".";
+}
+
+function renderHourlyWeather(card: HTMLElement, hours: WeatherHour[], todayDate: string) {
+  if (!hours.length) {
+    const unavailable = addText(card, "p", "Hodinová předpověď nyní není k dispozici.", "df2-jarvis-weather-no-hours");
+    unavailable.dataset.jarvisHourlyUnavailable = "true";
+    return;
+  }
+
+  const forecast = document.createElement("section");
+  forecast.className = "df2-jarvis-hourly";
+  forecast.dataset.jarvisHourly = "true";
+  forecast.dataset.jarvisHourCount = String(hours.length);
+  forecast.setAttribute("aria-label", "Hodinový výhled počasí");
+
+  const headline = document.createElement("div");
+  headline.className = "df2-jarvis-hourly-head";
+  addText(headline, "strong", "Dalších 24 hodin");
+  addText(headline, "span", "Po 3 hodinách");
+  forecast.appendChild(headline);
+
+  const grid = document.createElement("div");
+  grid.className = "df2-jarvis-hourly-scroll";
+  const temperatureMin = Math.min(...hours.map((hour) => hour.temperature));
+  const temperatureMax = Math.max(...hours.map((hour) => hour.temperature));
+  const span = Math.max(1, temperatureMax - temperatureMin);
+
+  hours.filter((_, index) => index % 3 === 0).forEach((hour, index) => {
+    const point = document.createElement("article");
+    point.className = "df2-jarvis-hourly-point";
+    point.dataset.jarvisHour = hour.time;
+    const date = hour.time.slice(0, 10);
+    const previousDate = index ? hours[(index - 1) * 3]?.time.slice(0, 10) : todayDate;
+    addText(point, "span", date !== previousDate ? "zítra" : " ", "df2-jarvis-hourly-day");
+    const clock = addText(point, "time", hour.time.slice(11, 16));
+    clock.setAttribute("datetime", hour.time);
+    addText(point, "span", weatherIcon(hour.code), "df2-jarvis-hourly-icon");
+
+    const barTrack = document.createElement("div");
+    barTrack.className = "df2-jarvis-hourly-track";
+    const bar = document.createElement("i");
+    bar.style.height = (26 + (hour.temperature - temperatureMin) / span * 70) + "%";
+    barTrack.appendChild(bar);
+    point.appendChild(barTrack);
+
+    addText(point, "strong", Math.round(hour.temperature) + "°");
+    addText(point, "small", "☂ " + Math.round(hour.rain) + " %");
+    addText(point, "small", "Vítr " + Math.round(hour.wind) + " km/h");
+    point.setAttribute("aria-label", hour.time.slice(0, 10) + " " + hour.time.slice(11, 16)
+      + ", " + Math.round(hour.temperature) + " stupňů, déšť " + Math.round(hour.rain)
+      + " %, vítr " + Math.round(hour.wind) + " kilometrů za hodinu");
+    grid.appendChild(point);
+  });
+  forecast.appendChild(grid);
+
+  const minimum = Math.round(temperatureMin);
+  const maximum = Math.round(temperatureMax);
+  const highestRain = Math.round(Math.max(...hours.map((hour) => hour.rain)));
+  addText(forecast, "p", "Rozmezí " + minimum + " až " + maximum
+    + " °C · pravděpodobnost srážek až " + highestRain + " %", "df2-jarvis-weather-trend");
+  const clothing = document.createElement("div");
+  clothing.className = "df2-jarvis-outfit";
+  clothing.dataset.jarvisOutfit = "true";
+  addText(clothing, "span", "CO SI OBLÉCT");
+  addText(clothing, "p", outfitAdvice(hours));
+  forecast.appendChild(clothing);
+  card.appendChild(forecast);
 }
 
 function buildInsight(missedCount: number, milestoneTitle: string, milestoneDays: number | null, weather: WeatherSnapshot) {
@@ -286,8 +433,8 @@ function renderWeather(parent: HTMLElement, weather: WeatherSnapshot) {
     ["Max / min", `${Math.round(weather.high ?? 0)}° / ${Math.round(weather.low ?? 0)}°`],
     ["Déšť", `${Math.round(weather.precipitationProbability ?? 0)} %`],
     ["Vítr", `${Math.round(weather.wind ?? 0)} km/h`],
-    ["Východ", isoClock(weather.sunrise)],
-    ["Západ", isoClock(weather.sunset)],
+    ["Východ", isoClock(weather.sunrise, weather.timezone)],
+    ["Západ", isoClock(weather.sunset, weather.timezone)],
   ];
   metricItems.forEach(([label, value]) => {
     const item = document.createElement("div");
@@ -296,6 +443,7 @@ function renderWeather(parent: HTMLElement, weather: WeatherSnapshot) {
     metrics.appendChild(item);
   });
   card.appendChild(metrics);
+  renderHourlyWeather(card, weather.hours ?? [], weather.forecastFrom ?? "");
   parent.appendChild(card);
 }
 
@@ -477,22 +625,33 @@ async function refreshWeather() {
     latitude: String(location.latitude),
     longitude: String(location.longitude),
     current: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
+    hourly: "temperature_2m,apparent_temperature,weather_code,precipitation_probability,wind_speed_10m",
     daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
     timezone: "auto",
-    forecast_days: "1",
+    timeformat: "unixtime",
+    forecast_days: "3",
   });
 
   try {
     const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
     if (!response.ok) throw new Error("Weather request failed");
     const payload = await response.json() as {
-      current?: { temperature_2m?: number; apparent_temperature?: number; weather_code?: number; wind_speed_10m?: number };
+      timezone?: string;
+      current?: { time?: number; temperature_2m?: number; apparent_temperature?: number; weather_code?: number; wind_speed_10m?: number };
+      hourly?: {
+        time?: number[];
+        temperature_2m?: number[];
+        apparent_temperature?: number[];
+        weather_code?: number[];
+        precipitation_probability?: number[];
+        wind_speed_10m?: number[];
+      };
       daily?: {
         temperature_2m_max?: number[];
         temperature_2m_min?: number[];
         precipitation_probability_max?: number[];
-        sunrise?: string[];
-        sunset?: string[];
+        sunrise?: Array<string | number>;
+        sunset?: Array<string | number>;
       };
     };
     weatherSnapshot = {
@@ -507,6 +666,10 @@ async function refreshWeather() {
       precipitationProbability: payload.daily?.precipitation_probability_max?.[0],
       sunrise: payload.daily?.sunrise?.[0],
       sunset: payload.daily?.sunset?.[0],
+      hours: parseWeatherHours(payload.hourly, payload.current?.time, payload.timezone ?? "UTC"),
+      forecastFrom: typeof payload.current?.time === "number"
+        ? localWeatherTime(payload.current.time, payload.timezone ?? "UTC").slice(0, 10) : undefined,
+      timezone: payload.timezone,
     };
   } catch {
     weatherSnapshot = { status: "error", location: location.label };

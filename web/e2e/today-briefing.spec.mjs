@@ -59,6 +59,144 @@ async function openBriefing(page) {
   return modal.locator("[data-today-briefing]");
 }
 
+
+test("Jarvis shows the next 24 hours and uses their weather changes for outfit advice", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
+  const start = new Date("2026-10-02T15:00:00Z");
+  const times = Array.from({ length: 40 }, (_, i) =>
+    Math.floor((start.getTime() + i * 3_600_000) / 1000));
+  const temperatures = times.map((_, i) => i <= 12 ? 19 - i : 7 + Math.round((i - 12) * 0.5));
+  let requested = false;
+  await page.route("https://api.open-meteo.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get("hourly")).toContain("temperature_2m");
+    expect(url.searchParams.get("hourly")).toContain("precipitation_probability");
+    expect(url.searchParams.get("forecast_days")).toBe("3");
+    expect(url.searchParams.get("timeformat")).toBe("unixtime");
+    requested = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        timezone: "Europe/Prague",
+        current: { time: Date.parse("2026-10-02T20:15:00Z") / 1000, temperature_2m: 14, apparent_temperature: 12, weather_code: 3, wind_speed_10m: 15 },
+        daily: { temperature_2m_max: [19], temperature_2m_min: [7], precipitation_probability_max: [75], sunrise: [Date.parse("2026-10-02T05:00:00Z") / 1000], sunset: [Date.parse("2026-10-02T16:00:00Z") / 1000] },
+        hourly: {
+          time: times,
+          temperature_2m: temperatures,
+          apparent_temperature: temperatures.map((n) => n - 2),
+          weather_code: times.map((_, i) => i >= 16 && i <= 19 ? 61 : 3),
+          precipitation_probability: times.map((_, i) => i >= 16 && i <= 19 ? 75 : 12),
+          wind_speed_10m: times.map((_, i) => i >= 16 && i <= 19 ? 39 : 11),
+        },
+      }),
+    });
+  });
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  await page.reload({ waitUntil: "networkidle" });
+  const briefing = await openBriefing(page);
+  const weather = briefing.locator(".df2-jarvis-weather");
+  const hourly = weather.locator("[data-jarvis-hourly]");
+  await expect(hourly).toBeVisible();
+  await expect(hourly).toContainText("Dalších 24 hodin");
+  const points = hourly.locator("[data-jarvis-hour]");
+  await expect(points).toHaveCount(8);
+  await expect(hourly).toHaveAttribute("data-jarvis-hour-count", "24");
+  await expect(points.first()).toHaveAttribute("data-jarvis-hour", "2026-10-02T23:00");
+  await expect(points.nth(1)).toHaveAttribute("data-jarvis-hour", "2026-10-03T02:00");
+  await expect(hourly).toContainText("zítra");
+  await expect(points.nth(4)).toContainText("75 %");
+  await expect(weather.locator("[data-jarvis-outfit]")).toContainText("bunda");
+  await expect(weather.locator("[data-jarvis-outfit]")).toContainText("deštník");
+  await expect(weather.locator("[data-jarvis-outfit]")).toContainText("větrem");
+  await expect(hourly).toContainText("Rozmezí");
+  expect(requested).toBe(true);
+  const overflow = await hourly.locator(".df2-jarvis-hourly-scroll").evaluate((node) =>
+    ({ content: node.scrollWidth, viewport: node.clientWidth }));
+  expect(overflow.content).toBeGreaterThanOrEqual(overflow.viewport);
+});
+
+test("Jarvis hourly slots keep the correct local clock when winter time begins", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-25T00:30:00Z"));
+  const from = Date.parse("2026-10-24T22:00:00Z") / 1000;
+  const times = Array.from({ length: 48 }, (_, i) => from + i * 3600);
+  await page.route("https://api.open-meteo.com/**", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      timezone: "Europe/Prague",
+      current: { time: Date.parse("2026-10-25T00:30:00Z") / 1000, temperature_2m: 9, apparent_temperature: 7, weather_code: 3, wind_speed_10m: 10 },
+      daily: { temperature_2m_max: [12], temperature_2m_min: [5], precipitation_probability_max: [10], sunrise: [Date.parse("2026-10-25T05:30:00Z") / 1000], sunset: [Date.parse("2026-10-25T15:00:00Z") / 1000] },
+      hourly: {
+        time: times,
+        temperature_2m: times.map(() => 9),
+        apparent_temperature: times.map(() => 7),
+        weather_code: times.map(() => 3),
+        precipitation_probability: times.map(() => 10),
+        wind_speed_10m: times.map(() => 10),
+      },
+    }),
+  }));
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  await page.reload({ waitUntil: "networkidle" });
+  const weather = (await openBriefing(page)).locator(".df2-jarvis-weather");
+  const slots = weather.locator("[data-jarvis-hour]");
+  await expect(slots).toHaveCount(8);
+  await expect(slots.first()).toHaveAttribute("data-jarvis-hour", "2026-10-25T02:00");
+  await expect(slots.nth(1)).toHaveAttribute("data-jarvis-hour", "2026-10-25T05:00");
+  await expect(weather.locator(".df2-jarvis-weather-metrics")).toContainText("06:30");
+  await expect(weather.locator(".df2-jarvis-weather-metrics")).toContainText("16:00");
+});
+
+test("Jarvis covers the full 24 real hours across spring daylight-saving change", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2027-03-27T22:30:00Z"));
+  const start = Date.parse("2027-03-27T20:00:00Z") / 1000;
+  const times = Array.from({ length: 65 }, (_, i) => start + i * 3600);
+  await page.route("https://api.open-meteo.com/**", (route) => {
+    expect(new URL(route.request().url()).searchParams.get("forecast_days")).toBe("3");
+    return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({
+        timezone: "Europe/Prague",
+        current: { time: Date.parse("2027-03-27T22:30:00Z") / 1000, temperature_2m: 7, apparent_temperature: 5, weather_code: 2, wind_speed_10m: 8 },
+        daily: { temperature_2m_max: [15], temperature_2m_min: [4], precipitation_probability_max: [10], sunrise: [Date.parse("2027-03-28T04:50:00Z") / 1000], sunset: [Date.parse("2027-03-28T17:20:00Z") / 1000] },
+        hourly: {
+          time: times,
+          temperature_2m: times.map(() => 8),
+          apparent_temperature: times.map(() => 6),
+          weather_code: times.map(() => 2),
+          precipitation_probability: times.map(() => 10),
+          wind_speed_10m: times.map(() => 8),
+        },
+      }),
+    });
+  });
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  await page.reload({ waitUntil: "networkidle" });
+  const view = (await openBriefing(page)).locator(".df2-jarvis-weather [data-jarvis-hourly]");
+  await expect(view).toHaveAttribute("data-jarvis-hour-count", "24");
+  const slots = view.locator("[data-jarvis-hour]");
+  await expect(slots).toHaveCount(8);
+  await expect(slots.first()).toHaveAttribute("data-jarvis-hour", "2027-03-28T00:00");
+  await expect(slots.nth(1)).toHaveAttribute("data-jarvis-hour", "2027-03-28T04:00");
+  await expect(slots.last()).toHaveAttribute("data-jarvis-hour", "2027-03-28T22:00");
+});
+
+test("Jarvis handles missing hourly data without inventing an outfit forecast", async ({ page }) => {
+  await page.clock.setFixedTime(FIXED_NOW);
+  await mockWeather(page);
+  await openFreshToday(page);
+  await seedWeatherLocation(page);
+  await page.reload({ waitUntil: "networkidle" });
+  const weather = (await openBriefing(page)).locator(".df2-jarvis-weather");
+  await expect(weather).toContainText("18°");
+  await expect(weather.locator("[data-jarvis-hourly]")).toHaveCount(0);
+  await expect(weather.locator("[data-jarvis-outfit]")).toHaveCount(0);
+  await expect(weather.locator("[data-jarvis-hourly-unavailable]")).toBeVisible();
+});
+
 test("Today Jarvis briefing combines the plan, live weather and useful context in a separate modal", async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
   await mockWeather(page);
