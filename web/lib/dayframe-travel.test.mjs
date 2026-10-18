@@ -162,84 +162,158 @@ test("invalid multi-stage routes are blocked without discarding valid legacy dat
   assert.equal(isBlocked(original),false);
 });
 
-test("private Google Routes endpoint stays disabled until configured and rejects unauthenticated usage",async()=>{
-  const {GET,POST}=await import("../api/google-travel.ts");
-  const oldKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
-  const oldSecret=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-  const oldQuota=process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
+const TEST_REDIS_URL="https://route-budget-test.upstash.io";
+function withBudgetEnv(fn){
+  const keys=["GOOGLE_MAPS_ROUTES_API_KEY","DAYFRAME_ROUTES_ACCESS_TOKEN",
+    "UPSTASH_REDIS_REST_URL","UPSTASH_REDIS_REST_TOKEN","DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED"];
+  const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
   const oldFetch=globalThis.fetch;
-  try{
-    delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;
-    delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-    delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
-    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
-    const body={from:home,to:place,mode:"driving"};
-    const req=(token)=>new Request("https://dayframe2.vercel.app/api/google-travel",{
-      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token,
-        "origin":"https://dayframe2.vercel.app"},body:JSON.stringify(body),
-    });
-    assert.equal((await POST(req("not-configured"))).status,503);
-    process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
-    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="short";
-    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
-    assert.equal((await POST(req("short"))).status,503);
-    // UTF-8 byte length alone is not a valid Authorization-header token format.
-    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="é".repeat(12);
-    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
-    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
-    globalThis.fetch=()=>{throw Error("Unexpected paid request")};
-    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
-    assert.equal((await POST(req("a".repeat(28)))).status,503);
-    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="100";
-    assert.equal((await POST(req("a".repeat(28)))).status,503);
-    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="50";
-    assert.deepEqual(await (await GET()).json(),{available:true,dailyLimit:50,quotaConfigured:true});
-    assert.equal((await POST(req("wrong"))).status,401);
-    assert.equal((await POST(new Request("https://dayframe2.vercel.app/api/google-travel",{
-      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+"a".repeat(28),
-        "origin":"https://attacker.invalid"},body:JSON.stringify(body),
-    }))).status,403);
-  }finally{
-    if(oldKey===undefined)delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;else process.env.GOOGLE_MAPS_ROUTES_API_KEY=oldKey;
-    if(oldSecret===undefined)delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;else process.env.DAYFRAME_ROUTES_ACCESS_TOKEN=oldSecret;
-    if(oldQuota===undefined)delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;else process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED=oldQuota;
+  process.env.GOOGLE_MAPS_ROUTES_API_KEY="google-api-test";
+  process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
+  process.env.UPSTASH_REDIS_REST_URL=TEST_REDIS_URL;
+  process.env.UPSTASH_REDIS_REST_TOKEN="redis-test-secret".repeat(3);
+  delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
+  return Promise.resolve().then(fn).finally(()=>{
+    for(const key of keys){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}
     globalThis.fetch=oldFetch;
-  }
+  });
+}
+function mockAtomicRedis({deny=false,outage=false}={}){
+  const counts=new Map();
+  const commands=[];
+  const fetch=async(url,options)=>{
+    assert.equal(url,TEST_REDIS_URL);
+    const cmd=JSON.parse(options.body);
+    commands.push(cmd);
+    assert.equal(cmd[0],"EVAL");
+    assert.equal(cmd[2],"2");
+    assert.match(cmd[3],/dayframe:routes:/);
+    assert.match(cmd[4],/dayframe:routes:/);
+    if(outage)throw Error("Redis unavailable");
+    const day=counts.get(cmd[3])??0,month=counts.get(cmd[4])??0;
+    if(deny||day>=Number(cmd[5])||month>=Number(cmd[6]))
+      return Response.json({result:[0,day,month]});
+    counts.set(cmd[3],day+1);counts.set(cmd[4],month+1);
+    return Response.json({result:[1,day+1,month+1]});
+  };
+  return {fetch,counts,commands};
+}
+const googleRequest=(mode="driving",token="a".repeat(28),origin="https://dayframe2.vercel.app")=>
+  new Request("https://dayframe2.vercel.app/api/google-travel",{
+    method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token,origin},
+    body:JSON.stringify({from:home,to:place,mode}),
+  });
+
+test("Google Routes is fail-closed without a persistent atomic budget",async()=>{
+  await withBudgetEnv(async()=>{
+    const {GET,POST}=await import("../api/google-travel.ts");
+    globalThis.fetch=()=>{throw Error("NO external calls allowed")};
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    assert.deepEqual(await (await GET()).json(),{
+      available:false,dailyLimit:50,monthlyLimit:1000,budgetConfigured:false,
+    });
+    assert.equal((await POST(googleRequest())).status,503);
+    process.env.UPSTASH_REDIS_REST_URL="http://untrusted.example.org";
+    assert.equal((await POST(googleRequest())).status,503);
+    process.env.UPSTASH_REDIS_REST_URL=TEST_REDIS_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    assert.equal((await POST(googleRequest())).status,503);
+    process.env.UPSTASH_REDIS_REST_TOKEN="redis-test-secret".repeat(3);
+    assert.equal((await POST(googleRequest("driving","invalid-token"))).status,401);
+    assert.equal((await POST(googleRequest("driving","a".repeat(28),"https://attacker.invalid"))).status,403);
+    assert.equal((await POST(googleRequest("toString"))).status,400);
+    const check=await GET();
+    assert.equal((await check.json()).available,true);
+    // Unknown Redis outage must still fail closed and never call Google.
+    assert.equal((await POST(googleRequest())).status,503);
+  });
 });
-test("Google Routes endpoint maps legal travel mode to Google and returns attributed ETA",async()=>{
-  const {POST}=await import("../api/google-travel.ts");
-  const oldKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
-  const oldSecret=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-  const oldQuota=process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
-  const oldFetch=globalThis.fetch;
-  try{
-    process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
-    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
-    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="50";
-    const requests=[];
+
+test("Google Routes reserves a budget atomically before charging provider",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    const googleCalls=[];
     globalThis.fetch=async(url,options)=>{
-      requests.push({url,payload:JSON.parse(options.body),key:options.headers["X-Goog-Api-Key"]});
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      googleCalls.push({url,payload:JSON.parse(options.body),headers:options.headers});
       return Response.json({routes:[{duration:"3678s",distanceMeters:54670}]});
     };
-    const req=(mode)=>new Request("https://dayframe2.vercel.app/api/google-travel",{
-      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+"a".repeat(28),
-        "origin":"https://dayframe2.vercel.app"},body:JSON.stringify({from:home,to:place,mode}),
+    const result=await POST(googleRequest());
+    assert.equal(result.status,200);
+    assert.deepEqual(await result.json(),{
+      minutes:62,distanceMeters:54670,source:"Google Maps",trafficAware:true,
     });
-    const answer=await POST(req("driving"));
-    assert.equal(answer.status,200);
-    assert.deepEqual(await answer.json(),{minutes:62,distanceMeters:54670,source:"Google Maps",trafficAware:true});
-    assert.equal(answer.headers.get("cache-control"),"no-store, max-age=0");
-    assert.equal(requests[0].payload.travelMode,"DRIVE");
-    assert.equal(requests[0].payload.routingPreference,"TRAFFIC_AWARE");
-    assert.equal(requests[0].key,"test-key-only");
-    await POST(req("transit"));
-    assert.equal(requests[1].payload.travelMode,"TRANSIT");
-    assert.equal(requests[1].payload.routingPreference,undefined);
-    assert.equal((await POST(req("toString"))).status,400);
-  }finally{
-    if(oldKey===undefined)delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;else process.env.GOOGLE_MAPS_ROUTES_API_KEY=oldKey;
-    if(oldSecret===undefined)delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;else process.env.DAYFRAME_ROUTES_ACCESS_TOKEN=oldSecret;
-    if(oldQuota===undefined)delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;else process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED=oldQuota;
-    globalThis.fetch=oldFetch;
-  }
+    assert.equal(result.headers.get("cache-control"),"no-store, max-age=0");
+    assert.equal(redis.commands.length,1);
+    assert.equal(googleCalls[0].payload.travelMode,"DRIVE");
+    assert.equal(googleCalls[0].payload.routingPreference,"TRAFFIC_AWARE");
+    assert.equal(googleCalls[0].headers["X-Goog-Api-Key"],"google-api-test");
+    assert.equal((await POST(googleRequest("transit"))).status,200);
+    assert.equal(googleCalls[1].payload.travelMode,"TRANSIT");
+    assert.equal(googleCalls[1].payload.routingPreference,undefined);
+    assert.equal(redis.commands.length,2);
+  });
+});
+
+test("budget refuses 51st daily request, 1001st monthly, and resets only at UTC boundaries",async()=>{
+  await withBudgetEnv(async()=>{
+    const {reserveRouteBudget,ROUTES_DAILY_LIMIT,ROUTES_MONTHLY_LIMIT}=await import("./server-route-budget.ts");
+    assert.equal(ROUTES_DAILY_LIMIT,50);
+    assert.equal(ROUTES_MONTHLY_LIMIT,1000);
+    const redis=mockAtomicRedis();
+    globalThis.fetch=redis.fetch;
+    const now=new Date("2026-10-18T12:00:00Z");
+    const attempts=await Promise.all(Array.from({length:75},()=>reserveRouteBudget(now)));
+    assert.equal(attempts.filter(x=>x.kind==="reserved").length,50);
+    assert.equal(attempts.filter(x=>x.kind==="exhausted").length,25);
+    assert.equal(redis.counts.get("dayframe:routes:{budget}:20261018"),50);
+    assert.equal(redis.counts.get("dayframe:routes:{budget}:202610"),50);
+    // Check 19 more days; 50 per day then 1000 attempts are reserved in October.
+    for(let date=19;date<=31;date++){
+      const d=new Date(`2026-10-${date}T12:00:00Z`);
+      const results=await Promise.all(Array.from({length:50},()=>reserveRouteBudget(d)));
+      assert.equal(results.filter(x=>x.kind==="reserved").length,50);
+    }
+    for(let date=1;date<=6;date++){
+      const d=new Date(`2026-11-${String(date).padStart(2,"0")}T12:00:00Z`);
+      const results=await Promise.all(Array.from({length:50},()=>reserveRouteBudget(d)));
+      assert.equal(results.filter(x=>x.kind==="reserved").length,50);
+    }
+    const octoberUsed=redis.counts.get("dayframe:routes:{budget}:202610");
+    assert.equal(octoberUsed,700);
+    assert.equal(redis.counts.get("dayframe:routes:{budget}:202611"),300);
+    // Fill remaining October budget by using earlier October dates with capacity.
+    for(let date=1;date<=6;date++){
+      const d=new Date(`2026-10-${String(date).padStart(2,"0")}T12:00:00Z`);
+      const results=await Promise.all(Array.from({length:50},()=>reserveRouteBudget(d)));
+      assert.equal(results.filter(x=>x.kind==="reserved").length,50);
+    }
+    const blocked=await reserveRouteBudget(new Date("2026-10-07T12:00:00Z"));
+    assert.equal(blocked.kind,"exhausted");
+    assert.equal(blocked.monthUsed,1000);
+    assert.equal(blocked.retryAfterSeconds,Math.floor((Date.UTC(2026,10,1)-Date.UTC(2026,9,7,12))/1000));
+    // A new month has its own counters.
+    assert.equal((await reserveRouteBudget(new Date("2026-12-01T00:00:00Z"))).kind,"reserved");
+  });
+});
+
+test("Redis outage, denied budget and invalid reply never contact Google",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    let calls=0;
+    const redis=mockAtomicRedis({deny:true});
+    globalThis.fetch=async(url,options)=>{
+      if(url===TEST_REDIS_URL)return redis.fetch(url,options);
+      calls++;throw Error("Google must not be reached");
+    };
+    const exhausted=await POST(googleRequest());
+    assert.equal(exhausted.status,429);
+    assert.equal((await exhausted.json()).monthlyLimit,1000);
+    assert.equal(calls,0);
+    globalThis.fetch=async(url)=>url===TEST_REDIS_URL
+      ?Response.json({result:["not-valid"]}):Promise.reject(Error("Google must not be reached"));
+    assert.equal((await POST(googleRequest())).status,503);
+    assert.equal(calls,0);
+  });
 });
