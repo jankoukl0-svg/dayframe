@@ -100,6 +100,38 @@ function authorized(request:Request,secret:string){
   const a=Buffer.from(secret),b=Buffer.from(supplied);
   return a.length===b.length&&a.length>=20&&timingSafeEqual(a,b);
 }
+/** Expose only a sanitized Google error category. Do not relay Google text, API keys, addresses or route payloads. */
+function classifyGoogleError(httpStatus:number,raw:unknown){
+  const e=raw&&typeof raw==="object"&&"error" in raw?(raw as {error?:unknown}).error:null;
+  const data=e&&typeof e==="object"?e as Record<string,unknown>:{};
+  const status=typeof data.status==="string"&&/^[A-Z_]{3,48}$/.test(data.status)?data.status:"UNKNOWN";
+  const details=Array.isArray(data.details)?data.details:[];
+  let reason="";
+  for(const detail of details){
+    if(detail&&typeof detail==="object"&&"reason" in detail){
+      const r=(detail as {reason?:unknown}).reason;
+      if(typeof r==="string"&&/^[A-Z_]{3,64}$/.test(r)){reason=r;break;}
+    }
+  }
+  const message=typeof data.message==="string"?data.message:"";
+  const code=reason||status;
+  let explanation="";
+  if(/HTTP_REFERRER|REFERER_BLOCKED|IP_ADDRESS_BLOCKED|API_KEY_SERVICE_BLOCKED|API_KEY_INVALID|API_KEY_NOT_FOUND|API_KEY_UNRESTRICTED/i.test(code+" "+message))
+    explanation="Google zamítl API klíč nebo jeho omezení. Pro Dayframe musí být povolené Routes API a klíč určený pro serverové požadavky.";
+  else if(/SERVICE_DISABLED|API_NOT_ACTIVATED|has not been used in project|not enabled|disabled/i.test(code+" "+message))
+    explanation="V Google Cloud zatím není Routes API aktivní pro projekt tohoto klíče.";
+  else if(/BILLING|billing account|payment/i.test(code+" "+message))
+    explanation="Google pro tento projekt vyžaduje aktivní fakturaci.";
+  else if(httpStatus===403||httpStatus===401)
+    explanation="Google zamítl přístup. Zkontroluj Routes API, fakturaci a omezení API klíče v Google Cloud.";
+  else if(httpStatus===400)
+    explanation="Google odmítl parametry trasy. Zkus jiné body nebo způsob dopravy.";
+  else if(httpStatus===429)
+    explanation="Google dosáhl vlastního limitu požadavků.";
+  else explanation="Google nevrátil úspěšný výpočet trasy.";
+  return {error:`${explanation} (Google HTTP ${httpStatus}, ${code}).`,providerHttpStatus:httpStatus,providerCode:code};
+}
+
 export function GET(){
   return send(200,{
     available:Boolean(routeBudgetConfigured()&&process.env.GOOGLE_MAPS_ROUTES_API_KEY
@@ -155,7 +187,15 @@ export async function POST(request:Request){
         "X-Goog-FieldMask":"routes.duration,routes.distanceMeters",
       },body:JSON.stringify(payload),
     });}finally{clearTimeout(timer);}
-    if(!reply.ok)return send(502,{error:reply.status===429?"Limit Google Maps API byl vyčerpán.":"Google Maps nyní trasu nedokázaly vypočítat."});
+    if(!reply.ok){
+      let raw:unknown;
+      try{raw=await reply.json();}catch{raw=null;}
+      const diagnostics=classifyGoogleError(reply.status,raw);
+      console.warn("[Dayframe Routes] Google declined request",{
+        httpStatus:diagnostics.providerHttpStatus,code:diagnostics.providerCode,
+      });
+      return send(502,diagnostics);
+    }
     const response=await reply.json() as {routes?:Array<{duration?:string;distanceMeters?:number}>};
     const route=response.routes?.[0],seconds=Number(route?.duration?.replace(/s$/,""));
     const distance=route?.distanceMeters;
