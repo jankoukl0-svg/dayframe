@@ -237,7 +237,7 @@ test("removing an existing location ignores incomplete mixed-mode draft",async({
   expect(Object.keys(saved.blocks)).toHaveLength(0);
 });
 
-test("Google route estimates fill planner only after explicit acceptance, without persisting access code",async({page})=>{
+test("Google ETA remains ephemeral and cannot silently replace private planning time",async({page})=>{
   await page.route("**/api/google-travel",async route=>{
     if(route.request().method()==="GET")return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
     const request=route.request();
@@ -259,11 +259,13 @@ test("Google route estimates fill planner only after explicit acceptance, withou
   await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
   await expect(dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveValue("");
-  await dialog.getByRole("button",{name:"Převzít časy jako můj plánovací odhad"}).click();
-  await expect(dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveValue("58");
+  // Google-derived content stays ephemeral. The user's own planning value is the only saved duration.
+  await expect(dialog.getByRole("button",{name:"Převzít časy jako můj plánovací odhad"})).toHaveCount(0);
+  await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
-  expect(Object.values(stored.blocks)[0].typicalMinutes).toBe(58);
+  expect(Object.values(stored.blocks)[0].typicalMinutes).toBe(65);
+  expect(JSON.stringify(stored)).not.toContain("58");
   expect(JSON.stringify(stored)).not.toContain("x".repeat(28));
 });
 test("Google route server unavailable still permits manual travel time",async({page})=>{
