@@ -261,6 +261,7 @@ test("Google ETA remains ephemeral and cannot silently replace private planning 
   await setMapPoint(dialog,50.4,14.7,"Odkud jedu");
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
   await expect(dialog).toContainText("50 výpočtů denně");
+  await expect(dialog).toContainText("1 000 měsíčně");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
   await expect(dialog.locator(".df2-google-attribution img")).toHaveAttribute("src",/gstatic\.com\/images\/branding\/product/);

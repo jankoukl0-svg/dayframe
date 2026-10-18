@@ -1,34 +1,44 @@
-# Google Maps Routes API — voluntary integration
+# Dayframe — Google Routes protected by persistent, atomic request budgets
 
-Dayframe is deployed as a static Vite preview build on Vercel. The additional `api/google-travel.ts` Vercel Function proxies Routes API requests. **No Google Maps API key is embedded in browser code.**
+This integration is **disabled until all required server-only Vercel secrets AND Upstash Redis credentials are present**. No credentials or quotas are stored in browser JS. The existing manual journey planner keeps working when routing is disabled or a budget is exhausted.
 
-## Activation — dedicated 50 requests/day Google Cloud quota (owner action required)
+## Actual limits enforced by Dayframe
 
-**Google Cloud billing must be enabled; this is a pay-as-you-go product. The goal is to stay below its free tier, not a billing-provider guarantee of zero charges.** Cloud budget alerts do not cap spending.
+- **50 Google Compute Routes requests per UTC day**
+- **1,000 Google Compute Routes requests per UTC calendar month**
+- Every stage of a combined car, metro and walking trip costs **one** request. A 3-stage trip costs 3 budget units.
+- The counter is in one persistent Upstash Redis store. A single **atomic Lua EVAL** checks BOTH the day and month counters before incrementing them. Simultaneous requests from multiple users, tabs and Vercel instances cannot independently exceed the application budget.
+- The reservation happens **before** calling Google. Failed Google calls may consume budget; this is a deliberately conservative choice. When Redis is unreachable, unconfigured, returns an error, or a budget is exhausted, the Google call does not happen. Browser status falls back to manual time entry.
+- UTC quota windows and limits are fixed in versioned server code; they cannot be increased via a casual frontend setting.
+- Do **not** reset/delete Redis data or connect a new empty database mid-month. Such a reset would reset the budget, so treat the database as permanent.
+- This cap applies to **Dayframe calls only**. It cannot control unrelated Google services, another API key or project, leaked Google credentials, or future changes in prices. Google Cloud's Billing budgets are **alerts, not spending limits**. No pay-as-you-go integration can promise an unconditional zero charge.
 
-1. Create or select a **dedicated Google Cloud project used exclusively for Dayframe** and enable billing. Enable **Routes API** only (not Maps JavaScript, Places or Compute Route Matrix). Create a Google Maps Platform API key restricted to **Routes API only**. Never put this key in browser code, an issue, a PR or a chat.
-2. In [Google Maps Platform → Quotas](https://console.cloud.google.com/google/maps-apis/quotas), choose this exact Cloud project and **Routes API → Compute Routes**. Set the **requests per day** quota to **50** (NOT 50/minute). Verify the new quota is *active*, not pending. If a daily limit cannot be applied, **do not activate Google Maps in Dayframe**.
-3. Set up [Google Cloud Billing → Budgets & alerts](https://console.cloud.google.com/billing) with a low alert e.g. US$1. **Alerts are not hard caps.** Google's Quota and Billing systems can disagree, so use a substantial buffer: 50 × 31 = 1,550 monthly Compute Routes calls versus the current Pro free allowance of 5,000. Current endpoint only uses Essentials/Pro request features, never Enterprise. Avoid sharing the project/key with anything else.
-4. Review the shipped [privacy notice](../public/privacy.html), [usage terms](../public/terms.html), [Routes policies](https://developers.google.com/maps/documentation/routes/policies) and [EEA terms](https://cloud.google.com/terms/maps-platform/eea). The owner must verify suitability and accuracy **before enabling billing or making Google API calls**.
-5. **Only after the Google Cloud daily quota is verified**, open Vercel project `dayframe2` → Environment Variables. For Production set these server-side encrypted values:
-   - `GOOGLE_MAPS_ROUTES_API_KEY`: the restricted server-only Routes API key;
-   - `DAYFRAME_ROUTES_ACCESS_TOKEN`: a *different*, securely generated Base64URL/ASCII token with 20+ characters, used to authenticate requests coming from your browser;
-   - `DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED`: exactly `50`. **This is a fail-closed operator acknowledgement, not an enforcement counter and not evidence Google quota has been set.** Do not configure this flag earlier.
-6. Redeploy `main`. The API returns `available:false` and refuses requests with 503 if any setting is missing. When active, open Week → Místo konání and enter the personal access token. The token resides only in browser `sessionStorage`, never the calendar. The Google key never leaves the Vercel function.
-7. Once departure, destination, mode and any transfers are selected, the editor calculates individual stages after a debounce. Every stage consumes one of the **50 daily requests**; 3 stages = 3 calls. Displayed Google estimates are temporary and **never persisted**. Jarvis still uses an independently entered planning duration.
-8. If the quota is exhausted, Google refuses new API calls, while manual duration entry and Google Maps navigation links remain available. Avoid repeated changes that issue unnecessary requests. Verify usage and billing independently in Google Cloud.
+## Setup — no Google Cloud daily quota required
 
-## What the 50/day gate does — and does not do
+1. Keep using the existing Google Cloud project. Ensure **Routes API** alone is enabled and the dedicated API key is restricted to Routes API; do not enable unrelated paid APIs. Inspect Google Cloud Billing separately. Current Routes: Compute Routes Pro offers 5,000 free monthly calls, but don't rely on prices remaining unchanged.
+2. In the [Vercel Upstash integration](https://vercel.com/marketplace/upstash) choose **Install Upstash for Redis → Free ($0)**, then link it to Vercel project `dayframe2` **Production**. Vercel can create a new free Upstash account and a Redis database through this flow. Do **not** select Pay as You Go or the paid Fixed plan. If a billing/upgrade prompt appears, stop rather than authorizing spend.
+3. Check **Vercel → dayframe2 → Settings → Environment Variables**. These must exist as server-only variables for Production:
+   - `GOOGLE_MAPS_ROUTES_API_KEY`: a Routes API-restricted key (already set previously).
+   - `UPSTASH_REDIS_REST_URL`: Redis REST HTTPS endpoint, automatically injected when Vercel links the integration.
+   - `UPSTASH_REDIS_REST_TOKEN`: Redis REST secret, automatically injected; use the **read/write** token, not read-only.
+   - `DAYFRAME_ROUTES_ACCESS_TOKEN`: a different random ASCII/Base64URL token, minimum 20 characters, for accessing the private endpoint from your browser. Do **not** paste the Google API key here.
+4. Redeploy `main` on Vercel so the new variables are picked up.
+5. In Dayframe, go to **Týden → Místo konání** and enter the private access token in the route section. It stays only in browser sessionStorage, not in the schedule. After choosing all endpoints and modes the app shows Google estimates and distance, without permanently storing Google's API results.
+6. Test by selecting one simple route and a multi-leg route; verify the route ETA appears and the corresponding count is recorded in Upstash. For a low-cost test, use a mock Google response in CI (already covered in unit/browser tests). Never reveal tokens in support screenshots or GitHub.
+7. Review the [published privacy notice](../public/privacy.html), [terms](../public/terms.html), [Google Routes requirements](https://developers.google.com/maps/documentation/routes/policies), and [Google Maps Platform EEA terms](https://cloud.google.com/terms/maps-platform/eea) before enabling the integration.
 
-- **Provider-enforced quota:** Google Cloud's actual *Compute Routes requests/day* quota is the effective usage cap. It applies to the entire Cloud project. The Vercel env flag only prevents Dayframe from starting until the operator claims to have set it. A client-side budget, Vercel environment variable alone, or Cloud budget alert cannot enforce an aggregate per-day usage cap.
-- **Tier:** With the current request fields (`DRIVE` with `TRAFFIC_AWARE`, `TRANSIT`, `WALK`, `BICYCLE`, no toll data, traffic polylines or other Enterprise modifiers) the most expensive route request is Pro. Its current free cap is 5,000 per monthly billing period. The 50/day quota keeps usage well below the cap *for this dedicated API and otherwise-unused billing allocation*. Validate SKU/billing changes before broadening the implementation.
-- **Safety disclaimer:** Google cautions that Quota and Billing measurements can differ. Charges may still arise from other enabled Google services, shared billing usage, an accidentally raised quota, project/key compromise, or future price changes. No configuration of a pay-as-you-go API is an absolute zero-charge promise.
-- **Secrecy:** Use a dedicated restricted key and random personal access token, never the public Google OAuth client ID already used for Google Calendar.
+## Guard technical notes
 
-## Caveats
-- The map picker still uses OpenStreetMap / Leaflet, **not Google Maps**. Google data is displayed as separate, clearly attributed text, never drawn on the OSM map.
-- Driving estimates are `TRAFFIC_AWARE` **at the time of the request**. Walking, cycling and transit routes are not equivalent to a live congestion feed. Mixed journeys request each leg independently for planning, not a synchronized timetable itinerary.
-- Google Maps results are ephemeral: Dayframe doesn't copy route durations into any persistent planner field or cache. User-entered travel minutes are a separate manual estimate.
-- Jarvis currently works with the manually accepted planning estimate; it does not continuously poll Google Maps. This avoids surprise usage costs and prevents displaying a stale traffic claim.
-- A secret in a browser can be extracted by someone with access to that browser. Rotate `DAYFRAME_ROUTES_ACCESS_TOKEN` if exposed.
-- Check Vercel's API endpoint deployment before enabling billing. With missing env vars it reports `available:false` and POST returns 503, and the existing manual mode stays usable.
+- The server uses REST `POST /api/google-travel` with a secret access token, validating same-origin browser requests, selected transport and geographical coordinates.
+- It issues an atomic Upstash `EVAL` with the day and month keys using one Redis hash-slot tag. If either limit is exhausted the endpoint returns HTTP **429** with `Retry-After`; on database failure it returns **503** and **never forwards** a request to Google.
+- Redis is required even if the Google Maps API key and access token exist. In their absence `GET /api/google-travel` reports `available:false`.
+- No in-memory counters, non-atomic transactions, client-local counters, fail-open paths, caching of raw Google Routes responses, or Google-derived persistent travel minutes.
+- Leave the old `DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED` unset. It is no longer used; Google Cloud's Compute Routes daily quota is not adjustable for this project.
+- Upstash's current free tier provides 500,000 monthly commands and one free database; usage in this design is substantially below that. It must stay on the **Free** plan.
+
+## Additional precautions
+
+- Restrict the Google key to **Routes API only** and rotate it if it was exposed in any chat, screenshot, browser page, frontend JS or public repository. Vercel's preexisting `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is unrelated.
+- The private access token is a deterrent against anonymous budget exhaustion, not a substitute for full user authentication. Anyone with the token can spend the remaining capped allowance; rotate it if exposed.
+- The Vercel runtime and other services may have their own plan limits. This feature controls **Google Routes API calls originating from Dayframe**, not billing for the hosting account or Redis paid plans.
+- The current plan/route interpretation is an informational calculation at request time. Timetables and transfers across independently calculated modes are not guaranteed to connect.
