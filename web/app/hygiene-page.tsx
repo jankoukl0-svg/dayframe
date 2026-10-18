@@ -418,6 +418,12 @@ export function HygienePage({
       return !weekCareBlocks(next,date,date,calendar.times,calendar.hidden).some(block=>block.id===id);
     });
   }
+  // Individual hygiene task edits can also remove an entire calendar projection.
+  // Reconcile only after a valid saved hygiene store has hydrated.
+  useEffect(()=>{
+    if(hydrated&&!blocked)purgeUnscheduledCareLocations(store);
+  },[store,hydrated,blocked]);
+
   const saveRoutineDraft = () => {
     if (!routineDraft?.title.trim()) return;
     const existing = store.routines.some((routine) => routine.id === routineDraft.id);
