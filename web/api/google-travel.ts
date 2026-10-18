@@ -84,3 +84,16 @@ export async function POST(request:Request){
     return send(200,{minutes:Math.max(1,Math.ceil(seconds/60)),distanceMeters:Math.round(distance),source:"Google Maps",trafficAware:mode==="driving"});
   }catch{return send(502,{error:"Google Maps nyní nejsou dostupné. Použij ruční odhad."});}
 }
+
+/** Vercel's generic Vite/Other preset supports the default Web Request handler.
+ * Keep GET/POST as named exports for Node regression tests and framework adapters.
+ */
+export default {
+  async fetch(request:Request):Promise<Response>{
+    if(request.method==="GET")return GET();
+    if(request.method==="POST")return POST(request);
+    return Response.json({error:"Nepodporovaná HTTP metoda."},{
+      status:405,headers:{...headers,Allow:"GET, POST"},
+    });
+  },
+};
