@@ -46,6 +46,8 @@ import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
+import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
+import {readTravelStore,saveTravelStore,travelBlockKey,liveTravelTaskKeys,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -145,6 +147,75 @@ export function DayframeV2() {
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const [addingTask, setAddingTask] = useState(false);
   const [editing, setEditing] = useState<CalendarTask | null>(null);
+  const [tripTarget,setTripTarget] = useState<TripTarget|null>(null);
+  const [travelStore,setTravelStore] = useState(()=>readTravelStore().store);
+  const [offsiteOnCreate,setOffsiteOnCreate] = useState(false);
+  useEffect(()=>{
+    const refresh=()=>setTravelStore(readTravelStore().store);
+    window.addEventListener(TRAVEL_SYNC_EVENT,refresh);window.addEventListener("storage",refresh);
+    return ()=>{window.removeEventListener(TRAVEL_SYNC_EVENT,refresh);window.removeEventListener("storage",refresh);};
+  },[]);
+  function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,initialOffsite=false){
+    setTripTarget({key:travelBlockKey(kind,id,date),title,date,start,initialOffsite});
+  }
+  function migrateTaskTrip(oldId:string,newId:string,newDate:string,newStart:string){
+    if(oldId===newId)return;
+    const latest=readTravelStore();
+    if(latest.blocked)return;
+    const from=travelBlockKey("task",oldId),record=latest.store.blocks[from];
+    if(!record)return;
+    const blocks={...latest.store.blocks};delete blocks[from];
+    blocks[travelBlockKey("task",newId)]={...record,date:newDate,start:newStart};
+    saveTravelStore({...latest.store,blocks});
+  }
+  function removeMissingTaskTrips(nextState:DayframeState){
+    const latest=readTravelStore();
+    if(latest.blocked)return;
+    const live=liveTravelTaskKeys(nextState.plans,nextState.backlog);
+    const blocks={...latest.store.blocks};let removed=false;
+    for(const key of Object.keys(blocks)){
+      if(key.startsWith("task:")&&!live.has(key)){delete blocks[key];removed=true;}
+    }
+    if(removed)saveTravelStore({...latest.store,blocks});
+  }
+  function postponeWithTrip(id:string){
+    const source=taskById(data,id);
+    if(!source)return;
+    const before=new Set(Object.values(data.plans).flat().map(t=>t.id));
+    const next=moveTaskToTomorrow(data,id,now);
+    const created=Object.values(next.plans).flat().find(t=>!before.has(t.id)&&t.title===source.title);
+    setData(next);
+    if(created)migrateTaskTrip(id,created.id,created.date,created.start??"");
+  }
+  function removeStoredTrip(key:string){
+    const current=readTravelStore();
+    if(current.blocked||!current.store.blocks[key])return;
+    const blocks={...current.store.blocks};
+    delete blocks[key];
+    saveTravelStore({...current.store,blocks});
+  }
+  function moveSavedTrip(kind:"gym"|"care",id:string,oldDate:string,newDate:string,newStart:string){
+    const current=readTravelStore();
+    if(current.blocked)return;
+    const oldKey=travelBlockKey(kind,id,oldDate),newKey=travelBlockKey(kind,id,newDate);
+    const saved=current.store.blocks[oldKey];
+    if(!saved)return;
+    const blocks={...current.store.blocks};
+    delete blocks[oldKey];
+    blocks[newKey]={...saved,date:newDate,start:newStart};
+    saveTravelStore({...current.store,blocks});
+  }
+  function travelPin(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,
+    top:number,lane?:{left:string;width:string}){
+    const key=travelBlockKey(kind,id,date),assigned=Boolean(travelStore.blocks[key]);
+    return <button type="button" className={"df2-week-location-btn"+(assigned?" has-location":"")}
+      key={"loc-"+key} aria-label={"Místo konání: "+title}
+      title={"Místo konání – "+title} data-week-place={key}
+      style={{top:top+3,...(lane?{left:"calc("+lane.left+" + "+lane.width+" - 25px)",right:"auto"}:{})}}
+      onClick={e=>{e.stopPropagation();openTrip(kind,id,date,title,start);}}>
+      {assigned?"📍":"⌖"}
+    </button>;
+  }
   const [editingCare, setEditingCare] = useState<{ date: string; id: WeekCareId; duration: number; title: string } | null>(null);
   const [editingCareStart, setEditingCareStart] = useState("");
   const [editingCareDate, setEditingCareDate] = useState("");
@@ -255,6 +326,7 @@ export function DayframeV2() {
       const target = event.target as HTMLElement | null;
       if (event.key === "Escape") {
         setAddingTask(false);
+        setOffsiteOnCreate(false);
         setEditing(null);
         setEditingMilestoneId(null);
         return;
@@ -316,6 +388,7 @@ export function DayframeV2() {
 
   function closeAdd() {
     setAddingTask(false);
+    setOffsiteOnCreate(false);
     setDraft(emptyDraft());
     setError("");
   }
@@ -441,6 +514,9 @@ export function DayframeV2() {
       : `${effective.title} je uložený, ale zatím nemá volný čas.`);
     setDraft(emptyDraft());
     setAddingTask(false);
+    if(offsiteOnCreate)
+      openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"",true);
+    setOffsiteOnCreate(false);
   }
 
   function saveEdit(event: React.FormEvent<HTMLFormElement>) {
@@ -535,6 +611,7 @@ export function DayframeV2() {
       setEditingCareError("Přesun se nepodařilo uložit. Rutina už mohla být zahájená, nebo má zvolený den jiný výskyt.");
       return;
     }
+    moveSavedTrip("care",id,editingCare.date,date,start);
     setEditingCare(null);
     setEditingCareError("");
   }
@@ -545,6 +622,7 @@ export function DayframeV2() {
       setEditingCareError("Blok se nepodařilo odebrat. Data zůstala beze změny.");
       return;
     }
+    removeStoredTrip(travelBlockKey("care",editingCare.id,editingCare.date));
     setEditingCare(null);
     setEditingCareError("");
   }
@@ -630,11 +708,11 @@ export function DayframeV2() {
     setDragging(null);
     setDropPreview(null);
     if(selection.kind==="care"){
-      if(!(date===selection.date
+      const success=date===selection.date
         ? care.move(date,selection.id as WeekCareId,preview.start)
-        : care.moveDate(selection.date,date,selection.id as WeekCareId,preview.start))){
-        setNotice("Čas hygienické rutiny se nepodařilo uložit. Data nebyla změněna.");
-      }
+        : care.moveDate(selection.date,date,selection.id as WeekCareId,preview.start);
+      if(!success)setNotice("Čas hygienické rutiny se nepodařilo uložit. Data nebyla změněna.");
+      else moveSavedTrip("care",selection.id,selection.date,date,preview.start);
       return;
     }
     if(selection.kind==="gym"){
@@ -646,11 +724,14 @@ export function DayframeV2() {
       });
       if(!saved)setNotice("Nepodařilo se uložit nový čas tréninku.");
       else if(!didChange)setNotice("Tento trénink nelze přesunout. Již zahájené tréninky zůstávají na svém místě.");
+      else moveSavedTrip("gym",selection.id,selection.date,date,preview.start);
       return;
     }
     const result=moveTask(data,selection.id,date,preview.start);
     if(result.error){setNotice(result.error);return;}
     setData(result.state);
+    if(result.task&&result.task.id!==selection.id)
+      migrateTaskTrip(selection.id,result.task.id,result.task.date,result.task.start??"");
   }
 
   function startFocus(task: CalendarTask | null) {
@@ -727,8 +808,8 @@ export function DayframeV2() {
               onEdit={setEditing}
               onDone={requestTaskCompletion}
               completingTaskIds={completingTaskIds}
-              onTomorrow={(id) => setData((current) => moveTaskToTomorrow(current, id, now))}
-              onDelete={(id) => setData((current) => deleteTask(current, id))}
+              onTomorrow={postponeWithTrip}
+               onDelete={(id) => {removeStoredTrip(travelBlockKey("task",id));setData((current) => deleteTask(current, id));}}
               onFocus={startFocus}
               onMilestones={() => setView("milestones")}
               onOpenHygiene={(routineId) => {
@@ -860,6 +941,9 @@ export function DayframeV2() {
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>;
                           })}
+                          {timedGym.map(({occ,time})=>time.start?travelPin("gym",occ.key,key,occ.name,time.start,
+                            (timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                            lanePositions["gym:"+occ.key]):null)}
                           {timedCare.map(item=>{
                             const startMinute=timeToMinutes(item.start);
                             const end=minutesToTime(startMinute+item.duration);
@@ -906,6 +990,9 @@ export function DayframeV2() {
                               </button>
                             );
                           })}
+                          {timedCare.map(item=>travelPin("care",item.id,key,item.title,item.start,
+                            (timeToMinutes(item.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                            lanePositions["care:"+item.id]))}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
                             const height = task.duration * MINUTE_HEIGHT;
@@ -932,6 +1019,9 @@ export function DayframeV2() {
                               </button>
                             );
                           })}
+                          {scheduled.map(task=>travelPin("task",task.id,key,task.title,task.start!,
+                            (timeToMinutes(task.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                            lanePositions["task:"+task.id]))}
                         </div>
                       </article>
                     );
@@ -962,7 +1052,14 @@ export function DayframeV2() {
             <section className="df2-simple-view">
               <header className="df2-page-head"><div><h1>Nastavení</h1></div></header>
               <div className="df2-settings-card"><div><strong>Pracovní den</strong><span>{minutesToTime(calendarBounds.dayStart)}–{minutesToTime(calendarBounds.dayEnd)} · oběd 13:00–14:00</span></div><div><strong>Hlavní odpočet</strong><span>02:00</span></div><div><strong>Auto-plánování</strong><span>Týden · 15 min · standardně do 22:30</span></div></div>
-              <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => { const enabled = event.target.checked; setData((current) => { const reference = new Date(); const changed = editRoutineFutureOnly(current, routine.id, { active: enabled }, reference); return enabled ? materializeRange(changed, planningDateKey(reference), addDaysKey(planningDateKey(reference), 28), reference) : changed; }); }} /> aktivní</label><button onClick={() => setData((current) => deleteRoutine(current, routine.id, new Date()))}>Smazat</button></article>)}</section>
+              <section className="df2-routines"><div className="df2-section-head"><h2>Opakující se rutiny</h2><button onClick={() => openAdd()}>+ Nová rutina</button></div>{data.routines.map((routine) => <article key={routine.id}><div><strong>{routine.title}</strong><small>{routine.frequency === "daily" ? "každý den" : "každý týden"}{routine.start ? ` · ${routine.start}` : ""} · {routine.duration} min</small></div><label><input type="checkbox" checked={routine.active} onChange={(event) => { const enabled = event.target.checked; const reference=new Date();
+      const changed=editRoutineFutureOnly(data,routine.id,{active:enabled},reference);
+      const next=enabled?materializeRange(changed,planningDateKey(reference),addDaysKey(planningDateKey(reference),28),reference):changed;
+      setData(next);
+      removeMissingTaskTrips(next); }} /> aktivní</label><button onClick={() => {
+      const next=deleteRoutine(data,routine.id,new Date());
+      setData(next);removeMissingTaskTrips(next);
+    }}>Smazat</button></article>)}</section>
             </section>
           )}
         </section>
@@ -990,6 +1087,10 @@ export function DayframeV2() {
               </div>
             </details>
             {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
+            <label className="df2-travel-offsite"><input type="checkbox" checked={offsiteOnCreate}
+              onChange={e=>setOffsiteOnCreate(e.target.checked)}/>
+              Odehrává se mimo domov · následně vyber místo na mapě
+            </label>
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
           </form>
@@ -1011,6 +1112,10 @@ export function DayframeV2() {
               onChange={(event) => { setEditingCareStart(event.target.value); setEditingCareError(""); }} /></label>
             <p className="df2-week-care-help">Čas lze změnit přetažením. Opakovanou rutinu lze přesunout i na jiný den mimo neděli; úprava se týká pouze tohoto výskytu.</p>
             {editingCareError && <p className="df2-error" role="alert">{editingCareError}</p>}
+            <button type="button" className="df2-trip-in-edit"
+              onClick={()=>openTrip("care",editingCare.id,editingCare.date,editingCare.title,editingCareStart)}>
+              📍 Místo konání / cesta
+            </button>
             <div className="df2-modal-actions">
               <button className="df2-primary" type="submit" disabled={care.blocked || editingCare.date < todayKey}>Uložit čas</button>
               <button type="button" onClick={()=>{
@@ -1037,6 +1142,8 @@ export function DayframeV2() {
         </div>
       )}
 
+      {tripTarget&&<WeekTripLocationModal key={tripTarget.key} target={tripTarget}
+        onClose={()=>setTripTarget(null)} onSaved={()=>setTravelStore(readTravelStore().store)}/>}
       {editing && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
           <form className="df2-modal" onSubmit={saveEdit}>
@@ -1046,6 +1153,10 @@ export function DayframeV2() {
             <label>Začátek<input name="start" type="time" defaultValue={editing.start ?? ""} /><small>Prázdné = Dayframe najde volný čas automaticky.</small></label>
             <div className="df2-form-grid"><label>Priorita<select name="priority" defaultValue={editing.priority}><option value="high">Vysoká</option><option value="normal">Běžná</option><option value="low">Nízká</option></select></label><label>Oblast<select name="category" defaultValue={editing.category}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
             <div className="df2-form-grid"><label>Dokončit do<input name="dueDate" type="date" defaultValue={editing.dueDate ?? ""} /></label><label>Nejpozději v<input name="deadlineTime" type="time" defaultValue={editing.deadlineTime ?? "22:30"} /></label></div>
+            <button type="button" className="df2-trip-in-edit"
+              onClick={()=>openTrip("task",editing.id,editing.date,editing.title,editing.start??"")}>
+              📍 Místo konání / cesta
+            </button>
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary">Uložit změny</button><button
                 type="button"
@@ -1054,7 +1165,7 @@ export function DayframeV2() {
                 onClick={() => requestTaskCompletion(editing.id)}
               >
                 {editing.completed ? "Vrátit jako nesplněné" : completingTaskIds.has(editing.id) ? "✓ Hotovo" : "Označit hotovo"}
-              </button><button type="button" className="danger" onClick={() => { setData((current) => deleteTask(current, editing.id)); setEditing(null); }}>Smazat</button></div>
+              </button><button type="button" className="danger" onClick={() => { removeStoredTrip(travelBlockKey("task",editing.id));setData((current) => deleteTask(current, editing.id)); setEditing(null); }}>Smazat</button></div>
           </form>
         </div>
       )}

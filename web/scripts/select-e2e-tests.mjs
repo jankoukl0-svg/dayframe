@@ -104,6 +104,10 @@ for (const file of changed) {
     addPrefix("jarvis-");
     add("today-briefing.spec.mjs");
   }
+  if (lower.includes("travel") || lower.includes("week-trip-location") || lower.includes("today-briefing")) {
+    add("week-travel.spec.mjs");
+    add("today-briefing.spec.mjs");
+  }
 
   if (lower.includes("milestone")) {
     addPrefix("milestone-");

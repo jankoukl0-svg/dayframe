@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {editRoutineFutureOnly,type DayframeState} from "@/lib/dayframe-calendar";
+import {removeTravelForDeletedTasks} from "@/lib/dayframe-travel";
 
 type Routine = {
   id: string;
@@ -151,6 +152,9 @@ function persistRoutineEdit(routineId: string, patch: Partial<Routine>) {
     // One shared future-only rule for edits, instead of removing elapsed blocks.
     const updated = editRoutineFutureOnly(parsed,routineId,patch,new Date());
     window.localStorage.setItem(STATE_KEY, JSON.stringify(updated));
+    // Changing active days or weekdays can remove future routine projections.
+    // Clean only exact task IDs that were removed, never their recorded history.
+    removeTravelForDeletedTasks(Object.values(parsed.plans).flat(),Object.values(updated.plans).flat());
     window.sessionStorage.setItem(RETURN_TO_SETTINGS_KEY, "1");
     return true;
   } catch {

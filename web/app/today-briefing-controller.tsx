@@ -11,6 +11,10 @@ import {
   type DayframeState,
 } from "@/lib/dayframe-calendar";
 import { daysUntilDate } from "@/lib/dayframe-countdown";
+import {readTravelStore,travelDirectionsUrl,upcomingTravelTrips,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readGymStore,assignmentsOnDate,gymOccurrenceTime,GYM_SYNC_EVENT} from "@/lib/dayframe-gym";
+import {loadHygieneStore,HYGIENE_SYNC_EVENT} from "@/lib/dayframe-hygiene";
+import {readWeekCareTimes,weekCareBlocks,WEEK_CARE_SYNC_EVENT} from "@/lib/dayframe-week-care";
 import {markSupplementIntake,readSupplementStore,saveSupplementStore,
   supplementOccurrences,SUPPLEMENTS_SYNC_EVENT} from "@/lib/dayframe-supplements";
 
@@ -72,6 +76,9 @@ type BriefingModel = {
   weather: WeatherSnapshot;
   dueSupplements: Array<{ key: string; name: string; time: string; doseLabel: string; brand: string }>;
   supplementsBlocked: boolean;
+  travelTrip?: ReturnType<typeof upcomingTravelTrips>[number];
+  travelOrigin?: ReturnType<typeof readTravelStore>["store"]["origin"];
+  travelBlocked: boolean;
 };
 
 let weatherSnapshot: WeatherSnapshot = { status: "loading", location: "Zjišťuji polohu…" };
@@ -322,6 +329,36 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
       .map(occurrence=>({key:occurrence.key,name:occurrence.supplement.name,time:occurrence.time,
         doseLabel:occurrence.supplement.doseLabel,brand:occurrence.supplement.brand}))
       .sort((a,b)=>supplementClockMinute(b.time)-supplementClockMinute(a.time)||a.name.localeCompare(b.name,"cs"));
+  const tripData=readTravelStore();
+  const allTasks=Object.values(state.plans).flat();
+  const otherTrips:Array<{key:string;date:string;start?:string;title:string;completed:boolean}>=[];
+  if(!tripData.blocked){
+    const entries=Object.entries(tripData.store.blocks);
+    const gymDates=[...new Set(entries.filter(([key])=>key.startsWith("gym:")).map(([,trip])=>trip.date))];
+    const careDates=[...new Set(entries.filter(([key])=>key.startsWith("care:")).map(([,trip])=>trip.date))];
+    if(gymDates.length){
+      const gym=readGymStore();
+      if(!gym.blocked)for(const date of gymDates){
+        for(const occ of assignmentsOnDate(gym.store,date)){
+          const t=gymOccurrenceTime(gym.store,occ);
+          if(t.start)otherTrips.push({key:travelBlockKey("gym",occ.key),date,
+            start:t.start,title:occ.name,completed:occ.completed||Boolean(occ.session)});
+        }
+      }
+    }
+    if(careDates.length){
+      const hygiene=loadHygieneStore(today);
+      const placement=readWeekCareTimes();
+      if(!hygiene.blocked&&!placement.blocked)for(const date of careDates){
+        for(const item of weekCareBlocks(hygiene.store,date,today,placement.times,placement.hidden)){
+          otherTrips.push({key:travelBlockKey("care",item.id,date),date,start:item.start,
+            title:item.title,completed:item.completed});
+        }
+      }
+    }
+  }
+  const travelTrip=tripData.blocked?undefined
+    :upcomingTravelTrips(tripData.store,now,allTasks,otherTrips)[0];
   const tasks = getTasksForDate(state, today) as BriefingTask[];
   const scheduled = tasks.filter((task) => task.start && task.end).sort(byStart);
   const unfinished = tasks.filter((task) => !task.completed);
@@ -396,6 +433,7 @@ function buildModel(state: DayframeState, now: Date): BriefingModel {
     weather: weatherSnapshot,
     dueSupplements,
     supplementsBlocked:supplementData.blocked,
+    travelTrip,travelOrigin:tripData.store.origin,travelBlocked:tripData.blocked,
   };
 }
 
@@ -564,6 +602,44 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
     supplements.appendChild(list);
   }
   primaryGrid.appendChild(supplements);
+  if(model.travelTrip || model.travelBlocked){
+    const travel=document.createElement("section");
+    travel.className="df2-jarvis-travel";
+    travel.dataset.jarvisTravel="true";
+    const head=document.createElement("div");head.className="df2-jarvis-card-head";
+    addText(head,"span","CESTA · MIMO DOMOV");
+    travel.appendChild(head);
+    if(model.travelBlocked){
+      addText(travel,"p","Uložená místa nelze bezpečně přečíst. Zkontroluj je v Týdnu.");
+    }else if(model.travelTrip){
+      const trip=model.travelTrip;
+      addText(travel,"h3",trip.title);
+      addText(travel,"p",trip.place.label);
+      addText(travel,"span","Začátek: "+trip.when.toLocaleString("cs-CZ",{day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"}));
+      if(trip.typicalMinutes){
+        const travelTotal=trip.typicalMinutes+trip.bufferMinutes;
+        const depart=new Date(trip.when.getTime()-travelTotal*60_000);
+        const time=depart.toLocaleTimeString("cs-CZ",{hour:"2-digit",minute:"2-digit"});
+        const remaining=Math.ceil((depart.getTime()-Date.now())/60000);
+        const action=remaining<=0?"Podle plánu už je čas vyrazit."
+          :remaining<=30?"Vyraz přibližně za "+remaining+" min.":"Doporučený odjezd: "+time;
+        addText(travel,"strong",action);
+        addText(travel,"p","Doba cesty "+trip.typicalMinutes+" min + rezerva "+trip.bufferMinutes
+          +" min. Orientačně podle tvého odhadu; bez dat o aktuální dopravě.");
+      }else{
+        addText(travel,"strong","Doba cesty není nastavena.");
+        addText(travel,"p","Pro radu s odjezdem nastav v Týdnu u tohoto bloku obvyklou dobu cesty a rezervu.");
+      }
+      if(!model.travelOrigin)addText(travel,"p","Výchozí místo není nastavené. Vyber ho u bloku na mapě.");
+      const link=document.createElement("a");
+      link.href=travelDirectionsUrl(model.travelOrigin,trip.place,trip.mode);
+      link.target="_blank";link.rel="noopener noreferrer";
+      link.dataset.jarvisRouteLink="true";
+      link.textContent="Ověřit trasu a aktuální provoz v Google Maps ↗";
+      travel.appendChild(link);
+    }
+    primaryGrid.appendChild(travel);
+  }
   host.appendChild(primaryGrid);
 }
 
@@ -711,7 +787,7 @@ function handleModalDocumentKeydown(event: KeyboardEvent) {
   if (event.key === "Tab") {
     const close = overlay.querySelector<HTMLButtonElement>("[data-today-briefing-close]");
     if (!close) return;
-    const buttons = [close,...overlay.querySelectorAll<HTMLButtonElement>("[data-jarvis-supplement-action]")];
+    const buttons = [close,...overlay.querySelectorAll<HTMLElement>("[data-jarvis-supplement-action], [data-jarvis-route-link]")];
     const index = buttons.findIndex(button=>button===document.activeElement);
     const next = index<0?(event.shiftKey?buttons.length-1:0)
       :(index+(event.shiftKey?-1:1)+buttons.length)%buttons.length;
@@ -835,6 +911,10 @@ export function TodayBriefingController() {
     sync();
     window.addEventListener(STATE_SYNC_EVENT, sync);
     window.addEventListener(SUPPLEMENTS_SYNC_EVENT, sync);
+    window.addEventListener(TRAVEL_SYNC_EVENT, sync);
+    window.addEventListener(GYM_SYNC_EVENT, sync);
+    window.addEventListener(HYGIENE_SYNC_EVENT, sync);
+    window.addEventListener(WEEK_CARE_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
@@ -843,6 +923,10 @@ export function TodayBriefingController() {
     return () => {
       window.removeEventListener(STATE_SYNC_EVENT, sync);
       window.removeEventListener(SUPPLEMENTS_SYNC_EVENT, sync);
+      window.removeEventListener(TRAVEL_SYNC_EVENT, sync);
+      window.removeEventListener(GYM_SYNC_EVENT, sync);
+      window.removeEventListener(HYGIENE_SYNC_EVENT, sync);
+      window.removeEventListener(WEEK_CARE_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
       observer.disconnect();
       window.clearInterval(timer);

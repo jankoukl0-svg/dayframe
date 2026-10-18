@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGymStore } from "./use-gym-store";
 import {GymExercisePicker} from "./gym-exercise-picker";
+import {removeTravelBlocksWhere} from "@/lib/dayframe-travel";
 import {
   assignmentsOnDate, dateShift, gymMetrics, gymDayWeekdayOnDate, gymDayTimeOnDate, setGymWeekdayAssignment, setGymWeekdayTime, lastExercisePerformance, weekday,
   makeGymPlan, newSet, startSession, uid, setActiveGymPlan,
@@ -62,6 +63,15 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
     },1000);
     return ()=>window.clearInterval(timer);
   },[session?.restUntil]);
+  // Keep exact locations only for gym occurrences that still exist in the saved plan.
+  // The hook is not hydrated on its first render; never purge during that empty state.
+  useEffect(()=>{
+    if(!hydrated||blocked)return;
+    removeTravelBlocksWhere((key,entry)=>{
+      if(!key.startsWith("gym:"))return false;
+      return !assignmentsOnDate(store,entry.date).some(occurrence=>"gym:"+occurrence.key===key);
+    });
+  },[store,hydrated,blocked]);
   const plan=store.plans.find(p=>p.id===(editedPlanId||store.activePlanId))??null;
   const metrics=useMemo(()=>gymMetrics(store),[store]);
   const activePlan=store.plans.find(p=>p.id===store.activePlanId)??null;
@@ -419,11 +429,16 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
             }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/></label>
           <button type="button" onClick={()=>{
             if(!window.confirm("Smazat plán? Historické tréninky zůstanou zachované."))return;
-            persist(s=>{
-              const filtered={...s,plans:s.plans.filter(p=>p.id!==plan.id)};
-              return s.activePlanId===plan.id?setActiveGymPlan(filtered,null,today):filtered;
+            const removedPlanId=plan.id;
+            const saved=persist(s=>{
+              const filtered={...s,plans:s.plans.filter(p=>p.id!==removedPlanId)};
+              return s.activePlanId===removedPlanId?setActiveGymPlan(filtered,null,today):filtered;
             });
-            setEditedPlanId(null);
+            if(saved){
+              // The occurrence key starts with "<planId>|"; stale exact locations must not linger.
+              removeTravelBlocksWhere(key=>key.startsWith("gym:"+removedPlanId+"|"));
+              setEditedPlanId(null);
+            }
           }}>Smazat plán</button>
         </div>
         {plan.days.filter(d=>!d.templateDayId).map((day,dayIndex)=><article key={day.id} className="df2-gym-day-edit">

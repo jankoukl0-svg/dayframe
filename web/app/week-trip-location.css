@@ -1,0 +1,35 @@
+.df2-travel-overlay{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:16px;background:rgba(27,26,24,.5)}
+.df2-travel-dialog{width:min(750px,100%);max-height:calc(100vh - 32px);overflow-y:auto;display:grid;gap:13px;padding:22px;background:var(--paper);border:1px solid var(--line-strong);border-radius:18px;box-shadow:0 22px 60px rgba(30,30,30,.2);color:var(--ink)}
+.df2-travel-dialog header{display:flex;justify-content:space-between;align-items:flex-start}
+.df2-travel-dialog header small{color:var(--accent-dark);font-size:10px;letter-spacing:.05em;font-weight:700}
+.df2-travel-dialog header h2{font-size:23px;margin:4px 0}
+.df2-travel-dialog header p,.df2-travel-hint{font-size:11px;color:var(--muted);line-height:1.5}
+.df2-travel-dialog header button{border:1px solid var(--line);border-radius:50%;height:34px;width:34px;background:var(--paper);font-size:20px}
+.df2-travel-dialog label{display:grid;gap:6px;font-size:12px;font-weight:650}
+.df2-travel-dialog input,.df2-travel-dialog select{padding:9px;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--ink);min-width:0;width:100%}
+.df2-travel-offsite{display:flex!important;align-items:center;gap:11px;padding:14px;border:1px solid var(--line);border-radius:11px}
+.df2-travel-offsite input{width:18px;flex:0 0 18px;height:18px}
+.df2-travel-tabs{display:flex;gap:8px}
+.df2-travel-tabs button,.df2-travel-search button,.df2-travel-dialog footer button{border:1px solid var(--line-strong);border-radius:9px;padding:9px 14px;background:var(--paper);font-size:12px;cursor:pointer}
+.df2-travel-tabs .is-active,.df2-travel-dialog footer .df2-travel-save{background:var(--accent);border-color:var(--accent-dark);color:white}
+.df2-travel-map-picker{display:grid;gap:9px;min-width:0}
+.df2-travel-search{display:flex;gap:8px}
+.df2-travel-search input{flex:1}
+.df2-travel-map{height:270px;border-radius:11px;background:#e4e5e1;border:1px solid var(--line);z-index:0}
+.df2-travel-search-results{display:grid;max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+.df2-travel-search-results button{border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;padding:10px;cursor:pointer;color:var(--ink);font-size:11px}
+.df2-travel-coords{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.df2-travel-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.df2-travel-dialog footer{display:flex;justify-content:flex-end;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.df2-travel-error{color:#a33b2a;font-size:12px}
+.df2-week-location-btn{position:absolute;z-index:8;display:grid;place-items:center;width:21px;height:21px;right:8px;border-radius:6px;border:1px solid var(--line-strong);color:var(--accent-dark);background:var(--paper);font-size:13px;cursor:pointer}
+.df2-week-location-btn.has-location{background:var(--accent-wash);border-color:var(--accent)}
+.df2-jarvis-travel{padding:18px;border:1px solid var(--line);border-radius:20px;background:var(--paper);display:grid;gap:10px;min-width:0}
+.df2-jarvis-travel h3{margin:0;font-size:16px}.df2-jarvis-travel p,.df2-jarvis-travel span{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
+.df2-jarvis-travel strong{font-size:18px}.df2-jarvis-travel a{font-size:12px;color:var(--accent-dark);text-decoration:underline;text-underline-offset:3px}
+@media(max-width:720px){.df2-travel-dialog{padding:14px}.df2-travel-overlay{padding:8px}.df2-travel-map{height:210px}.df2-travel-options{grid-template-columns:1fr}.df2-week-location-btn{width:20px;height:20px}}
+
+.df2-jarvis-travel{grid-column:1/-1}
+.df2-trip-in-edit{display:block;padding:10px 13px;border:1px solid var(--line-strong);border-radius:9px;background:var(--accent-wash);color:var(--accent-dark);font-weight:700;text-align:left;cursor:pointer}
+.df2-week-location-btn:hover,.df2-trip-in-edit:hover{border-color:var(--accent-dark)}
+.df2-week-location-btn:focus-visible,.df2-trip-in-edit:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
