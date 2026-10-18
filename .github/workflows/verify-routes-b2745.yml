@@ -1,0 +1,31 @@
+name: One-off public Google Routes GET status check
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify live GET JSON for deployed commit (no Google requests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --connect-timeout 5 --max-time 12 -sS -o /tmp/route.json -w '%{http_code}' https://dayframe2.vercel.app/api/google-travel)
+          echo "Google Routes API GET HTTP ${code}"
+          if [ "$code" != 200 ]; then
+            head -c 160 /tmp/route.json || true
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("/tmp/route.json").read_text())
+          public={k:d.get(k) for k in ("available","dailyLimit","monthlyLimit","budgetConfigured","deploymentCommit")}
+          print(public)
+          assert public["deploymentCommit"]=="b2745b21523b74d7066aac5f85eff6a8208093dd"
+          assert public["available"] is True and public["budgetConfigured"] is True
+          assert public["dailyLimit"]==50 and public["monthlyLimit"]==1000
+          PY
