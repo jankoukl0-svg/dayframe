@@ -1,0 +1,35 @@
+name: Routes endpoint public GET smoke
+on:
+  push:
+    branches:
+      - fix/google-routes-visible-status
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  route-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe public production API (GET only, no chargeable route)
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --connect-timeout 8 --max-time 15 -sS -L -o /tmp/route-response.txt -w "%{http_code}" https://dayframe2.vercel.app/api/google-travel)
+          echo "Route API HTTP status: ${code}"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          body=Path('/tmp/route-response.txt').read_text(errors='replace')
+          try:
+              data=json.loads(body)
+          except Exception:
+              print("API response was not JSON; content preview:",repr(body[:180]))
+          else:
+              print("API JSON field names:",sorted(data)[:12])
+              print("API availability:", data.get("available"))
+              print("API budget configured:", data.get("budgetConfigured"))
+          PY
+          test "$code" = 200
