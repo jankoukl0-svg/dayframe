@@ -20,7 +20,7 @@ jobs:
             code=$(curl --connect-timeout 5 --max-time 10 -sS -L -o /tmp/dayframe-routes.json -w "%{http_code}" https://dayframe2.vercel.app/api/google-travel || echo "000")
             echo "Production Routes GET: HTTP ${code} (attempt ${attempt})"
             if [ "$code" = 200 ] && python3 - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           try:
               payload=json.loads(Path("/tmp/dayframe-routes.json").read_text())
@@ -28,7 +28,9 @@ jobs:
               assert payload.get("budgetConfigured") is True
               assert payload.get("dailyLimit")==50
               assert payload.get("monthlyLimit")==1000
-              print("Google Routes READY. Atomic daily/monthly budget is configured.")
+              assert payload.get("deploymentCommit")==os.environ["GITHUB_SHA"], (
+                  "API still responds from an older Vercel deployment")
+              print("Google Routes READY on matching commit. Atomic daily/monthly budget is configured.")
           except (ValueError,AssertionError,TypeError) as exc:
               print("Server responded without complete budget-ready JSON:",str(exc))
               raise SystemExit(1)
