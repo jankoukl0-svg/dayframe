@@ -167,6 +167,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   useEffect(()=>{
     try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
     const controller=new AbortController();
+    let timedOut=false;
+    const timeout=window.setTimeout(()=>{timedOut=true;controller.abort();},7000);
     setGoogleConnection("checking");
     fetch("/api/google-travel",{signal:controller.signal,cache:"no-store"})
       .then(async response=>{
@@ -181,11 +183,12 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         setGoogleConnection(status);
       })
       .catch(()=>{
-        if(controller.signal.aborted)return;
+        if(controller.signal.aborted&&!timedOut)return;
         setGoogleAvailable(false);
         setGoogleConnection("unreachable");
-      });
-    return ()=>controller.abort();
+      })
+      .finally(()=>window.clearTimeout(timeout));
+    return ()=>{window.clearTimeout(timeout);controller.abort();};
   },[googleStatusRetry]);
   const routeParts=origin&&destination
     ?mixed
