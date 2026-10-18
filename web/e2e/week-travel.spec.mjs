@@ -262,6 +262,7 @@ test("Google ETA remains ephemeral and cannot silently replace private planning 
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
   await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
+  await expect(dialog.locator(".df2-google-attribution img")).toHaveAttribute("src",/gstatic\.com\/images\/branding\/product/);
   await expect(dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveValue("");
   // Google-derived content stays ephemeral. The user's own planning value is the only saved duration.
   await expect(dialog.getByRole("button",{name:"Převzít časy jako můj plánovací odhad"})).toHaveCount(0);
@@ -280,6 +281,7 @@ test("Google route server unavailable still permits manual travel time",async({p
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.08,14.43,"Cíl");
   await expect(dialog).toContainText("Automatický výpočet zatím není aktivní");
+  await expect(dialog.locator(".df2-google-attribution img")).toHaveCount(0);
   await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
