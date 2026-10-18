@@ -355,3 +355,28 @@ test("Marketplace KV credentials activate atomic budget without duplicating secr
     globalThis.fetch=originalFetch;
   }
 });
+
+test("Routes readiness exposes exact Vercel commit for deployment-matched smoke",async()=>{
+  const {GET}=await import("../api/google-travel.ts");
+  const previous=process.env.VERCEL_GIT_COMMIT_SHA;
+  try{
+    process.env.VERCEL_GIT_COMMIT_SHA="abc123release";
+    assert.equal((await (await GET()).json()).deploymentCommit,"abc123release");
+  }finally{
+    if(previous===undefined)delete process.env.VERCEL_GIT_COMMIT_SHA;
+    else process.env.VERCEL_GIT_COMMIT_SHA=previous;
+  }
+});
+test("Vercel Web default handler dispatches GET and rejects unsupported verbs without Google",async()=>{
+  const {default:handler}=await import("../api/google-travel.ts");
+  const oldFetch=globalThis.fetch;
+  globalThis.fetch=()=>{throw Error("Must not contact Google");};
+  try{
+    const get=await handler.fetch(new Request("https://dayframe2.vercel.app/api/google-travel"));
+    assert.equal(get.status,200);
+    assert.equal(get.headers.get("content-type")?.includes("application/json"),true);
+    const wrong=await handler.fetch(new Request("https://dayframe2.vercel.app/api/google-travel",{method:"PUT"}));
+    assert.equal(wrong.status,405);
+    assert.equal(wrong.headers.get("allow"),"GET, POST");
+  }finally{globalThis.fetch=oldFetch;}
+});

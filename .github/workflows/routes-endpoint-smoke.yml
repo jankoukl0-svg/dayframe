@@ -1,0 +1,42 @@
+name: Production Google Routes readiness smoke
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  routes-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wait for production endpoint and verify budget configuration (GET only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 25); do
+            code=$(curl --connect-timeout 5 --max-time 10 -sS -L -o /tmp/dayframe-routes.json -w "%{http_code}" https://dayframe2.vercel.app/api/google-travel || echo "000")
+            echo "Production Routes GET: HTTP ${code} (attempt ${attempt})"
+            if [ "$code" = 200 ] && python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          try:
+              payload=json.loads(Path("/tmp/dayframe-routes.json").read_text())
+              assert payload.get("available") is True
+              assert payload.get("budgetConfigured") is True
+              assert payload.get("dailyLimit")==50
+              assert payload.get("monthlyLimit")==1000
+              assert payload.get("deploymentCommit")==os.environ["GITHUB_SHA"], (
+                  "API still responds from an older Vercel deployment")
+              print("Google Routes READY on matching commit. Atomic daily/monthly budget is configured.")
+          except (ValueError,AssertionError,TypeError) as exc:
+              print("Server responded without complete budget-ready JSON:",str(exc))
+              raise SystemExit(1)
+          PY
+            then exit 0; fi
+            sleep 8
+          done
+          echo "ERROR: production Google Routes readiness endpoint is unavailable or not configured."
+          exit 1
