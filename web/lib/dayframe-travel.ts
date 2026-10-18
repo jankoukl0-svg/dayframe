@@ -29,7 +29,7 @@ export function parseTravelStore(value:string|null):{store:TravelStore;blocked:b
       if(!validPoint(v.place)||!["driving","walking","cycling"].includes(v.mode)
         ||!Number.isInteger(v.bufferMinutes)||v.bufferMinutes<0||v.bufferMinutes>180
         ||(v.typicalMinutes!==undefined&&(!Number.isInteger(v.typicalMinutes)||v.typicalMinutes<1||v.typicalMinutes>1440))
-        ||typeof v.title!=="string"||v.title.length>300||!validDate(v.date)||!validTime(v.start))throw Error("invalid trip");
+        ||typeof v.title!=="string"||v.title.length>300||!validDate(v.date)||!(v.start===""||validTime(v.start)))throw Error("invalid trip");
       blocks[id]=v;
     }
     return {store:{version:1,origin:x.origin,blocks},blocked:false};
