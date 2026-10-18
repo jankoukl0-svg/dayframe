@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {readTravelStore,saveTravelStore,travelDirectionsUrl,
-  type TravelPoint,type TravelMode} from "@/lib/dayframe-travel";
+  type TravelPoint,type TravelMode,type TravelLeg,TRAVEL_MODE_LABELS} from "@/lib/dayframe-travel";
 
 export type TripTarget={key:string;title:string;date:string;start:string;initialOffsite?:boolean};
 const CSS_URL="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
@@ -141,7 +141,17 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [offsite,setOffsite]=useState(Boolean(current)||Boolean(target.initialOffsite));
   const [destination,setDestination]=useState<TravelPoint|undefined>(current?.place);
   const [origin,setOrigin]=useState<TravelPoint|undefined>(data.store.origin);
-  const [pickingOrigin,setPickingOrigin]=useState(false);
+  const [mapTarget,setMapTarget]=useState<"destination"|"origin"|number>("destination");
+  const [mixed,setMixed]=useState(Boolean(current?.legs?.length));
+  const [legs,setLegs]=useState<Array<{mode:TravelMode;minutes:string;via?:TravelPoint}>>(
+    ()=>current?.legs?.map(leg=>({...leg,minutes:String(leg.minutes)}))
+      ??[{mode:"driving",minutes:"",via:undefined},{mode:"walking",minutes:""}]);
+  const selectedPoint=mapTarget==="origin"?origin:mapTarget==="destination"?destination:legs[mapTarget]?.via;
+  function updateSelectedPoint(point:TravelPoint|undefined){
+    if(mapTarget==="origin")setOrigin(point);
+    else if(mapTarget==="destination")setDestination(point);
+    else setLegs(previous=>previous.map((leg,index)=>index===mapTarget?{...leg,via:point}:leg));
+  }
   const [mode,setMode]=useState<TravelMode>(current?.mode??"driving");
   const [buffer,setBuffer]=useState(current?.bufferMinutes??15);
   const [typical,setTypical]=useState(current?.typicalMinutes?.toString()??"");
@@ -149,19 +159,34 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   function submit(){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
-    if(offsite&&(!destination||!destination.label.trim())){setError("Nejprve vyber místo konání.");return;}
+    // Removing a trip must never depend on unsaved or incomplete leg drafts.
+    if(!offsite){
+      const blocks={...latest.store.blocks};
+      delete blocks[target.key];
+      if(!saveTravelStore({...latest.store,blocks})){setError("Místo se nepodařilo odebrat.");return;}
+      onSaved();onClose();return;
+    }
+    if(!destination||!destination.label.trim()){setError("Nejprve vyber místo konání.");return;}
     if((destination&&destination.label.trim().length>300)||(origin&&origin.label.trim().length>300)){
       setError("Název místa může mít maximálně 300 znaků.");return;
     }
-    const typicalMinutes=typical.trim()?Number(typical):undefined;
+    const stages:TravelLeg[]|undefined=mixed?legs.map(leg=>({
+      mode:leg.mode,minutes:leg.minutes.trim()?Number(leg.minutes):NaN,via:leg.via,
+    })):undefined;
+    const total=stages?.reduce((sum,leg)=>sum+leg.minutes,0);
+    const typicalMinutes=mixed?total:(typical.trim()?Number(typical):undefined);
     if(!Number.isInteger(buffer)||buffer<0||buffer>180||
       (typicalMinutes!==undefined&&(!Number.isInteger(typicalMinutes)||typicalMinutes<1||typicalMinutes>1440))){
       setError("Zkontroluj dobu cesty a rezervu.");return;
     }
+    if(mixed&&(!stages||stages.length<2||stages.length>6||stages.some((leg,index)=>
+      !Number.isInteger(leg.minutes)||leg.minutes<1||leg.minutes>1440||
+      (index<stages.length-1?!leg.via||!leg.via.label.trim():leg.via!==undefined)))){
+      setError("U každého úseku nastav dobu v minutách a u mezizastávek vyber místo na mapě.");return;
+    }
     const next={...latest.store,origin,blocks:{...latest.store.blocks}};
-    if(!offsite)delete next.blocks[target.key];
-    else next.blocks[target.key]={
-      place:destination!,mode,bufferMinutes:buffer,typicalMinutes,
+    next.blocks[target.key]={
+      place:destination!,mode:mixed?legs[0].mode:mode,bufferMinutes:buffer,typicalMinutes,...(mixed?{legs:stages}:{}),
       title:target.title.slice(0,300),date:target.date,start:target.start,
     };
     if(!saveTravelStore(next)){setError("Místo se nepodařilo uložit.");return;}
@@ -176,30 +201,84 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           onChange={e=>setOffsite(e.target.checked)}/><strong>Blok se odehrává mimo domov</strong></label>
         {offsite&&<>
           <nav className="df2-travel-tabs" aria-label="Výběr místa">
-            <button type="button" className={!pickingOrigin?"is-active":""}
-              onClick={()=>setPickingOrigin(false)}>Místo konání</button>
-            <button type="button" className={pickingOrigin?"is-active":""}
-              onClick={()=>setPickingOrigin(true)}>Odkud vyrážím</button>
+            <button type="button" aria-pressed={mapTarget==="destination"} className={mapTarget==="destination"?"is-active":""}
+              onClick={()=>setMapTarget("destination")}>Místo konání</button>
+            <button type="button" aria-pressed={mapTarget==="origin"} className={mapTarget==="origin"?"is-active":""}
+              onClick={()=>setMapTarget("origin")}>Odkud vyrážím</button>
+            {mixed&&legs.slice(0,-1).map((leg,index)=>
+              <button type="button" key={index} aria-pressed={mapTarget===index} className={mapTarget===index?"is-active":""}
+                onClick={()=>setMapTarget(index)}>Zastávka {index+1}{leg.via?" ✓":""}</button>)}
           </nav>
-          <MapPicker key={pickingOrigin?"origin":"destination"}
-            point={pickingOrigin?origin:destination} setPoint={pickingOrigin?setOrigin:setDestination}/>
-          <p className="df2-travel-hint">{pickingOrigin
+          <MapPicker key={String(mapTarget)} point={selectedPoint} setPoint={updateSelectedPoint}/>
+          <p className="df2-travel-hint">{mapTarget==="origin"
             ?(origin?"Místo odjezdu: "+origin.label:"Výchozí místo zatím není nastavené.")
-            :(destination?"Cíl: "+destination.label:"Vyber cíl na mapě.")}</p>
-          <div className="df2-travel-options">
-            <label>Způsob dopravy<select aria-label="Způsob dopravy" value={mode}
+            :mapTarget==="destination"
+              ?(destination?"Cíl: "+destination.label:"Vyber cíl na mapě.")
+              :(selectedPoint?"Mezizastávka: "+selectedPoint.label:"Na mapě vyber parkoviště, přestup nebo zastávku.")}</p>
+          <div className="df2-travel-kind" role="group" aria-label="Typ cesty">
+            <button type="button" aria-pressed={!mixed} className={!mixed?"is-active":""}
+              onClick={()=>{setMixed(false);setMapTarget("destination");}}>Jednoduchá cesta</button>
+            <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
+              onClick={()=>setMixed(true)}>Kombinovaná cesta</button>
+          </div>
+          {mixed?<section className="df2-travel-legs" aria-label="Úseky cesty">
+            <p className="df2-travel-hint">Sestav cestu postupně, například auto → parkoviště → metro → chůze. Časy zadáváš orientačně včetně čekání a parkování.</p>
+            {legs.map((leg,index)=>{
+              const last=index===legs.length-1;
+              const end=last?destination:leg.via;
+              const from=index===0?origin:legs[index-1].via;
+              return <div className="df2-travel-leg" key={index}>
+                <div className="df2-travel-leg-head">
+                  <strong>Úsek {index+1}</strong>
+                  <small>{last?"Příjezd do cíle":end?.label??"Vyber mezizastávku"}</small>
+                  {legs.length>2&&<button type="button" aria-label={"Odebrat úsek "+(index+1)}
+                    onClick={()=>{
+                      setLegs(current=>current.filter((_,i)=>i!==index)
+                        .map((part,i,all)=>i===all.length-1?{...part,via:undefined}:part));
+                      setMapTarget("destination");
+                    }}>Odebrat</button>}
+                </div>
+                <div className="df2-travel-leg-fields">
+                  <label>Doprava
+                    <select aria-label={"Doprava úsek "+(index+1)} value={leg.mode}
+                      onChange={e=>setLegs(current=>current.map((item,i)=>i===index?{...item,mode:e.target.value as TravelMode}:item))}>
+                      {Object.entries(TRAVEL_MODE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label>Minuty
+                    <input aria-label={"Délka úseku "+(index+1)} type="number" min="1" max="1440" step="1"
+                      value={leg.minutes} onChange={e=>setLegs(current=>current.map((item,i)=>i===index?{...item,minutes:e.target.value}:item))}/>
+                  </label>
+                </div>
+                {!last&&<button type="button" className="df2-travel-via"
+                  onClick={()=>setMapTarget(index)}>📍 {end?.label??"Vybrat parkoviště / přestup na mapě"}</button>}
+                {last&&<p className="df2-travel-hint">Cíl: {destination?.label??"Zatím není vybraný"}</p>}
+                {end&&<a href={travelDirectionsUrl(from,end,leg.mode)} target="_blank" rel="noopener noreferrer">
+                  Úsek {index+1} v Google Maps ↗</a>}
+              </div>;
+            })}
+            <button type="button" className="df2-travel-add-leg" disabled={legs.length>=6}
+              onClick={()=>{setLegs(current=>[...current.slice(0,-1),{mode:"walking",minutes:""},current[current.length-1]]);setMapTarget("destination");}}>
+              + Přidat úsek
+            </button>
+            <p className="df2-travel-hint">Celková cesta: {legs.every(leg=>leg.minutes.trim()&&Number.isInteger(Number(leg.minutes))&&Number(leg.minutes)>0)
+              ?legs.reduce((sum,leg)=>sum+Number(leg.minutes),0)+" min":"doplň časy úseků"}.</p>
+          </section>:<label className="df2-travel-single-mode">Způsob dopravy
+            <select aria-label="Způsob dopravy" value={mode}
               onChange={e=>setMode(e.target.value as TravelMode)}>
-              <option value="driving">Autem</option><option value="walking">Pěšky</option>
-              <option value="cycling">Na kole</option></select></label>
+              {Object.entries(TRAVEL_MODE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>}
+          <div className="df2-travel-options">
             <label>Časová rezerva (min)<input aria-label="Časová rezerva" type="number" min="0" max="180"
               value={buffer} onChange={e=>setBuffer(Number(e.target.value))}/></label>
-            <label>Obvyklá cesta v minutách (volitelné)<input aria-label="Obvyklá doba cesty"
-              type="number" min="1" max="1440" value={typical} onChange={e=>setTypical(e.target.value)}/></label>
+            {!mixed&&<label>Obvyklá cesta v minutách (volitelné)<input aria-label="Obvyklá doba cesty"
+              type="number" min="1" max="1440" value={typical} onChange={e=>setTypical(e.target.value)}/></label>}
           </div>
           {!target.start&&<p className="df2-travel-hint">Blok zatím nemá čas začátku. Místo se uloží; doporučený odjezd Jarvis spočítá až po naplánování času.</p>}
           <p className="df2-travel-hint">Jarvis používá pouze tebou zadanou dobu cesty a rezervu.
             Aktuální dopravní situaci ověř v Mapách; Dayframe ji zatím sám nezjišťuje.</p>
-          {destination&&<a target="_blank" rel="noopener noreferrer"
+          {!mixed&&destination&&<a target="_blank" rel="noopener noreferrer"
             href={travelDirectionsUrl(origin,destination,mode)}>Otevřít trasu v Google Maps ↗</a>}
         </>}
         {error&&<p role="alert" className="df2-travel-error">{error}</p>}

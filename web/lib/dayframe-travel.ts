@@ -1,8 +1,23 @@
 export const TRAVEL_STORAGE_KEY="dayframe-travel-v1";
 export const TRAVEL_SYNC_EVENT="dayframe-travel-sync";
-export type TravelMode="driving"|"walking"|"cycling";
+export type TravelMode="driving"|"walking"|"cycling"|"transit";
+export const TRAVEL_MODE_LABELS:Record<TravelMode,string>={driving:"Autem",walking:"Pěšky",cycling:"Na kole",transit:"MHD / vlak"};
+const isTravelMode=(value:unknown):value is TravelMode=>["driving","walking","cycling","transit"].includes(String(value));
 export type TravelPoint={lat:number;lon:number;label:string};
-export type TravelBlock={place:TravelPoint;mode:TravelMode;bufferMinutes:number;typicalMinutes?:number;title:string;date:string;start:string};
+/** Each leg arrives at its via point, except the final leg which ends at the event location. */
+export type TravelLeg={mode:TravelMode;minutes:number;via?:TravelPoint};
+export type TravelBlock={place:TravelPoint;mode:TravelMode;bufferMinutes:number;typicalMinutes?:number;legs?:TravelLeg[];title:string;date:string;start:string};
+export function travelDuration(trip:Pick<TravelBlock,"legs"|"typicalMinutes">):number|undefined{
+  return trip.legs?.length?trip.legs.reduce((minutes,leg)=>minutes+leg.minutes,0):trip.typicalMinutes;
+}
+export function travelSegments(trip:Pick<TravelBlock,"place"|"mode"|"legs"|"typicalMinutes">,origin?:TravelPoint){
+  if(!trip.legs?.length)return [{mode:trip.mode,minutes:trip.typicalMinutes,from:origin,to:trip.place}];
+  return trip.legs.map((leg,index)=>({
+    mode:leg.mode,minutes:leg.minutes,
+    from:index===0?origin:trip.legs![index-1].via,
+    to:index===trip.legs!.length-1?trip.place:leg.via!,
+  }));
+}
 export type TravelStore={version:1;origin?:TravelPoint;blocks:Record<string,TravelBlock>};
 export const emptyTravelStore=():TravelStore=>({version:1,blocks:{}});
 export const travelBlockKey=(kind:"task"|"gym"|"care",id:string,date?:string)=>
@@ -26,10 +41,23 @@ export function parseTravelStore(value:string|null):{store:TravelStore;blocked:b
     for(const [id,entry] of Object.entries(x.blocks)){
       if(!id||id.length>220||!entry||typeof entry!=="object")throw Error("invalid block");
       const v=entry as TravelBlock;
-      if(!validPoint(v.place)||!["driving","walking","cycling"].includes(v.mode)
+      if(!validPoint(v.place)||!isTravelMode(v.mode)
         ||!Number.isInteger(v.bufferMinutes)||v.bufferMinutes<0||v.bufferMinutes>180
         ||(v.typicalMinutes!==undefined&&(!Number.isInteger(v.typicalMinutes)||v.typicalMinutes<1||v.typicalMinutes>1440))
         ||typeof v.title!=="string"||v.title.length>300||!validDate(v.date)||!(v.start===""||validTime(v.start)))throw Error("invalid trip");
+      if(v.legs!==undefined){
+        if(!Array.isArray(v.legs)||v.legs.length<2||v.legs.length>6)throw Error("invalid route length");
+        let total=0;
+        for(const [index,leg] of v.legs.entries()){
+          if(!leg||typeof leg!=="object"||!isTravelMode(leg.mode)
+            ||!Number.isInteger(leg.minutes)||leg.minutes<1||leg.minutes>1440
+            ||(index<v.legs.length-1?!validPoint(leg.via):leg.via!==undefined))
+            throw Error("invalid route stage");
+          total+=leg.minutes;
+        }
+        if(total>1440||(v.typicalMinutes!==undefined&&v.typicalMinutes!==total))
+          throw Error("invalid route total");
+      }
       blocks[id]=v;
     }
     return {store:{version:1,origin:x.origin,blocks},blocked:false};
@@ -106,8 +134,9 @@ export function upcomingTravelTrips(store:TravelStore,now:Date,
     const minutesUntil=(when.getTime()-now.getTime())/60000;
     // Prioritize the time the user must ACT, not merely the appointment start.
     // When no duration is known, use the appointment start as a neutral fallback.
-    const departureAt=trip.typicalMinutes===undefined?when
-      :new Date(when.getTime()-(trip.typicalMinutes+trip.bufferMinutes)*60_000);
+    const total=travelDuration(trip);
+    const departureAt=total===undefined?when
+      :new Date(when.getTime()-(total+trip.bufferMinutes)*60_000);
     const minutesUntilDeparture=(departureAt.getTime()-now.getTime())/60_000;
     if(minutesUntil < -15||minutesUntilDeparture>18*60)return [];
     return [{key,...trip,title,date,start:time,when,minutesUntil,departureAt,minutesUntilDeparture}];

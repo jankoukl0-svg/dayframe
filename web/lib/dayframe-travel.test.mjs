@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {emptyTravelStore,parseTravelStore,travelBlockKey,travelDirectionsUrl,eventStart,upcomingTravelTrips,liveTravelTaskKeys} from "./dayframe-travel.ts";
+import {emptyTravelStore,parseTravelStore,travelBlockKey,travelDirectionsUrl,eventStart,upcomingTravelTrips,liveTravelTaskKeys,travelDuration,travelSegments} from "./dayframe-travel.ts";
 const home={lat:50.1,lon:14.2,label:"Domov"},place={lat:50.08,lon:14.43,label:"Fakulta"};
 test("missing and damaged location data",()=>{
   assert.deepEqual(parseTravelStore(null).store,emptyTravelStore());
@@ -109,4 +109,55 @@ test("departure-based horizon reveals a distant appointment whose departure is s
   assert.equal(trips.length,1);
   assert.equal(trips[0].departureAt.getHours(),1);
   assert.equal(trips[0].departureAt.getDate(),19);
+});
+
+test("legacy simple trips remain readable and support public transit",()=>{
+  const legacy={place,mode:"driving",bufferMinutes:15,typicalMinutes:45,title:"Legacy",date:"2026-10-18",start:"10:00"};
+  const store=emptyTravelStore();store.blocks["task:legacy"]=legacy;
+  assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+  assert.equal(travelDuration(legacy),45);
+  assert.equal(travelSegments(legacy,home)[0].to.label,"Fakulta");
+  assert.equal(new URL(travelDirectionsUrl(home,place,"transit")).searchParams.get("travelmode"),"transit");
+});
+
+test("mixed car, transit and walking stages use consecutive map points and summed ETA",()=>{
+  const parking={lat:50.11,lon:14.22,label:"Parkoviště"};
+  const station={lat:50.12,lon:14.25,label:"Stanice metra"};
+  const trip={
+    place,mode:"driving",bufferMinutes:15,typicalMinutes:50,
+    legs:[{mode:"driving",minutes:25,via:parking},{mode:"transit",minutes:15,via:station},{mode:"walking",minutes:10}],
+    title:"Pohovor",date:"2026-10-18",start:"10:00",
+  };
+  const store=emptyTravelStore();store.origin=home;store.blocks["task:mix"]=trip;
+  assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+  assert.equal(travelDuration(trip),50);
+  const segments=travelSegments(trip,home);
+  assert.deepEqual(segments.map(x=>[x.mode,x.from?.label,x.to.label]),[
+    ["driving","Domov","Parkoviště"],
+    ["transit","Parkoviště","Stanice metra"],
+    ["walking","Stanice metra","Fakulta"],
+  ]);
+  assert.equal(new URL(travelDirectionsUrl(segments[1].from,segments[1].to,segments[1].mode)).searchParams.get("travelmode"),"transit");
+  const due=upcomingTravelTrips(store,new Date("2026-10-18T08:00:00"),[
+    {id:"mix",date:"2026-10-18",start:"10:00",title:"Pohovor",completed:false},
+  ]);
+  assert.equal(due.length,1);
+  assert.equal(due[0].departureAt.getHours(),8);
+  assert.equal(due[0].departureAt.getMinutes(),55);
+});
+
+test("invalid multi-stage routes are blocked without discarding valid legacy data",()=>{
+  const original={place,mode:"driving",bufferMinutes:5,title:"Cesta",date:"2026-10-18",start:"10:00"};
+  const good={...original,typicalMinutes:30,legs:[
+    {mode:"driving",minutes:20,via:{lat:50,lon:14,label:"Parkoviště"}},
+    {mode:"walking",minutes:10},
+  ]};
+  const isBlocked=trip=>parseTravelStore(JSON.stringify({version:1,blocks:{"task:a":trip}})).blocked;
+  assert.equal(isBlocked(good),false);
+  assert.equal(isBlocked({...good,legs:[{mode:"driving",minutes:20},{mode:"walking",minutes:10}]}),true);
+  assert.equal(isBlocked({...good,legs:[good.legs[0],{mode:"walking",minutes:10,via:home}]}),true);
+  assert.equal(isBlocked({...good,legs:[{...good.legs[0],minutes:-1},good.legs[1]]}),true);
+  assert.equal(isBlocked({...good,typicalMinutes:45}),true);
+  assert.equal(isBlocked({...good,legs:[good.legs[0]]}),true);
+  assert.equal(isBlocked(original),false);
 });
