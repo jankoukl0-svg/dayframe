@@ -289,6 +289,12 @@ test("budget refuses 51st daily request, 1001st monthly, and resets only at UTC 
       const results=await Promise.all(Array.from({length:50},()=>reserveRouteBudget(d)));
       assert.equal(results.filter(x=>x.kind==="reserved").length,50);
     }
+    // If both limits are exhausted, the Retry-After must wait for the later monthly reset.
+    const combined=await reserveRouteBudget(new Date("2026-10-06T13:00:00Z"));
+    assert.equal(combined.kind,"exhausted");
+    assert.equal(combined.dayUsed,50);
+    assert.equal(combined.monthUsed,1000);
+    assert.equal(combined.retryAfterSeconds,Math.floor((Date.UTC(2026,10,1)-Date.UTC(2026,9,6,13))/1000));
     const blocked=await reserveRouteBudget(new Date("2026-10-07T12:00:00Z"));
     assert.equal(blocked.kind,"exhausted");
     assert.equal(blocked.monthUsed,1000);
