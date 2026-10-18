@@ -236,6 +236,49 @@ test("removing an existing location ignores incomplete mixed-mode draft",async({
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
   expect(Object.keys(saved.blocks)).toHaveLength(0);
 });
+
+test("Google route estimates fill planner only after explicit acceptance, without persisting access code",async({page})=>{
+  await page.route("**/api/google-travel",async route=>{
+    if(route.request().method()==="GET")return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const request=route.request();
+    expect(request.headers().authorization).toBe("Bearer "+"x".repeat(28));
+    const payload=request.postDataJSON();
+    expect(payload.mode).toBe("driving");
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      minutes:58,distanceMeters:54000,source:"Google Maps",trafficAware:true,
+    })});
+  });
+  await makeTask(page,"Výlet autem do města");
+  await openTaskPlace(page,"Výlet autem do města");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Výlet autem do města"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Cíl cesty");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.4,14.7,"Odkud jedu");
+  await dialog.getByRole("textbox",{name:"Přístupový kód k výpočtu tras"}).fill("x".repeat(28));
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
+  await expect(dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveValue("");
+  await dialog.getByRole("button",{name:"Převzít časy jako můj plánovací odhad"}).click();
+  await expect(dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveValue("58");
+  await dialog.getByRole("button",{name:"Uložit místo"}).click();
+  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  expect(Object.values(stored.blocks)[0].typicalMinutes).toBe(58);
+  expect(JSON.stringify(stored)).not.toContain("x".repeat(28));
+});
+test("Google route server unavailable still permits manual travel time",async({page})=>{
+  await page.route("**/api/google-travel",route=>route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:false})}));
+  await makeTask(page,"Pohovor bez API");
+  await openTaskPlace(page,"Pohovor bez API");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Pohovor bez API"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Cíl");
+  await expect(dialog).toContainText("Automatický výpočet zatím není aktivní");
+  await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
+  await dialog.getByRole("button",{name:"Uložit místo"}).click();
+  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  expect(Object.values(stored.blocks)[0].typicalMinutes).toBe(65);
+});
 test("destination can be removed without deleting or changing the week block",async({page})=>{
   await makeTask(page,"Seminář");
   await openTaskPlace(page,"Seminář");
