@@ -157,6 +157,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [typical,setTypical]=useState(current?.typicalMinutes?.toString()??"");
   const [error,setError]=useState("");
   const [googleAvailable,setGoogleAvailable]=useState(false);
+  const [googleConnection,setGoogleConnection]=useState<"checking"|"ready"|"disabled"|"unreachable">("checking");
+  const [googleStatusRetry,setGoogleStatusRetry]=useState(0);
   const [googleAccess,setGoogleAccess]=useState("");
   const [googleLoading,setGoogleLoading]=useState(false);
   const [googleError,setGoogleError]=useState("");
@@ -165,12 +167,26 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   useEffect(()=>{
     try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
     const controller=new AbortController();
+    setGoogleConnection("checking");
     fetch("/api/google-travel",{signal:controller.signal,cache:"no-store"})
-      .then(response=>response.ok?response.json():null)
-      .then(value=>{if(!controller.signal.aborted)setGoogleAvailable((value as {available?:boolean}|null)?.available===true);})
-      .catch(()=>{if(!controller.signal.aborted)setGoogleAvailable(false);});
+      .then(async response=>{
+        if(!response.ok||!response.headers.get("content-type")?.includes("application/json"))
+          return "unreachable" as const;
+        const data=await response.json() as {available?:boolean};
+        return data.available===true?"ready" as const:"disabled" as const;
+      })
+      .then(status=>{
+        if(controller.signal.aborted)return;
+        setGoogleAvailable(status==="ready");
+        setGoogleConnection(status);
+      })
+      .catch(()=>{
+        if(controller.signal.aborted)return;
+        setGoogleAvailable(false);
+        setGoogleConnection("unreachable");
+      });
     return ()=>controller.abort();
-  },[]);
+  },[googleStatusRetry]);
   const routeParts=origin&&destination
     ?mixed
       ?legs.every((leg,index)=>index===legs.length-1||Boolean(leg.via))
@@ -338,19 +354,26 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               <strong>Automatický výpočet trasy</strong>
               {googleEstimates&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
             </div>
-            {!googleAvailable?<p className="df2-travel-hint">
-              Automatický výpočet je bezpečně vypnutý, dokud není připojené centrální počítadlo požadavků a osobní přístupový kód. Ruční plánování funguje dál.
-            </p>:<>
+
+            <label>Přístupový kód k výpočtu tras
+              <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
+                value={googleAccess} onChange={event=>{
+                  const token=event.target.value;
+                  setGoogleAccess(token);
+                  try{if(token)sessionStorage.setItem("dayframe-routes-access-session",token);
+                    else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
+                }} placeholder="Osobní přístupový kód"/>
+            </label>
+            {!googleAvailable?<div className="df2-google-route-offline" role="status">
+              <p className="df2-travel-hint">{googleConnection==="checking"
+                ?"Kontroluji serverové propojení Google Maps…"
+                :googleConnection==="disabled"
+                  ?"Serverová služba zatím není aktivní. Čas cesty můžeš stále zadat ručně."
+                  :"Serverová funkce pro Google Maps neodpovídá. Kód můžeš vložit, ale výpočet se nespustí, dokud se spojení neopraví."}</p>
+              <button type="button" className="df2-travel-use-estimate"
+                onClick={()=>setGoogleStatusRetry(n=>n+1)}>Zkontrolovat propojení znovu</button>
+            </div>:<>
               <p className="df2-travel-hint">Bezpečnostní limit Dayframe: 50 výpočtů denně a 1 000 měsíčně. Jakmile jeden limit vyčerpáš, další výpočty se zablokují.</p>
-              <label>Přístupový kód k výpočtu tras
-                <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
-                  value={googleAccess} onChange={event=>{
-                    const token=event.target.value;
-                    setGoogleAccess(token);
-                    try{if(token)sessionStorage.setItem("dayframe-routes-access-session",token);
-                      else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
-                  }} placeholder="Osobní přístupový kód"/>
-              </label>
               <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
               {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
                 :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-travel-hint">Zadej osobní kód s minimálně 20 znaky (písmena, číslice, _ nebo -). Google API klíč sem nevkládej.</p>
