@@ -336,7 +336,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           <div className="df2-google-route-box">
             <div className="df2-google-route-head">
               <strong>Automatický výpočet trasy</strong>
-              <span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>
+              {googleEstimates&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
             </div>
             {!googleAvailable?<p className="df2-travel-hint">
               Automatický výpočet zatím není aktivní. Provozovatel musí nakonfigurovat Routes API a soukromý přístupový kód na serveru Vercel. Ruční plánování funguje dál.
