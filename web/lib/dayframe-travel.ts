@@ -104,7 +104,13 @@ export function upcomingTravelTrips(store:TravelStore,now:Date,
     const when=time?eventStart(date,time):null;
     if(!when)return [];
     const minutesUntil=(when.getTime()-now.getTime())/60000;
-    if(minutesUntil < -15||minutesUntil>18*60)return [];
-    return [{key,...trip,title,date,start:time,when,minutesUntil}];
-  }).sort((a,b)=>a.when.getTime()-b.when.getTime());
+    // Prioritize the time the user must ACT, not merely the appointment start.
+    // When no duration is known, use the appointment start as a neutral fallback.
+    const departureAt=trip.typicalMinutes===undefined?when
+      :new Date(when.getTime()-(trip.typicalMinutes+trip.bufferMinutes)*60_000);
+    const minutesUntilDeparture=(departureAt.getTime()-now.getTime())/60_000;
+    if(minutesUntil < -15||minutesUntilDeparture>18*60)return [];
+    return [{key,...trip,title,date,start:time,when,minutesUntil,departureAt,minutesUntilDeparture}];
+  }).sort((a,b)=>a.departureAt.getTime()-b.departureAt.getTime()
+    ||a.when.getTime()-b.when.getTime());
 }
