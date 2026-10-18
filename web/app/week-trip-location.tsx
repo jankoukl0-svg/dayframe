@@ -162,7 +162,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     if(!offsite)delete next.blocks[target.key];
     else next.blocks[target.key]={
       place:destination!,mode,bufferMinutes:buffer,typicalMinutes,
-      title:target.title,date:target.date,start:target.start,
+      title:target.title.slice(0,300),date:target.date,start:target.start,
     };
     if(!saveTravelStore(next)){setError("Místo se nepodařilo uložit.");return;}
     onSaved();onClose();
