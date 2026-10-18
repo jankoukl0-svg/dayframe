@@ -90,6 +90,6 @@
 .df2-travel-use-estimate:hover{border-color:var(--accent-dark)}
 .df2-travel-use-estimate:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
 
-.df2-google-attribution{display:inline-flex;align-items:center;gap:6px}
-.df2-google-attribution img{display:block;width:18px;height:18px;object-fit:contain;flex:none}
+.df2-google-attribution{display:inline-flex;align-items:center;gap:0}
+.df2-google-attribution img{display:block;width:18px;height:18px;object-fit:contain;flex:none;margin:10px 10px 5px 10px}
 .df2-google-attribution span{font:400 12px/1.4 Roboto,Arial,sans-serif;color:#5e5e5e}
