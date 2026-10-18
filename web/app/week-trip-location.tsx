@@ -159,7 +159,14 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   function submit(){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
-    if(offsite&&(!destination||!destination.label.trim())){setError("Nejprve vyber místo konání.");return;}
+    // Removing a trip must never depend on unsaved or incomplete leg drafts.
+    if(!offsite){
+      const blocks={...latest.store.blocks};
+      delete blocks[target.key];
+      if(!saveTravelStore({...latest.store,blocks})){setError("Místo se nepodařilo odebrat.");return;}
+      onSaved();onClose();return;
+    }
+    if(!destination||!destination.label.trim()){setError("Nejprve vyber místo konání.");return;}
     if((destination&&destination.label.trim().length>300)||(origin&&origin.label.trim().length>300)){
       setError("Název místa může mít maximálně 300 znaků.");return;
     }
@@ -178,8 +185,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
       setError("U každého úseku nastav dobu v minutách a u mezizastávek vyber místo na mapě.");return;
     }
     const next={...latest.store,origin,blocks:{...latest.store.blocks}};
-    if(!offsite)delete next.blocks[target.key];
-    else next.blocks[target.key]={
+    next.blocks[target.key]={
       place:destination!,mode:mixed?legs[0].mode:mode,bufferMinutes:buffer,typicalMinutes,...(mixed?{legs:stages}:{}),
       title:target.title.slice(0,300),date:target.date,start:target.start,
     };
@@ -195,12 +201,12 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           onChange={e=>setOffsite(e.target.checked)}/><strong>Blok se odehrává mimo domov</strong></label>
         {offsite&&<>
           <nav className="df2-travel-tabs" aria-label="Výběr místa">
-            <button type="button" className={mapTarget==="destination"?"is-active":""}
+            <button type="button" aria-pressed={mapTarget==="destination"} className={mapTarget==="destination"?"is-active":""}
               onClick={()=>setMapTarget("destination")}>Místo konání</button>
-            <button type="button" className={mapTarget==="origin"?"is-active":""}
+            <button type="button" aria-pressed={mapTarget==="origin"} className={mapTarget==="origin"?"is-active":""}
               onClick={()=>setMapTarget("origin")}>Odkud vyrážím</button>
             {mixed&&legs.slice(0,-1).map((leg,index)=>
-              <button type="button" key={index} className={mapTarget===index?"is-active":""}
+              <button type="button" key={index} aria-pressed={mapTarget===index} className={mapTarget===index?"is-active":""}
                 onClick={()=>setMapTarget(index)}>Zastávka {index+1}{leg.via?" ✓":""}</button>)}
           </nav>
           <MapPicker key={String(mapTarget)} point={selectedPoint} setPoint={updateSelectedPoint}/>
