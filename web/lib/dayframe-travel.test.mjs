@@ -356,6 +356,17 @@ test("Marketplace KV credentials activate atomic budget without duplicating secr
   }
 });
 
+test("Routes readiness exposes exact Vercel commit for deployment-matched smoke",async()=>{
+  const {GET}=await import("../api/google-travel.ts");
+  const previous=process.env.VERCEL_GIT_COMMIT_SHA;
+  try{
+    process.env.VERCEL_GIT_COMMIT_SHA="abc123release";
+    assert.equal((await (await GET()).json()).deploymentCommit,"abc123release");
+  }finally{
+    if(previous===undefined)delete process.env.VERCEL_GIT_COMMIT_SHA;
+    else process.env.VERCEL_GIT_COMMIT_SHA=previous;
+  }
+});
 test("Vercel Web default handler dispatches GET and rejects unsupported verbs without Google",async()=>{
   const {default:handler}=await import("../api/google-travel.ts");
   const oldFetch=globalThis.fetch;
