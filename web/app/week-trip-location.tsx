@@ -339,8 +339,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               {googleEstimates&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
             </div>
             {!googleAvailable?<p className="df2-travel-hint">
-              Automatický výpočet zatím není aktivní. Provozovatel musí nakonfigurovat Routes API a soukromý přístupový kód na serveru Vercel. Ruční plánování funguje dál.
+              Automatický výpočet je bezpečně vypnutý. Nejprve musí být v Google Cloud nastavena kvóta 50 výpočtů za den a potvrzena na Vercelu. Ruční plánování funguje dál.
             </p>:<>
+              <p className="df2-travel-hint">Bezpečnostní limit: 50 výpočtů denně na straně Google Cloud. Po jeho vyčerpání Google další požadavky odmítne.</p>
               <label>Přístupový kód k výpočtu tras
                 <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
                   value={googleAccess} onChange={event=>{
