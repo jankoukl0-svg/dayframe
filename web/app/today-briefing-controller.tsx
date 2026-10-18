@@ -11,7 +11,7 @@ import {
   type DayframeState,
 } from "@/lib/dayframe-calendar";
 import { daysUntilDate } from "@/lib/dayframe-countdown";
-import {readTravelStore,travelDirectionsUrl,upcomingTravelTrips,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readTravelStore,travelDirectionsUrl,travelDuration,travelSegments,TRAVEL_MODE_LABELS,upcomingTravelTrips,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 import {readGymStore,assignmentsOnDate,gymOccurrenceTime,GYM_SYNC_EVENT} from "@/lib/dayframe-gym";
 import {loadHygieneStore,HYGIENE_SYNC_EVENT} from "@/lib/dayframe-hygiene";
 import {readWeekCareTimes,weekCareBlocks,WEEK_CARE_SYNC_EVENT} from "@/lib/dayframe-week-care";
@@ -616,27 +616,45 @@ function renderBriefing(host: HTMLElement, model: BriefingModel) {
       addText(travel,"h3",trip.title);
       addText(travel,"p",trip.place.label);
       addText(travel,"span","Začátek: "+trip.when.toLocaleString("cs-CZ",{day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"}));
-      if(trip.typicalMinutes){
-        const travelTotal=trip.typicalMinutes+trip.bufferMinutes;
+      const journeyMinutes=travelDuration(trip);
+      if(journeyMinutes!==undefined){
+        const travelTotal=journeyMinutes+trip.bufferMinutes;
         const depart=new Date(trip.when.getTime()-travelTotal*60_000);
         const time=depart.toLocaleTimeString("cs-CZ",{hour:"2-digit",minute:"2-digit"});
         const remaining=Math.ceil((depart.getTime()-Date.now())/60000);
         const action=remaining<=0?"Podle plánu už je čas vyrazit."
           :remaining<=30?"Vyraz přibližně za "+remaining+" min.":"Doporučený odjezd: "+time;
         addText(travel,"strong",action);
-        addText(travel,"p","Doba cesty "+trip.typicalMinutes+" min + rezerva "+trip.bufferMinutes
+        addText(travel,"p","Doba cesty "+journeyMinutes+" min + rezerva "+trip.bufferMinutes
           +" min. Orientačně podle tvého odhadu; bez dat o aktuální dopravě.");
       }else{
         addText(travel,"strong","Doba cesty není nastavena.");
         addText(travel,"p","Pro radu s odjezdem nastav v Týdnu u tohoto bloku obvyklou dobu cesty a rezervu.");
       }
       if(!model.travelOrigin)addText(travel,"p","Výchozí místo není nastavené. Vyber ho u bloku na mapě.");
-      const link=document.createElement("a");
-      link.href=travelDirectionsUrl(model.travelOrigin,trip.place,trip.mode);
-      link.target="_blank";link.rel="noopener noreferrer";
-      link.dataset.jarvisRouteLink="true";
-      link.textContent="Ověřit trasu a aktuální provoz v Google Maps ↗";
-      travel.appendChild(link);
+      const segments=travelSegments(trip,model.travelOrigin);
+      if(trip.legs?.length){
+        const list=document.createElement("div");list.className="df2-jarvis-trip-legs";
+        segments.forEach((part,index)=>{
+          const segment=document.createElement("div");segment.className="df2-jarvis-trip-leg";
+          addText(segment,"span",(index+1)+". "+TRAVEL_MODE_LABELS[part.mode]+" · "+part.minutes+" min → "+part.to.label);
+          const link=document.createElement("a");
+          link.href=travelDirectionsUrl(part.from,part.to,part.mode);
+          link.target="_blank";link.rel="noopener noreferrer";link.dataset.jarvisRouteLink="true";
+          link.textContent="Trasa úseku "+(index+1)+" ↗";
+          segment.appendChild(link);
+          list.appendChild(segment);
+        });
+        travel.appendChild(list);
+        addText(travel,"p","Pro každý úsek ověř provoz a spoj zvlášť v Mapách; zadané časy nejsou živé odhady.");
+      }else{
+        const link=document.createElement("a");
+        link.href=travelDirectionsUrl(model.travelOrigin,trip.place,trip.mode);
+        link.target="_blank";link.rel="noopener noreferrer";
+        link.dataset.jarvisRouteLink="true";
+        link.textContent="Ověřit trasu a aktuální provoz v Google Maps ↗";
+        travel.appendChild(link);
+      }
     }
     primaryGrid.appendChild(travel);
   }
