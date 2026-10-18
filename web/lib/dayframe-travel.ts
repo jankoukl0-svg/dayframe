@@ -49,6 +49,14 @@ export function saveTravelStore(store:TravelStore){
     return true;
   }catch{return false;}
 }
+/** Backlog tasks still exist, even without a scheduled time in the Week grid. */
+export function liveTravelTaskKeys(
+  plans:Record<string,Array<{id:string}>>,
+  backlog:Array<{id:string}>
+):Set<string>{
+  return new Set([...Object.values(plans).flat(),...backlog]
+    .map(task=>travelBlockKey("task",task.id)));
+}
 /** Remove only entries whose source block was actually removed, leaving the origin unchanged. */
 export function removeTravelBlocksWhere(predicate:(key:string,block:TravelBlock)=>boolean):boolean {
   const result=readTravelStore();
