@@ -164,6 +164,8 @@ test("car metro and walking journey persists and Jarvis links every stage",async
   await setMapPoint(dialog,50.10,14.20,"Výchozí místo");
   await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
   await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await expect(dialog.getByRole("button",{name:"Zastávka 1"})).toHaveAttribute("aria-pressed","true");
+  await expect(dialog.getByRole("button",{name:"Místo konání"})).toHaveAttribute("aria-pressed","false");
   await setMapPoint(dialog,50.11,14.22,"P+R parkoviště");
   await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("25");
   await dialog.getByRole("button",{name:"+ Přidat úsek"}).click();
@@ -216,6 +218,23 @@ test("incomplete combined route cannot be saved or overwrite an existing locatio
   await expect(dialog.getByRole("alert")).toContainText("mezizastávek");
   await expect(dialog).toBeVisible();
   expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBeNull();
+});
+test("removing an existing location ignores incomplete mixed-mode draft",async({page})=>{
+  const title="Schůzka ke zrušení";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const first=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await first.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(first,50.08,14.43,"Původní místo");
+  await first.getByRole("button",{name:"Uložit místo"}).click();
+  await openTaskPlace(page,title);
+  const edit=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await edit.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await edit.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).uncheck();
+  await edit.getByRole("button",{name:"Uložit místo"}).click();
+  await expect(edit).toHaveCount(0);
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  expect(Object.keys(saved.blocks)).toHaveLength(0);
 });
 test("destination can be removed without deleting or changing the week block",async({page})=>{
   await makeTask(page,"Seminář");
