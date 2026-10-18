@@ -182,7 +182,12 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         :null
       :[{from:origin,to:destination,mode}]
     :null;
-  const routeSignature=routeParts?JSON.stringify(routeParts):"";
+  // Never transmit user-written place labels or use them to trigger paid recalculations.
+  const routeSignature=routeParts?JSON.stringify(routeParts.map(part=>({
+    from:{lat:part.from.lat,lon:part.from.lon},
+    to:{lat:part.to.lat,lon:part.to.lon},
+    mode:part.mode,
+  }))):"";
   useEffect(()=>{
     setGoogleEstimates(null);
     setGoogleError("");
