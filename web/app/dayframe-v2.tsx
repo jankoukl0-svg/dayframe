@@ -514,7 +514,7 @@ export function DayframeV2() {
       : `${effective.title} je uložený, ale zatím nemá volný čas.`);
     setDraft(emptyDraft());
     setAddingTask(false);
-    if(offsiteOnCreate&&result.status==="scheduled")
+    if(offsiteOnCreate)
       openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"");
     setOffsiteOnCreate(false);
   }
