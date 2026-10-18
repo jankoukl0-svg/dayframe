@@ -77,3 +77,15 @@
 .df2-jarvis-trip-legs{display:grid;gap:8px}
 .df2-jarvis-trip-leg{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px}
 .df2-jarvis-trip-leg span{flex:1;min-width:170px;overflow-wrap:anywhere}
+
+/* Optional Google Maps Routes calculator. Clearly attributed and visually separate from OSM. */
+.df2-google-route-box{display:grid;gap:10px;padding:14px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface)}
+.df2-google-route-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.df2-google-route-head strong{font-size:13px}
+.df2-google-attribution{font:400 12px/1.4 Roboto,Arial,sans-serif;color:#5e5e5e;white-space:nowrap}
+.df2-google-route-results{display:grid;gap:7px;padding:12px;background:var(--paper);border:1px solid var(--line);border-radius:9px}
+.df2-google-route-results strong{font-size:17px}
+.df2-google-route-results span{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.df2-travel-use-estimate{justify-self:start;border:1px solid var(--line-strong);background:var(--paper);color:var(--accent-dark);border-radius:9px;padding:9px 12px;cursor:pointer;font-size:12px}
+.df2-travel-use-estimate:hover{border-color:var(--accent-dark)}
+.df2-travel-use-estimate:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
