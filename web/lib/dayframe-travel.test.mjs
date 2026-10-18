@@ -11,6 +11,7 @@ test("Map URL retains exact lat/lon but never invents duration",()=>{
   assert.equal(url.searchParams.get("origin"),"50.1,14.2");
   assert.equal(url.searchParams.get("destination"),"50.08,14.43");
   assert.equal(url.searchParams.get("travelmode"),"driving");
+  assert.equal(new URL(travelDirectionsUrl(home,place,"cycling")).searchParams.get("travelmode"),"bicycling");
 });
 test("deleted routine occurrences purge only matching travel entries",async()=>{
   const previous=globalThis.window;
