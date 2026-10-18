@@ -350,7 +350,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                       else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
                   }} placeholder="Osobní přístupový kód"/>
               </label>
-              <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="/terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
+              <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
               {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
                 :googleAccess.length<20?<p className="df2-travel-hint">Zadej přístupový kód pro automatické načítání. Klíč Google Maps do prohlížeče nevkládej.</p>
                 :googleLoading?<p role="status">Počítám trasu přes Google Maps…</p>
