@@ -47,7 +47,7 @@ import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
-import {readTravelStore,saveTravelStore,travelBlockKey,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readTravelStore,saveTravelStore,travelBlockKey,liveTravelTaskKeys,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -171,8 +171,7 @@ export function DayframeV2() {
   function removeMissingTaskTrips(nextState:DayframeState){
     const latest=readTravelStore();
     if(latest.blocked)return;
-    const live=new Set([...Object.values(nextState.plans).flat(),...nextState.backlog]
-      .map(task=>travelBlockKey("task",task.id)));
+    const live=liveTravelTaskKeys(nextState.plans,nextState.backlog);
     const blocks={...latest.store.blocks};let removed=false;
     for(const key of Object.keys(blocks)){
       if(key.startsWith("task:")&&!live.has(key)){delete blocks[key];removed=true;}
