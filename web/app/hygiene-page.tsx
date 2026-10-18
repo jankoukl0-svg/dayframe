@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { addDaysKey, dateFromKey } from "@/lib/dayframe-calendar";
+import {weekCareBlocks,readWeekCareTimes} from "@/lib/dayframe-week-care";
+import {removeTravelBlocksWhere} from "@/lib/dayframe-travel";
 import { HygieneProducts, ProductPhoto } from "./hygiene-products";
 import { CompactRoutineProductGuide, HygieneTaskTimer, ProductCareGuide } from "./hygiene-care-guide";
 import {
@@ -406,13 +408,27 @@ export function HygienePage({
     changeStatus(planningKey, routineId, taskId, status);
   };
 
+  function purgeUnscheduledCareLocations(next:HygieneStore){
+    const calendar=readWeekCareTimes();
+    if(calendar.blocked)return;
+    removeTravelBlocksWhere(key=>{
+      const match=/^care:(\d{4}-\d{2}-\d{2}):(.+)$/.exec(key);
+      if(!match)return false;
+      const [,date,id]=match;
+      return !weekCareBlocks(next,date,date,calendar.times,calendar.hidden).some(block=>block.id===id);
+    });
+  }
   const saveRoutineDraft = () => {
     if (!routineDraft?.title.trim()) return;
     const existing = store.routines.some((routine) => routine.id === routineDraft.id);
     const routines = existing
       ? store.routines.map((routine) => routine.id === routineDraft.id ? { ...routineDraft, title: routineDraft.title.trim() } : routine)
       : [...store.routines, { ...routineDraft, title: routineDraft.title.trim() }];
-    if (persist({ ...store, routines })) setRoutineDraft(null);
+    const updated={ ...store, routines };
+    if (persist(updated)){
+      purgeUnscheduledCareLocations(updated);
+      setRoutineDraft(null);
+    }
   };
 
   const deleteRoutine = (routineId: string) => {
@@ -423,7 +439,11 @@ export function HygienePage({
     const suppressedDates = Object.fromEntries(
       Object.entries(store.suppressedDates).map(([date, ids]) => [date, ids.filter((id) => id !== routineId)]),
     );
-    if (persist({ ...store, routines, manualDates, suppressedDates })) setRoutineDraft(null);
+    const updated={ ...store, routines, manualDates, suppressedDates };
+    if (persist(updated)){
+      purgeUnscheduledCareLocations(updated);
+      setRoutineDraft(null);
+    }
   };
 
   const saveTaskDraft = () => {
