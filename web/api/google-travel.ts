@@ -3,7 +3,7 @@
  * Keep a separate Google Cloud quota and API restriction to bound usage costs.
  */
 import {timingSafeEqual} from "node:crypto";
-import {ROUTES_DAILY_LIMIT,ROUTES_MONTHLY_LIMIT,routeBudgetConfigured,reserveRouteBudget} from "../lib/server-route-budget";
+import {ROUTES_DAILY_LIMIT,ROUTES_MONTHLY_LIMIT,routeBudgetConfigured,reserveRouteBudget} from "../lib/server-route-budget.ts";
 
 type Point={lat:number;lon:number};
 type RouteMode="driving"|"walking"|"cycling"|"transit";
