@@ -215,12 +215,6 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   },[offsite,routeSignature,googleAvailable,googleAccess]);
   const googleTotal=googleEstimates?.reduce((sum,item)=>sum+item.minutes,0);
   const googleDistance=googleEstimates?.reduce((sum,item)=>sum+item.distanceMeters,0);
-  function useEstimatedMinutes(){
-    if(!googleEstimates)return;
-    // Accepting estimated values is an explicit user decision to set their own planning times.
-    if(mixed)setLegs(current=>current.map((leg,index)=>({...leg,minutes:String(googleEstimates[index].minutes)})));
-    else setTypical(String(googleEstimates[0].minutes));
-  }
   function submit(){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
@@ -351,6 +345,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                       else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
                   }} placeholder="Osobní přístupový kód"/>
               </label>
+              <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="/terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
               {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
                 :googleAccess.length<20?<p className="df2-travel-hint">Zadej přístupový kód pro automatické načítání. Klíč Google Maps do prohlížeče nevkládej.</p>
                 :googleLoading?<p role="status">Počítám trasu přes Google Maps…</p>
@@ -358,9 +353,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   <strong>{googleTotal} min · {((googleDistance??0)/1000).toFixed(1)} km</strong>
                   <span>Odhad při dotazu, pro {mixed?"kombinovanou":"jednoduchou"} cestu. {mode==="driving"&&!mixed?"Jízda zohledňuje provoz.":""}</span>
                   {mixed&&googleEstimates.map((part,index)=><span key={index}>Úsek {index+1}: {part.minutes} min · {(part.distanceMeters/1000).toFixed(1)} km</span>)}
-                  <button type="button" className="df2-travel-use-estimate" onClick={useEstimatedMinutes}>
-                    Převzít časy jako můj plánovací odhad
-                  </button>
+                  <span className="df2-google-route-note">Aktuální údaj Google Maps je pouze pro orientaci. Do uloženého plánu se nepřenáší. Pro Jarvise nastav vlastní obvyklou dobu cesty níže.</span>
                 </div>:googleError?<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>
                 :<p className="df2-travel-hint">Časy se načtou automaticky po výběru všech míst.</p>}
             </>}
