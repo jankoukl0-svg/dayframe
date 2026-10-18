@@ -256,6 +256,23 @@ test("Google Routes reserves a budget atomically before charging provider",async
   });
 });
 
+test("Google Routes reports actionable but sanitized provider authorization errors",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    for(const status of [400,401,403,429,503]){
+      globalThis.fetch=async(url,options)=>{
+        if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+        return Response.json({error:{message:"SECRET-SHOULD-NOT-LEAK"}},{status});
+      };
+      const response=await POST(googleRequest());
+      assert.equal(response.status,502);
+      const body=await response.json();
+      assert.match(body.error,new RegExp(String(status)));
+      assert.equal(JSON.stringify(body).includes("SECRET-SHOULD-NOT-LEAK"),false);
+    }
+  });
+});
 test("budget refuses 51st daily request, 1001st monthly, and resets only at UTC boundaries",async()=>{
   await withBudgetEnv(async()=>{
     const {reserveRouteBudget,ROUTES_DAILY_LIMIT,ROUTES_MONTHLY_LIMIT}=await import("./server-route-budget.ts");
