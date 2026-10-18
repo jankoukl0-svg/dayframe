@@ -155,7 +155,20 @@ export async function POST(request:Request){
         "X-Goog-FieldMask":"routes.duration,routes.distanceMeters",
       },body:JSON.stringify(payload),
     });}finally{clearTimeout(timer);}
-    if(!reply.ok)return send(502,{error:reply.status===429?"Limit Google Maps API byl vyčerpán.":"Google Maps nyní trasu nedokázaly vypočítat."});
+    if(!reply.ok){
+      // Only return status-based, predefined messages: Google response bodies can contain
+      // sensitive request context, therefore never send their raw text to the browser.
+      const errors:Record<number,string>={
+        400:"Google Routes odmítly parametry této trasy (400). Zkus jiný způsob dopravy nebo místa.",
+        401:"Google Maps API klíč není platný nebo neprošel ověřením (401).",
+        403:"Google Routes nepovolily použití API klíče (403). Zkontroluj aktivaci Routes API, omezení klíče a fakturaci v Google Cloud.",
+        404:"Google Routes nenašly požadovanou službu (404).",
+        429:"Google Maps omezily počet požadavků (429).",
+        503:"Služba Google Routes je dočasně nedostupná (503).",
+      };
+      console.error("[dayframe-routes] Google status",reply.status,"mode",mode);
+      return send(502,{error:errors[reply.status]??`Google Routes odmítly výpočet (HTTP ${reply.status}).`});
+    }
     const response=await reply.json() as {routes?:Array<{duration?:string;distanceMeters?:number}>};
     const route=response.routes?.[0],seconds=Number(route?.duration?.replace(/s$/,""));
     const distance=route?.distanceMeters;
