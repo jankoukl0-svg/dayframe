@@ -165,7 +165,7 @@ test("car metro and walking journey persists and Jarvis links every stage",async
   await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
   await dialog.getByRole("button",{name:"Zastávka 1"}).click();
   await expect(dialog.getByRole("button",{name:"Zastávka 1"})).toHaveAttribute("aria-pressed","true");
-  await expect(dialog.getByRole("button",{name:"Místo konání"})).toHaveAttribute("aria-pressed","false");
+  await expect(dialog.getByRole("button",{name:"Místo konání",exact:true})).toHaveAttribute("aria-pressed","false");
   await setMapPoint(dialog,50.11,14.22,"P+R parkoviště");
   await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("25");
   await dialog.getByRole("button",{name:"+ Přidat úsek"}).click();
