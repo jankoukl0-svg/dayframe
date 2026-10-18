@@ -43,6 +43,26 @@ test("week location icon appears only on hover and stays reachable by keyboard",
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog",{name:"Místo konání: "+title})).toBeVisible();
 });
+test("touch-capable devices can tap location pins without mouse hover",async({browser})=>{
+  const context=await browser.newContext({hasTouch:true,viewport:{width:1280,height:800}});
+  const page=await context.newPage();
+  try {
+    await page.clock.setFixedTime(new Date("2026-10-18T08:00:00"));
+    await page.route("https://unpkg.com/leaflet@**",route=>route.abort());
+    await page.goto(base,{waitUntil:"networkidle"});
+    await page.evaluate(()=>localStorage.clear());
+    await page.reload({waitUntil:"networkidle"});
+    const title="Místo na dotykové obrazovce";
+    await makeTask(page,title);
+    const pin=page.getByRole("button",{name:"Místo konání: "+title});
+    await expect(pin).toHaveCSS("opacity","1");
+    await expect(pin).toHaveCSS("pointer-events","auto");
+    await pin.tap();
+    await expect(page.getByRole("dialog",{name:"Místo konání: "+title})).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
 test("offsite creation opens the map with the selected choice already checked",async({page})=>{
   await page.getByRole("button",{name:"+ Nový úkol"}).click();
   const creation=page.getByRole("dialog",{name:"Přidat úkol"});
