@@ -23,6 +23,25 @@ async function setMapPoint(dialog,lat,lon,label){
   await dialog.getByRole("spinbutton",{name:"Zeměpisná délka"}).fill(String(lon));
   await dialog.getByRole("textbox",{name:"Popis vybraného místa"}).fill(label);
 }
+test("offsite creation opens the map with the selected choice already checked",async({page})=>{
+  await page.getByRole("button",{name:"+ Nový úkol"}).click();
+  const creation=page.getByRole("dialog",{name:"Přidat úkol"});
+  await creation.getByPlaceholder("Např. zeměpis 20 min").fill("Výuka mimo domov");
+  await creation.getByLabel("Začít v").fill("10:00");
+  await creation.getByRole("checkbox",{name:/Odehrává se mimo domov/}).check();
+  await creation.getByRole("button",{name:"Naplánovat"}).click();
+  const picker=page.getByRole("dialog",{name:"Místo konání: Výuka mimo domov"});
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole("checkbox",{name:/Blok se odehrává mimo domov/})).toBeChecked();
+  await picker.getByRole("button",{name:"Uložit místo"}).click();
+  await expect(picker.getByRole("alert")).toContainText("Nejprve vyber místo konání");
+  await setMapPoint(picker,50.09,14.41,"Místo schůzky");
+  await picker.getByRole("button",{name:"Uložit místo"}).click();
+  await expect(picker).toHaveCount(0);
+  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  expect(Object.values(stored.blocks)).toHaveLength(1);
+  expect(Object.values(stored.blocks)[0].place.label).toBe("Místo schůzky");
+});
 test("every scheduled week task offers an exact offsite map destination and persists coordinates",async({page})=>{
   await makeTask(page);
   await page.getByRole("button",{name:"Místo konání: Pracovní schůzka"}).click();
