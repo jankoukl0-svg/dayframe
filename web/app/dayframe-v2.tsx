@@ -155,8 +155,8 @@ export function DayframeV2() {
     window.addEventListener(TRAVEL_SYNC_EVENT,refresh);window.addEventListener("storage",refresh);
     return ()=>{window.removeEventListener(TRAVEL_SYNC_EVENT,refresh);window.removeEventListener("storage",refresh);};
   },[]);
-  function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string){
-    setTripTarget({key:travelBlockKey(kind,id,date),title,date,start});
+  function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,initialOffsite=false){
+    setTripTarget({key:travelBlockKey(kind,id,date),title,date,start,initialOffsite});
   }
   function migrateTaskTrip(oldId:string,newId:string,newDate:string,newStart:string){
     if(oldId===newId)return;
@@ -171,7 +171,8 @@ export function DayframeV2() {
   function removeMissingTaskTrips(nextState:DayframeState){
     const latest=readTravelStore();
     if(latest.blocked)return;
-    const live=new Set(Object.values(nextState.plans).flat().map(task=>travelBlockKey("task",task.id)));
+    const live=new Set([...Object.values(nextState.plans).flat(),...nextState.backlog]
+      .map(task=>travelBlockKey("task",task.id)));
     const blocks={...latest.store.blocks};let removed=false;
     for(const key of Object.keys(blocks)){
       if(key.startsWith("task:")&&!live.has(key)){delete blocks[key];removed=true;}
@@ -515,7 +516,7 @@ export function DayframeV2() {
     setDraft(emptyDraft());
     setAddingTask(false);
     if(offsiteOnCreate)
-      openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"");
+      openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"",true);
     setOffsiteOnCreate(false);
   }
 
