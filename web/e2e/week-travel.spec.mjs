@@ -18,11 +18,31 @@ async function makeTask(page,title="Pracovní schůzka"){
   await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 }
+async function openTaskPlace(page,title){
+  await page.locator(".df2-week-task").filter({hasText:title}).hover();
+  await page.getByRole("button",{name:"Místo konání: "+title}).click();
+}
 async function setMapPoint(dialog,lat,lon,label){
   await dialog.getByRole("spinbutton",{name:"Zeměpisná šířka"}).fill(String(lat));
   await dialog.getByRole("spinbutton",{name:"Zeměpisná délka"}).fill(String(lon));
   await dialog.getByRole("textbox",{name:"Popis vybraného místa"}).fill(label);
 }
+test("week location icon appears only on hover and stays reachable by keyboard",async({page})=>{
+  const title="Úkol s nenápadnou ikonou";
+  await makeTask(page,title);
+  const card=page.locator(".df2-week-task").filter({hasText:title});
+  const pin=page.getByRole("button",{name:"Místo konání: "+title});
+  await page.locator(".df2-week-day-head").first().hover();
+  await expect(pin).toHaveCSS("opacity","0");
+  await card.hover();
+  await expect(pin).toHaveCSS("opacity","1");
+  await page.locator(".df2-week-day-head").first().hover();
+  await expect(pin).toHaveCSS("opacity","0");
+  await pin.focus();
+  await expect(pin).toHaveCSS("opacity","1");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog",{name:"Místo konání: "+title})).toBeVisible();
+});
 test("offsite creation opens the map with the selected choice already checked",async({page})=>{
   await page.getByRole("button",{name:"+ Nový úkol"}).click();
   const creation=page.getByRole("dialog",{name:"Přidat úkol"});
@@ -45,7 +65,7 @@ test("offsite creation opens the map with the selected choice already checked",a
 test("long task titles do not prevent storing exact destinations",async({page})=>{
   const name="Dlouhý úkol "+"T".repeat(320);
   await makeTask(page,name);
-  await page.getByRole("button",{name:"Místo konání: "+name}).click();
+  await openTaskPlace(page,name);
   const picker=page.getByRole("dialog",{name:"Místo konání: "+name});
   await picker.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(picker,50.084,14.421,"Testovací místo");
@@ -62,7 +82,7 @@ test("long geocoder place labels are constrained before saving exact coordinates
     status:200,contentType:"application/json",
     body:JSON.stringify([{lat:"50.075",lon:"14.425",display_name:"D".repeat(410)}]),
   }));
-  await page.getByRole("button",{name:"Místo konání: Dlouhá adresa"}).click();
+  await openTaskPlace(page,"Dlouhá adresa");
   const modal=page.getByRole("dialog",{name:"Místo konání: Dlouhá adresa"});
   await modal.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await modal.getByRole("textbox",{name:"Vyhledat adresu nebo místo"}).fill("Praha centrum");
@@ -80,7 +100,7 @@ test("long geocoder place labels are constrained before saving exact coordinates
 });
 test("every scheduled week task offers an exact offsite map destination and persists coordinates",async({page})=>{
   await makeTask(page);
-  await page.getByRole("button",{name:"Místo konání: Pracovní schůzka"}).click();
+  await openTaskPlace(page,"Pracovní schůzka");
   const dialog=page.getByRole("dialog",{name:"Místo konání: Pracovní schůzka"});
   await expect(dialog).toBeVisible();
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
@@ -115,12 +135,12 @@ test("every scheduled week task offers an exact offsite map destination and pers
 });
 test("destination can be removed without deleting or changing the week block",async({page})=>{
   await makeTask(page,"Seminář");
-  await page.getByRole("button",{name:"Místo konání: Seminář"}).click();
+  await openTaskPlace(page,"Seminář");
   const dialog=page.getByRole("dialog",{name:"Místo konání: Seminář"});
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.1,14.5,"Budova");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
-  await page.getByRole("button",{name:"Místo konání: Seminář"}).click();
+  await openTaskPlace(page,"Seminář");
   const edit=page.getByRole("dialog",{name:"Místo konání: Seminář"});
   await edit.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).uncheck();
   await edit.getByRole("button",{name:"Uložit místo"}).click();
