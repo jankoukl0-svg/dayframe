@@ -70,7 +70,7 @@ export function travelDirectionsUrl(origin:TravelPoint|undefined,destination:Tra
   const u=new URL("https://www.google.com/maps/dir/");
   u.searchParams.set("api","1");u.searchParams.set("destination",destination.lat+","+destination.lon);
   if(origin)u.searchParams.set("origin",origin.lat+","+origin.lon);
-  u.searchParams.set("travelmode",mode);
+  u.searchParams.set("travelmode",mode==="cycling"?"bicycling":mode);
   return u.toString();
 }
 export function eventStart(date:string,time:string):Date|null{
