@@ -75,7 +75,7 @@ function MapPicker({point,setPoint}:{point?:TravelPoint;setPoint:(v:TravelPoint|
       try{response=await fetch(u.toString(),{signal:controller.signal});}finally{window.clearTimeout(tid);}
       if(!response.ok)throw new Error("Geocoding unavailable");
       const json=await response.json() as Array<{lat:string;lon:string;display_name:string}>;
-      const points=json.map(x=>({lat:Number(x.lat),lon:Number(x.lon),label:x.display_name}))
+      const points=json.map(x=>({lat:Number(x.lat),lon:Number(x.lon),label:x.display_name.slice(0,300)}))
         .filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
       setResults(points);setHint(points.length?"Vyber místo z výsledků.":"Místo nenalezeno. Zkus přesnější adresu.");
     }catch{setHint("Vyhledávání není dostupné; vyber bod na mapě nebo souřadnice.");}
@@ -103,7 +103,7 @@ function MapPicker({point,setPoint}:{point?:TravelPoint;setPoint:(v:TravelPoint|
       <label>Délka<input type="number" aria-label="Zeměpisná délka" min="-180" max="180" step="any"
         value={lonDraft} onChange={e=>{setLonDraft(e.target.value);commitCoordinates(latDraft,e.target.value);}}/></label>
     </div>}
-    {point&&<label>Popis vybraného místa<input aria-label="Popis vybraného místa" value={point.label}
+    {point&&<label>Popis vybraného místa<input aria-label="Popis vybraného místa" maxLength={300} value={point.label}
       onChange={e=>setPoint({...point,label:e.target.value})}/></label>}
   </div>;
 }
@@ -150,6 +150,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
     if(offsite&&(!destination||!destination.label.trim())){setError("Nejprve vyber místo konání.");return;}
+    if((destination&&destination.label.trim().length>300)||(origin&&origin.label.trim().length>300)){
+      setError("Název místa může mít maximálně 300 znaků.");return;
+    }
     const typicalMinutes=typical.trim()?Number(typical):undefined;
     if(!Number.isInteger(buffer)||buffer<0||buffer>180||
       (typicalMinutes!==undefined&&(!Number.isInteger(typicalMinutes)||typicalMinutes<1||typicalMinutes>1440))){
