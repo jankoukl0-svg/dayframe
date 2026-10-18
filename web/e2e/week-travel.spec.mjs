@@ -244,6 +244,10 @@ test("Google ETA remains ephemeral and cannot silently replace private planning 
     expect(request.headers().authorization).toBe("Bearer "+"x".repeat(28));
     const payload=request.postDataJSON();
     expect(payload.mode).toBe("driving");
+    expect(Object.keys(payload.from).sort()).toEqual(["lat","lon"]);
+    expect(Object.keys(payload.to).sort()).toEqual(["lat","lon"]);
+    expect(JSON.stringify(payload)).not.toContain("Odkud jedu");
+    expect(JSON.stringify(payload)).not.toContain("Cíl cesty");
     return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
       minutes:58,distanceMeters:54000,source:"Google Maps",trafficAware:true,
     })});
