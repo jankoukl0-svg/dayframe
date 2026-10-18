@@ -46,6 +46,11 @@
     pointer-events: auto;
   }
 }
+/* Hybrid laptops may report mouse hover as primary while still supporting touch.
+   Never make location controls untappable on any touch-capable device. */
+@media (any-pointer: coarse) {
+  .df2-week-location-btn { opacity: 1; pointer-events: auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .df2-week-location-btn { transition: none; }
 }
