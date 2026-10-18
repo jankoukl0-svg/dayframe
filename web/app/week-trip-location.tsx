@@ -156,6 +156,70 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [buffer,setBuffer]=useState(current?.bufferMinutes??15);
   const [typical,setTypical]=useState(current?.typicalMinutes?.toString()??"");
   const [error,setError]=useState("");
+  const [googleAvailable,setGoogleAvailable]=useState(false);
+  const [googleAccess,setGoogleAccess]=useState("");
+  const [googleLoading,setGoogleLoading]=useState(false);
+  const [googleError,setGoogleError]=useState("");
+  const [googleEstimates,setGoogleEstimates]=useState<Array<{minutes:number;distanceMeters:number}>|null>(null);
+  // The separate access secret is session-scoped. Neither it nor the Google API key is persisted with the travel plan.
+  useEffect(()=>{
+    try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
+    const controller=new AbortController();
+    fetch("/api/google-travel",{signal:controller.signal,cache:"no-store"})
+      .then(response=>response.ok?response.json():null)
+      .then(value=>{if(!controller.signal.aborted)setGoogleAvailable((value as {available?:boolean}|null)?.available===true);})
+      .catch(()=>{if(!controller.signal.aborted)setGoogleAvailable(false);});
+    return ()=>controller.abort();
+  },[]);
+  const routeParts=origin&&destination
+    ?mixed
+      ?legs.every((leg,index)=>index===legs.length-1||Boolean(leg.via))
+        ?legs.map((leg,index)=>({
+          from:index===0?origin:legs[index-1].via!,
+          to:index===legs.length-1?destination:leg.via!,
+          mode:leg.mode,
+        }))
+        :null
+      :[{from:origin,to:destination,mode}]
+    :null;
+  // Never transmit user-written place labels or use them to trigger paid recalculations.
+  const routeSignature=routeParts?JSON.stringify(routeParts.map(part=>({
+    from:{lat:part.from.lat,lon:part.from.lon},
+    to:{lat:part.to.lat,lon:part.to.lon},
+    mode:part.mode,
+  }))):"";
+  useEffect(()=>{
+    setGoogleEstimates(null);
+    setGoogleError("");
+    if(!offsite||!routeSignature||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))){
+      setGoogleLoading(false);return;
+    }
+    const controller=new AbortController();
+    const timer=window.setTimeout(async()=>{
+      setGoogleLoading(true);
+      try{
+        const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
+        // Explicit map edits and mode changes trigger a new calculation. Never silently poll paid APIs.
+        const calculated=await Promise.all(parts.map(async part=>{
+          const response=await fetch("/api/google-travel",{
+            method:"POST",signal:controller.signal,cache:"no-store",
+            headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
+            body:JSON.stringify(part),
+          });
+          const result=await response.json() as {minutes?:number;distanceMeters?:number;error?:string};
+          if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
+            throw Error(result.error??"Google Maps trasu nevypočítaly.");
+          return {minutes:result.minutes!,distanceMeters:result.distanceMeters};
+        }));
+        if(!controller.signal.aborted)setGoogleEstimates(calculated);
+      }catch(e){
+        if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
+      }finally{if(!controller.signal.aborted)setGoogleLoading(false);}
+    },800);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  },[offsite,routeSignature,googleAvailable,googleAccess]);
+  const googleTotal=googleEstimates?.reduce((sum,item)=>sum+item.minutes,0);
+  const googleDistance=googleEstimates?.reduce((sum,item)=>sum+item.distanceMeters,0);
   function submit(){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
@@ -269,6 +333,37 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               {Object.entries(TRAVEL_MODE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </label>}
+          <div className="df2-google-route-box">
+            <div className="df2-google-route-head">
+              <strong>Automatický výpočet trasy</strong>
+              {googleEstimates&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
+            </div>
+            {!googleAvailable?<p className="df2-travel-hint">
+              Automatický výpočet je bezpečně vypnutý. Nejprve musí být v Google Cloud nastavena kvóta 50 výpočtů za den a potvrzena na Vercelu. Ruční plánování funguje dál.
+            </p>:<>
+              <p className="df2-travel-hint">Bezpečnostní limit: 50 výpočtů denně na straně Google Cloud. Po jeho vyčerpání Google další požadavky odmítne.</p>
+              <label>Přístupový kód k výpočtu tras
+                <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
+                  value={googleAccess} onChange={event=>{
+                    const token=event.target.value;
+                    setGoogleAccess(token);
+                    try{if(token)sessionStorage.setItem("dayframe-routes-access-session",token);
+                      else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
+                  }} placeholder="Osobní přístupový kód"/>
+              </label>
+              <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
+              {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
+                :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-travel-hint">Zadej osobní kód s minimálně 20 znaky (písmena, číslice, _ nebo -). Google API klíč sem nevkládej.</p>
+                :googleLoading?<p role="status">Počítám trasu přes Google Maps…</p>
+                :googleEstimates?<div className="df2-google-route-results" role="status">
+                  <strong>{googleTotal} min · {((googleDistance??0)/1000).toFixed(1)} km</strong>
+                  <span>Odhad při dotazu, pro {mixed?"kombinovanou":"jednoduchou"} cestu. {mode==="driving"&&!mixed?"Jízda zohledňuje provoz.":""}</span>
+                  {mixed&&googleEstimates.map((part,index)=><span key={index}>Úsek {index+1}: {part.minutes} min · {(part.distanceMeters/1000).toFixed(1)} km</span>)}
+                  <span className="df2-google-route-note">Aktuální údaj Google Maps je pouze pro orientaci. Do uloženého plánu se nepřenáší. Pro Jarvise nastav vlastní obvyklou dobu cesty níže.</span>
+                </div>:googleError?<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>
+                :<p className="df2-travel-hint">Časy se načtou automaticky po výběru všech míst.</p>}
+            </>}
+          </div>
           <div className="df2-travel-options">
             <label>Časová rezerva (min)<input aria-label="Časová rezerva" type="number" min="0" max="180"
               value={buffer} onChange={e=>setBuffer(Number(e.target.value))}/></label>
@@ -276,8 +371,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               type="number" min="1" max="1440" value={typical} onChange={e=>setTypical(e.target.value)}/></label>}
           </div>
           {!target.start&&<p className="df2-travel-hint">Blok zatím nemá čas začátku. Místo se uloží; doporučený odjezd Jarvis spočítá až po naplánování času.</p>}
-          <p className="df2-travel-hint">Jarvis používá pouze tebou zadanou dobu cesty a rezervu.
-            Aktuální dopravní situaci ověř v Mapách; Dayframe ji zatím sám nezjišťuje.</p>
+          <p className="df2-travel-hint">Jarvis zatím pracuje s uloženým plánovacím časem a rezervou.
+            Výpočet Google Maps je aktuální pouze při otevřeném editoru a nepředstavuje záruku včasného příjezdu.</p>
           {!mixed&&destination&&<a target="_blank" rel="noopener noreferrer"
             href={travelDirectionsUrl(origin,destination,mode)}>Otevřít trasu v Google Maps ↗</a>}
         </>}

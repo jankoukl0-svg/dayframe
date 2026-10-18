@@ -161,3 +161,85 @@ test("invalid multi-stage routes are blocked without discarding valid legacy dat
   assert.equal(isBlocked({...good,legs:[good.legs[0]]}),true);
   assert.equal(isBlocked(original),false);
 });
+
+test("private Google Routes endpoint stays disabled until configured and rejects unauthenticated usage",async()=>{
+  const {GET,POST}=await import("../api/google-travel.ts");
+  const oldKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
+  const oldSecret=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
+  const oldQuota=process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
+  const oldFetch=globalThis.fetch;
+  try{
+    delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;
+    delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
+    delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
+    const body={from:home,to:place,mode:"driving"};
+    const req=(token)=>new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token,
+        "origin":"https://dayframe2.vercel.app"},body:JSON.stringify(body),
+    });
+    assert.equal((await POST(req("not-configured"))).status,503);
+    process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
+    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="short";
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
+    assert.equal((await POST(req("short"))).status,503);
+    // UTF-8 byte length alone is not a valid Authorization-header token format.
+    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="é".repeat(12);
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
+    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
+    globalThis.fetch=()=>{throw Error("Unexpected paid request")};
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
+    assert.equal((await POST(req("a".repeat(28)))).status,503);
+    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="100";
+    assert.equal((await POST(req("a".repeat(28)))).status,503);
+    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="50";
+    assert.deepEqual(await (await GET()).json(),{available:true,dailyLimit:50,quotaConfigured:true});
+    assert.equal((await POST(req("wrong"))).status,401);
+    assert.equal((await POST(new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+"a".repeat(28),
+        "origin":"https://attacker.invalid"},body:JSON.stringify(body),
+    }))).status,403);
+  }finally{
+    if(oldKey===undefined)delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;else process.env.GOOGLE_MAPS_ROUTES_API_KEY=oldKey;
+    if(oldSecret===undefined)delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;else process.env.DAYFRAME_ROUTES_ACCESS_TOKEN=oldSecret;
+    if(oldQuota===undefined)delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;else process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED=oldQuota;
+    globalThis.fetch=oldFetch;
+  }
+});
+test("Google Routes endpoint maps legal travel mode to Google and returns attributed ETA",async()=>{
+  const {POST}=await import("../api/google-travel.ts");
+  const oldKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
+  const oldSecret=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
+  const oldQuota=process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
+  const oldFetch=globalThis.fetch;
+  try{
+    process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
+    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
+    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="50";
+    const requests=[];
+    globalThis.fetch=async(url,options)=>{
+      requests.push({url,payload:JSON.parse(options.body),key:options.headers["X-Goog-Api-Key"]});
+      return Response.json({routes:[{duration:"3678s",distanceMeters:54670}]});
+    };
+    const req=(mode)=>new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+"a".repeat(28),
+        "origin":"https://dayframe2.vercel.app"},body:JSON.stringify({from:home,to:place,mode}),
+    });
+    const answer=await POST(req("driving"));
+    assert.equal(answer.status,200);
+    assert.deepEqual(await answer.json(),{minutes:62,distanceMeters:54670,source:"Google Maps",trafficAware:true});
+    assert.equal(answer.headers.get("cache-control"),"no-store, max-age=0");
+    assert.equal(requests[0].payload.travelMode,"DRIVE");
+    assert.equal(requests[0].payload.routingPreference,"TRAFFIC_AWARE");
+    assert.equal(requests[0].key,"test-key-only");
+    await POST(req("transit"));
+    assert.equal(requests[1].payload.travelMode,"TRANSIT");
+    assert.equal(requests[1].payload.routingPreference,undefined);
+    assert.equal((await POST(req("toString"))).status,400);
+  }finally{
+    if(oldKey===undefined)delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;else process.env.GOOGLE_MAPS_ROUTES_API_KEY=oldKey;
+    if(oldSecret===undefined)delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;else process.env.DAYFRAME_ROUTES_ACCESS_TOKEN=oldSecret;
+    if(oldQuota===undefined)delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;else process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED=oldQuota;
+    globalThis.fetch=oldFetch;
+  }
+});
