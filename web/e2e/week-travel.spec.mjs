@@ -42,6 +42,20 @@ test("offsite creation opens the map with the selected choice already checked",a
   expect(Object.values(stored.blocks)).toHaveLength(1);
   expect(Object.values(stored.blocks)[0].place.label).toBe("Místo schůzky");
 });
+test("long task titles do not prevent storing exact destinations",async({page})=>{
+  const name="Dlouhý úkol "+"T".repeat(320);
+  await makeTask(page,name);
+  await page.getByRole("button",{name:"Místo konání: "+name}).click();
+  const picker=page.getByRole("dialog",{name:"Místo konání: "+name});
+  await picker.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(picker,50.084,14.421,"Testovací místo");
+  await picker.getByRole("button",{name:"Uložit místo"}).click();
+  await expect(picker).toHaveCount(0);
+  const store=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  expect(Object.values(store.blocks)[0].title.length).toBe(300);
+  expect(Object.values(store.blocks)[0].place.label).toBe("Testovací místo");
+  await expect(page.locator(".df2-week-task").filter({hasText:name})).toBeVisible();
+});
 test("long geocoder place labels are constrained before saving exact coordinates",async({page})=>{
   await makeTask(page,"Dlouhá adresa");
   await page.route("https://nominatim.openstreetmap.org/search?**",route=>route.fulfill({
