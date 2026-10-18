@@ -34,6 +34,17 @@ test("deleted routine occurrences purge only matching travel entries",async()=>{
     assert.deepEqual(updated.origin,a);
   }finally {globalThis.window=previous;}
 });
+test("an untimed task can store its location and becomes actionable after scheduling",()=>{
+  const store=emptyTravelStore();
+  store.blocks["task:untimed"]={
+    place,mode:"driving",bufferMinutes:15,typicalMinutes:40,
+    title:"Pohovor",date:"2026-10-18",start:"",
+  };
+  assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+  const now=new Date("2026-10-18T08:00:00");
+  assert.equal(upcomingTravelTrips(store,now,[{id:"untimed",date:"2026-10-18",title:"Pohovor",completed:false}]).length,0);
+  assert.equal(upcomingTravelTrips(store,now,[{id:"untimed",date:"2026-10-18",start:"10:00",title:"Pohovor",completed:false}]).length,1);
+});
 test("01:30 is in following civil date of planning day",()=>{
   assert.equal(eventStart("2026-10-18","01:30")?.getDate(),19);
   assert.equal(eventStart("2026-10-18","09:00")?.getDate(),18);
