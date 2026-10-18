@@ -12,6 +12,28 @@ test("Map URL retains exact lat/lon but never invents duration",()=>{
   assert.equal(url.searchParams.get("destination"),"50.08,14.43");
   assert.equal(url.searchParams.get("travelmode"),"driving");
 });
+test("deleted routine occurrences purge only matching travel entries",async()=>{
+  const previous=globalThis.window;
+  const saved=new Map();
+  globalThis.window={
+    localStorage:{getItem:key=>saved.get(key)??null,setItem:(key,value)=>saved.set(key,value)},
+    dispatchEvent:()=>{},
+  };
+  try {
+    const a={lat:50,lon:14,label:"A"};
+    const plan={place:a,mode:"driving",bufferMinutes:15,title:"Test",date:"2026-10-18",start:"12:00"};
+    saved.set("dayframe-travel-v1",JSON.stringify({version:1,origin:a,blocks:{
+      "task:removed":plan,"task:keep":plan,"gym:other|day|date":plan,
+    }}));
+    const {removeTravelForDeletedTasks,readTravelStore}=await import("./dayframe-travel.ts");
+    const done=removeTravelForDeletedTasks(
+      [{id:"removed"},{id:"keep"}],[{id:"keep"},{id:"new"}]);
+    assert.equal(done,true);
+    const updated=readTravelStore().store;
+    assert.deepEqual(Object.keys(updated.blocks).sort(),["gym:other|day|date","task:keep"]);
+    assert.deepEqual(updated.origin,a);
+  }finally {globalThis.window=previous;}
+});
 test("01:30 is in following civil date of planning day",()=>{
   assert.equal(eventStart("2026-10-18","01:30")?.getDate(),19);
   assert.equal(eventStart("2026-10-18","09:00")?.getDate(),18);
