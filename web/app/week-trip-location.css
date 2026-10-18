@@ -73,3 +73,7 @@
 .df2-travel-add-leg:disabled{opacity:.5;cursor:default}
 .df2-travel-kind button:focus-visible,.df2-travel-leg button:focus-visible,.df2-travel-add-leg:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
 @media(max-width:480px){.df2-travel-leg-fields{grid-template-columns:1fr}.df2-travel-options{grid-template-columns:1fr}}
+
+.df2-jarvis-trip-legs{display:grid;gap:8px}
+.df2-jarvis-trip-leg{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px}
+.df2-jarvis-trip-leg span{flex:1;min-width:170px;overflow-wrap:anywhere}
