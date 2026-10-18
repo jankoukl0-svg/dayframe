@@ -3,17 +3,11 @@
  * Keep a separate Google Cloud quota and API restriction to bound usage costs.
  */
 import {timingSafeEqual} from "node:crypto";
+import {ROUTES_DAILY_LIMIT,ROUTES_MONTHLY_LIMIT,routeBudgetConfigured,reserveRouteBudget} from "../lib/server-route-budget";
 
 type Point={lat:number;lon:number};
 type RouteMode="driving"|"walking"|"cycling"|"transit";
 const MODES:Record<RouteMode,string>={driving:"DRIVE",walking:"WALK",cycling:"BICYCLE",transit:"TRANSIT"};
-// The enforceable daily limit lives at Google Cloud, not in a Vercel process-local counter.
- // 50 * 31 = 1550 < 5000 free monthly Compute Routes Pro events.
- // Fail closed until the owner has applied a 50 requests/day hard quota in Google Cloud.
-export const ROUTES_DAILY_CLOUD_QUOTA=50;
-function quotaConfirmed(){
-  return process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED==="50";
-}
 const headers={"Cache-Control":"no-store, max-age=0","Content-Type":"application/json; charset=utf-8"};
 const send=(status:number,body:object)=>Response.json(body,{status,headers});
 const point=(p:unknown):p is Point=>{
@@ -29,17 +23,18 @@ function authorized(request:Request,secret:string){
 }
 export function GET(){
   return send(200,{
-    available:Boolean(quotaConfirmed()&&process.env.GOOGLE_MAPS_ROUTES_API_KEY&&process.env.DAYFRAME_ROUTES_ACCESS_TOKEN
-      &&/^[A-Za-z0-9_-]{20,}$/.test(process.env.DAYFRAME_ROUTES_ACCESS_TOKEN)),
-    dailyLimit:ROUTES_DAILY_CLOUD_QUOTA,
-    quotaConfigured:quotaConfirmed(),
+    available:Boolean(routeBudgetConfigured()&&process.env.GOOGLE_MAPS_ROUTES_API_KEY
+      &&/^[A-Za-z0-9_-]{20,}$/.test(process.env.DAYFRAME_ROUTES_ACCESS_TOKEN??"")),
+    dailyLimit:ROUTES_DAILY_LIMIT,
+    monthlyLimit:ROUTES_MONTHLY_LIMIT,
+    budgetConfigured:routeBudgetConfigured(),
   });
 }
 export async function POST(request:Request){
   const apiKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
   const access=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-  if(!apiKey||!access||!/^[A-Za-z0-9_-]{20,}$/.test(access)||!quotaConfirmed())
-    return send(503,{error:"Google Maps nejsou aktivované. Nejprve nastav denní kvótu 50 požadavků v Google Cloud."});
+  if(!apiKey||!access||!/^[A-Za-z0-9_-]{20,}$/.test(access)||!routeBudgetConfigured())
+    return send(503,{error:"Google Maps je bezpečně vypnuté. Chybí centrální počítadlo limitů."});
   // The browser must supply a separately configured personal access secret.
   if(!authorized(request,access))return send(401,{error:"Neplatný přístupový kód k výpočtu tras."});
   const origin=request.headers.get("origin");
@@ -60,6 +55,16 @@ export async function POST(request:Request){
     travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:false,
   };
   if(mode==="driving")payload.routingPreference="TRAFFIC_AWARE";
+  // Reserve before calling billable Google Routes. Each leg costs one reservation.
+  // On Redis failures, never fall back to in-memory counters or unmetered Google calls.
+  const reservation=await reserveRouteBudget();
+  if(reservation.kind==="unavailable")
+    return send(503,{error:"Počítadlo limitů je nedostupné. Google Maps zůstávají vypnuté; zadej čas ručně."});
+  if(reservation.kind==="exhausted")
+    return Response.json({
+      error:"Bezplatný bezpečnostní limit Google Maps byl vyčerpán. Zadej cestu ručně.",
+      dailyLimit:ROUTES_DAILY_LIMIT,monthlyLimit:ROUTES_MONTHLY_LIMIT,
+    },{status:429,headers:{...headers,"Retry-After":String(reservation.retryAfterSeconds)}});
   try{
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),8000);
