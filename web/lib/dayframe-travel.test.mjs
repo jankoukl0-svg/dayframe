@@ -166,11 +166,13 @@ test("private Google Routes endpoint stays disabled until configured and rejects
   const {GET,POST}=await import("../api/google-travel.ts");
   const oldKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
   const oldSecret=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
+  const oldQuota=process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
   const oldFetch=globalThis.fetch;
   try{
     delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;
     delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-    assert.deepEqual(await (await GET()).json(),{available:false});
+    delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
     const body={from:home,to:place,mode:"driving"};
     const req=(token)=>new Request("https://dayframe2.vercel.app/api/google-travel",{
       method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token,
@@ -179,14 +181,19 @@ test("private Google Routes endpoint stays disabled until configured and rejects
     assert.equal((await POST(req("not-configured"))).status,503);
     process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="short";
-    assert.deepEqual(await (await GET()).json(),{available:false});
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
     assert.equal((await POST(req("short"))).status,503);
     // UTF-8 byte length alone is not a valid Authorization-header token format.
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="é".repeat(12);
-    assert.deepEqual(await (await GET()).json(),{available:false});
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
     globalThis.fetch=()=>{throw Error("Unexpected paid request")};
-    assert.deepEqual(await (await GET()).json(),{available:true});
+    assert.deepEqual(await (await GET()).json(),{available:false,dailyLimit:50,quotaConfigured:false});
+    assert.equal((await POST(req("a".repeat(28)))).status,503);
+    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="100";
+    assert.equal((await POST(req("a".repeat(28)))).status,503);
+    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="50";
+    assert.deepEqual(await (await GET()).json(),{available:true,dailyLimit:50,quotaConfigured:true});
     assert.equal((await POST(req("wrong"))).status,401);
     assert.equal((await POST(new Request("https://dayframe2.vercel.app/api/google-travel",{
       method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+"a".repeat(28),
@@ -195,6 +202,7 @@ test("private Google Routes endpoint stays disabled until configured and rejects
   }finally{
     if(oldKey===undefined)delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;else process.env.GOOGLE_MAPS_ROUTES_API_KEY=oldKey;
     if(oldSecret===undefined)delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;else process.env.DAYFRAME_ROUTES_ACCESS_TOKEN=oldSecret;
+    if(oldQuota===undefined)delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;else process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED=oldQuota;
     globalThis.fetch=oldFetch;
   }
 });
@@ -202,10 +210,12 @@ test("Google Routes endpoint maps legal travel mode to Google and returns attrib
   const {POST}=await import("../api/google-travel.ts");
   const oldKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
   const oldSecret=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
+  const oldQuota=process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;
   const oldFetch=globalThis.fetch;
   try{
     process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
+    process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED="50";
     const requests=[];
     globalThis.fetch=async(url,options)=>{
       requests.push({url,payload:JSON.parse(options.body),key:options.headers["X-Goog-Api-Key"]});
@@ -229,6 +239,7 @@ test("Google Routes endpoint maps legal travel mode to Google and returns attrib
   }finally{
     if(oldKey===undefined)delete process.env.GOOGLE_MAPS_ROUTES_API_KEY;else process.env.GOOGLE_MAPS_ROUTES_API_KEY=oldKey;
     if(oldSecret===undefined)delete process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;else process.env.DAYFRAME_ROUTES_ACCESS_TOKEN=oldSecret;
+    if(oldQuota===undefined)delete process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED;else process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED=oldQuota;
     globalThis.fetch=oldFetch;
   }
 });
