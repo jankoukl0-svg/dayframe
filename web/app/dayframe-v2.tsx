@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   addDays,
   addDaysKey,
@@ -920,7 +920,7 @@ export function DayframeV2() {
                             const top=(timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT;
                             const height=time.duration*MINUTE_HEIGHT;
                             const end=minutesToTime(timeToMinutes(time.start)+time.duration);
-                            return <button key={occ.key} type="button" data-week-gym={occ.key}
+                            return <Fragment key={occ.key}><button type="button" data-week-gym={occ.key}
                               className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
                               draggable={key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked}
@@ -939,11 +939,10 @@ export function DayframeV2() {
                               onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}> 
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
-                            </button>;
+                            </button>
+                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key])}
+                              </Fragment>;
                           })}
-                          {timedGym.map(({occ,time})=>time.start?travelPin("gym",occ.key,key,occ.name,time.start,
-                            (timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
-                            lanePositions["gym:"+occ.key]):null)}
                           {timedCare.map(item=>{
                             const startMinute=timeToMinutes(item.start);
                             const end=minutesToTime(startMinute+item.duration);
@@ -957,7 +956,7 @@ export function DayframeV2() {
                               && (!elapsedToday || (!item.completed && !recordedProgress))
                               && care.hydrated&&!care.blocked;
                             return (
-                              <button key={item.id} type="button" data-week-care={item.id}
+                              <Fragment key={item.id}><button type="button" data-week-care={item.id}
                                 className={"df2-week-task df2-week-care"+(item.duration===20?" is-short":"")+(item.completed?" done":"")}
                                 style={{
                                   top:((startMinute-calendarBounds.dayStart)*MINUTE_HEIGHT)+"px",
@@ -988,17 +987,17 @@ export function DayframeV2() {
                                 {item.duration === 30 && <span>{item.start}–{end}</span>}
                                 <strong>{item.title}</strong>
                               </button>
+                              {travelPin("care",item.id,key,item.title,item.start,
+                                (timeToMinutes(item.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                                lanePositions["care:"+item.id])}
+                              </Fragment>
                             );
                           })}
-                          {timedCare.map(item=>travelPin("care",item.id,key,item.title,item.start,
-                            (timeToMinutes(item.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
-                            lanePositions["care:"+item.id]))}
                           {scheduled.map((task) => {
                             const top = (timeToMinutes(task.start) - calendarBounds.dayStart) * MINUTE_HEIGHT;
                             const height = task.duration * MINUTE_HEIGHT;
                             return (
-                              <button
-                                key={task.id}
+                              <Fragment key={task.id}><button
                                 className={`df2-week-task ${task.completed ? "done" : ""}`}
                                 style={{ top: `${top}px`, height: `${height}px`, ...(lanePositions["task:"+task.id]??{}) }}
                                 draggable={!task.completed}
@@ -1017,11 +1016,12 @@ export function DayframeV2() {
                                 <span>{task.start}–{task.end}</span>
                                 <strong>{task.title}</strong>
                               </button>
+                              {travelPin("task",task.id,key,task.title,task.start!,
+                                (timeToMinutes(task.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
+                                lanePositions["task:"+task.id])}
+                              </Fragment>
                             );
                           })}
-                          {scheduled.map(task=>travelPin("task",task.id,key,task.title,task.start!,
-                            (timeToMinutes(task.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
-                            lanePositions["task:"+task.id]))}
                         </div>
                       </article>
                     );
