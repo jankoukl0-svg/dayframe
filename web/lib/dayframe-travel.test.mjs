@@ -181,6 +181,9 @@ test("private Google Routes endpoint stays disabled until configured and rejects
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="short";
     assert.deepEqual(await (await GET()).json(),{available:false});
     assert.equal((await POST(req("short"))).status,503);
+    // UTF-8 byte length alone is not a valid Authorization-header token format.
+    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="é".repeat(12);
+    assert.deepEqual(await (await GET()).json(),{available:false});
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
     globalThis.fetch=()=>{throw Error("Unexpected paid request")};
     assert.deepEqual(await (await GET()).json(),{available:true});
