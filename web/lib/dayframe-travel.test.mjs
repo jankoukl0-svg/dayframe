@@ -82,3 +82,31 @@ test("a waiting/backlog task keeps its exact offsite location through routine cl
   assert.equal(live.has(travelBlockKey("task","still-waiting")),true);
   assert.equal(live.has(travelBlockKey("task","deleted")),false);
 });
+
+test("Jarvis ranks earliest required departure, even when its event starts later",()=>{
+  const store=emptyTravelStore();
+  store.blocks[travelBlockKey("task","short")]={place,mode:"driving",bufferMinutes:10,
+    typicalMinutes:10,title:"Krátká cesta",date:"2026-10-18",start:"10:00"};
+  store.blocks[travelBlockKey("task","long")]={place,mode:"driving",bufferMinutes:10,
+    typicalMinutes:90,title:"Delší cesta",date:"2026-10-18",start:"10:30"};
+  const now=new Date("2026-10-18T08:00:00");
+  const live=[
+    {id:"short",date:"2026-10-18",start:"10:00",title:"Krátká cesta",completed:false},
+    {id:"long",date:"2026-10-18",start:"10:30",title:"Delší cesta",completed:false},
+  ];
+  const trips=upcomingTravelTrips(store,now,live);
+  assert.deepEqual(trips.map(t=>t.title),["Delší cesta","Krátká cesta"]);
+  assert.equal(trips[0].departureAt.getHours(),8);
+  assert.equal(trips[0].departureAt.getMinutes(),50);
+});
+test("departure-based horizon reveals a distant appointment whose departure is soon",()=>{
+  const store=emptyTravelStore();
+  store.blocks[travelBlockKey("task","flight")]={place,mode:"driving",bufferMinutes:30,
+    typicalMinutes:240,title:"Letiště",date:"2026-10-19",start:"06:00"};
+  const live=[{id:"flight",date:"2026-10-19",start:"06:00",title:"Letiště",completed:false}];
+  const now=new Date("2026-10-18T09:00:00");
+  const trips=upcomingTravelTrips(store,now,live);
+  assert.equal(trips.length,1);
+  assert.equal(trips[0].departureAt.getHours(),1);
+  assert.equal(trips[0].departureAt.getDate(),19);
+});
