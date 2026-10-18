@@ -42,6 +42,28 @@ test("offsite creation opens the map with the selected choice already checked",a
   expect(Object.values(stored.blocks)).toHaveLength(1);
   expect(Object.values(stored.blocks)[0].place.label).toBe("Místo schůzky");
 });
+test("long geocoder place labels are constrained before saving exact coordinates",async({page})=>{
+  await makeTask(page,"Dlouhá adresa");
+  await page.route("https://nominatim.openstreetmap.org/search?**",route=>route.fulfill({
+    status:200,contentType:"application/json",
+    body:JSON.stringify([{lat:"50.075",lon:"14.425",display_name:"D".repeat(410)}]),
+  }));
+  await page.getByRole("button",{name:"Místo konání: Dlouhá adresa"}).click();
+  const modal=page.getByRole("dialog",{name:"Místo konání: Dlouhá adresa"});
+  await modal.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await modal.getByRole("textbox",{name:"Vyhledat adresu nebo místo"}).fill("Praha centrum");
+  await modal.getByRole("button",{name:"Hledat"}).click();
+  await modal.locator(".df2-travel-search-results button").first().click();
+  const label=modal.getByRole("textbox",{name:"Popis vybraného místa"});
+  await expect(label).toHaveAttribute("maxlength","300");
+  expect((await label.inputValue()).length).toBe(300);
+  await modal.getByRole("button",{name:"Uložit místo"}).click();
+  const data=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  const saved=Object.values(data.blocks)[0];
+  expect(saved.place.label).toHaveLength(300);
+  expect(saved.place.lat).toBe(50.075);
+  expect(saved.place.lon).toBe(14.425);
+});
 test("every scheduled week task offers an exact offsite map destination and persists coordinates",async({page})=>{
   await makeTask(page);
   await page.getByRole("button",{name:"Místo konání: Pracovní schůzka"}).click();
