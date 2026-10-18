@@ -21,8 +21,11 @@ return {1,day,month}
 `;
 
 function config(){
-  const raw=process.env.UPSTASH_REDIS_REST_URL;
-  const token=process.env.UPSTASH_REDIS_REST_TOKEN;
+  // The Vercel Marketplace Upstash integration commonly injects KV_REST_API_*.
+  // Select one complete credential pair; never mix endpoint and token across stores.
+  const useUpstash=Boolean(process.env.UPSTASH_REDIS_REST_URL||process.env.UPSTASH_REDIS_REST_TOKEN);
+  const raw=useUpstash?process.env.UPSTASH_REDIS_REST_URL:process.env.KV_REST_API_URL;
+  const token=useUpstash?process.env.UPSTASH_REDIS_REST_TOKEN:process.env.KV_REST_API_TOKEN;
   if(!raw||!token||token.length<20)return null;
   try{
     const url=new URL(raw);
