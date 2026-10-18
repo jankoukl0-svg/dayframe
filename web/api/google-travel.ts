@@ -7,6 +7,13 @@ import {timingSafeEqual} from "node:crypto";
 type Point={lat:number;lon:number};
 type RouteMode="driving"|"walking"|"cycling"|"transit";
 const MODES:Record<RouteMode,string>={driving:"DRIVE",walking:"WALK",cycling:"BICYCLE",transit:"TRANSIT"};
+// The enforceable daily limit lives at Google Cloud, not in a Vercel process-local counter.
+ // 50 * 31 = 1550 < 5000 free monthly Compute Routes Pro events.
+ // Fail closed until the owner has applied a 50 requests/day hard quota in Google Cloud.
+export const ROUTES_DAILY_CLOUD_QUOTA=50;
+function quotaConfirmed(){
+  return process.env.DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED==="50";
+}
 const headers={"Cache-Control":"no-store, max-age=0","Content-Type":"application/json; charset=utf-8"};
 const send=(status:number,body:object)=>Response.json(body,{status,headers});
 const point=(p:unknown):p is Point=>{
@@ -21,12 +28,18 @@ function authorized(request:Request,secret:string){
   return a.length===b.length&&a.length>=20&&timingSafeEqual(a,b);
 }
 export function GET(){
-  return send(200,{available:Boolean(process.env.GOOGLE_MAPS_ROUTES_API_KEY&&process.env.DAYFRAME_ROUTES_ACCESS_TOKEN&&/^[A-Za-z0-9_-]{20,}$/.test(process.env.DAYFRAME_ROUTES_ACCESS_TOKEN))});
+  return send(200,{
+    available:Boolean(quotaConfirmed()&&process.env.GOOGLE_MAPS_ROUTES_API_KEY&&process.env.DAYFRAME_ROUTES_ACCESS_TOKEN
+      &&/^[A-Za-z0-9_-]{20,}$/.test(process.env.DAYFRAME_ROUTES_ACCESS_TOKEN)),
+    dailyLimit:ROUTES_DAILY_CLOUD_QUOTA,
+    quotaConfigured:quotaConfirmed(),
+  });
 }
 export async function POST(request:Request){
   const apiKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
   const access=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-  if(!apiKey||!access||!/^[A-Za-z0-9_-]{20,}$/.test(access))return send(503,{error:"Google Maps Routes API zatím není na serveru aktivované."});
+  if(!apiKey||!access||!/^[A-Za-z0-9_-]{20,}$/.test(access)||!quotaConfirmed())
+    return send(503,{error:"Google Maps nejsou aktivované. Nejprve nastav denní kvótu 50 požadavků v Google Cloud."});
   // The browser must supply a separately configured personal access secret.
   if(!authorized(request,access))return send(401,{error:"Neplatný přístupový kód k výpočtu tras."});
   const origin=request.headers.get("origin");
