@@ -1,0 +1,33 @@
+name: Verify deployed Google Routes API
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  live-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: GET public API (never POST, no billable Google call)
+        run: |
+          set -euo pipefail
+          code=$(curl --connect-timeout 6 --max-time 12 -sS -o /tmp/routes.json -w '%{http_code}' https://dayframe2.vercel.app/api/google-travel)
+          echo "Public Routes API HTTP ${code}"
+          if [ "$code" != "200" ]; then
+            head -c 180 /tmp/routes.json || true
+            echo
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('/tmp/routes.json').read_text())
+          print({k:d.get(k) for k in ('available','budgetConfigured','dailyLimit','monthlyLimit','deploymentCommit')})
+          assert d.get('available') is True
+          assert d.get('budgetConfigured') is True
+          assert d.get('dailyLimit')==50 and d.get('monthlyLimit')==1000
+          assert d.get('deploymentCommit')=='74778d4cbacff5e4ece3a0aa2b79857b76e7b4d1'
+          PY
