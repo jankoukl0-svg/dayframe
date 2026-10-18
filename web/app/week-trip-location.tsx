@@ -167,7 +167,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const controller=new AbortController();
     fetch("/api/google-travel",{signal:controller.signal,cache:"no-store"})
       .then(response=>response.ok?response.json():null)
-      .then(value=>{if(!controller.signal.aborted)setGoogleAvailable(value?.available===true);})
+      .then(value=>{if(!controller.signal.aborted)setGoogleAvailable((value as {available?:boolean}|null)?.available===true);})
       .catch(()=>{if(!controller.signal.aborted)setGoogleAvailable(false);});
     return ()=>controller.abort();
   },[]);
