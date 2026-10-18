@@ -282,12 +282,35 @@ test("Google route server unavailable still permits manual travel time",async({p
   const dialog=page.getByRole("dialog",{name:"Místo konání: Pohovor bez API"});
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.08,14.43,"Cíl");
-  await expect(dialog).toContainText("Automatický výpočet je bezpečně vypnutý");
+  await expect(dialog).toContainText("Serverová služba zatím není aktivní");
+  await expect(dialog.getByLabel("Přístupový kód k výpočtu tras")).toBeVisible();
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
   await expect(dialog.locator(".df2-google-attribution img")).toHaveCount(0);
   await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
   expect(Object.values(stored.blocks)[0].typicalMinutes).toBe(65);
+});
+test("Google Routes 404 keeps access-code input visible and allows retry",async({page})=>{
+  let isOnline=false;
+  await page.route("**/api/google-travel",async route=>{
+    if(route.request().method()!=="GET")throw Error("Unavailable API must not cause paid POST");
+    if(!isOnline)return route.fulfill({status:404,contentType:"text/html",body:"<html>Not Found</html>"});
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+  });
+  await makeTask(page,"API diagnostika");
+  await openTaskPlace(page,"API diagnostika");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: API diagnostika"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await expect(dialog).toContainText("Serverová funkce pro Google Maps neodpovídá");
+  const code=dialog.getByLabel("Přístupový kód k výpočtu tras");
+  await expect(code).toBeVisible();
+  await code.fill("x".repeat(28));
+  await expect(dialog.getByRole("button",{name:"Zkontrolovat propojení znovu"})).toBeVisible();
+  isOnline=true;
+  await dialog.getByRole("button",{name:"Zkontrolovat propojení znovu"}).click();
+  await expect(dialog).toContainText("Bezpečnostní limit Dayframe");
+  await expect(code).toHaveValue("x".repeat(28));
 });
 test("destination can be removed without deleting or changing the week block",async({page})=>{
   await makeTask(page,"Seminář");
