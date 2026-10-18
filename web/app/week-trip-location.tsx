@@ -191,7 +191,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   useEffect(()=>{
     setGoogleEstimates(null);
     setGoogleError("");
-    if(!offsite||!routeSignature||!googleAvailable||googleAccess.length<20){
+    if(!offsite||!routeSignature||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))){
       setGoogleLoading(false);return;
     }
     const controller=new AbortController();
@@ -336,7 +336,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           <div className="df2-google-route-box">
             <div className="df2-google-route-head">
               <strong>Automatický výpočet trasy</strong>
-              <span translate="no" className="df2-google-attribution">Google Maps</span>
+              <span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>
             </div>
             {!googleAvailable?<p className="df2-travel-hint">
               Automatický výpočet zatím není aktivní. Provozovatel musí nakonfigurovat Routes API a soukromý přístupový kód na serveru Vercel. Ruční plánování funguje dál.
@@ -352,7 +352,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               </label>
               <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
               {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
-                :googleAccess.length<20?<p className="df2-travel-hint">Zadej přístupový kód pro automatické načítání. Klíč Google Maps do prohlížeče nevkládej.</p>
+                :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-travel-hint">Zadej osobní kód s minimálně 20 znaky (písmena, číslice, _ nebo -). Google API klíč sem nevkládej.</p>
                 :googleLoading?<p role="status">Počítám trasu přes Google Maps…</p>
                 :googleEstimates?<div className="df2-google-route-results" role="status">
                   <strong>{googleTotal} min · {((googleDistance??0)/1000).toFixed(1)} km</strong>
