@@ -7,10 +7,10 @@ export type TravelPoint={lat:number;lon:number;label:string};
 /** Each leg arrives at its via point, except the final leg which ends at the event location. */
 export type TravelLeg={mode:TravelMode;minutes:number;via?:TravelPoint};
 export type TravelBlock={place:TravelPoint;mode:TravelMode;bufferMinutes:number;typicalMinutes?:number;legs?:TravelLeg[];title:string;date:string;start:string};
-export function travelDuration(trip:TravelBlock):number|undefined{
+export function travelDuration(trip:Pick<TravelBlock,"legs"|"typicalMinutes">):number|undefined{
   return trip.legs?.length?trip.legs.reduce((minutes,leg)=>minutes+leg.minutes,0):trip.typicalMinutes;
 }
-export function travelSegments(trip:TravelBlock,origin?:TravelPoint){
+export function travelSegments(trip:Pick<TravelBlock,"place"|"mode"|"legs"|"typicalMinutes">,origin?:TravelPoint){
   if(!trip.legs?.length)return [{mode:trip.mode,minutes:trip.typicalMinutes,from:origin,to:trip.place}];
   return trip.legs.map((leg,index)=>({
     mode:leg.mode,minutes:leg.minutes,
