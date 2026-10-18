@@ -28,6 +28,7 @@ export function GET(){
     dailyLimit:ROUTES_DAILY_LIMIT,
     monthlyLimit:ROUTES_MONTHLY_LIMIT,
     budgetConfigured:routeBudgetConfigured(),
+    ...(process.env.VERCEL_GIT_COMMIT_SHA?{deploymentCommit:process.env.VERCEL_GIT_COMMIT_SHA}:{}),
   });
 }
 export async function POST(request:Request){
