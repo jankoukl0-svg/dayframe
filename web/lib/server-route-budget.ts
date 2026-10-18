@@ -74,7 +74,7 @@ export async function reserveRouteBudget(now:Date=new Date()):Promise<BudgetRese
       return {kind:"unavailable"};
     if(allowed===1)return {kind:"reserved",dayUsed,monthUsed};
     return {kind:"exhausted",dayUsed,monthUsed,
-      retryAfterSeconds:Math.max(1,(dayUsed>=ROUTES_DAILY_LIMIT?tomorrow:nextMonth)-Math.floor(now.getTime()/1000))};
+      retryAfterSeconds:Math.max(1,(monthUsed>=ROUTES_MONTHLY_LIMIT?nextMonth:tomorrow)-Math.floor(now.getTime()/1000))};
   }catch{return {kind:"unavailable"};
   }finally{clearTimeout(timeout);}
 }
