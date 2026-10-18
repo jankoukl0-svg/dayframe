@@ -21,12 +21,12 @@ function authorized(request:Request,secret:string){
   return a.length===b.length&&a.length>=20&&timingSafeEqual(a,b);
 }
 export function GET(){
-  return send(200,{available:Boolean(process.env.GOOGLE_MAPS_ROUTES_API_KEY&&process.env.DAYFRAME_ROUTES_ACCESS_TOKEN)});
+  return send(200,{available:Boolean(process.env.GOOGLE_MAPS_ROUTES_API_KEY&&process.env.DAYFRAME_ROUTES_ACCESS_TOKEN&&Buffer.byteLength(process.env.DAYFRAME_ROUTES_ACCESS_TOKEN,"utf8")>=20)});
 }
 export async function POST(request:Request){
   const apiKey=process.env.GOOGLE_MAPS_ROUTES_API_KEY;
   const access=process.env.DAYFRAME_ROUTES_ACCESS_TOKEN;
-  if(!apiKey||!access)return send(503,{error:"Google Maps Routes API zatím není na serveru aktivované."});
+  if(!apiKey||!access||Buffer.byteLength(access,"utf8")<20)return send(503,{error:"Google Maps Routes API zatím není na serveru aktivované."});
   // The browser must supply a separately configured personal access secret.
   if(!authorized(request,access))return send(401,{error:"Neplatný přístupový kód k výpočtu tras."});
   const origin=request.headers.get("origin");
