@@ -38,7 +38,7 @@ export async function POST(request:Request){
   try{input=await request.json();}catch{return send(400,{error:"Neplatná data."});}
   if(!input||typeof input!=="object")return send(400,{error:"Neplatná data."});
   const data=input as Record<string,unknown>;
-  if(!point(data.from)||!point(data.to)||typeof data.mode!=="string"||!(data.mode in MODES))
+  if(!point(data.from)||!point(data.to)||typeof data.mode!=="string"||!Object.hasOwn(MODES,data.mode))
     return send(400,{error:"Vyber platný začátek, cíl a způsob dopravy."});
   const mode=data.mode as RouteMode;
   const waypoint=(p:Point)=>({location:{latLng:{latitude:p.lat,longitude:p.lon}}});
@@ -61,8 +61,8 @@ export async function POST(request:Request){
     const response=await reply.json() as {routes?:Array<{duration?:string;distanceMeters?:number}>};
     const route=response.routes?.[0],seconds=Number(route?.duration?.replace(/s$/,""));
     const distance=route?.distanceMeters;
-    if(!Number.isFinite(seconds)||seconds<0||seconds>86400||!Number.isFinite(distance)||distance!<0)
+    if(!Number.isFinite(seconds)||seconds<0||seconds>86400||typeof distance!=="number"||!Number.isFinite(distance)||distance<0)
       return send(422,{error:"Google Maps pro tato místa nevrátily platnou trasu."});
-    return send(200,{minutes:Math.max(1,Math.ceil(seconds/60)),distanceMeters:Math.round(distance!),source:"Google Maps",trafficAware:mode==="driving"});
+    return send(200,{minutes:Math.max(1,Math.ceil(seconds/60)),distanceMeters:Math.round(distance),source:"Google Maps",trafficAware:mode==="driving"});
   }catch{return send(502,{error:"Google Maps nyní nejsou dostupné. Použij ruční odhad."});}
 }
