@@ -323,3 +323,35 @@ test("Redis outage, denied budget and invalid reply never contact Google",async(
     assert.equal(calls,0);
   });
 });
+
+test("Marketplace KV credentials activate atomic budget without duplicating secrets",async()=>{
+  const {routeBudgetConfigured,reserveRouteBudget}=await import("./server-route-budget.ts");
+  const keys=["UPSTASH_REDIS_REST_URL","UPSTASH_REDIS_REST_TOKEN","KV_REST_API_URL","KV_REST_API_TOKEN"];
+  const old=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  const originalFetch=globalThis.fetch;
+  try{
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.KV_REST_API_URL=TEST_REDIS_URL;
+    process.env.KV_REST_API_TOKEN="kv-redis-token".repeat(3);
+    assert.equal(routeBudgetConfigured(),true);
+    const redis=mockAtomicRedis();
+    globalThis.fetch=redis.fetch;
+    assert.equal((await reserveRouteBudget(new Date("2026-10-18T14:00:00Z"))).kind,"reserved");
+    assert.equal(redis.commands.length,1);
+
+    // If the explicitly named credentials are partially supplied, do NOT mix the
+    // Marketplace token with a different Upstash endpoint.
+    process.env.UPSTASH_REDIS_REST_URL=TEST_REDIS_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    assert.equal(routeBudgetConfigured(),false);
+    assert.equal((await reserveRouteBudget()).kind,"unavailable");
+    assert.equal(redis.commands.length,1);
+  }finally{
+    for(const key of keys){
+      if(old[key]===undefined)delete process.env[key];
+      else process.env[key]=old[key];
+    }
+    globalThis.fetch=originalFetch;
+  }
+});

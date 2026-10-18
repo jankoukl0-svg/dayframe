@@ -19,13 +19,15 @@ This integration is **disabled until all required server-only Vercel secrets AND
 2. In the [Vercel Upstash integration](https://vercel.com/marketplace/upstash) choose **Install Upstash for Redis → Free ($0)**, then link it to Vercel project `dayframe2` **Production**. Vercel can create a new free Upstash account and a Redis database through this flow. Do **not** select Pay as You Go or the paid Fixed plan. If a billing/upgrade prompt appears, stop rather than authorizing spend.
 3. Check **Vercel → dayframe2 → Settings → Environment Variables**. These must exist as server-only variables for Production:
    - `GOOGLE_MAPS_ROUTES_API_KEY`: a Routes API-restricted key (already set previously).
-   - `UPSTASH_REDIS_REST_URL`: Redis REST HTTPS endpoint, automatically injected when Vercel links the integration.
-   - `UPSTASH_REDIS_REST_TOKEN`: Redis REST secret, automatically injected; use the **read/write** token, not read-only.
+   - `KV_REST_API_URL`: Upstash Redis REST HTTPS endpoint, automatically supplied by the current Vercel Marketplace integration.
+   - `KV_REST_API_TOKEN`: its read/write Redis REST token, automatically supplied by Vercel.
+   - The alternative names `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are also supported if supplied together. Never copy, disclose, or mix secrets from two databases.
    - `DAYFRAME_ROUTES_ACCESS_TOKEN`: a different random ASCII/Base64URL token, minimum 20 characters, for accessing the private endpoint from your browser. Do **not** paste the Google API key here.
 4. Redeploy `main` on Vercel so the new variables are picked up.
 5. In Dayframe, go to **Týden → Místo konání** and enter the private access token in the route section. It stays only in browser sessionStorage, not in the schedule. After choosing all endpoints and modes the app shows Google estimates and distance, without permanently storing Google's API results.
-6. Test by selecting one simple route and a multi-leg route; verify the route ETA appears and the corresponding count is recorded in Upstash. For a low-cost test, use a mock Google response in CI (already covered in unit/browser tests). Never reveal tokens in support screenshots or GitHub.
-7. Review the [published privacy notice](../public/privacy.html), [terms](../public/terms.html), [Google Routes requirements](https://developers.google.com/maps/documentation/routes/policies), and [Google Maps Platform EEA terms](https://cloud.google.com/terms/maps-platform/eea) before enabling the integration.
+6. Confirm the Vercel Upstash resource is on **Free**, with **Auto Upgrade disabled**. The presence of credentials does not confirm its tariff; review the database in Upstash before accepting a billing upgrade.
+7. Test by selecting one simple route and a multi-leg route; verify the route ETA appears and the corresponding count is recorded in Upstash. For a low-cost test, use a mock Google response in CI (already covered in unit/browser tests). Never reveal tokens in support screenshots or GitHub.
+8. Review the [published privacy notice](../public/privacy.html), [terms](../public/terms.html), [Google Routes requirements](https://developers.google.com/maps/documentation/routes/policies), and [Google Maps Platform EEA terms](https://cloud.google.com/terms/maps-platform/eea) before enabling the integration.
 
 ## Guard technical notes
 
