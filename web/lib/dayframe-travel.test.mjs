@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {emptyTravelStore,parseTravelStore,travelBlockKey,travelDirectionsUrl,eventStart,upcomingTravelTrips} from "./dayframe-travel.ts";
+import {emptyTravelStore,parseTravelStore,travelBlockKey,travelDirectionsUrl,eventStart,upcomingTravelTrips,liveTravelTaskKeys} from "./dayframe-travel.ts";
 const home={lat:50.1,lon:14.2,label:"Domov"},place={lat:50.08,lon:14.43,label:"Fakulta"};
 test("missing and damaged location data",()=>{
   assert.deepEqual(parseTravelStore(null).store,emptyTravelStore());
@@ -72,4 +72,13 @@ test("gym and hygiene location is actionable only with a live incomplete occurre
   const live=[{key:"gym:occ-1",date:"2026-10-19",start:"10:00",title:"Pull",completed:false},
     {key:"care:2026-10-19:morning",date:"2026-10-19",start:"09:30",title:"Hygiena",completed:true}];
   assert.deepEqual(upcomingTravelTrips(store,now,[],live).map(x=>x.title),["Pull"]);
+});
+
+test("a waiting/backlog task keeps its exact offsite location through routine cleanup",()=>{
+  const planned={"2026-10-18":[{id:"scheduled"}]};
+  const backlog=[{id:"still-waiting"}];
+  const live=liveTravelTaskKeys(planned,backlog);
+  assert.equal(live.has(travelBlockKey("task","scheduled")),true);
+  assert.equal(live.has(travelBlockKey("task","still-waiting")),true);
+  assert.equal(live.has(travelBlockKey("task","deleted")),false);
 });
