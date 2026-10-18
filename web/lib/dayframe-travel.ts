@@ -49,6 +49,23 @@ export function saveTravelStore(store:TravelStore){
     return true;
   }catch{return false;}
 }
+/** Remove only entries whose source block was actually removed, leaving the origin unchanged. */
+export function removeTravelBlocksWhere(predicate:(key:string,block:TravelBlock)=>boolean):boolean {
+  const result=readTravelStore();
+  if(result.blocked)return false;
+  const blocks={...result.store.blocks};
+  let changed=false;
+  for(const [key,block] of Object.entries(blocks)){
+    if(predicate(key,block)){delete blocks[key];changed=true;}
+  }
+  return !changed || saveTravelStore({...result.store,blocks});
+}
+/** Pure helper for a source-state change; only removed task IDs are deleted. */
+export function removeTravelForDeletedTasks(before:Array<{id:string}>,after:Array<{id:string}>):boolean {
+  const previous=new Set(before.map(task=>travelBlockKey("task",task.id)));
+  const current=new Set(after.map(task=>travelBlockKey("task",task.id)));
+  return removeTravelBlocksWhere(key=>previous.has(key)&&!current.has(key));
+}
 export function travelDirectionsUrl(origin:TravelPoint|undefined,destination:TravelPoint,mode:TravelMode="driving"){
   const u=new URL("https://www.google.com/maps/dir/");
   u.searchParams.set("api","1");u.searchParams.set("destination",destination.lat+","+destination.lon);
