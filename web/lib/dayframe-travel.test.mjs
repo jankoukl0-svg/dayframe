@@ -178,6 +178,9 @@ test("private Google Routes endpoint stays disabled until configured and rejects
     });
     assert.equal((await POST(req("not-configured"))).status,503);
     process.env.GOOGLE_MAPS_ROUTES_API_KEY="test-key-only";
+    process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="short";
+    assert.deepEqual(await (await GET()).json(),{available:false});
+    assert.equal((await POST(req("short"))).status,503);
     process.env.DAYFRAME_ROUTES_ACCESS_TOKEN="a".repeat(28);
     globalThis.fetch=()=>{throw Error("Unexpected paid request")};
     assert.deepEqual(await (await GET()).json(),{available:true});
