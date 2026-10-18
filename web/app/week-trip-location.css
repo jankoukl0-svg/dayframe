@@ -54,3 +54,22 @@
 @media (prefers-reduced-motion: reduce) {
   .df2-week-location-btn { transition: none; }
 }
+
+/* Multi-stage travel planning */
+.df2-travel-tabs{flex-wrap:wrap}
+.df2-travel-kind{display:flex;flex-wrap:wrap;gap:8px}
+.df2-travel-kind button{padding:9px 13px;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--ink);font-size:12px;cursor:pointer}
+.df2-travel-kind button.is-active{background:var(--accent-wash);border-color:var(--accent);color:var(--accent-dark);font-weight:700}
+.df2-travel-single-mode{max-width:350px}
+.df2-travel-legs{display:grid;gap:12px}
+.df2-travel-leg{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);min-width:0}
+.df2-travel-leg-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.df2-travel-leg-head strong{font-size:13px}
+.df2-travel-leg-head small{color:var(--muted);font-size:11px;overflow-wrap:anywhere;flex:1}
+.df2-travel-leg-head button{border:0;background:transparent;color:var(--muted);font-size:11px;cursor:pointer}
+.df2-travel-leg-fields{display:grid;grid-template-columns:minmax(0,2fr) minmax(100px,1fr);gap:10px}
+.df2-travel-via,.df2-travel-add-leg{padding:9px 12px;text-align:left;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--accent-dark);cursor:pointer;font-size:12px}
+.df2-travel-add-leg{justify-self:start}
+.df2-travel-add-leg:disabled{opacity:.5;cursor:default}
+.df2-travel-kind button:focus-visible,.df2-travel-leg button:focus-visible,.df2-travel-add-leg:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+@media(max-width:480px){.df2-travel-leg-fields{grid-template-columns:1fr}.df2-travel-options{grid-template-columns:1fr}}
