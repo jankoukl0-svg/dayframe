@@ -63,6 +63,15 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
     },1000);
     return ()=>window.clearInterval(timer);
   },[session?.restUntil]);
+  // Keep exact locations only for gym occurrences that still exist in the saved plan.
+  // The hook is not hydrated on its first render; never purge during that empty state.
+  useEffect(()=>{
+    if(!hydrated||blocked)return;
+    removeTravelBlocksWhere((key,entry)=>{
+      if(!key.startsWith("gym:"))return false;
+      return !assignmentsOnDate(store,entry.date).some(occurrence=>"gym:"+occurrence.key===key);
+    });
+  },[store,hydrated,blocked]);
   const plan=store.plans.find(p=>p.id===(editedPlanId||store.activePlanId))??null;
   const metrics=useMemo(()=>gymMetrics(store),[store]);
   const activePlan=store.plans.find(p=>p.id===store.activePlanId)??null;
