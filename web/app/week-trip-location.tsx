@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from "react";
 import {readTravelStore,saveTravelStore,travelDirectionsUrl,
   type TravelPoint,type TravelMode} from "@/lib/dayframe-travel";
 
-export type TripTarget={key:string;title:string;date:string;start:string};
+export type TripTarget={key:string;title:string;date:string;start:string;initialOffsite?:boolean};
 const CSS_URL="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const JS_URL="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 let loader:Promise<any>|undefined;
@@ -138,7 +138,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     return ()=>{document.removeEventListener("keydown",handler,true);opener?.focus();};
   },[]);
   const current=data.store.blocks[target.key];
-  const [offsite,setOffsite]=useState(Boolean(current));
+  const [offsite,setOffsite]=useState(Boolean(current)||Boolean(target.initialOffsite));
   const [destination,setDestination]=useState<TravelPoint|undefined>(current?.place);
   const [origin,setOrigin]=useState<TravelPoint|undefined>(data.store.origin);
   const [pickingOrigin,setPickingOrigin]=useState(false);
