@@ -255,7 +255,7 @@ test("Google route estimates fill planner only after explicit acceptance, withou
   await setMapPoint(dialog,50.08,14.43,"Cíl cesty");
   await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
   await setMapPoint(dialog,50.4,14.7,"Odkud jedu");
-  await dialog.getByRole("textbox",{name:"Přístupový kód k výpočtu tras"}).fill("x".repeat(28));
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
   await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
   await expect(dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveValue("");
