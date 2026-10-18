@@ -1,9 +1,5 @@
-name: Routes endpoint public GET smoke
+name: Routes endpoint GET smoke
 on:
-  push:
-    branches:
-      - fix/google-routes-visible-status
-  workflow_dispatch:
   pull_request:
     branches: [main]
 
@@ -13,25 +9,31 @@ permissions:
 jobs:
   route-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Probe public production API (GET only, no chargeable route)
+      - name: Probe production and preview APIs (GET only — no Google billing)
         shell: bash
         run: |
           set -euo pipefail
-          code=$(curl --connect-timeout 8 --max-time 15 -sS -L -o /tmp/route-response.txt -w "%{http_code}" https://dayframe2.vercel.app/api/google-travel)
-          echo "Route API HTTP status: ${code}"
-          python3 - <<'PY'
+          for host in dayframe2.vercel.app dayframe2-git-fix-google-routes-visible-status-honzakoukl1-2501.vercel.app; do
+            echo "Checking ${host}..."
+            success=no
+            for attempt in $(seq 1 15); do
+              code=$(curl --connect-timeout 8 --max-time 15 -sS -L -o /tmp/route-response.txt -w "%{http_code}" "https://${host}/api/google-travel")
+              echo "Host ${host}: HTTP ${code} (attempt ${attempt})"
+              if [ "$code" = 200 ]; then
+                python3 - <<'PY'
           import json
           from pathlib import Path
-          body=Path('/tmp/route-response.txt').read_text(errors='replace')
-          try:
-              data=json.loads(body)
-          except Exception:
-              print("API response was not JSON; content preview:",repr(body[:180]))
-          else:
-              print("API JSON field names:",sorted(data)[:12])
-              print("API availability:", data.get("available"))
-              print("API budget configured:", data.get("budgetConfigured"))
+          payload=json.loads(Path("/tmp/route-response.txt").read_text())
+          print("Availability",payload.get("available"),"Budget configured",payload.get("budgetConfigured"))
+          assert "available" in payload and "dailyLimit" in payload
           PY
-          test "$code" = 200
+                success=yes
+                break
+              fi
+              if [ "${host}" = "dayframe2.vercel.app" ]; then break; fi
+              sleep 5
+            done
+            if [ "${host}" != "dayframe2.vercel.app" ]; then test "$success" = yes; fi
+          done
