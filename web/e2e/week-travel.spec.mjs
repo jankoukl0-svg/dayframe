@@ -260,6 +260,7 @@ test("Google ETA remains ephemeral and cannot silently replace private planning 
   await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
   await setMapPoint(dialog,50.4,14.7,"Odkud jedu");
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await expect(dialog).toContainText("50 výpočtů denně");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
   await expect(dialog.locator(".df2-google-attribution img")).toHaveAttribute("src",/gstatic\.com\/images\/branding\/product/);
@@ -280,7 +281,7 @@ test("Google route server unavailable still permits manual travel time",async({p
   const dialog=page.getByRole("dialog",{name:"Místo konání: Pohovor bez API"});
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.08,14.43,"Cíl");
-  await expect(dialog).toContainText("Automatický výpočet zatím není aktivní");
+  await expect(dialog).toContainText("Automatický výpočet je bezpečně vypnutý");
   await expect(dialog.locator(".df2-google-attribution img")).toHaveCount(0);
   await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
