@@ -193,6 +193,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
             <label>Obvyklá cesta v minutách (volitelné)<input aria-label="Obvyklá doba cesty"
               type="number" min="1" max="1440" value={typical} onChange={e=>setTypical(e.target.value)}/></label>
           </div>
+          {!target.start&&<p className="df2-travel-hint">Blok zatím nemá čas začátku. Místo se uloží; doporučený odjezd Jarvis spočítá až po naplánování času.</p>}
           <p className="df2-travel-hint">Jarvis používá pouze tebou zadanou dobu cesty a rezervu.
             Aktuální dopravní situaci ověř v Mapách; Dayframe ji zatím sám nezjišťuje.</p>
           {destination&&<a target="_blank" rel="noopener noreferrer"
