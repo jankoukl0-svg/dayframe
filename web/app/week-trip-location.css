@@ -33,3 +33,19 @@
 .df2-trip-in-edit{display:block;padding:10px 13px;border:1px solid var(--line-strong);border-radius:9px;background:var(--accent-wash);color:var(--accent-dark);font-weight:700;text-align:left;cursor:pointer}
 .df2-week-location-btn:hover,.df2-trip-in-edit:hover{border-color:var(--accent-dark)}
 .df2-week-location-btn:focus-visible,.df2-trip-in-edit:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+
+/* On pointer devices, reveal the control only for its own hovered card.
+   Keep it keyboard focusable while visually hidden. Touch devices have no hover. */
+@media (hover: hover) and (pointer: fine) {
+  .df2-week-location-btn { opacity: 0; pointer-events: none; transition: opacity 130ms ease; }
+  .df2-week-task:hover + .df2-week-location-btn,
+  .df2-week-task:focus-visible + .df2-week-location-btn,
+  .df2-week-location-btn:hover,
+  .df2-week-location-btn:focus {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .df2-week-location-btn { transition: none; }
+}
