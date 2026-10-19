@@ -87,7 +87,7 @@ export async function reserveRouteBudget(now:Date=new Date()):Promise<BudgetRese
 type Point={lat:number;lon:number};
 type RouteMode="driving"|"walking"|"cycling"|"transit";
 type TransitPreference="balanced"|"fastest"|"fewer_transfers"|"less_walking";
-const TRANSIT_PREFERENCES:Record<Exclude<TransitPreference,"fastest">,string>={
+const TRANSIT_PREFERENCES:Record<Exclude<TransitPreference,"fastest"|"balanced">,string>={
   fewer_transfers:"FEWER_TRANSFERS",less_walking:"LESS_WALKING",
 };
 const cleanText=(value:unknown,max=120):string=>
