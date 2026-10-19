@@ -395,7 +395,12 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         const response=await fetch("/api/google-travel",{
           method:"POST",signal:controller.signal,cache:"no-store",
           headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
-          body:JSON.stringify({...part,departureTime:planned,
+          body:JSON.stringify({...part,
+            // For "now" car journeys Google's default departure time is now.
+            // Omit the explicit timestamp to restore the previously working
+            // basic DRIVE request; keep planned times for transfers and transit.
+            ...(!departureISO&&i===0&&part.mode==="driving"
+              ?{}:{departureTime:planned}),
             ...(part.mode==="transit"?{transitPreference:settings.transitPreference}:{}),
             ...(resumeFailed?{simpleRoute:true}:{})}),
         });
