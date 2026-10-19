@@ -581,6 +581,70 @@ test("provider 503 retries only the failed MHD leg with a simpler Google request
   await expect.poll(()=>requests.length).toBe(3);
 });
 
+test("Černý Most metro B can be compared with awkward bus-train-tram in exactly one extra call",async({page})=>{
+  const calls=[];
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const payload=route.request().postDataJSON();
+    calls.push(payload);
+    if(payload.mode==="driving")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+        minutes:40,distanceMeters:53200,trafficAware:true,
+        options:[{minutes:40,distanceMeters:53200,steps:[],transfers:0,walkingMeters:0}]
+      })});
+    const metro=payload.transitTravelModes==="metro";
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      minutes:metro?51:48,distanceMeters:metro?14100:14500,trafficAware:false,
+      options:[metro?{minutes:51,distanceMeters:14100,transfers:1,walkingMeters:480,
+        steps:[{kind:"walk",distanceMeters:210},
+          {kind:"transit",vehicle:"SUBWAY",line:"B",from:"Černý Most",to:"Florenc"},
+          {kind:"transit",vehicle:"TRAM",line:"9",from:"Florenc",to:"Viktoria Žižkov"},
+          {kind:"walk",distanceMeters:270}]}:
+        {minutes:48,distanceMeters:14500,transfers:2,walkingMeters:924,
+          steps:[{kind:"walk",distanceMeters:566},
+            {kind:"transit",vehicle:"BUS",line:"201",from:"Poliklinika Černý Most",to:"Hutě"},
+            {kind:"transit",vehicle:"COMMUTER_TRAIN",line:"S34",from:"Rajská zahrada",to:"Masarykovo nádraží"},
+            {kind:"transit",vehicle:"TRAM",line:"26",from:"Masarykovo nádraží",to:"Viktoria Žižkov"},
+            {kind:"walk",distanceMeters:358}]}]
+    })});
+  });
+  const title="Metro versus tři přestupy";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.084,14.442,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.3,14.9,"Doma");
+  await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(dialog,50.1102028,14.5794097,"P+R Černý Most");
+  await dialog.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  const results=dialog.locator(".df2-google-route-results");
+  await expect(results).toContainText("93 min");
+  await expect(results).toContainText("Autobus 201");
+  const metro=dialog.locator(".df2-trip-metro-compare");
+  await expect(metro).toContainText("A co metro B?");
+  expect(calls).toHaveLength(2);
+  await metro.getByRole("button",{name:/Porovnat trasu metrem B/}).click();
+  await expect(metro).toContainText("Metro B · 51 min");
+  expect(calls).toHaveLength(3);
+  expect(calls.map(c=>c.mode)).toEqual(["driving","transit","transit"]);
+  expect(calls[2].transitTravelModes).toBe("metro");
+  expect(calls[2].from).toEqual(calls[1].from);
+  expect(calls[2].to).toEqual(calls[1].to);
+  expect(calls[2].departureTime).toBe(calls[1].departureTime);
+  await metro.getByRole("button",{name:"Vybrat metro"}).click();
+  await expect(results).toContainText("96 min");
+  await expect(results).toContainText("Metro B");
+  await metro.getByRole("button",{name:"Ponechat původní"}).click();
+  await expect(results).toContainText("93 min");
+  expect(calls).toHaveLength(3);
+});
+
 test("comfort planner warns about 2.2 km walking and suggests metro P+R without hidden billing",async({page})=>{
   const requests=[];
   await page.route("**/api/google-travel",async route=>{
@@ -620,10 +684,10 @@ test("comfort planner warns about 2.2 km walking and suggests metro P+R without 
   const results=dialog.locator(".df2-google-route-results");
   await expect(results).toContainText("Vlak S3");
   await expect(results).toContainText("2.2 km chůze");
-  await expect(results.getByRole("button",{name:"Zkusit P+R Černý Most"})).toBeVisible();
+  await expect(results.getByRole("button",{name:/Nastavit P\+R u metra B/})).toBeVisible();
   expect(requests).toHaveLength(2);
   expect(requests[1].transitPreference).toBe("balanced");
-  await results.getByRole("button",{name:"Zkusit P+R Černý Most"}).click();
+  await results.getByRole("button",{name:/Nastavit P\+R u metra B/}).click();
   await expect(dialog.locator("p.df2-trip-inline-hint[role=status]")).toContainText("P+R Černý Most u metra B");
   await expect(results).toHaveCount(0);
   expect(requests).toHaveLength(2);

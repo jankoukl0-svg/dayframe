@@ -527,6 +527,62 @@ test("walking turn steps are summarized around late S22 and metro rides",async()
   });
 });
 
+test("metro preference requests actual SUBWAY service in one budgeted MHD call",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let providerCalls=0;
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      providerCalls++;
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.travelMode,"TRANSIT");
+      assert.deepEqual(payload.transitPreferences.allowedTravelModes,["SUBWAY","BUS","LIGHT_RAIL"]);
+      assert.equal(payload.transitPreferences.routingPreference,"LESS_WALKING");
+      return Response.json({routes:[
+        {duration:"2580s",distanceMeters:13400,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:400},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"201",vehicle:{type:"BUS"}}}},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"S34",vehicle:{type:"COMMUTER_TRAIN"}}}},
+          {travelMode:"WALK",distanceMeters:500},
+        ]}]},
+        {duration:"2940s",distanceMeters:13100,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:200},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"B",vehicle:{type:"SUBWAY"}}}},
+          {travelMode:"WALK",distanceMeters:350},
+        ]}]},
+      ]});
+    };
+    const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"transit",
+        transitPreference:"balanced",transitTravelModes:"metro"}),
+    });
+    const response=await POST(req);
+    assert.equal(response.status,200);
+    const data=await response.json();
+    assert.equal(data.options[0].minutes,49);
+    assert.equal(data.options[0].steps.find(s=>s.kind==="transit").line,"B");
+    assert.equal(data.options[1].minutes,43);
+    assert.equal(redis.commands.length,1);
+    assert.equal(providerCalls,1);
+  });
+});
+test("rejects subway preference on a car route without billing Google",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    let calls=0;globalThis.fetch=()=>{calls++;throw Error("unexpected paid call")};
+    const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"driving",transitTravelModes:"metro"}),
+    });
+    assert.equal((await POST(req)).status,400);
+    assert.equal(calls,0);
+  });
+});
+
 test("default balanced transit prefers the usable metro over a faster 2 km walk to a train",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
