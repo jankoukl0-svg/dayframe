@@ -7,6 +7,7 @@ export type TripTarget={key:string;title:string;date:string;start:string;initial
 type TransitPreference="fastest"|"fewer_transfers"|"less_walking";
 type RouteStep={kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:string;
   from?:string;to?:string;departureTime?:string;arrivalTime?:string;
+  departureLabel?:string;arrivalLabel?:string;departureZone?:string;arrivalZone?:string;
   stops?:number;distanceMeters?:number;instructions?:string};
 type RouteOption={minutes:number;distanceMeters:number;steps:RouteStep[];
   transfers:number;walkingMeters:number};
@@ -14,6 +15,15 @@ type RouteEstimate={minutes:number;distanceMeters:number;options:RouteOption[];d
 type RouteSettings={departureISO?:string;transitPreference:TransitPreference;transferMinutes:number};
 const formatClock=(iso?:string)=>iso&&Number.isFinite(Date.parse(iso))
   ?new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit"}).format(new Date(iso)):"—";
+function formatStationTime(iso?:string,label?:string,zone?:string){
+  if(label)return label;
+  if(!iso||!Number.isFinite(Date.parse(iso)))return "—";
+  const parsed=new Date(iso);
+  try{
+    if(zone)return new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit",timeZone:zone}).format(parsed);
+  }catch{/* Use explicitly labeled UTC instead of a possibly incorrect device time zone. */}
+  return new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit",timeZone:"UTC"}).format(parsed)+" UTC";
+}
 function RouteItinerary({estimate,index,mode,preference}:{estimate:RouteEstimate;index:number;mode:TravelMode;preference:TransitPreference}){
   const primary=estimate.options[0];
   return <div className="df2-travel-itinerary">
@@ -21,12 +31,13 @@ function RouteItinerary({estimate,index,mode,preference}:{estimate:RouteEstimate
     <span className="df2-travel-hint">Předpokládaný odjezd {formatClock(estimate.departureISO)}</span>
     {mode==="transit"&&<div>
       <span className="df2-travel-hint">{preference==="fewer_transfers"?"Varianta s prioritou méně přestupů":preference==="less_walking"?"Varianta s prioritou méně chůze":"Nejrychlejší nalezená varianta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
+      {primary.steps.some(step=>step.kind==="transit")&&<span className="df2-travel-hint">Časy MHD jsou místní časy jednotlivých zastávek.</span>}
       {primary.steps.length>0?<ol className="df2-travel-directions">{primary.steps.map((step,i)=>
         <li key={i}>{step.kind==="transit"?<>
           <strong>{step.vehicle==="SUBWAY"?"Metro":step.vehicle==="BUS"?"Autobus":
             step.vehicle==="TRAM"||step.vehicle==="LIGHT_RAIL"?"Tramvaj":"Spoj"} {step.line||""}</strong>
           {step.headsign&&<span> směr {step.headsign}</span>}
-          <span> · {step.from||"Nástup"} {formatClock(step.departureTime)} → {step.to||"Výstup"} {formatClock(step.arrivalTime)}</span>
+          <span> · {step.from||"Nástup"} {formatStationTime(step.departureTime,step.departureLabel,step.departureZone)} → {step.to||"Výstup"} {formatStationTime(step.arrivalTime,step.arrivalLabel,step.arrivalZone)}</span>
           {Number.isInteger(step.stops)&&<span> · {step.stops} zastávek</span>}
         </>:<span>Pěšky {step.distanceMeters??0} m{step.instructions?" · "+step.instructions:""}</span>}</li>)}</ol>
         :<span className="df2-travel-hint">Podrobnosti spojů nejsou pro tuto trasu dostupné. Otevři ji v Google Maps.</span>}
