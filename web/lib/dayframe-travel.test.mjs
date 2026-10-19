@@ -292,13 +292,18 @@ test("503 error remains sanitized and enables explicit simplified retry",async()
       if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
       requests.push(JSON.parse(options.body));
       if(requests.length===1)
-        return Response.json({error:{message:"SENSITIVE-REQUEST-CONTEXT"}},{status:503});
+        return Response.json({error:{
+          message:"SENSITIVE-REQUEST-CONTEXT",status:"UNAVAILABLE",
+          details:[{reason:"BACKEND_NOT_READY"}]
+        }},{status:503});
       return Response.json({routes:[{duration:"1500s",distanceMeters:18000}]});
     };
     const first=await POST(googleRequest());
     assert.equal(first.status,502);
     const failure=await first.json();
     assert.equal(failure.providerStatus,503);
+    assert.equal(failure.providerCode,"UNAVAILABLE");
+    assert.equal(failure.providerReason,"BACKEND_NOT_READY");
     assert.equal(failure.retryable,true);
     assert.equal(JSON.stringify(failure).includes("SENSITIVE-REQUEST-CONTEXT"),false);
     assert.equal(requests[0].computeAlternativeRoutes,true);
@@ -309,12 +314,44 @@ test("503 error remains sanitized and enables explicit simplified retry",async()
     });
     const second=await POST(fallback);
     assert.equal(second.status,200);
-    assert.equal((await second.json()).minutes,25);
+    const fallbackResult=await second.json();
+    assert.equal(fallbackResult.minutes,25);
+    assert.equal(fallbackResult.trafficAware,false);
     assert.equal(requests[1].computeAlternativeRoutes,false);
+    assert.equal(requests[1].routingPreference,"TRAFFIC_UNAWARE");
+    assert.equal(requests[1].departureTime,undefined);
     assert.equal(requests.length,2);
     assert.equal(redis.commands.length,2);
   });
 });
+test("simple transit retry preserves departure schedule and provider strips unexpected detail values",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    const when=new Date(Date.now()+600000).toISOString();
+    let googleRequestBody;
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      googleRequestBody=JSON.parse(options.body);
+      return Response.json({routes:[{duration:"900s",distanceMeters:4000,
+        legs:[{steps:[{travelMode:"TRANSIT",
+          transitDetails:{transitLine:{nameShort:"B",vehicle:{type:"SUBWAY"}}}}]}]}]});
+    };
+    const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"transit",
+        departureTime:when,simpleRoute:true}),
+    });
+    const response=await POST(req);
+    assert.equal(response.status,200);
+    assert.equal(googleRequestBody.departureTime,when);
+    assert.equal(googleRequestBody.computeAlternativeRoutes,false);
+    assert.equal(googleRequestBody.routingPreference,undefined);
+    assert.equal(redis.commands.length,1);
+  });
+});
+
 test("simplified calculation setting is validated without reserving budget",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
