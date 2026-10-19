@@ -221,8 +221,10 @@ export async function POST(request:Request){
     origin:waypoint(data.from),destination:waypoint(data.to),
     travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:!simpleRoute,
   };
-  if(departureTime)payload.departureTime=departureTime;
-  if(mode==="driving")payload.routingPreference="TRAFFIC_AWARE";
+  // Explicit low-cost recovery for driving avoids the traffic-aware backend.
+  // It is an average, time-independent estimate, NOT live or predictive traffic.
+  if(departureTime&&!(simpleRoute&&mode==="driving"))payload.departureTime=departureTime;
+  if(mode==="driving")payload.routingPreference=simpleRoute?"TRAFFIC_UNAWARE":"TRAFFIC_AWARE";
   if(mode==="transit"&&preference!=="fastest")
     payload.transitPreferences={routingPreference:TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest">]};
   // Reserve before calling billable Google Routes. Each leg costs one reservation.
@@ -258,9 +260,33 @@ export async function POST(request:Request){
         429:"Google Maps omezily počet požadavků (429).",
         503:"Služba Google Routes je dočasně nedostupná (503).",
       };
-      console.error("[dayframe-routes] Google status",reply.status,"mode",mode);
+      // Only expose protocol-level Google error codes (never the raw body or
+      // developer message, which could contain input details).
+      let providerCode:string|undefined;
+      let providerReason:string|undefined;
+      try{
+        const raw=await reply.text();
+        if(raw.length<12000){
+          const parsed=JSON.parse(raw) as {
+            error?:{status?:unknown;details?:Array<{reason?:unknown}>}
+          };
+          const status=parsed?.error?.status;
+          if(typeof status==="string"&&/^[A-Z][A-Z_]{2,48}$/.test(status))
+            providerCode=status;
+          const details=parsed?.error?.details;
+          if(Array.isArray(details)){
+            const reason=details.find(x=>x&&typeof x.reason==="string")?.reason;
+            if(typeof reason==="string"&&/^[A-Z][A-Z0-9_]{2,60}$/.test(reason))
+              providerReason=reason;
+          }
+        }
+      }catch{/* Preserve the provider HTTP status without exposing a raw body. */}
+      console.error("[dayframe-routes] Google status",reply.status,"mode",mode,
+        "providerCode",providerCode??"unreported","reason",providerReason??"unreported");
       return send(502,{error:errors[reply.status]??`Google Routes odmítly výpočet (HTTP ${reply.status}).`,
-        providerStatus:reply.status,retryable:reply.status===503});
+        providerStatus:reply.status,retryable:reply.status===503,
+        ...(providerCode?{providerCode}:{}),
+        ...(providerReason?{providerReason}:{})});
     }
     const response=await reply.json() as {routes?:GoogleRoute[]};
     const options=(Array.isArray(response.routes)?response.routes:[]).slice(0,4)
@@ -278,7 +304,7 @@ export async function POST(request:Request){
       return send(422,{error:"Google Maps pro tato místa nevrátily platnou trasu."});
     const fastest=options[0];
     return send(200,{minutes:fastest.minutes,distanceMeters:fastest.distanceMeters,
-      options,source:"Google Maps",trafficAware:mode==="driving"});
+      options,source:"Google Maps",trafficAware:mode==="driving"&&!simpleRoute});
   }catch{return send(502,{error:"Google Maps nyní nejsou dostupné. Použij ruční odhad."});}
 }
 
