@@ -94,3 +94,16 @@ To reduce variables while keeping the service useful, Dayframe now sends its **p
 - In the summary, Dayframe explicitly displays walking metres and transfers next to lines. A computed transit segment with over 1 km of walking gets a practical warning. For simple DRIVE → TRANSIT journeys whose manually selected interchange is within 8 km of the official Černý Most P+R garage and whose destination is in its wider Prague catchment, the warning offers an alternate interchange: official garage entrance 50.1102028, 14.5794097 (source: `https://parking.praha.eu/cs/moznosti-parkovani-v-praze/pr-park-ride/cerny-most/`).
 - Clicking **Zkusit P+R Černý Most** changes only the draft interchange coordinate; the user must explicitly click **Spočítat trasu** to spend the two new Google stage requests. This intentionally makes API spending visible and avoids implicit fees. It does not guarantee an available parking space, a valid real-time metro schedule, the most comfortable possible interchange, or a particular route. The original interchange isn't automatically persisted until the user saves the location.
 - Later possibilities: dynamic park-and-ride discovery would require an additional Places provider, its own charging quota, and availability data; do not silently use Places API or invent other parkings.
+
+
+### Compare a metro B alternative when Google suggests rail and buses instead
+
+For a final TRANSIT stage whose start is within 3 km of the official P+R Černý Most garage (50.1102028, 14.5794097) and destination is in the wider Prague area, show an **A co metro B?** comparison when Google's selected route does not use a subway (or requires multiple transfers).
+
+1. If the *existing* Google options already contain a subway segment, compare that option for **zero new calls**.
+2. Otherwise offer one **user-triggered** `POST /api/google-travel` on the *TRANSIT stage only*, keeping the same exact stage endpoints and departure time, and adding `transitTravelModes: "metro"`. Google gets `transitPreferences.allowedTravelModes: ["SUBWAY","BUS","LIGHT_RAIL"]` plus its normal routing preference. **Google documents this as a preference, not a guarantee of an actual metro route.** Do not claim a metro route if no step is classified as `SUBWAY` or `METRO_RAIL`.
+3. If Google returns a verified subway, render old and metro alternatives side by side with total minutes, transfer count, and walking metres. Switching locally between these calculated results uses **no further Google calls**, updates the displayed trip time and never persists the provider estimate as Jarvis's normal journey duration.
+4. If Google does not provide a subway, display that limitation clearly instead of inventing an itinerary; allow the user to choose the official P+R garage near the station as a separate change to draft route geometry.
+5. Every provider request, including the metro comparison, still uses the atomic Redis reservation (50/day and 1000/month). No auto background scans, additional keys, or route storage. Metro comparison does not rerun the driving stage.
+
+The limitation is structural: Google Routes returns only a restricted selection of transit alternatives; ordinary `LESS_WALKING` does not force subway. Explicit comparison makes metro visible when Google will actually supply it without claiming a globally optimal route.
