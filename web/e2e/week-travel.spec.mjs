@@ -466,6 +466,51 @@ test("transit timeline shows train, metro and bus instead of dozens of walking t
   expect(posts).toBe(1);
 });
 
+test("provider 503 retries only the failed MHD leg with a simpler Google request",async({page})=>{
+  const requests=[];
+  await page.route("**/api/google-travel",async route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const data=route.request().postDataJSON();
+    requests.push(data);
+    if(data.mode==="driving")return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:35,distanceMeters:25000,options:[{
+        minutes:35,distanceMeters:25000,steps:[],transfers:0,walkingMeters:0}]})});
+    if(!data.simpleRoute)return route.fulfill({status:502,contentType:"application/json",
+      body:JSON.stringify({error:"Služba Google Routes je dočasně nedostupná (503).",
+        providerStatus:503,retryable:true})});
+    return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:20,distanceMeters:10000,options:[{
+        minutes:20,distanceMeters:10000,steps:[{kind:"transit",vehicle:"SUBWAY",line:"B",
+          from:"Černý Most",to:"Florenc"}],transfers:0,walkingMeters:0}]})});
+  });
+  const title="Odolná kombinovaná cesta";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Cíl");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.14,14.41,"Doma");
+  await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(dialog,50.11,14.5,"Parkoviště");
+  await dialog.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog.getByRole("alert")).toContainText("Úsek 2 z 2");
+  await expect(dialog.getByRole("alert")).toContainText("úsek 1 (35 min)");
+  await expect.poll(()=>requests.length).toBe(2);
+  await dialog.getByRole("button",{name:/Zkusit znovu bez alternativ/}).click();
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("60 min");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
+  expect(requests.map(request=>request.mode)).toEqual(["driving","transit","transit"]);
+  expect(requests[2].simpleRoute).toBe(true);
+  expect(Date.parse(requests[2].departureTime)-Date.parse(requests[0].departureTime)).toBe(40*60000);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect.poll(()=>requests.length).toBe(3);
+});
+
 test("Google calculates car to transit in sequence and shows alternative lines without saving Google data",async({page})=>{
   const calls=[];
   await page.route("**/api/google-travel",async route=>{
