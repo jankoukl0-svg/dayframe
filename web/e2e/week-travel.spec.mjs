@@ -23,6 +23,8 @@ async function openTaskPlace(page,title){
   await page.getByRole("button",{name:"Místo konání: "+title}).click();
 }
 async function setMapPoint(dialog,lat,lon,label){
+  if(await dialog.getByRole("button",{name:"Upravit souřadnice"}).count())
+    await dialog.getByRole("button",{name:"Upravit souřadnice"}).click();
   await dialog.getByRole("spinbutton",{name:"Zeměpisná šířka"}).fill(String(lat));
   await dialog.getByRole("spinbutton",{name:"Zeměpisná délka"}).fill(String(lon));
   await dialog.getByRole("textbox",{name:"Popis vybraného místa"}).fill(label);
@@ -331,7 +333,7 @@ test("Google route server unavailable still permits manual travel time",async({p
   await expect(dialog).toContainText("Automatický výpočet není dostupný");
   await expect(dialog.getByLabel("Přístupový kód k výpočtu tras")).toBeVisible();
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
-  await expect(dialog.locator(".df2-google-attribution img")).toHaveCount(0);
+  await expect(dialog.locator(".df2-google-route-results")).toHaveCount(0);
   await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
@@ -364,6 +366,8 @@ test("Google Routes 404 retains access field and suppresses paid POST until retr
   isOnline=true;
   await dialog.getByRole("button",{name:"Zkusit připojení znovu"}).click();
   await expect(dialog.getByRole("button",{name:"Spočítat trasu"})).toBeEnabled();
+  await expect(dialog.getByRole("button",{name:"Změnit kód"})).toBeVisible();
+  await dialog.getByRole("button",{name:"Změnit kód"}).click();
   await expect(access).toHaveValue("x".repeat(28));
   await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
   await expect(dialog.locator(".df2-google-route-results")).toContainText("37 min");
