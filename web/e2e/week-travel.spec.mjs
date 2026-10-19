@@ -574,8 +574,9 @@ test("provider 503 retries only the failed MHD leg with a simpler Google request
   expect(requests.map(request=>request.mode)).toEqual(["driving","transit","transit"]);
   expect(requests[2].simpleRoute).toBe(true);
   expect(requests[0].departureTime).toBeUndefined();
-  expect(Date.parse(requests[2].departureTime)).toBeGreaterThan(Date.now()+38*60000);
-  expect(Date.parse(requests[2].departureTime)).toBeLessThan(Date.now()+42*60000);
+  const mockedNow=await page.evaluate(()=>Date.now());
+  expect(Date.parse(requests[2].departureTime)).toBeGreaterThan(mockedNow+38*60000);
+  expect(Date.parse(requests[2].departureTime)).toBeLessThan(mockedNow+42*60000);
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await expect.poll(()=>requests.length).toBe(3);
 });
@@ -630,8 +631,9 @@ test("Google calculates car to transit in sequence and shows alternative lines w
   expect(calls[1].mode).toBe("transit");
   expect(calls[1].transitPreference).toBe("fewer_transfers");
   expect(calls[0].departureTime).toBeUndefined();
-  expect(Date.parse(calls[1].departureTime)).toBeGreaterThan(Date.now()+35*60000);
-  expect(Date.parse(calls[1].departureTime)).toBeLessThan(Date.now()+39*60000);
+  const mockedNow=await page.evaluate(()=>Date.now());
+  expect(Date.parse(calls[1].departureTime)).toBeGreaterThan(mockedNow+35*60000);
+  expect(Date.parse(calls[1].departureTime)).toBeLessThan(mockedNow+39*60000);
   await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("30");
   await dialog.getByRole("spinbutton",{name:"Délka úseku 2"}).fill("27");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
