@@ -308,6 +308,10 @@ test("transit alternatives choose fastest returned journey and sanitize stop det
           {travelMode:"WALK",distanceMeters:150,navigationInstruction:{instructions:"Dojdi na zastávku"}},
           {travelMode:"TRANSIT",transitDetails:{headsign:"Směr <script>nebezpečí</script>",
             transitLine:{nameShort:"9",vehicle:{type:"TRAM"}},stopCount:5,
+            localizedValues:{
+              departureTime:{time:{text:"11:10"},timeZone:"Europe/Prague"},
+              arrivalTime:{time:{text:"11:25"},timeZone:"Europe/Prague"},
+            },
             stopDetails:{departureStop:{name:"Florenc"},arrivalStop:{name:"Náměstí Republiky"},
               departureTime:"2026-10-19T09:10:00Z",arrivalTime:"2026-10-19T09:25:00Z"}}},
         ]}]},
@@ -325,6 +329,8 @@ test("transit alternatives choose fastest returned journey and sanitize stop det
     assert.equal(result.minutes,35);
     assert.equal(result.options.length,2);
     assert.equal(result.options[0].steps[1].line,"9");
+    assert.equal(result.options[0].steps[1].departureLabel,"11:10");
+    assert.equal(result.options[0].steps[1].arrivalZone,"Europe/Prague");
     assert.equal(result.options[0].steps[1].transfers,undefined);
     assert.equal(result.options[0].walkingMeters,150);
     assert.equal(result.options[0].transfers,0);
