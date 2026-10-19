@@ -418,6 +418,54 @@ test("gym and hygiene week blocks have individual place controls",async({page})=
 });
 
 
+test("transit timeline shows train, metro and bus instead of dozens of walking turns",async({page})=>{
+  let posts=0;
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    posts++;
+    const walk=(n,meters)=>Array.from({length:n},()=>({
+      kind:"walk",distanceMeters:meters,instructions:"Odbočte vlevo na další ulici"
+    }));
+    const transit=(vehicle,line,from,to)=>({kind:"transit",vehicle,line,
+      headsign:"Centrum",from,to,departureLabel:"14:26",arrivalLabel:"14:37",stops:2});
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      minutes:58,distanceMeters:15000,source:"Google Maps",trafficAware:false,options:[{
+        minutes:58,distanceMeters:15000,transfers:2,walkingMeters:600,steps:[
+          ...walk(20,10),transit("OTHER","S22","Rajská zahrada","Praha hl. n."),
+          ...walk(20,10),transit("SUBWAY","C","Hlavní nádraží","Muzeum"),
+          transit("BUS","135","Muzeum","Zastávka"),
+          ...walk(10,20),
+        ],
+      }]
+    })});
+  });
+  await makeTask(page,"Čitelná trasa MHD");
+  await openTaskPlace(page,"Čitelná trasa MHD");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Čitelná trasa MHD"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Škola");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.10,14.42,"Doma");
+  await dialog.getByRole("combobox",{name:"Způsob dopravy"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("Vlak S22");
+  await dialog.locator(".df2-trip-details summary").click();
+  const timeline=dialog.locator(".df2-route-timeline");
+  await expect(timeline.locator("li")).toHaveCount(6);
+  await expect(timeline).toContainText("Vlak");
+  await expect(timeline).toContainText("S22");
+  await expect(timeline).toContainText("Metro");
+  await expect(timeline).toContainText("Autobus");
+  await expect(timeline).toContainText("Rajská zahrada");
+  await expect(timeline).toContainText("Praha hl. n.");
+  await expect(timeline).toContainText("14:26");
+  await expect(timeline).not.toContainText("Odbočte vlevo");
+  await expect(timeline.locator(".df2-route-walk")).toHaveCount(3);
+  expect(posts).toBe(1);
+});
+
 test("Google calculates car to transit in sequence and shows alternative lines without saving Google data",async({page})=>{
   const calls=[];
   await page.route("**/api/google-travel",async route=>{

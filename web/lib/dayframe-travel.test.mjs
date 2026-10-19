@@ -339,6 +339,40 @@ test("transit alternatives choose fastest returned journey and sanitize stop det
     assert.equal(redis.commands.length,1);
   });
 });
+test("walking turn steps are summarized around late S22 and metro rides",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let calls=0;
+    const walk=(n,meters)=>Array.from({length:n},()=>({travelMode:"WALK",distanceMeters:meters}));
+    const transit=(line,type)=>({travelMode:"TRANSIT",transitDetails:{
+      transitLine:{nameShort:line,vehicle:{type}},
+      stopDetails:{departureStop:{name:"Rajská zahrada"},arrivalStop:{name:"Hlavní nádraží"}}
+    }});
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      calls++;
+      return Response.json({routes:[{duration:"2400s",distanceMeters:9200,legs:[{steps:[
+        ...walk(90,4),transit("S22","COMMUTER_TRAIN"),...walk(70,2),
+        transit("C","SUBWAY"),...walk(5,3),
+      ]}]}]});
+    };
+    const response=await POST(googleRequest("transit"));
+    assert.equal(response.status,200);
+    const data=await response.json();
+    const route=data.options[0];
+    assert.deepEqual(route.steps.map(step=>step.kind),["walk","transit","walk","transit","walk"]);
+    assert.deepEqual(route.steps.filter(step=>step.kind==="walk").map(step=>step.distanceMeters),[360,140,15]);
+    assert.equal(route.walkingMeters,515);
+    assert.equal(route.transfers,1);
+    assert.equal(route.steps[1].line,"S22");
+    assert.equal(route.steps[1].vehicle,"COMMUTER_TRAIN");
+    assert.equal(route.steps[3].vehicle,"SUBWAY");
+    assert.equal(calls,1);
+    assert.equal(redis.commands.length,1);
+  });
+});
+
 test("transit preference rankings favor fewer changes or shorter walks",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");

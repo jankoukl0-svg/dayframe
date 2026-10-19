@@ -119,13 +119,16 @@ function routeOption(route:GoogleRoute,mode:RouteMode){
   if(!Number.isFinite(seconds)||seconds<0||seconds>86400
     ||typeof meters!=="number"||!Number.isFinite(meters)||meters<0)return null;
   const steps:DisplayStep[]=[];
-  if(mode==="transit")for(const leg of (route.legs??[]).slice(0,2))
-    for(const step of (leg.steps??[]).slice(0,70)){
-      if(steps.length>=30)break;
+  let walkingMeters=0,transitCount=0;
+  if(mode==="transit")for(const leg of (route.legs??[]).slice(0,3)){
+    // Google returns dozens of tiny turn-by-turn WALK steps. Collect the entire
+    // journey before applying the display cap; otherwise the train may be lost.
+    for(const step of (leg.steps??[]).slice(0,500)){
       const transit=step.transitDetails;
       if(transit){
+        transitCount++;
         const stop=transit.stopDetails;
-        steps.push({
+        if(steps.length<80)steps.push({
           kind:"transit",line:cleanText(transit.transitLine?.nameShort||transit.transitLine?.name),
           vehicle:cleanText(transit.transitLine?.vehicle?.type,32),
           headsign:cleanText(transit.headsign),
@@ -138,14 +141,19 @@ function routeOption(route:GoogleRoute,mode:RouteMode){
           arrivalZone:cleanText(transit.localizedValues?.arrivalTime?.timeZone,64),
           stops:Number.isInteger(transit.stopCount)?transit.stopCount:undefined,
         });
-      }else if(step.travelMode==="WALK"&&typeof step.distanceMeters==="number"){
-        steps.push({kind:"walk",distanceMeters:Math.max(0,Math.round(step.distanceMeters)),
-          instructions:cleanText(step.navigationInstruction?.instructions,160)});
+      }else if(step.travelMode==="WALK"&&typeof step.distanceMeters==="number"
+        &&Number.isFinite(step.distanceMeters)&&step.distanceMeters>=0){
+        const distance=Math.round(step.distanceMeters);
+        walkingMeters+=distance;
+        const previous=steps[steps.length-1];
+        if(previous?.kind==="walk")previous.distanceMeters=(previous.distanceMeters??0)+distance;
+        else if(steps.length<80)steps.push({kind:"walk",distanceMeters:distance});
       }
     }
+  }
+  // Only a meaningful boarding or walking section becomes a visible route item.
   return {minutes:Math.max(1,Math.ceil(seconds/60)),distanceMeters:Math.round(meters),steps,
-    transfers:Math.max(0,steps.filter(step=>step.kind==="transit").length-1),
-    walkingMeters:steps.reduce((n,step)=>n+(step.kind==="walk"?(step.distanceMeters??0):0),0)};
+    transfers:Math.max(0,transitCount-1),walkingMeters};
 }
 const MODES:Record<RouteMode,string>={driving:"DRIVE",walking:"WALK",cycling:"BICYCLE",transit:"TRANSIT"};
 const headers={"Cache-Control":"no-store, max-age=0","Content-Type":"application/json; charset=utf-8"};
