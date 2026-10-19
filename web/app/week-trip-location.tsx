@@ -4,7 +4,7 @@ import {readTravelStore,saveTravelStore,travelDirectionsUrl,
   type TravelPoint,type TravelMode,type TravelLeg,TRAVEL_MODE_LABELS,eventStart} from "@/lib/dayframe-travel";
 
 export type TripTarget={key:string;title:string;date:string;start:string;initialOffsite?:boolean};
-type TransitPreference="fastest"|"fewer_transfers"|"less_walking";
+type TransitPreference="balanced"|"fastest"|"fewer_transfers"|"less_walking";
 type RouteStep={kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:string;
   from?:string;to?:string;departureTime?:string;arrivalTime?:string;
   departureLabel?:string;arrivalLabel?:string;departureZone?:string;arrivalZone?:string;
@@ -26,6 +26,14 @@ function formatStationTime(iso?:string,label?:string,zone?:string){
 }
 // Use the vehicle enum returned by Google rather than inferring bus/metro/train
 // from the transport leg (which is always generically "transit").
+// Official entrance to the Černý Most P+R garage (parking.praha.eu).
+const CERNY_MOST_PARK:TravelPoint={lat:50.1102028,lon:14.5794097,label:"P+R Černý Most — parkovací dům u metra B"};
+function distanceBetweenMetres(a:TravelPoint,b:TravelPoint){
+  const rad=Math.PI/180;
+  const dLat=(b.lat-a.lat)*rad,dLon=(b.lon-a.lon)*rad;
+  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;
+  return 12742000*Math.asin(Math.min(1,Math.sqrt(h)));
+}
 function transitPresentation(vehicle?:string,line?:string){
   const kind=(vehicle??"").toUpperCase();
   if(kind==="SUBWAY")return {label:"Metro",icon:"🚇"};
@@ -60,7 +68,7 @@ function RouteItinerary({estimate,index,mode,preference}:{estimate:RouteEstimate
     <strong>Úsek {index+1} · {estimate.minutes} min · {(estimate.distanceMeters/1000).toFixed(1)} km</strong>
     <span className="df2-travel-hint">Odhadovaný odjezd {formatClock(estimate.departureISO)}</span>
     {mode==="transit"&&<div className="df2-route-overview">
-      <span className="df2-travel-hint">{preference==="fewer_transfers"?"Přednost: méně přestupů":preference==="less_walking"?"Přednost: méně chůze":"Přednost: nejrychlejší cesta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
+      <span className="df2-travel-hint">{preference==="balanced"?"Přednost: pohodlná cesta":preference==="fewer_transfers"?"Přednost: méně přestupů":preference==="less_walking"?"Přednost: méně chůze":"Přednost: nejrychlejší cesta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
       {itinerary.length>0?<ol className="df2-route-timeline" aria-label="Přehled spojů a chůze">{itinerary.map((step,i)=>{
         if(step.kind==="walk")return <li key={i} className="df2-route-timeline-item df2-route-walk">
           <span className="df2-route-step-icon" aria-hidden="true">🚶</span>
@@ -246,6 +254,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [mapTarget,setMapTarget]=useState<"destination"|"origin"|number>("destination");
   const [placeEditorOpen,setPlaceEditorOpen]=useState(!current?.place);
   const [advancedOpen,setAdvancedOpen]=useState(false);
+  const [parkSwitchNotice,setParkSwitchNotice]=useState(false);
   const [accessEditorOpen,setAccessEditorOpen]=useState(false);
   function choosePlace(next:"destination"|"origin"|number){
     setMapTarget(next);setPlaceEditorOpen(true);
@@ -281,9 +290,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")+
       "T"+[String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0")].join(":");
   });
-  const [transitPreference,setTransitPreference]=useState<TransitPreference>("fastest");
+  const [transitPreference,setTransitPreference]=useState<TransitPreference>("balanced");
   const [transferMinutes,setTransferMinutes]=useState(5);
-  const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"fastest",transferMinutes:5});
+  const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"balanced",transferMinutes:5});
   const routeController=useRef<AbortController|null>(null);
   const partialRoute=useRef<{
     signature:string;settings:RouteSettings;startedAt:number;cachedAt:number;estimates:RouteEstimate[];
@@ -329,6 +338,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         :null
       :[{from:origin,to:destination,mode}]
     :null;
+  const metroParkingAlternative=Boolean(mixed&&legs.length===2&&legs[0].mode==="driving"
+    &&legs[1].mode==="transit"&&legs[0].via&&destination
+    &&distanceBetweenMetres(legs[0].via,CERNY_MOST_PARK)<8000
+    &&distanceBetweenMetres(destination,CERNY_MOST_PARK)<26000
+    &&distanceBetweenMetres(legs[0].via,CERNY_MOST_PARK)>150);
   // Never transmit user-written place labels or use them to trigger paid recalculations.
   const routeSignature=routeParts?JSON.stringify(routeParts.map(part=>({
     from:{lat:part.from.lat,lon:part.from.lon},
@@ -628,6 +642,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 <label>Co je důležitější?
                   <select aria-label="Preference MHD" value={transitPreference}
                     onChange={e=>setTransitPreference(e.target.value as TransitPreference)}>
+                    <option value="balanced">Pohodlná cesta (doporučeno)</option>
                     <option value="fastest">Nejrychlejší spoj</option>
                     <option value="fewer_transfers">Méně přestupů</option>
                     <option value="less_walking">Méně chůze</option>
@@ -652,6 +667,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 disabled={!offsite||!routeParts||googleLoading||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))}>
                 {googleLoading?"Počítám trasu…":googleEstimates?"Přepočítat trasu":"Spočítat trasu"}
               </button>
+              {parkSwitchNotice&&<p className="df2-trip-inline-hint" role="status">
+                Přestupní místo je nastaveno na P+R Černý Most u metra B.
+                Klikni na „Spočítat trasu“ pro nový odhad (u kombinace dvě API volání).
+                Parkování a dostupnost míst ověř před odjezdem.
+              </p>}
               {!routeParts?<p className="df2-trip-inline-hint">K výpočtu vyber odkud, kam a případná přestupní místa.</p>
                 :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-trip-inline-hint">Pro výpočet zadej svůj osobní přístupový kód.</p>
                 :<p className="df2-trip-cost-note">Výpočet spustíš jen tlačítkem. {mixed?`Každý z ${routeParts.length} úseků spotřebuje jeden požadavek.`:"Jeden výpočet spotřebuje jeden požadavek."}</p>}
@@ -673,6 +693,25 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                     }).join(" → ")}</small>}
                 </div>)}
                 {mixed&&<span>Parkování a přestupy: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min navíc (zahrnuto v součtu).</span>}
+                {routeParts?.some((part,index)=>part.mode==="transit"
+                  &&(googleEstimates[index]?.options[0]?.walkingMeters??0)>1000)&&
+                  <div className="df2-trip-comfort-warning">
+                    <strong>Hodně chůze na této trase</strong>
+                    <span>Trasa zahrnuje {Math.round(googleEstimates.reduce((sum,part,i)=>sum+
+                      (routeParts[i]?.mode==="transit"?(part.options[0]?.walkingMeters??0):0),0)/100)/10} km chůze.
+                      Zkus pohodlnější variantu nebo jiné parkování u metra.</span>
+                    {metroParkingAlternative&&<div className="df2-trip-park-suggestion">
+                      <div><strong>Alternativa: P+R Černý Most</strong>
+                      <p>Parkovací dům přímo u metra B. Můžeš vyzkoušet trasu přes metro místo vlaku.
+                         Google potom spočítá oba nové úseky.</p></div>
+                      <button type="button" onClick={()=>{
+                        setParkSwitchNotice(true);
+                        setLegs(prev=>prev.map((leg,index)=>index===0?{...leg,via:CERNY_MOST_PARK}:leg));
+                        setPlaceEditorOpen(false);
+                      }}>Zkusit P+R Černý Most</button>
+                    </div>}
+                  </div>}
+
                 <details className="df2-trip-details">
                   <summary>Zobrazit stanice, spoje a alternativy</summary>
                   {googleEstimates.map((part,index)=><RouteItinerary key={index} index={index}
