@@ -264,7 +264,7 @@ test("access code remains editable past twenty characters and can be collapsed e
 test("travel editor defaults to a short journey summary and never auto-spends the Google budget",async({page})=>{
   let posts=0;
   await page.route("**/api/google-travel",route=>{
-    if(route.request().method()==="POST"){posts++;return route.fulfill({status:200,contentType:"application/json",
+    if(route.request().method()==="POST"){posts++;const payload=route.request().postDataJSON();expect(payload.departureTime).toBeUndefined();return route.fulfill({status:200,contentType:"application/json",
       body:JSON.stringify({minutes:30,distanceMeters:12000,source:"Google Maps",trafficAware:true})});}
     return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
   });
@@ -573,7 +573,10 @@ test("provider 503 retries only the failed MHD leg with a simpler Google request
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
   expect(requests.map(request=>request.mode)).toEqual(["driving","transit","transit"]);
   expect(requests[2].simpleRoute).toBe(true);
-  expect(Date.parse(requests[2].departureTime)-Date.parse(requests[0].departureTime)).toBe(40*60000);
+  expect(requests[0].departureTime).toBeUndefined();
+  const mockedNow=await page.evaluate(()=>Date.now());
+  expect(Date.parse(requests[2].departureTime)).toBeGreaterThan(mockedNow+38*60000);
+  expect(Date.parse(requests[2].departureTime)).toBeLessThan(mockedNow+42*60000);
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await expect.poll(()=>requests.length).toBe(3);
 });
@@ -627,7 +630,10 @@ test("Google calculates car to transit in sequence and shows alternative lines w
   expect(calls[0].mode).toBe("driving");
   expect(calls[1].mode).toBe("transit");
   expect(calls[1].transitPreference).toBe("fewer_transfers");
-  expect(Date.parse(calls[1].departureTime)-Date.parse(calls[0].departureTime)).toBe(37*60000);
+  expect(calls[0].departureTime).toBeUndefined();
+  const mockedNow=await page.evaluate(()=>Date.now());
+  expect(Date.parse(calls[1].departureTime)).toBeGreaterThan(mockedNow+35*60000);
+  expect(Date.parse(calls[1].departureTime)).toBeLessThan(mockedNow+39*60000);
   await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("30");
   await dialog.getByRole("spinbutton",{name:"Délka úseku 2"}).fill("27");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();

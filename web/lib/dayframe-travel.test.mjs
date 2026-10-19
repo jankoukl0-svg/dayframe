@@ -283,6 +283,28 @@ test("Google Routes reports actionable but sanitized provider authorization erro
     }
   });
 });
+test("standard driving request uses the known working traffic-aware basic payload",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    const body=[];
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      body.push(JSON.parse(options.body));
+      assert.equal(options.headers["X-Goog-FieldMask"],"routes.duration,routes.distanceMeters");
+      return Response.json({routes:[{duration:"3600s",distanceMeters:69700}]});
+    };
+    const reply=await POST(googleRequest("driving"));
+    assert.equal(reply.status,200);
+    assert.equal(body.length,1);
+    assert.equal(body[0].travelMode,"DRIVE");
+    assert.equal(body[0].routingPreference,"TRAFFIC_AWARE");
+    assert.equal(body[0].computeAlternativeRoutes,false);
+    assert.equal(body[0].departureTime,undefined);
+    assert.equal(redis.commands.length,1);
+  });
+});
+
 test("503 error remains sanitized and enables explicit simplified retry",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
@@ -306,7 +328,7 @@ test("503 error remains sanitized and enables explicit simplified retry",async()
     assert.equal(failure.providerReason,"BACKEND_NOT_READY");
     assert.equal(failure.retryable,true);
     assert.equal(JSON.stringify(failure).includes("SENSITIVE-REQUEST-CONTEXT"),false);
-    assert.equal(requests[0].computeAlternativeRoutes,true);
+    assert.equal(requests[0].computeAlternativeRoutes,false);
     const fallback=new Request("https://dayframe2.vercel.app/api/google-travel",{
       method:"POST",headers:{"content-type":"application/json",
         authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},

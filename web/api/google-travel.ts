@@ -220,7 +220,10 @@ export async function POST(request:Request){
   const waypoint=(p:Point)=>({location:{latLng:{latitude:p.lat,longitude:p.lon}}});
   const payload:Record<string,unknown>={
     origin:waypoint(data.from),destination:waypoint(data.to),
-    travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:!simpleRoute,
+    // Keep the proven basic shape for driving and walking/biking.
+    // Transit retains optional alternative connections without extra Google calls.
+    travelMode:MODES[mode],languageCode:"cs",units:"METRIC",
+    computeAlternativeRoutes:mode==="transit"&&!simpleRoute,
   };
   // Explicit low-cost recovery for driving avoids the traffic-aware backend.
   // It is an average, time-independent estimate, NOT live or predictive traffic.
