@@ -690,7 +690,13 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   Bez alternativ; u auta také bez dopravního modelu. Čas autem bude pouze orientační. Google může být stále nedostupný.
                 </p>}
                 {googleDiagnostic&&<p className="df2-trip-cost-note">{googleDiagnostic}</p>}
-                <p className="df2-trip-inline-hint">Můžeš také počkat, otevřít trasu v Google Maps nebo zadat běžný čas ručně.</p>
+                {failedStage!==null&&routeParts?.[failedStage]&&
+                  <a className="df2-trip-external-route"
+                    href={travelDirectionsUrl(routeParts[failedStage].from,routeParts[failedStage].to,routeParts[failedStage].mode)}
+                    target="_blank" rel="noopener noreferrer">
+                    Otevřít úsek {failedStage+1} v Google Maps ↗
+                  </a>}
+                <p className="df2-trip-inline-hint">Když Google Routes neodpovídá, trasu můžeš otevřít přímo v Google Maps nebo zadat běžný čas ručně.</p>
               </div>}
             </>}
             <details className="df2-trip-legal"><summary>Limity a soukromí</summary>
