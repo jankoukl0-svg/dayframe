@@ -24,31 +24,81 @@ function formatStationTime(iso?:string,label?:string,zone?:string){
   }catch{/* Use explicitly labeled UTC instead of a possibly incorrect device time zone. */}
   return new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit",timeZone:"UTC"}).format(parsed)+" UTC";
 }
+// Use the vehicle enum returned by Google rather than inferring bus/metro/train
+// from the transport leg (which is always generically "transit").
+function transitPresentation(vehicle?:string,line?:string){
+  const kind=(vehicle??"").toUpperCase();
+  if(kind==="SUBWAY")return {label:"Metro",icon:"🚇"};
+  if(["COMMUTER_TRAIN","HEAVY_RAIL","HIGH_SPEED_TRAIN","LONG_DISTANCE_TRAIN","RAIL","MONORAIL","TRAIN"].includes(kind))
+    return {label:"Vlak",icon:"🚆"};
+  if(["TRAM","LIGHT_RAIL","METRO_RAIL"].includes(kind))return {label:"Tramvaj",icon:"🚋"};
+  if(["BUS","INTERCITY_BUS","TROLLEYBUS","SHARE_TAXI"].includes(kind))return {label:"Autobus",icon:"🚌"};
+  if(kind==="FERRY")return {label:"Přívoz",icon:"⛴️"};
+  if(["CABLE_CAR","GONDOLA_LIFT","FUNICULAR"].includes(kind))return {label:"Lanovka",icon:"🚠"};
+  // Czech train lines like S22 may be returned as OTHER by the provider.
+  if(/^(?:S|R|RE|Ex)\\s*\\d+[A-Z]?$/i.test((line??"").trim()))return {label:"Vlak",icon:"🚆"};
+  return {label:"MHD",icon:"🚏"};
+}
+// Safely support compact server responses and older step-rich responses.
+function compactTravelSteps(steps:RouteStep[]):RouteStep[]{
+  const items:RouteStep[]=[];
+  for(const step of steps){
+    if(step.kind==="walk"){
+      if(!Number.isFinite(step.distanceMeters)||Number(step.distanceMeters)<0)continue;
+      const distance=Math.round(step.distanceMeters??0);
+      const last=items[items.length-1];
+      if(last?.kind==="walk")last.distanceMeters=(last.distanceMeters??0)+distance;
+      else items.push({kind:"walk",distanceMeters:distance});
+    }else if(step.kind==="transit")items.push(step);
+  }
+  return items;
+}
 function RouteItinerary({estimate,index,mode,preference}:{estimate:RouteEstimate;index:number;mode:TravelMode;preference:TransitPreference}){
   const primary=estimate.options[0];
+  const itinerary=compactTravelSteps(primary.steps);
   return <div className="df2-travel-itinerary">
-    <strong>Úsek {index+1}: {estimate.minutes} min · {(estimate.distanceMeters/1000).toFixed(1)} km</strong>
-    <span className="df2-travel-hint">Předpokládaný odjezd {formatClock(estimate.departureISO)}</span>
-    {mode==="transit"&&<div>
-      <span className="df2-travel-hint">{preference==="fewer_transfers"?"Varianta s prioritou méně přestupů":preference==="less_walking"?"Varianta s prioritou méně chůze":"Nejrychlejší nalezená varianta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
-      {primary.steps.some(step=>step.kind==="transit")&&<span className="df2-travel-hint">Časy MHD jsou místní časy jednotlivých zastávek.</span>}
-      {primary.steps.length>0?<ol className="df2-travel-directions">{primary.steps.map((step,i)=>
-        <li key={i}>{step.kind==="transit"?<>
-          <strong>{step.vehicle==="SUBWAY"?"Metro":step.vehicle==="BUS"?"Autobus":
-            step.vehicle==="TRAM"||step.vehicle==="LIGHT_RAIL"?"Tramvaj":"Spoj"} {step.line||""}</strong>
-          {step.headsign&&<span> směr {step.headsign}</span>}
-          <span> · {step.from||"Nástup"} {formatStationTime(step.departureTime,step.departureLabel,step.departureZone)} → {step.to||"Výstup"} {formatStationTime(step.arrivalTime,step.arrivalLabel,step.arrivalZone)}</span>
-          {Number.isInteger(step.stops)&&<span> · {step.stops} zastávek</span>}
-        </>:<span>Pěšky {step.distanceMeters??0} m{step.instructions?" · "+step.instructions:""}</span>}</li>)}</ol>
-        :<span className="df2-travel-hint">Podrobnosti spojů nejsou pro tuto trasu dostupné. Otevři ji v Google Maps.</span>}
+    <strong>Úsek {index+1} · {estimate.minutes} min · {(estimate.distanceMeters/1000).toFixed(1)} km</strong>
+    <span className="df2-travel-hint">Odhadovaný odjezd {formatClock(estimate.departureISO)}</span>
+    {mode==="transit"&&<div className="df2-route-overview">
+      <span className="df2-travel-hint">{preference==="fewer_transfers"?"Přednost: méně přestupů":preference==="less_walking"?"Přednost: méně chůze":"Přednost: nejrychlejší cesta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
+      {itinerary.length>0?<ol className="df2-route-timeline" aria-label="Přehled spojů a chůze">{itinerary.map((step,i)=>{
+        if(step.kind==="walk")return <li key={i} className="df2-route-timeline-item df2-route-walk">
+          <span className="df2-route-step-icon" aria-hidden="true">🚶</span>
+          <div className="df2-route-step-content">
+            <strong>Pěšky</strong>
+            <span>{step.distanceMeters??0} m</span>
+          </div>
+        </li>;
+        const vehicle=transitPresentation(step.vehicle,step.line);
+        return <li key={i} className="df2-route-timeline-item df2-route-transit">
+          <span className="df2-route-step-icon" aria-hidden="true">{vehicle.icon}</span>
+          <div className="df2-route-step-content">
+            <div className="df2-route-line-head"><strong>{vehicle.label}</strong>
+              {step.line&&<span className="df2-route-line-number">{step.line}</span>}
+            </div>
+            {step.headsign&&<span className="df2-route-headsign">Směr {step.headsign}</span>}
+            <div className="df2-route-stop-pair">
+              <div><span className="df2-route-stop-tag">Nástup</span><strong>{step.from||"Neuvedená zastávka"}</strong>
+                <span className="df2-route-stop-time">{formatStationTime(step.departureTime,step.departureLabel,step.departureZone)}</span></div>
+              <div><span className="df2-route-stop-tag">Výstup</span><strong>{step.to||"Neuvedená zastávka"}</strong>
+                <span className="df2-route-stop-time">{formatStationTime(step.arrivalTime,step.arrivalLabel,step.arrivalZone)}</span></div>
+            </div>
+            {Number.isInteger(step.stops)&&<span className="df2-route-stop-count">{step.stops} zastávek</span>}
+          </div>
+        </li>;
+      })}</ol>:<p className="df2-travel-hint">Google neposkytl podrobnosti spojů. Ověř trasu přímo v Google Maps.</p>}
       {estimate.options.length>1&&<details className="df2-travel-alternatives">
         <summary>Porovnat {estimate.options.length-1} další dostupné varianty</summary>
         {estimate.options.slice(1).map((option,i)=><div key={i} className="df2-travel-alternative">
           <strong>Varianta {i+2}: {option.minutes} min</strong>
           <span> · {option.transfers} přestupů · pěšky {option.walkingMeters} m</span>
-          <span> · {option.steps.filter(step=>step.kind==="transit").map(step=>step.line||step.vehicle||"MHD").join(" → ")||"MHD"}</span>
+          <span> · {option.steps.filter(step=>step.kind==="transit").map(step=>{
+            const vehicle=transitPresentation(step.vehicle,step.line);
+            return vehicle.label+(step.line?" "+step.line:"");
+          }).join(" → ")||"MHD"}</span>
         </div>)}
       </details>}
+      <span className="df2-travel-hint">Časy jsou místní časy zastávek. Detailní pěší navigaci otevři v Google Maps.</span>
     </div>}
     {mode!=="transit"&&estimate.options.length>1&&<details className="df2-travel-alternatives">
       <summary>Další {estimate.options.length-1} alternativní trasy</summary>
@@ -566,7 +616,10 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   <span>{mixed?`Úsek ${index+1} · `:""}{TRAVEL_MODE_LABELS[routeParts?.[index]?.mode??"driving"]}</span>
                   <strong>{part.minutes} min</strong>
                   {part.options[0]?.steps.some(step=>step.kind==="transit")&&
-                    <small>{part.options[0].steps.filter(step=>step.kind==="transit").map(step=>step.line||step.vehicle||"MHD").join(" → ")}</small>}
+                    <small>{part.options[0].steps.filter(step=>step.kind==="transit").map(step=>{
+                      const presentation=transitPresentation(step.vehicle,step.line);
+                      return presentation.label+(step.line?" "+step.line:"");
+                    }).join(" → ")}</small>}
                 </div>)}
                 {mixed&&<span>Parkování a přestupy: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min navíc (zahrnuto v součtu).</span>}
                 <details className="df2-trip-details">
