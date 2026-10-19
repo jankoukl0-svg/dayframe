@@ -285,7 +285,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"fastest",transferMinutes:5});
   const routeController=useRef<AbortController|null>(null);
   const partialRoute=useRef<{
-    signature:string;settings:RouteSettings;startedAt:number;estimates:RouteEstimate[];
+    signature:string;settings:RouteSettings;startedAt:number;cachedAt:number;estimates:RouteEstimate[];
   }|null>(null);
   const [failedStage,setFailedStage]=useState<number|null>(null);
   const [canRetrySimplified,setCanRetrySimplified]=useState(false);
@@ -363,7 +363,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const previous=partialRoute.current;
     const canResume=resumeFailed&&previous&&previous.signature===routeSignature
       &&JSON.stringify(previous.settings)===JSON.stringify(settings)
-      &&Date.now()-previous.startedAt<10*60000;
+      &&Date.now()>=previous.cachedAt&&Date.now()-previous.cachedAt<10*60000;
     if(resumeFailed&&!canResume){
       setGoogleError("Dřívější výpočet už není aktuální. Spusť nový výpočet celé trasy.");
       setCanRetrySimplified(false);
@@ -404,7 +404,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           // Keep successful earlier stages in memory, never charge for them again on retry.
           if(response.status===502&&result.providerStatus===503&&result.retryable){
             partialRoute.current={signature:routeSignature,settings,startedAt:departure,
-              estimates:calculated};
+              cachedAt:canResume?previous!.cachedAt:Date.now(),estimates:calculated};
             setCanRetrySimplified(true);
           }else partialRoute.current=null;
           setFailedStage(i);
