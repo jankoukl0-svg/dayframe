@@ -198,6 +198,12 @@ export async function POST(request:Request){
   if(!point(data.from)||!point(data.to)||typeof data.mode!=="string"||!Object.hasOwn(MODES,data.mode))
     return send(400,{error:"Vyber platný začátek, cíl a způsob dopravy."});
   const mode=data.mode as RouteMode;
+  // Optional explicit, budgeted metro comparison for one MHD stage.
+  // Google's allowedTravelModes is a preference, not a guaranteed metro-only route.
+  if(data.transitTravelModes!==undefined&&
+    (mode!=="transit"||data.transitTravelModes!=="metro"))
+    return send(400,{error:"Neplatná volba preferovaného dopravního prostředku."});
+  const metroRequested=data.transitTravelModes==="metro";
   if(data.simpleRoute!==undefined&&typeof data.simpleRoute!=="boolean")
     return send(400,{error:"Neplatný typ zjednodušeného výpočtu."});
   const simpleRoute=data.simpleRoute===true;
@@ -229,9 +235,12 @@ export async function POST(request:Request){
   // It is an average, time-independent estimate, NOT live or predictive traffic.
   if(departureTime&&!(simpleRoute&&mode==="driving"))payload.departureTime=departureTime;
   if(mode==="driving")payload.routingPreference=simpleRoute?"TRAFFIC_UNAWARE":"TRAFFIC_AWARE";
-  if(mode==="transit"&&preference!=="fastest")
-    payload.transitPreferences={routingPreference:preference==="balanced"?"LESS_WALKING":
-      TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest"|"balanced">]};
+  if(mode==="transit"&&(preference!=="fastest"||metroRequested))
+    payload.transitPreferences={
+      ...(preference!=="fastest"?{routingPreference:preference==="balanced"?"LESS_WALKING":
+        TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest"|"balanced">]}:{}),
+      ...(metroRequested?{allowedTravelModes:["SUBWAY","BUS","LIGHT_RAIL"]}:{}),
+    };
   // Reserve before calling billable Google Routes. Each leg costs one reservation.
   // On Redis failures, never fall back to in-memory counters or unmetered Google calls.
   const reservation=await reserveRouteBudget();
@@ -303,6 +312,11 @@ export async function POST(request:Request){
       .sort((a,b)=>{
         // Explicit MHD preferences rank the returned alternatives by that criterion.
         // A preference changes prioritization, never promises a globally optimal route.
+        if(mode==="transit"&&metroRequested){
+          const metro=(option:NonNullable<ReturnType<typeof routeOption>>)=>
+            option.steps.some(step=>step.kind==="transit"&&step.vehicle==="SUBWAY");
+          if(metro(a)!==metro(b))return metro(a)?-1:1;
+        }
         if(mode==="transit"&&preference==="balanced"){
           // A small delay is often preferable to kilometres of walking or many
           // transfers. Rank only Google's returned options, never invent a route.
