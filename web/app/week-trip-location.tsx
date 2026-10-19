@@ -396,7 +396,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           <section className="df2-trip-section" aria-label="Místa cesty">
             <div className="df2-trip-section-title"><span className="df2-trip-section-number">1</span><h3>Odkud a kam?</h3></div>
             <nav className="df2-travel-tabs df2-trip-place-cards" aria-label="Výběr místa">
-              <button type="button" aria-pressed={mapTarget==="origin"&&placeEditorOpen}
+              <button type="button" aria-label="Odkud vyrážím" aria-pressed={mapTarget==="origin"&&placeEditorOpen}
                 className={mapTarget==="origin"&&placeEditorOpen?"is-active":""}
                 onClick={()=>choosePlace("origin")}>
                 <small>ODKUD</small>
@@ -411,7 +411,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 <span>{destination?"Změnit místo":"Klikni pro výběr"}</span>
               </button>
               {mixed&&legs.slice(0,-1).map((leg,index)=>
-                <button type="button" key={index} aria-pressed={mapTarget===index&&placeEditorOpen}
+                <button type="button" key={index} aria-label={"Zastávka "+(index+1)} aria-pressed={mapTarget===index&&placeEditorOpen}
                   className={mapTarget===index&&placeEditorOpen?"is-active":""}
                   onClick={()=>choosePlace(index)}>
                   <small>PŘESTUP {index+1}</small>
