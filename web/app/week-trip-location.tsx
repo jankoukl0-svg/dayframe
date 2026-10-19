@@ -393,29 +393,53 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         <label className="df2-travel-offsite"><input type="checkbox" checked={offsite}
           onChange={e=>setOffsite(e.target.checked)}/><strong>Blok se odehrává mimo domov</strong></label>
         {offsite&&<>
-          <nav className="df2-travel-tabs" aria-label="Výběr místa">
-            <button type="button" aria-pressed={mapTarget==="destination"} className={mapTarget==="destination"?"is-active":""}
-              onClick={()=>setMapTarget("destination")}>Místo konání</button>
-            <button type="button" aria-pressed={mapTarget==="origin"} className={mapTarget==="origin"?"is-active":""}
-              onClick={()=>setMapTarget("origin")}>Odkud vyrážím</button>
-            {mixed&&legs.slice(0,-1).map((leg,index)=>
-              <button type="button" key={index} aria-pressed={mapTarget===index} className={mapTarget===index?"is-active":""}
-                onClick={()=>setMapTarget(index)}>Zastávka {index+1}{leg.via?" ✓":""}</button>)}
-          </nav>
-          <MapPicker key={String(mapTarget)} point={selectedPoint} setPoint={updateSelectedPoint}/>
-          <p className="df2-travel-hint">{mapTarget==="origin"
-            ?(origin?"Místo odjezdu: "+origin.label:"Výchozí místo zatím není nastavené.")
-            :mapTarget==="destination"
-              ?(destination?"Cíl: "+destination.label:"Vyber cíl na mapě.")
-              :(selectedPoint?"Mezizastávka: "+selectedPoint.label:"Na mapě vyber parkoviště, přestup nebo zastávku.")}</p>
-          <div className="df2-travel-kind" role="group" aria-label="Typ cesty">
-            <button type="button" aria-pressed={!mixed} className={!mixed?"is-active":""}
-              onClick={()=>{setMixed(false);setMapTarget("destination");}}>Jednoduchá cesta</button>
-            <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
-              onClick={()=>setMixed(true)}>Kombinovaná cesta</button>
-          </div>
+          <section className="df2-trip-section" aria-label="Místa cesty">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">1</span><h3>Odkud a kam?</h3></div>
+            <nav className="df2-travel-tabs df2-trip-place-cards" aria-label="Výběr místa">
+              <button type="button" aria-pressed={mapTarget==="origin"&&placeEditorOpen}
+                className={mapTarget==="origin"&&placeEditorOpen?"is-active":""}
+                onClick={()=>choosePlace("origin")}>
+                <small>ODKUD</small>
+                <strong>{origin?origin.label.split(",").slice(0,2).join(","):"Vybrat místo odjezdu"}</strong>
+                <span>{origin?"Změnit místo":"Klikni pro výběr"}</span>
+              </button>
+              <button type="button" aria-label="Místo konání" aria-pressed={mapTarget==="destination"&&placeEditorOpen}
+                className={mapTarget==="destination"&&placeEditorOpen?"is-active":""}
+                onClick={()=>choosePlace("destination")}>
+                <small>KAM</small>
+                <strong>{destination?destination.label.split(",").slice(0,2).join(","):"Vybrat cíl cesty"}</strong>
+                <span>{destination?"Změnit místo":"Klikni pro výběr"}</span>
+              </button>
+              {mixed&&legs.slice(0,-1).map((leg,index)=>
+                <button type="button" key={index} aria-pressed={mapTarget===index&&placeEditorOpen}
+                  className={mapTarget===index&&placeEditorOpen?"is-active":""}
+                  onClick={()=>choosePlace(index)}>
+                  <small>PŘESTUP {index+1}</small>
+                  <strong>{leg.via?leg.via.label.split(",").slice(0,2).join(","):"Vybrat zastávku"}</strong>
+                  <span>{leg.via?"Změnit místo":"Klikni pro výběr"}</span>
+                </button>)}
+            </nav>
+            {placeEditorOpen&&<div className="df2-trip-location-editor">
+              <div className="df2-trip-location-head">
+                <strong>{mapTarget==="origin"?"Odkud vyrážíš?":mapTarget==="destination"?"Kam jedeš?":`Kde přestupuješ? (zastávka ${mapTarget+1})`}</strong>
+                <button type="button" onClick={()=>setPlaceEditorOpen(false)}>Hotovo</button>
+              </div>
+              <MapPicker key={String(mapTarget)} point={selectedPoint} setPoint={updateSelectedPoint}/>
+            </div>}
+            {!destination&&<p className="df2-trip-inline-hint">Nejprve vyber cíl cesty.</p>}
+            {destination&&!origin&&<p className="df2-trip-inline-hint">Cíl je vybraný. Ještě nastav místo odjezdu.</p>}
+          </section>
+          <section className="df2-trip-section" aria-label="Způsob dopravy">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">2</span><h3>Jak pojedeš?</h3></div>
+            <div className="df2-travel-kind" role="group" aria-label="Typ cesty">
+              <button type="button" aria-pressed={!mixed} className={!mixed?"is-active":""}
+                onClick={()=>{setMixed(false);setMapTarget("destination");setPlaceEditorOpen(false);}}>Jednoduchá cesta</button>
+              <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
+                onClick={()=>{setMixed(true);setPlaceEditorOpen(false);}}>Kombinovaná cesta</button>
+            </div>
+            <p className="df2-trip-kind-help">{mixed?"Naplánuj postupně auto, MHD, chůzi a případná přestupní místa.":"Stačí vybrat jeden dopravní prostředek."}</p>
           {mixed?<section className="df2-travel-legs" aria-label="Úseky cesty">
-            <p className="df2-travel-hint">Sestav cestu postupně, například auto → parkoviště → metro → chůze. Časy zadáváš orientačně včetně čekání a parkování.</p>
+            <p className="df2-trip-kind-help">Přestupní místo vybereš kliknutím na kartu výše. Minuty jsou tvůj plánovací odhad pro Jarvise, nikoli automaticky uložený čas Googlu.</p>
             {legs.map((leg,index)=>{
               const last=index===legs.length-1;
               const end=last?destination:leg.via;
@@ -446,8 +470,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 {!last&&<button type="button" className="df2-travel-via"
                   onClick={()=>setMapTarget(index)}>📍 {end?.label??"Vybrat parkoviště / přestup na mapě"}</button>}
                 {last&&<p className="df2-travel-hint">Cíl: {destination?.label??"Zatím není vybraný"}</p>}
-                {end&&<a href={travelDirectionsUrl(from,end,leg.mode)} target="_blank" rel="noopener noreferrer">
-                  Úsek {index+1} v Google Maps ↗</a>}
+                {end&&<a className="df2-trip-small-link" href={travelDirectionsUrl(from,end,leg.mode)} target="_blank" rel="noopener noreferrer">
+                  Zobrazit tento úsek v Google Maps ↗</a>}
               </div>;
             })}
             <button type="button" className="df2-travel-add-leg" disabled={legs.length>=6}
@@ -462,6 +486,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               {Object.entries(TRAVEL_MODE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </label>}
+          </section>
+          <section className="df2-trip-section" aria-label="Výpočet cesty">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">3</span><h3>Kdy vyrazit?</h3></div>
           <div className="df2-google-route-box">
             <div className="df2-google-route-head">
               <strong>Automatický výpočet trasy</strong>
