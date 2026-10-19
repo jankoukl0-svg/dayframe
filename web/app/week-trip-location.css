@@ -226,3 +226,15 @@
 
 .df2-trip-fallback-note{font-size:12px;line-height:1.55;color:var(--ink);border-left:3px solid var(--accent);padding:8px 10px;background:var(--surface);border-radius:5px}
 .df2-trip-external-route{display:inline-flex;align-items:center;width:fit-content;padding:7px 0;font-size:12px;font-weight:700;color:var(--accent-dark);text-decoration:underline;text-underline-offset:3px}
+
+
+/* A route is useful only if the traveller can actually walk it comfortably. */
+.df2-trip-comfort-warning{display:grid;gap:8px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:12px;line-height:1.5}
+.df2-trip-comfort-warning>strong{font-size:13px;color:var(--ink)}
+.df2-trip-comfort-warning>span{color:var(--ink-soft)}
+.df2-trip-park-suggestion{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.df2-trip-park-suggestion strong{display:block;font-size:12px;color:var(--ink);margin-bottom:4px}
+.df2-trip-park-suggestion p{font-size:12px;margin:0;line-height:1.5;color:var(--ink-soft)}
+.df2-trip-park-suggestion button{min-height:38px;justify-self:start;border:1px solid var(--accent);background:var(--accent-wash);color:var(--accent-dark);border-radius:9px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer}
+.df2-trip-park-suggestion button:hover{background:var(--surface)}
+.df2-trip-park-suggestion button:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
