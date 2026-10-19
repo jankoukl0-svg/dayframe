@@ -96,6 +96,10 @@ type GoogleStep={
   travelMode?:string;distanceMeters?:number;navigationInstruction?:{instructions?:string};
   transitDetails?:{
     headsign?:string;stopCount?:number;
+    localizedValues?:{
+      departureTime?:{time?:{text?:string};timeZone?:string};
+      arrivalTime?:{time?:{text?:string};timeZone?:string};
+    };
     transitLine?:{name?:string;nameShort?:string;vehicle?:{type?:string}};
     stopDetails?:{departureStop?:{name?:string};arrivalStop?:{name?:string};
       departureTime?:string;arrivalTime?:string};
@@ -105,6 +109,7 @@ type GoogleRoute={duration?:string;distanceMeters?:number;legs?:Array<{steps?:Go
 type DisplayStep={
   kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:string;
   from?:string;to?:string;departureTime?:string;arrivalTime?:string;
+  departureLabel?:string;arrivalLabel?:string;departureZone?:string;arrivalZone?:string;
   stops?:number;distanceMeters?:number;instructions?:string;
 };
 function routeOption(route:GoogleRoute,mode:RouteMode){
@@ -127,6 +132,10 @@ function routeOption(route:GoogleRoute,mode:RouteMode){
           from:cleanText(stop?.departureStop?.name),to:cleanText(stop?.arrivalStop?.name),
           ...(stop?.departureTime?{departureTime:stop.departureTime}:{}),
           ...(stop?.arrivalTime?{arrivalTime:stop.arrivalTime}:{}),
+          departureLabel:cleanText(transit.localizedValues?.departureTime?.time?.text,32),
+          arrivalLabel:cleanText(transit.localizedValues?.arrivalTime?.time?.text,32),
+          departureZone:cleanText(transit.localizedValues?.departureTime?.timeZone,64),
+          arrivalZone:cleanText(transit.localizedValues?.arrivalTime?.timeZone,64),
           stops:Number.isInteger(transit.stopCount)?transit.stopCount:undefined,
         });
       }else if(step.travelMode==="WALK"&&typeof step.distanceMeters==="number"){
