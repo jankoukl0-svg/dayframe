@@ -93,3 +93,18 @@
 .df2-google-attribution{display:inline-flex;align-items:center;gap:0}
 .df2-google-attribution img{display:block;width:18px;height:18px;object-fit:contain;flex:none;margin:10px 10px 5px 10px}
 .df2-google-attribution span{font:400 12px/1.4 Roboto,Arial,sans-serif;color:#5e5e5e}
+
+
+/* Ephemeral Google transit routing details: aligned with the existing Week modal. */
+.df2-travel-route-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.df2-travel-route-settings label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;min-width:0}
+.df2-travel-route-settings input,.df2-travel-route-settings select{width:100%;min-width:0;padding:9px;border-radius:7px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink)}
+.df2-travel-route-settings button{align-self:end;min-height:38px}
+.df2-travel-route-settings small{grid-column:1/-1;color:var(--ink-soft)}
+.df2-travel-itinerary{display:flex;flex-direction:column;gap:5px;padding-top:10px;margin-top:6px;border-top:1px solid var(--line)}
+.df2-travel-itinerary>strong{font-size:13px}
+.df2-travel-directions{list-style:decimal;display:flex;flex-direction:column;gap:9px;padding-left:20px;margin:10px 0;color:var(--ink);font-size:12px}
+.df2-travel-directions li{padding-left:3px;line-height:1.5}
+.df2-travel-alternatives{margin:8px 0;font-size:12px;line-height:1.6}
+.df2-travel-alternatives summary{cursor:pointer;font-weight:600}
+.df2-travel-alternative{padding:5px 0;border-top:1px solid var(--line)}

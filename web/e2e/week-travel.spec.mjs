@@ -345,3 +345,62 @@ test("gym and hygiene week blocks have individual place controls",async({page})=
   if(await care.count())await expect(page.locator('[data-week-place^="care:"]').first()).toBeVisible();
   await expect(page.locator(".df2-week-grid")).toBeVisible();
 });
+
+
+test("Google calculates car to transit in sequence and shows alternative lines without saving Google data",async({page})=>{
+  const calls=[];
+  await page.route("**/api/google-travel",async route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const payload=route.request().postDataJSON();
+    calls.push(payload);
+    if(payload.mode==="driving")return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:30,distanceMeters:35000,source:"Google Maps",trafficAware:true,
+        options:[{minutes:30,distanceMeters:35000,steps:[],transfers:0,walkingMeters:0}]})});
+    expect(payload.mode).toBe("transit");
+    return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:20,distanceMeters:13000,source:"Google Maps",trafficAware:false,options:[
+        {minutes:20,distanceMeters:13000,transfers:0,walkingMeters:200,steps:[
+          {kind:"walk",distanceMeters:200},
+          {kind:"transit",vehicle:"SUBWAY",line:"B",headsign:"Zličín",
+            from:"Černý Most",to:"Florenc",stops:12,
+            departureTime:"2026-10-18T07:45:00Z",arrivalTime:"2026-10-18T08:05:00Z",
+            departureLabel:"09:45",arrivalLabel:"10:05",departureZone:"Europe/Prague",arrivalZone:"Europe/Prague"}]},
+        {minutes:26,distanceMeters:15000,transfers:1,walkingMeters:400,steps:[
+          {kind:"transit",vehicle:"BUS",line:"100",from:"Zastávka",to:"Stanice"}]},
+      ]})});
+  });
+  const title="Cesta s návazností MHD";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Fakulta");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.1,14.2,"Doma");
+  await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(dialog,50.11,14.22,"Parkoviště");
+  await dialog.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await dialog.getByRole("combobox",{name:"Preference MHD"}).selectOption("fewer_transfers");
+  await dialog.getByRole("spinbutton",{name:"Minuty na přestup"}).fill("7");
+  await dialog.getByRole("button",{name:"Přepočítat podle nastavení"}).click();
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("57 min");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("Černý Most");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("09:45");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("Porovnat 1 další dostupné varianty");
+  await expect.poll(()=>calls.length).toBe(2);
+  expect(calls[0].mode).toBe("driving");
+  expect(calls[1].mode).toBe("transit");
+  expect(calls[1].transitPreference).toBe("fewer_transfers");
+  expect(Date.parse(calls[1].departureTime)-Date.parse(calls[0].departureTime)).toBe(37*60000);
+  await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("30");
+  await dialog.getByRole("spinbutton",{name:"Délka úseku 2"}).fill("27");
+  await dialog.getByRole("button",{name:"Uložit místo"}).click();
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+  expect(JSON.stringify(saved)).not.toContain("Černý Most");
+  expect(JSON.stringify(saved)).not.toContain("x".repeat(28));
+  expect(Object.values(saved.blocks)[0].typicalMinutes).toBe(57);
+});

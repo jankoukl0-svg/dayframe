@@ -243,6 +243,7 @@ test("Google Routes reserves a budget atomically before charging provider",async
     assert.equal(result.status,200);
     assert.deepEqual(await result.json(),{
       minutes:62,distanceMeters:54670,source:"Google Maps",trafficAware:true,
+      options:[{minutes:62,distanceMeters:54670,steps:[],transfers:0,walkingMeters:0}],
     });
     assert.equal(result.headers.get("cache-control"),"no-store, max-age=0");
     assert.equal(redis.commands.length,1);
@@ -282,6 +283,120 @@ test("Google Routes reports actionable but sanitized provider authorization erro
     }
   });
 });
+test("transit alternatives choose fastest returned journey and sanitize stop details",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let paid=0;
+    const when=new Date(Date.now()+600000).toISOString();
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      paid++;
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.travelMode,"TRANSIT");
+      assert.equal(payload.departureTime,when);
+      assert.equal(payload.computeAlternativeRoutes,true);
+      assert.equal(payload.transitPreferences.routingPreference,"FEWER_TRANSFERS");
+      assert.match(options.headers["X-Goog-FieldMask"],/transitDetails/);
+      return Response.json({routes:[
+        {duration:"2700s",distanceMeters:12000,legs:[{steps:[{travelMode:"TRANSIT",
+          transitDetails:{headsign:"Centrum",transitLine:{nameShort:"A",vehicle:{type:"SUBWAY"}},
+            stopCount:3,stopDetails:{departureStop:{name:"Černý Most"},
+              arrivalStop:{name:"Muzeum"},departureTime:"2026-10-19T09:10:00Z",
+              arrivalTime:"2026-10-19T09:30:00Z"}}}]}]},
+        {duration:"2100s",distanceMeters:10000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:150,navigationInstruction:{instructions:"Dojdi na zastávku"}},
+          {travelMode:"TRANSIT",transitDetails:{headsign:"Směr <script>nebezpečí</script>",
+            transitLine:{nameShort:"9",vehicle:{type:"TRAM"}},stopCount:5,
+            localizedValues:{
+              departureTime:{time:{text:"11:10"},timeZone:"Europe/Prague"},
+              arrivalTime:{time:{text:"11:25"},timeZone:"Europe/Prague"},
+            },
+            stopDetails:{departureStop:{name:"Florenc"},arrivalStop:{name:"Náměstí Republiky"},
+              departureTime:"2026-10-19T09:10:00Z",arrivalTime:"2026-10-19T09:25:00Z"}}},
+        ]}]},
+      ]});
+    };
+    const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"transit",departureTime:when,
+        transitPreference:"fewer_transfers"}),
+    });
+    const response=await POST(req);
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.minutes,35);
+    assert.equal(result.options.length,2);
+    assert.equal(result.options[0].steps[1].line,"9");
+    assert.equal(result.options[0].steps[1].departureLabel,"11:10");
+    assert.equal(result.options[0].steps[1].arrivalZone,"Europe/Prague");
+    assert.equal(result.options[0].steps[1].transfers,undefined);
+    assert.equal(result.options[0].walkingMeters,150);
+    assert.equal(result.options[0].transfers,0);
+    assert.equal(JSON.stringify(result).includes("<script>"),false);
+    assert.equal(paid,1);
+    assert.equal(redis.commands.length,1);
+  });
+});
+test("transit preference rankings favor fewer changes or shorter walks",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let providerCalls=0;
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      providerCalls++;
+      return Response.json({routes:[
+        {duration:"1200s",distanceMeters:12000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:600},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"A"}}},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"B"}}},
+        ]}]},
+        {duration:"1500s",distanceMeters:14000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:100},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"C"}}},
+        ]}]},
+      ]});
+    };
+    const makeReq=p=>new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"transit",transitPreference:p}),
+    });
+    const fastest=await (await POST(makeReq("fastest"))).json();
+    assert.equal(fastest.minutes,20);
+    const transfers=await (await POST(makeReq("fewer_transfers"))).json();
+    assert.equal(transfers.minutes,25);
+    assert.equal(transfers.options[0].transfers,0);
+    const walking=await (await POST(makeReq("less_walking"))).json();
+    assert.equal(walking.minutes,25);
+    assert.equal(walking.options[0].walkingMeters,100);
+    assert.equal(providerCalls,3);
+    assert.equal(redis.commands.length,3);
+  });
+});
+test("route preferences and departure time reject bad values without spending budget",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    let calls=0;globalThis.fetch=()=>{calls++;throw Error("No calls allowed")};
+    for(const body of [
+      {from:home,to:place,mode:"driving",transitPreference:"less_walking"},
+      {from:home,to:place,mode:"transit",transitPreference:"bad-value"},
+      {from:home,to:place,mode:"transit",departureTime:"2000-01-01T00:00:00Z"},
+      {from:home,to:place,mode:"driving",departureTime:new Date(Date.now()+9*86400000).toISOString()},
+    ]){
+      const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+        method:"POST",headers:{"content-type":"application/json",
+          authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+        body:JSON.stringify(body),
+      });
+      assert.equal((await POST(req)).status,400);
+    }
+    assert.equal(calls,0);
+  });
+});
+
 test("budget refuses 51st daily request, 1001st monthly, and resets only at UTC boundaries",async()=>{
   await withBudgetEnv(async()=>{
     const {reserveRouteBudget,ROUTES_DAILY_LIMIT,ROUTES_MONTHLY_LIMIT}=await import("./server-route-budget.ts");

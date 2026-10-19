@@ -29,6 +29,18 @@ This integration is **disabled until all required server-only Vercel secrets AND
 7. Test by selecting one simple route and a multi-leg route; verify the route ETA appears and the corresponding count is recorded in Upstash. For a low-cost test, use a mock Google response in CI (already covered in unit/browser tests). Never reveal tokens in support screenshots or GitHub.
 8. Review the [published privacy notice](../public/privacy.html), [terms](../public/terms.html), [Google Routes requirements](https://developers.google.com/maps/documentation/routes/policies), and [Google Maps Platform EEA terms](https://cloud.google.com/terms/maps-platform/eea) before enabling the integration.
 
+
+## Connected transit journeys and alternatives
+
+- The Week location editor offers departure **Now** (calculated when requested) or an explicit local date/time within the next 7 days. Choosing an exact time or transit routing preference requires clicking **Přepočítat podle nastavení** to avoid spending the usage budget on every keystroke.
+- Combined routes are calculated **sequentially**, not in parallel. Each following segment uses the preceding segment's chosen estimate plus a configurable **0–30 minute** parking/transfer allowance (default 5 minutes). This is a planning approximation; it does not guarantee a physical transfer or parking availability.
+- Google Routes API `computeAlternativeRoutes: true` can return the primary and up to three alternative routes per request. Dayframe ranks the returned alternatives by the selected criterion (duration by default; transfers or walking distance when requested), displays the top-ranked returned option, and allows comparing others without making extra Google calls. **Not an exhaustive proof of globally fastest transit.**
+- Transit preferences are `fastest` (no transit preference sent), `fewer_transfers` (`FEWER_TRANSFERS`) and `less_walking` (`LESS_WALKING`), scoped only to `TRANSIT` calls. Transit steps display sanitized line names, headsigns, stations, provider-local stop times with their time zones, walking sections and transfer counts when the provider supplies them. When no local time zone is available, fallback times are explicitly marked UTC rather than being silently rendered in the user's device zone.
+- A stage's transit schedule is computed against that stage's estimated arrival at its starting waypoint, **not** the simultaneous time used by another stage. Actual realtime delays and timetable changes can affect transfers; the user should confirm Google Maps before departure.
+- Every segment still calls the same server endpoint, which atomically reserves **one** Upstash unit before contacting Google; requesting alternatives inside that call does **not** multiply the number of Dayframe requests. 50/day, 1,000/month, fail-closed Redis, server-only Google credentials, the access token and the manual planner are unchanged.
+- Both route alternatives and transit timetable details are only held in component state during editing. They are **not persisted** into the Dayframe travel store or silently copied into Jarvis' planning duration.
+- Google Maps Platform prices and SKU conditions can change; extra route fields and routing options need pricing review. No absolute guarantee of zero fees. Avoid enabling additional services or increasing existing limits.
+
 ## Guard technical notes
 
 - The server uses REST `POST /api/google-travel` with a secret access token, validating same-origin browser requests, selected transport and geographical coordinates.

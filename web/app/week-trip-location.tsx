@@ -1,9 +1,61 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {readTravelStore,saveTravelStore,travelDirectionsUrl,
-  type TravelPoint,type TravelMode,type TravelLeg,TRAVEL_MODE_LABELS} from "@/lib/dayframe-travel";
+  type TravelPoint,type TravelMode,type TravelLeg,TRAVEL_MODE_LABELS,eventStart} from "@/lib/dayframe-travel";
 
 export type TripTarget={key:string;title:string;date:string;start:string;initialOffsite?:boolean};
+type TransitPreference="fastest"|"fewer_transfers"|"less_walking";
+type RouteStep={kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:string;
+  from?:string;to?:string;departureTime?:string;arrivalTime?:string;
+  departureLabel?:string;arrivalLabel?:string;departureZone?:string;arrivalZone?:string;
+  stops?:number;distanceMeters?:number;instructions?:string};
+type RouteOption={minutes:number;distanceMeters:number;steps:RouteStep[];
+  transfers:number;walkingMeters:number};
+type RouteEstimate={minutes:number;distanceMeters:number;options:RouteOption[];departureISO:string};
+type RouteSettings={departureISO?:string;transitPreference:TransitPreference;transferMinutes:number};
+const formatClock=(iso?:string)=>iso&&Number.isFinite(Date.parse(iso))
+  ?new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit"}).format(new Date(iso)):"—";
+function formatStationTime(iso?:string,label?:string,zone?:string){
+  if(label)return label;
+  if(!iso||!Number.isFinite(Date.parse(iso)))return "—";
+  const parsed=new Date(iso);
+  try{
+    if(zone)return new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit",timeZone:zone}).format(parsed);
+  }catch{/* Use explicitly labeled UTC instead of a possibly incorrect device time zone. */}
+  return new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit",timeZone:"UTC"}).format(parsed)+" UTC";
+}
+function RouteItinerary({estimate,index,mode,preference}:{estimate:RouteEstimate;index:number;mode:TravelMode;preference:TransitPreference}){
+  const primary=estimate.options[0];
+  return <div className="df2-travel-itinerary">
+    <strong>Úsek {index+1}: {estimate.minutes} min · {(estimate.distanceMeters/1000).toFixed(1)} km</strong>
+    <span className="df2-travel-hint">Předpokládaný odjezd {formatClock(estimate.departureISO)}</span>
+    {mode==="transit"&&<div>
+      <span className="df2-travel-hint">{preference==="fewer_transfers"?"Varianta s prioritou méně přestupů":preference==="less_walking"?"Varianta s prioritou méně chůze":"Nejrychlejší nalezená varianta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
+      {primary.steps.some(step=>step.kind==="transit")&&<span className="df2-travel-hint">Časy MHD jsou místní časy jednotlivých zastávek.</span>}
+      {primary.steps.length>0?<ol className="df2-travel-directions">{primary.steps.map((step,i)=>
+        <li key={i}>{step.kind==="transit"?<>
+          <strong>{step.vehicle==="SUBWAY"?"Metro":step.vehicle==="BUS"?"Autobus":
+            step.vehicle==="TRAM"||step.vehicle==="LIGHT_RAIL"?"Tramvaj":"Spoj"} {step.line||""}</strong>
+          {step.headsign&&<span> směr {step.headsign}</span>}
+          <span> · {step.from||"Nástup"} {formatStationTime(step.departureTime,step.departureLabel,step.departureZone)} → {step.to||"Výstup"} {formatStationTime(step.arrivalTime,step.arrivalLabel,step.arrivalZone)}</span>
+          {Number.isInteger(step.stops)&&<span> · {step.stops} zastávek</span>}
+        </>:<span>Pěšky {step.distanceMeters??0} m{step.instructions?" · "+step.instructions:""}</span>}</li>)}</ol>
+        :<span className="df2-travel-hint">Podrobnosti spojů nejsou pro tuto trasu dostupné. Otevři ji v Google Maps.</span>}
+      {estimate.options.length>1&&<details className="df2-travel-alternatives">
+        <summary>Porovnat {estimate.options.length-1} další dostupné varianty</summary>
+        {estimate.options.slice(1).map((option,i)=><div key={i} className="df2-travel-alternative">
+          <strong>Varianta {i+2}: {option.minutes} min</strong>
+          <span> · {option.transfers} přestupů · pěšky {option.walkingMeters} m</span>
+          <span> · {option.steps.filter(step=>step.kind==="transit").map(step=>step.line||step.vehicle||"MHD").join(" → ")||"MHD"}</span>
+        </div>)}
+      </details>}
+    </div>}
+    {mode!=="transit"&&estimate.options.length>1&&<details className="df2-travel-alternatives">
+      <summary>Další {estimate.options.length-1} alternativní trasy</summary>
+      {estimate.options.slice(1).map((option,i)=><div key={i}>Varianta {i+2}: {option.minutes} min · {(option.distanceMeters/1000).toFixed(1)} km</div>)}
+    </details>}
+  </div>;
+}
 const CSS_URL="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const JS_URL="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 let loader:Promise<any>|undefined;
@@ -162,7 +214,37 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [googleAccess,setGoogleAccess]=useState("");
   const [googleLoading,setGoogleLoading]=useState(false);
   const [googleError,setGoogleError]=useState("");
-  const [googleEstimates,setGoogleEstimates]=useState<Array<{minutes:number;distanceMeters:number}>|null>(null);
+  const [googleEstimates,setGoogleEstimates]=useState<RouteEstimate[]|null>(null);
+  const [departureMode,setDepartureMode]=useState<"now"|"scheduled">("now");
+  const [departureLocal,setDepartureLocal]=useState(()=>{
+    const event=target.start?eventStart(target.date,target.start):null;
+    const duration=current?.typicalMinutes??30;
+    const estimate=event?new Date(event.getTime()-(duration+(current?.bufferMinutes??15))*60000):new Date(Date.now()+3600000);
+    const d=estimate.getTime()>Date.now()?estimate:new Date(Date.now()+3600000);
+    return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")+
+      "T"+[String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0")].join(":");
+  });
+  const [transitPreference,setTransitPreference]=useState<TransitPreference>("fastest");
+  const [transferMinutes,setTransferMinutes]=useState(5);
+  const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"fastest",transferMinutes:5});
+  const [calculateAgain,setCalculateAgain]=useState(0);
+  const [settingsPending,setSettingsPending]=useState(false);
+  function applyRouteSettings(){
+    let departureISO:string|undefined;
+    if(departureMode==="scheduled"){
+      const d=new Date(departureLocal);
+      if(!Number.isFinite(d.getTime())||d.getTime()<Date.now()-120000||d.getTime()>Date.now()+7*86400000){
+        setGoogleError("Zvol čas odjezdu od nynějška nejvýše 7 dní dopředu.");setGoogleEstimates(null);return;
+      }
+      departureISO=d.toISOString();
+    }
+    if(!Number.isInteger(transferMinutes)||transferMinutes<0||transferMinutes>30){
+      setGoogleError("Na přestup lze vyhradit 0 až 30 minut.");setGoogleEstimates(null);return;
+    }
+    setAppliedSettings({departureISO,transitPreference,transferMinutes});
+    setSettingsPending(false);
+    setCalculateAgain(n=>n+1);
+  }
   // The separate access secret is session-scoped. Neither it nor the Google API key is persisted with the travel plan.
   useEffect(()=>{
     try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
@@ -218,27 +300,43 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
       setGoogleLoading(true);
       try{
         const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
-        // Explicit map edits and mode changes trigger a new calculation. Never silently poll paid APIs.
-        const calculated=await Promise.all(parts.map(async part=>{
+        const results:RouteEstimate[]=[];
+        // Run in order, never parallel: the transit departure must follow driving and transfer time.
+        // Each stage is still an independently reserved Google Routes request in Upstash.
+        const start=appliedSettings.departureISO?Date.parse(appliedSettings.departureISO):Date.now()+1000;
+        let elapsed=0;
+        for(let i=0;i<parts.length;i++){
+          if(controller.signal.aborted)return;
+          const part=parts[i],departureISO=new Date(start+elapsed*60000).toISOString();
           const response=await fetch("/api/google-travel",{
             method:"POST",signal:controller.signal,cache:"no-store",
             headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
-            body:JSON.stringify(part),
+            body:JSON.stringify({...part,departureTime:departureISO,
+              ...(part.mode==="transit"?{transitPreference:appliedSettings.transitPreference}:{})}),
           });
-          const result=await response.json() as {minutes?:number;distanceMeters?:number;error?:string};
+          const result=await response.json() as {
+            minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string};
           if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
             throw Error(result.error??"Google Maps trasu nevypočítaly.");
-          return {minutes:result.minutes!,distanceMeters:result.distanceMeters};
-        }));
-        if(!controller.signal.aborted)setGoogleEstimates(calculated);
+          const options=Array.isArray(result.options)&&result.options.length?result.options:
+            [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
+          results.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO});
+          elapsed+=result.minutes!;
+          if(i<parts.length-1)elapsed+=appliedSettings.transferMinutes;
+        }
+        if(!controller.signal.aborted)setGoogleEstimates(results);
       }catch(e){
         if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
       }finally{if(!controller.signal.aborted)setGoogleLoading(false);}
     },800);
     return ()=>{window.clearTimeout(timer);controller.abort();};
-  },[offsite,routeSignature,googleAvailable,googleAccess]);
-  const googleTotal=googleEstimates?.reduce((sum,item)=>sum+item.minutes,0);
+  },[offsite,routeSignature,googleAvailable,googleAccess,appliedSettings,calculateAgain]);
+  const googleTotal=googleEstimates?googleEstimates.reduce((sum,item)=>sum+item.minutes,0)
+    +(mixed?Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes:0):undefined;
   const googleDistance=googleEstimates?.reduce((sum,item)=>sum+item.distanceMeters,0);
+  const journeyDeparture=googleEstimates?.[0]?.departureISO;
+  const journeyArrival=journeyDeparture&&googleTotal!==undefined
+    ?new Date(Date.parse(journeyDeparture)+googleTotal*60000).toISOString():undefined;
   function submit(){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
@@ -367,6 +465,33 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                     else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
                 }} placeholder="Osobní přístupový kód"/>
             </label>
+            <div className="df2-travel-route-settings">
+              <label>Čas odjezdu
+                <select aria-label="Čas odjezdu" value={departureMode}
+                  onChange={e=>{setDepartureMode(e.target.value as "now"|"scheduled");setSettingsPending(true);}}>
+                  <option value="now">Teď</option><option value="scheduled">V konkrétní čas</option>
+                </select>
+              </label>
+              {departureMode==="scheduled"&&<label>Datum a čas odjezdu
+                <input aria-label="Datum a čas odjezdu" type="datetime-local" value={departureLocal}
+                  onChange={e=>{setDepartureLocal(e.target.value);setSettingsPending(true);}}/>
+              </label>}
+              {(mixed||mode==="transit")&&<label>Preference MHD
+                <select aria-label="Preference MHD" value={transitPreference}
+                  onChange={e=>{setTransitPreference(e.target.value as TransitPreference);setSettingsPending(true);}}>
+                  <option value="fastest">Nejrychlejší dostupná</option>
+                  <option value="fewer_transfers">Méně přestupů</option>
+                  <option value="less_walking">Méně chůze</option>
+                </select>
+              </label>}
+              {mixed&&<label>Na parkování a přestup mezi úseky (min)
+                <input aria-label="Minuty na přestup" type="number" min="0" max="30" step="1"
+                  value={transferMinutes} onChange={e=>{setTransferMinutes(Number(e.target.value));setSettingsPending(true);}}/>
+              </label>}
+              <button type="button" className="df2-travel-use-estimate"
+                onClick={applyRouteSettings}>Přepočítat podle nastavení</button>
+              {settingsPending&&<small>Nové nastavení použij tlačítkem Přepočítat; tím se spotřebuje další výpočet pro každý úsek.</small>}
+            </div>
             {!googleAvailable?<div className="df2-google-route-offline" role="status">
               <p className="df2-travel-hint">{googleConnection==="checking"
                 ?"Kontroluji serverové propojení Google Maps…"
@@ -377,14 +502,17 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 onClick={()=>setGoogleStatusRetry(n=>n+1)}>Zkontrolovat propojení znovu</button>
             </div>:<>
               <p className="df2-travel-hint">Bezpečnostní limit Dayframe: 50 výpočtů denně a 1 000 měsíčně. Jakmile jeden limit vyčerpáš, další výpočty se zablokují.</p>
-              <p className="df2-travel-hint">Google Maps používáme pro aktuální zobrazení doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
+              <p className="df2-travel-hint">Google Maps používáme pro dočasné zobrazení spojů, doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
               {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
                 :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-travel-hint">Zadej osobní kód s minimálně 20 znaky (písmena, číslice, _ nebo -). Google API klíč sem nevkládej.</p>
                 :googleLoading?<p role="status">Počítám trasu přes Google Maps…</p>
                 :googleEstimates?<div className="df2-google-route-results" role="status">
                   <strong>{googleTotal} min · {((googleDistance??0)/1000).toFixed(1)} km</strong>
-                  <span>Odhad při dotazu, pro {mixed?"kombinovanou":"jednoduchou"} cestu. {mode==="driving"&&!mixed?"Jízda zohledňuje provoz.":""}</span>
-                  {mixed&&googleEstimates.map((part,index)=><span key={index}>Úsek {index+1}: {part.minutes} min · {(part.distanceMeters/1000).toFixed(1)} km</span>)}
+                  <span>Odjezd {formatClock(journeyDeparture)} · příjezd přibližně {formatClock(journeyArrival)}. {mixed?"Časy úseků jsou navazující.":""} {mode==="driving"&&!mixed?"Jízda zohledňuje provoz.":""}</span>
+                  {mixed&&<span>Čas na přestupy a parkování: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min (zahrnuto v součtu).</span>}
+                  {googleEstimates.map((part,index)=><RouteItinerary key={index} index={index}
+                    estimate={part} mode={routeParts?.[index]?.mode??"driving"} preference={appliedSettings.transitPreference}/>)}
+                  <span className="df2-travel-hint">Vybraná varianta podle preference; Google nemusí vrátit všechny možné spoje. Odjezdy MHD a přestupy si před cestou ověř.</span>
                   <span className="df2-google-route-note">Aktuální údaj Google Maps je pouze pro orientaci. Do uloženého plánu se nepřenáší. Pro Jarvise nastav vlastní obvyklou dobu cesty níže.</span>
                 </div>:googleError?<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>
                 :<p className="df2-travel-hint">Časy se načtou automaticky po výběru všech míst.</p>}
