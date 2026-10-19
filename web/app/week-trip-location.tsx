@@ -265,6 +265,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
       ??[{mode:"driving",minutes:"",via:undefined},{mode:"walking",minutes:""}]);
   const selectedPoint=mapTarget==="origin"?origin:mapTarget==="destination"?destination:legs[mapTarget]?.via;
   function updateSelectedPoint(point:TravelPoint|undefined){
+    setParkSwitchNotice(false);
     if(mapTarget==="origin")setOrigin(point);
     else if(mapTarget==="destination")setDestination(point);
     else setLegs(previous=>previous.map((leg,index)=>index===mapTarget?{...leg,via:point}:leg));
@@ -445,6 +446,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         partialRoute.current=null;
         setAppliedSettings(settings);
         setGoogleEstimates(calculated);
+        setParkSwitchNotice(false);
       }
     }catch(e){
       if(!controller.signal.aborted){
