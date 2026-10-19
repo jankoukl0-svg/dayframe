@@ -36,7 +36,7 @@ function transitPresentation(vehicle?:string,line?:string){
   if(kind==="FERRY")return {label:"Přívoz",icon:"⛴️"};
   if(["CABLE_CAR","GONDOLA_LIFT","FUNICULAR"].includes(kind))return {label:"Lanovka",icon:"🚠"};
   // Czech train lines like S22 may be returned as OTHER by the provider.
-  if(/^(?:S|R|RE|Ex)\\s*\\d+[A-Z]?$/i.test((line??"").trim()))return {label:"Vlak",icon:"🚆"};
+  if(/^(?:S|R|RE|Ex)\s*\d+[A-Z]?$/i.test((line??"").trim()))return {label:"Vlak",icon:"🚆"};
   return {label:"MHD",icon:"🚏"};
 }
 // Safely support compact server responses and older step-rich responses.
