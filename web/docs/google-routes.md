@@ -39,6 +39,12 @@ The Week location editor is organized as four short sections: (1) **Odkud a kam?
 - Advanced transit priorities and transfer buffer are optional; the result first shows time, distance and a short breakdown; stations and alternatives expand on demand.
 - On a failed Google connection, the manual trip planner continues to work. Any route estimate is deliberately **read-only and ephemeral**, so the user must enter their own planning minutes for Jarvis.
 
+## Transient provider errors and conservative retries
+
+Google may return a transient HTTP 503 when Compute Routes is unavailable, even if Dayframe's credentials and Upstash limits are healthy. Dayframe now identifies the affected segment and retains earlier successfully calculated segments in component memory only. The user can explicitly request **Zkusit znovu bez alternativ**; this reuses the completed segments when the origin/destination, route settings and 10-minute validity window are unchanged. Failed and remaining segments are recomputed sequentially, with `computeAlternativeRoutes: false` to reduce provider work. The initial failure and any retry each consume a separate atomically reserved Upstash unit per actual Google call. **No automatic retries** and no uncapped provider calls. Failure to recover must allow manual entry as before.
+
+Detailed Google error body text is never forwarded; only provider status, retryability and a fixed Czech error message are exposed. Removing unused turn-by-turn walking instructions from the field mask keeps routing payloads smaller. Neither partial results nor the Google response are persisted.
+
 ## Connected transit journeys and alternatives
 
 - The Week location editor offers departure **Now** (calculated when requested) or an explicit local date/time within the next 7 days. Transit preferences and transfer allowances are tucked under **Upřesnit cestu**. All routing uses the explicit **Spočítat trasu** (or **Přepočítat trasu**) button; editing settings, locations or the personal token never triggers paid requests automatically.
