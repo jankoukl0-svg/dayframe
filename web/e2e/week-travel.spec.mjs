@@ -491,9 +491,46 @@ test("scheduled trips do not reuse stale successful legs after ten minutes",asyn
   await expect(dialog.getByRole("alert")).toContainText("503");
   await expect.poll(()=>attempts).toBe(1);
   await page.clock.setFixedTime(new Date("2026-10-18T08:11:00"));
-  await dialog.getByRole("button",{name:/Zkusit znovu bez alternativ/}).click();
+  await dialog.getByRole("button",{name:/Zkusit jednodušší výpočet/}).click();
   await expect(dialog.getByRole("alert")).toContainText("už není aktuální");
   expect(attempts).toBe(1);
+});
+
+test("scheduled driving recovers from upstream 503 with an explicitly traffic-unaware estimate",async({page})=>{
+  const requests=[];
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")return route.fulfill({status:200,
+      contentType:"application/json",body:JSON.stringify({available:true})});
+    const payload=route.request().postDataJSON();
+    requests.push(payload);
+    if(!payload.simpleRoute)return route.fulfill({status:502,contentType:"application/json",
+      body:JSON.stringify({error:"Služba Google Routes je dočasně nedostupná (503).",
+        providerStatus:503,retryable:true,providerCode:"UNAVAILABLE"})});
+    return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:45,distanceMeters:35000,options:[{
+        minutes:45,distanceMeters:35000,steps:[],transfers:0,walkingMeters:0}],
+        trafficAware:false})});
+  });
+  const title="Náhradní čas cesty autem";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.12,14.52,"Start");
+  await dialog.getByRole("combobox",{name:"Čas odjezdu"}).selectOption("scheduled");
+  await dialog.getByLabel("Datum a čas odjezdu").fill("2026-10-22T13:15");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog.getByRole("alert")).toContainText("Kód služby Google: UNAVAILABLE");
+  await dialog.getByRole("button",{name:/Zkusit jednodušší výpočet/}).click();
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("45 min");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("bez aktuálních kolon");
+  expect(requests).toHaveLength(2);
+  expect(requests[0].simpleRoute).toBeUndefined();
+  expect(requests[1].simpleRoute).toBe(true);
+  expect(requests[1].departureTime).toBe(requests[0].departureTime);
 });
 
 test("provider 503 retries only the failed MHD leg with a simpler Google request",async({page})=>{
@@ -531,7 +568,7 @@ test("provider 503 retries only the failed MHD leg with a simpler Google request
   await expect(dialog.getByRole("alert")).toContainText("Úsek 2 z 2");
   await expect(dialog.getByRole("alert")).toContainText("úsek 1 (35 min)");
   await expect.poll(()=>requests.length).toBe(2);
-  await dialog.getByRole("button",{name:/Zkusit znovu bez alternativ/}).click();
+  await dialog.getByRole("button",{name:/Zkusit jednodušší výpočet/}).click();
   await expect(dialog.locator(".df2-google-route-results")).toContainText("60 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
   expect(requests.map(request=>request.mode)).toEqual(["driving","transit","transit"]);
