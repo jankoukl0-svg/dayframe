@@ -466,6 +466,36 @@ test("transit timeline shows train, metro and bus instead of dozens of walking t
   expect(posts).toBe(1);
 });
 
+test("scheduled trips do not reuse stale successful legs after ten minutes",async({page})=>{
+  let attempts=0;
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    attempts++;
+    return route.fulfill({status:502,contentType:"application/json",body:JSON.stringify({
+      error:"Služba Google Routes je dočasně nedostupná (503).",
+      providerStatus:503,retryable:true,
+    })});
+  });
+  await makeTask(page,"Plánovaná cesta na čtvrtek");
+  await openTaskPlace(page,"Plánovaná cesta na čtvrtek");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Plánovaná cesta na čtvrtek"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.12,14.52,"Černý Most");
+  await dialog.getByRole("combobox",{name:"Čas odjezdu"}).selectOption("scheduled");
+  await dialog.getByLabel("Datum a čas odjezdu").fill("2026-10-22T13:15");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog.getByRole("alert")).toContainText("503");
+  await expect.poll(()=>attempts).toBe(1);
+  await page.clock.setFixedTime(new Date("2026-10-18T08:11:00"));
+  await dialog.getByRole("button",{name:/Zkusit znovu bez alternativ/}).click();
+  await expect(dialog.getByRole("alert")).toContainText("už není aktuální");
+  expect(attempts).toBe(1);
+});
+
 test("provider 503 retries only the failed MHD leg with a simpler Google request",async({page})=>{
   const requests=[];
   await page.route("**/api/google-travel",async route=>{
