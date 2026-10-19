@@ -194,6 +194,12 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [destination,setDestination]=useState<TravelPoint|undefined>(current?.place);
   const [origin,setOrigin]=useState<TravelPoint|undefined>(data.store.origin);
   const [mapTarget,setMapTarget]=useState<"destination"|"origin"|number>("destination");
+  const [placeEditorOpen,setPlaceEditorOpen]=useState(!current?.place);
+  const [advancedOpen,setAdvancedOpen]=useState(false);
+  const [accessEditorOpen,setAccessEditorOpen]=useState(false);
+  function choosePlace(next:"destination"|"origin"|number){
+    setMapTarget(next);setPlaceEditorOpen(true);
+  }
   const [mixed,setMixed]=useState(Boolean(current?.legs?.length));
   const [legs,setLegs]=useState<Array<{mode:TravelMode;minutes:string;via?:TravelPoint}>>(
     ()=>current?.legs?.map(leg=>({...leg,minutes:String(leg.minutes)}))
@@ -227,24 +233,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [transitPreference,setTransitPreference]=useState<TransitPreference>("fastest");
   const [transferMinutes,setTransferMinutes]=useState(5);
   const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"fastest",transferMinutes:5});
-  const [calculateAgain,setCalculateAgain]=useState(0);
-  const [settingsPending,setSettingsPending]=useState(false);
-  function applyRouteSettings(){
-    let departureISO:string|undefined;
-    if(departureMode==="scheduled"){
-      const d=new Date(departureLocal);
-      if(!Number.isFinite(d.getTime())||d.getTime()<Date.now()-120000||d.getTime()>Date.now()+7*86400000){
-        setGoogleError("Zvol čas odjezdu od nynějška nejvýše 7 dní dopředu.");setGoogleEstimates(null);return;
-      }
-      departureISO=d.toISOString();
-    }
-    if(!Number.isInteger(transferMinutes)||transferMinutes<0||transferMinutes>30){
-      setGoogleError("Na přestup lze vyhradit 0 až 30 minut.");setGoogleEstimates(null);return;
-    }
-    setAppliedSettings({departureISO,transitPreference,transferMinutes});
-    setSettingsPending(false);
-    setCalculateAgain(n=>n+1);
-  }
+  const routeController=useRef<AbortController|null>(null);
+  useEffect(()=>()=>routeController.current?.abort(),[]);
   // The separate access secret is session-scoped. Neither it nor the Google API key is persisted with the travel plan.
   useEffect(()=>{
     try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
@@ -289,48 +279,70 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     to:{lat:part.to.lat,lon:part.to.lon},
     mode:part.mode,
   }))):"";
+  // Every paid calculation is deliberate. Editing a point, preference or time never calls Google.
   useEffect(()=>{
+    routeController.current?.abort();
     setGoogleEstimates(null);
     setGoogleError("");
-    if(!offsite||!routeSignature||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))){
-      setGoogleLoading(false);return;
+    setGoogleLoading(false);
+  },[routeSignature,departureMode,departureLocal,transitPreference,transferMinutes,googleAccess,offsite]);
+  async function calculateRoute(){
+    if(!googleAvailable||!routeSignature||!offsite||googleLoading
+      ||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
+    let departureISO:string|undefined;
+    if(departureMode==="scheduled"){
+      const date=new Date(departureLocal);
+      if(!Number.isFinite(date.getTime())||date.getTime()<Date.now()-120000||date.getTime()>Date.now()+7*86400000){
+        setGoogleError("Zvol čas odjezdu od nynějška nejvýše 7 dní dopředu.");
+        return;
+      }
+      departureISO=date.toISOString();
     }
+    if(!Number.isInteger(transferMinutes)||transferMinutes<0||transferMinutes>30){
+      setGoogleError("Na přestup lze vyhradit 0 až 30 minut.");return;
+    }
+    const settings:RouteSettings={departureISO,transitPreference,transferMinutes};
+    routeController.current?.abort();
     const controller=new AbortController();
-    const timer=window.setTimeout(async()=>{
-      setGoogleLoading(true);
-      try{
-        const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
-        const results:RouteEstimate[]=[];
-        // Run in order, never parallel: the transit departure must follow driving and transfer time.
-        // Each stage is still an independently reserved Google Routes request in Upstash.
-        const start=appliedSettings.departureISO?Date.parse(appliedSettings.departureISO):Date.now()+1000;
-        let elapsed=0;
-        for(let i=0;i<parts.length;i++){
-          if(controller.signal.aborted)return;
-          const part=parts[i],departureISO=new Date(start+elapsed*60000).toISOString();
-          const response=await fetch("/api/google-travel",{
-            method:"POST",signal:controller.signal,cache:"no-store",
-            headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
-            body:JSON.stringify({...part,departureTime:departureISO,
-              ...(part.mode==="transit"?{transitPreference:appliedSettings.transitPreference}:{})}),
-          });
-          const result=await response.json() as {
-            minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string};
-          if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
-            throw Error(result.error??"Google Maps trasu nevypočítaly.");
-          const options=Array.isArray(result.options)&&result.options.length?result.options:
-            [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
-          results.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO});
-          elapsed+=result.minutes!;
-          if(i<parts.length-1)elapsed+=appliedSettings.transferMinutes;
-        }
-        if(!controller.signal.aborted)setGoogleEstimates(results);
-      }catch(e){
-        if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
-      }finally{if(!controller.signal.aborted)setGoogleLoading(false);}
-    },800);
-    return ()=>{window.clearTimeout(timer);controller.abort();};
-  },[offsite,routeSignature,googleAvailable,googleAccess,appliedSettings,calculateAgain]);
+    routeController.current=controller;
+    setGoogleLoading(true);
+    setGoogleError("");
+    setGoogleEstimates(null);
+    try{
+      const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
+      const calculated:RouteEstimate[]=[];
+      // Sequential legs: car arrival + selected transfer allowance determines transit departure.
+      const departure=departureISO?Date.parse(departureISO):Date.now()+1000;
+      let elapsed=0;
+      for(let i=0;i<parts.length;i++){
+        if(controller.signal.aborted)return;
+        const part=parts[i],planned=new Date(departure+elapsed*60000).toISOString();
+        const response=await fetch("/api/google-travel",{
+          method:"POST",signal:controller.signal,cache:"no-store",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
+          body:JSON.stringify({...part,departureTime:planned,
+            ...(part.mode==="transit"?{transitPreference:settings.transitPreference}:{})}),
+        });
+        const result=await response.json() as {
+          minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string};
+        if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
+          throw Error(result.error??"Google Maps trasu nevypočítaly.");
+        const options=Array.isArray(result.options)&&result.options.length?result.options:
+          [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
+        calculated.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO:planned});
+        elapsed+=result.minutes!;
+        if(i<parts.length-1)elapsed+=settings.transferMinutes;
+      }
+      if(!controller.signal.aborted){
+        setAppliedSettings(settings);
+        setGoogleEstimates(calculated);
+      }
+    }catch(e){
+      if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
+    }finally{
+      if(!controller.signal.aborted)setGoogleLoading(false);
+    }
+  }
   const googleTotal=googleEstimates?googleEstimates.reduce((sum,item)=>sum+item.minutes,0)
     +(mixed?Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes:0):undefined;
   const googleDistance=googleEstimates?.reduce((sum,item)=>sum+item.distanceMeters,0);
@@ -381,29 +393,53 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         <label className="df2-travel-offsite"><input type="checkbox" checked={offsite}
           onChange={e=>setOffsite(e.target.checked)}/><strong>Blok se odehrává mimo domov</strong></label>
         {offsite&&<>
-          <nav className="df2-travel-tabs" aria-label="Výběr místa">
-            <button type="button" aria-pressed={mapTarget==="destination"} className={mapTarget==="destination"?"is-active":""}
-              onClick={()=>setMapTarget("destination")}>Místo konání</button>
-            <button type="button" aria-pressed={mapTarget==="origin"} className={mapTarget==="origin"?"is-active":""}
-              onClick={()=>setMapTarget("origin")}>Odkud vyrážím</button>
-            {mixed&&legs.slice(0,-1).map((leg,index)=>
-              <button type="button" key={index} aria-pressed={mapTarget===index} className={mapTarget===index?"is-active":""}
-                onClick={()=>setMapTarget(index)}>Zastávka {index+1}{leg.via?" ✓":""}</button>)}
-          </nav>
-          <MapPicker key={String(mapTarget)} point={selectedPoint} setPoint={updateSelectedPoint}/>
-          <p className="df2-travel-hint">{mapTarget==="origin"
-            ?(origin?"Místo odjezdu: "+origin.label:"Výchozí místo zatím není nastavené.")
-            :mapTarget==="destination"
-              ?(destination?"Cíl: "+destination.label:"Vyber cíl na mapě.")
-              :(selectedPoint?"Mezizastávka: "+selectedPoint.label:"Na mapě vyber parkoviště, přestup nebo zastávku.")}</p>
-          <div className="df2-travel-kind" role="group" aria-label="Typ cesty">
-            <button type="button" aria-pressed={!mixed} className={!mixed?"is-active":""}
-              onClick={()=>{setMixed(false);setMapTarget("destination");}}>Jednoduchá cesta</button>
-            <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
-              onClick={()=>setMixed(true)}>Kombinovaná cesta</button>
-          </div>
+          <section className="df2-trip-section" aria-label="Místa cesty">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">1</span><h3>Odkud a kam?</h3></div>
+            <nav className="df2-travel-tabs df2-trip-place-cards" aria-label="Výběr místa">
+              <button type="button" aria-label="Odkud vyrážím" aria-pressed={mapTarget==="origin"&&placeEditorOpen}
+                className={mapTarget==="origin"&&placeEditorOpen?"is-active":""}
+                onClick={()=>choosePlace("origin")}>
+                <small>ODKUD</small>
+                <strong>{origin?origin.label.split(",").slice(0,2).join(","):"Vybrat místo odjezdu"}</strong>
+                <span>{origin?"Změnit místo":"Klikni pro výběr"}</span>
+              </button>
+              <button type="button" aria-label="Místo konání" aria-pressed={mapTarget==="destination"&&placeEditorOpen}
+                className={mapTarget==="destination"&&placeEditorOpen?"is-active":""}
+                onClick={()=>choosePlace("destination")}>
+                <small>KAM</small>
+                <strong>{destination?destination.label.split(",").slice(0,2).join(","):"Vybrat cíl cesty"}</strong>
+                <span>{destination?"Změnit místo":"Klikni pro výběr"}</span>
+              </button>
+              {mixed&&legs.slice(0,-1).map((leg,index)=>
+                <button type="button" key={index} aria-label={"Zastávka "+(index+1)} aria-pressed={mapTarget===index&&placeEditorOpen}
+                  className={mapTarget===index&&placeEditorOpen?"is-active":""}
+                  onClick={()=>choosePlace(index)}>
+                  <small>PŘESTUP {index+1}</small>
+                  <strong>{leg.via?leg.via.label.split(",").slice(0,2).join(","):"Vybrat zastávku"}</strong>
+                  <span>{leg.via?"Změnit místo":"Klikni pro výběr"}</span>
+                </button>)}
+            </nav>
+            {placeEditorOpen&&<div className="df2-trip-location-editor">
+              <div className="df2-trip-location-head">
+                <strong>{mapTarget==="origin"?"Odkud vyrážíš?":mapTarget==="destination"?"Kam jedeš?":`Kde přestupuješ? (zastávka ${mapTarget+1})`}</strong>
+                <button type="button" onClick={()=>setPlaceEditorOpen(false)}>Hotovo</button>
+              </div>
+              <MapPicker key={String(mapTarget)} point={selectedPoint} setPoint={updateSelectedPoint}/>
+            </div>}
+            {!destination&&<p className="df2-trip-inline-hint">Nejprve vyber cíl cesty.</p>}
+            {destination&&!origin&&<p className="df2-trip-inline-hint">Cíl je vybraný. Ještě nastav místo odjezdu.</p>}
+          </section>
+          <section className="df2-trip-section" aria-label="Způsob dopravy">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">2</span><h3>Jak pojedeš?</h3></div>
+            <div className="df2-travel-kind" role="group" aria-label="Typ cesty">
+              <button type="button" aria-pressed={!mixed} className={!mixed?"is-active":""}
+                onClick={()=>{setMixed(false);setMapTarget("destination");setPlaceEditorOpen(false);}}>Jednoduchá cesta</button>
+              <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
+                onClick={()=>{setMixed(true);setPlaceEditorOpen(false);}}>Kombinovaná cesta</button>
+            </div>
+            <p className="df2-trip-kind-help">{mixed?"Naplánuj postupně auto, MHD, chůzi a případná přestupní místa.":"Stačí vybrat jeden dopravní prostředek."}</p>
           {mixed?<section className="df2-travel-legs" aria-label="Úseky cesty">
-            <p className="df2-travel-hint">Sestav cestu postupně, například auto → parkoviště → metro → chůze. Časy zadáváš orientačně včetně čekání a parkování.</p>
+            <p className="df2-trip-kind-help">Přestupní místo vybereš kliknutím na kartu výše. Minuty jsou tvůj plánovací odhad pro Jarvise, nikoli automaticky uložený čas Googlu.</p>
             {legs.map((leg,index)=>{
               const last=index===legs.length-1;
               const end=last?destination:leg.via;
@@ -432,10 +468,10 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   </label>
                 </div>
                 {!last&&<button type="button" className="df2-travel-via"
-                  onClick={()=>setMapTarget(index)}>📍 {end?.label??"Vybrat parkoviště / přestup na mapě"}</button>}
+                  onClick={()=>choosePlace(index)}>📍 {end?.label??"Vybrat parkoviště / přestup na mapě"}</button>}
                 {last&&<p className="df2-travel-hint">Cíl: {destination?.label??"Zatím není vybraný"}</p>}
-                {end&&<a href={travelDirectionsUrl(from,end,leg.mode)} target="_blank" rel="noopener noreferrer">
-                  Úsek {index+1} v Google Maps ↗</a>}
+                {end&&<a className="df2-trip-small-link" href={travelDirectionsUrl(from,end,leg.mode)} target="_blank" rel="noopener noreferrer">
+                  Zobrazit tento úsek v Google Maps ↗</a>}
               </div>;
             })}
             <button type="button" className="df2-travel-add-leg" disabled={legs.length>=6}
@@ -450,83 +486,120 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               {Object.entries(TRAVEL_MODE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </label>}
+          </section>
+          <section className="df2-trip-section" aria-label="Výpočet cesty">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">3</span><h3>Kdy vyrazit?</h3></div>
           <div className="df2-google-route-box">
             <div className="df2-google-route-head">
-              <strong>Automatický výpočet trasy</strong>
-              {googleEstimates&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
+              <strong>Trasa podle Google Maps</strong>
+              {googleAvailable&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
             </div>
-
-            <label>Přístupový kód k výpočtu tras
-              <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
-                value={googleAccess} onChange={event=>{
-                  const token=event.target.value;
-                  setGoogleAccess(token);
-                  try{if(token)sessionStorage.setItem("dayframe-routes-access-session",token);
-                    else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
-                }} placeholder="Osobní přístupový kód"/>
-            </label>
-            <div className="df2-travel-route-settings">
-              <label>Čas odjezdu
+            {(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))&&!accessEditorOpen
+              ?<div className="df2-trip-access-ready"><span>✓ Přístupový kód je vyplněný</span>
+                <button type="button" onClick={()=>setAccessEditorOpen(true)}>Změnit kód</button></div>
+              :<label>Přístupový kód k výpočtu tras
+                <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
+                  value={googleAccess} onChange={event=>{
+                    const token=event.target.value;
+                    setAccessEditorOpen(true);
+                    setGoogleAccess(token);
+                    try{if(token)sessionStorage.setItem("dayframe-routes-access-session",token);
+                      else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
+                  }} placeholder="Osobní přístupový kód (ne Google API klíč)"/>
+                {(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))&&
+                  <button className="df2-trip-small-link" type="button" onClick={()=>setAccessEditorOpen(false)}>Hotovo s kódem</button>}
+              </label>}
+            <div className="df2-trip-main-time">
+              <label>Kdy chceš odjet?
                 <select aria-label="Čas odjezdu" value={departureMode}
-                  onChange={e=>{setDepartureMode(e.target.value as "now"|"scheduled");setSettingsPending(true);}}>
-                  <option value="now">Teď</option><option value="scheduled">V konkrétní čas</option>
+                  onChange={e=>setDepartureMode(e.target.value as "now"|"scheduled")}>
+                  <option value="now">Co nejdřív (teď)</option>
+                  <option value="scheduled">V konkrétní čas</option>
                 </select>
               </label>
               {departureMode==="scheduled"&&<label>Datum a čas odjezdu
                 <input aria-label="Datum a čas odjezdu" type="datetime-local" value={departureLocal}
-                  onChange={e=>{setDepartureLocal(e.target.value);setSettingsPending(true);}}/>
+                  onChange={e=>setDepartureLocal(e.target.value)}/>
               </label>}
-              {(mixed||mode==="transit")&&<label>Preference MHD
-                <select aria-label="Preference MHD" value={transitPreference}
-                  onChange={e=>{setTransitPreference(e.target.value as TransitPreference);setSettingsPending(true);}}>
-                  <option value="fastest">Nejrychlejší dostupná</option>
-                  <option value="fewer_transfers">Méně přestupů</option>
-                  <option value="less_walking">Méně chůze</option>
-                </select>
-              </label>}
-              {mixed&&<label>Na parkování a přestup mezi úseky (min)
-                <input aria-label="Minuty na přestup" type="number" min="0" max="30" step="1"
-                  value={transferMinutes} onChange={e=>{setTransferMinutes(Number(e.target.value));setSettingsPending(true);}}/>
-              </label>}
-              <button type="button" className="df2-travel-use-estimate"
-                onClick={applyRouteSettings}>Přepočítat podle nastavení</button>
-              {settingsPending&&<small>Nové nastavení použij tlačítkem Přepočítat; tím se spotřebuje další výpočet pro každý úsek.</small>}
             </div>
+            {(mixed||mode==="transit")&&<>
+              <button type="button" className="df2-trip-more-btn" aria-expanded={advancedOpen}
+                onClick={()=>setAdvancedOpen(open=>!open)}>{advancedOpen?"Skrýt upřesnění":"Upřesnit cestu (volitelné)"} <span aria-hidden="true">{advancedOpen?"⌃":"⌄"}</span></button>
+              {advancedOpen&&<div className="df2-travel-route-settings">
+                <label>Co je důležitější?
+                  <select aria-label="Preference MHD" value={transitPreference}
+                    onChange={e=>setTransitPreference(e.target.value as TransitPreference)}>
+                    <option value="fastest">Nejrychlejší spoj</option>
+                    <option value="fewer_transfers">Méně přestupů</option>
+                    <option value="less_walking">Méně chůze</option>
+                  </select>
+                </label>
+                {mixed&&<label>Čas na parkování a přestup (min)
+                  <input aria-label="Minuty na přestup" type="number" min="0" max="30" step="1"
+                    value={transferMinutes} onChange={e=>setTransferMinutes(Number(e.target.value))}/>
+                </label>}
+              </div>}
+            </>}
             {!googleAvailable?<div className="df2-google-route-offline" role="status">
               <p className="df2-travel-hint">{googleConnection==="checking"
-                ?"Kontroluji serverové propojení Google Maps…"
+                ?"Připojuji Google Maps…"
                 :googleConnection==="disabled"
-                  ?"Serverová služba zatím není aktivní. Čas cesty můžeš stále zadat ručně."
-                  :"Serverová funkce pro Google Maps neodpovídá. Kód můžeš vložit, ale výpočet se nespustí, dokud se spojení neopraví."}</p>
+                  ?"Automatický výpočet není dostupný. Cestu lze uložit ručně."
+                  :"Google Maps teď neodpovídají. Cestu můžeš stále uložit ručně."}</p>
               <button type="button" className="df2-travel-use-estimate"
-                onClick={()=>setGoogleStatusRetry(n=>n+1)}>Zkontrolovat propojení znovu</button>
+                onClick={()=>setGoogleStatusRetry(n=>n+1)}>Zkusit připojení znovu</button>
             </div>:<>
-              <p className="df2-travel-hint">Bezpečnostní limit Dayframe: 50 výpočtů denně a 1 000 měsíčně. Jakmile jeden limit vyčerpáš, další výpočty se zablokují.</p>
-              <p className="df2-travel-hint">Google Maps používáme pro dočasné zobrazení spojů, doby a vzdálenosti, nikoli k trvalému ukládání výsledků. <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a></p>
-              {!routeParts?<p className="df2-travel-hint">Pro výpočet vyber výchozí místo, cíl a všechny přestupy.</p>
-                :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-travel-hint">Zadej osobní kód s minimálně 20 znaky (písmena, číslice, _ nebo -). Google API klíč sem nevkládej.</p>
-                :googleLoading?<p role="status">Počítám trasu přes Google Maps…</p>
-                :googleEstimates?<div className="df2-google-route-results" role="status">
-                  <strong>{googleTotal} min · {((googleDistance??0)/1000).toFixed(1)} km</strong>
-                  <span>Odjezd {formatClock(journeyDeparture)} · příjezd přibližně {formatClock(journeyArrival)}. {mixed?"Časy úseků jsou navazující.":""} {mode==="driving"&&!mixed?"Jízda zohledňuje provoz.":""}</span>
-                  {mixed&&<span>Čas na přestupy a parkování: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min (zahrnuto v součtu).</span>}
+              <button type="button" className="df2-trip-calculate" onClick={()=>void calculateRoute()}
+                disabled={!offsite||!routeParts||googleLoading||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))}>
+                {googleLoading?"Počítám trasu…":googleEstimates?"Přepočítat trasu":"Spočítat trasu"}
+              </button>
+              {!routeParts?<p className="df2-trip-inline-hint">K výpočtu vyber odkud, kam a případná přestupní místa.</p>
+                :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-trip-inline-hint">Pro výpočet zadej svůj osobní přístupový kód.</p>
+                :<p className="df2-trip-cost-note">Výpočet spustíš jen tlačítkem. {mixed?`Každý z ${routeParts.length} úseků spotřebuje jeden požadavek.`:"Jeden výpočet spotřebuje jeden požadavek."}</p>}
+              {googleEstimates&&<div className="df2-google-route-results" role="status">
+                <div className="df2-trip-result-head">
+                  <div><span>ODHAD CESTY</span><strong>{googleTotal} min</strong></div>
+                  <div><span>VZDÁLENOST</span><strong>{((googleDistance??0)/1000).toFixed(1)} km</strong></div>
+                </div>
+                <p>Vyrazit {formatClock(journeyDeparture)} · příjezd přibližně {formatClock(journeyArrival)}</p>
+                {googleEstimates.map((part,index)=><div className="df2-trip-mini-segment" key={index}>
+                  <span>{mixed?`Úsek ${index+1} · `:""}{TRAVEL_MODE_LABELS[routeParts?.[index]?.mode??"driving"]}</span>
+                  <strong>{part.minutes} min</strong>
+                  {part.options[0]?.steps.some(step=>step.kind==="transit")&&
+                    <small>{part.options[0].steps.filter(step=>step.kind==="transit").map(step=>step.line||step.vehicle||"MHD").join(" → ")}</small>}
+                </div>)}
+                {mixed&&<span>Parkování a přestupy: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min navíc (zahrnuto v součtu).</span>}
+                <details className="df2-trip-details">
+                  <summary>Zobrazit stanice, spoje a alternativy</summary>
                   {googleEstimates.map((part,index)=><RouteItinerary key={index} index={index}
                     estimate={part} mode={routeParts?.[index]?.mode??"driving"} preference={appliedSettings.transitPreference}/>)}
-                  <span className="df2-travel-hint">Vybraná varianta podle preference; Google nemusí vrátit všechny možné spoje. Odjezdy MHD a přestupy si před cestou ověř.</span>
-                  <span className="df2-google-route-note">Aktuální údaj Google Maps je pouze pro orientaci. Do uloženého plánu se nepřenáší. Pro Jarvise nastav vlastní obvyklou dobu cesty níže.</span>
-                </div>:googleError?<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>
-                :<p className="df2-travel-hint">Časy se načtou automaticky po výběru všech míst.</p>}
+                  <p className="df2-travel-hint">Google nemusí vrátit všechny možné spoje. Aktuální přestupy si před cestou ověř.</p>
+                </details>
+              </div>}
+              {googleError&&<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>}
             </>}
+            <details className="df2-trip-legal"><summary>Limity a soukromí</summary>
+              <p>Maximálně 50 požadavků denně a 1 000 měsíčně. Údaje Google Maps slouží k orientaci a neukládají se do plánovacího času.</p>
+              <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Soukromí</a> · <a href="./terms.html" target="_blank" rel="noopener noreferrer">Podmínky</a>
+            </details>
           </div>
-          <div className="df2-travel-options">
-            <label>Časová rezerva (min)<input aria-label="Časová rezerva" type="number" min="0" max="180"
-              value={buffer} onChange={e=>setBuffer(Number(e.target.value))}/></label>
-            {!mixed&&<label>Obvyklá cesta v minutách (volitelné)<input aria-label="Obvyklá doba cesty"
-              type="number" min="1" max="1440" value={typical} onChange={e=>setTypical(e.target.value)}/></label>}
-          </div>
-          {!target.start&&<p className="df2-travel-hint">Blok zatím nemá čas začátku. Místo se uloží; doporučený odjezd Jarvis spočítá až po naplánování času.</p>}
-          <p className="df2-travel-hint">Jarvis zatím pracuje s uloženým plánovacím časem a rezervou.
-            Výpočet Google Maps je aktuální pouze při otevřeném editoru a nepředstavuje záruku včasného příjezdu.</p>
+          </section>
+          <section className="df2-trip-section df2-trip-save-section" aria-label="Plán pro Jarvise">
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">4</span><h3>Uložit plán pro Jarvise</h3></div>
+            <p className="df2-trip-kind-help">Jarvis plánuje odjezd podle tvého běžného času. Automatický odhad Googlu zůstává pouze pro náhled.</p>
+            <div className="df2-travel-options">
+              {!mixed&&<label>Můj běžný čas cesty (min)
+                <input aria-label="Obvyklá doba cesty" type="number" min="1" max="1440"
+                  value={typical} onChange={e=>setTypical(e.target.value)} placeholder="Např. 60"/>
+              </label>}
+              <label>Časová rezerva (min)
+                <input aria-label="Časová rezerva" type="number" min="0" max="180" value={buffer}
+                  onChange={e=>setBuffer(Number(e.target.value))}/>
+              </label>
+            </div>
+            {mixed&&<p className="df2-trip-kind-help">U kombinované cesty se pro Jarvise sečtou plánovací minuty z jednotlivých úseků výše.</p>}
+            {!target.start&&<p className="df2-trip-kind-help">Blok zatím nemá začátek. Jarvis odjezd dopočítá, až blok naplánuješ na určitý čas.</p>}
+          </section>
           {!mixed&&destination&&<a target="_blank" rel="noopener noreferrer"
             href={travelDirectionsUrl(origin,destination,mode)}>Otevřít trasu v Google Maps ↗</a>}
         </>}

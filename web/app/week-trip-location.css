@@ -108,3 +108,78 @@
 .df2-travel-alternatives{margin:8px 0;font-size:12px;line-height:1.6}
 .df2-travel-alternatives summary{cursor:pointer;font-weight:600}
 .df2-travel-alternative{padding:5px 0;border-top:1px solid var(--line)}
+
+
+/* Practical travel editor: simple progression, map only while editing a place. */
+.df2-travel-dialog{width:min(760px,100%);gap:15px;padding:22px}
+.df2-travel-dialog>header{position:relative;align-items:center}
+.df2-travel-dialog>header h2{font-size:21px;line-height:1.2}
+.df2-travel-offsite{background:var(--surface);border-radius:12px;padding:12px 14px}
+.df2-trip-section{display:grid;gap:11px;min-width:0;padding:14px 0;border-top:1px solid var(--line)}
+.df2-trip-section-title{display:flex;align-items:center;gap:10px}
+.df2-trip-section-title h3{margin:0;font-size:14px;font-weight:750;letter-spacing:-.01em}
+.df2-trip-section-number{display:grid;place-items:center;flex:none;width:25px;height:25px;border-radius:50%;background:var(--accent-wash);color:var(--accent-dark);font-size:12px;font-weight:750}
+.df2-trip-place-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.df2-trip-place-cards button{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;min-height:86px;text-align:left;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--ink);transition:border-color 120ms ease,background 120ms ease}
+.df2-trip-place-cards button.is-active{background:var(--accent-wash);border-color:var(--accent);color:var(--ink)}
+.df2-trip-place-cards button small{color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.07em}
+.df2-trip-place-cards button strong{display:block;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:750}
+.df2-trip-place-cards button span{color:var(--accent-dark);font-size:11px}
+.df2-trip-place-cards button:focus-visible,.df2-trip-location-head button:focus-visible,.df2-trip-more-btn:focus-visible,.df2-trip-calculate:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+.df2-trip-location-editor{padding:13px;border:1px solid var(--line);border-radius:13px;background:var(--surface);display:grid;gap:12px}
+.df2-trip-location-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.df2-trip-location-head strong{font-size:13px}
+.df2-trip-location-head button,.df2-trip-access-ready button{border:1px solid var(--line-strong);border-radius:8px;background:var(--paper);padding:7px 12px;font-size:11px;color:var(--accent-dark);cursor:pointer}
+.df2-trip-location-editor .df2-travel-map{height:180px}
+.df2-trip-location-editor .df2-travel-search-results button{font-size:12px}
+.df2-trip-location-editor .df2-travel-coords-read{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:10px}
+.df2-trip-location-editor .df2-travel-coords-read button{border:0;background:transparent;color:var(--accent-dark);font-size:11px;cursor:pointer}
+.df2-trip-inline-hint{font-size:11px;line-height:1.5;color:var(--muted);margin:0}
+.df2-trip-kind-help{color:var(--muted);font-size:11px;line-height:1.55;margin:0}
+.df2-travel-kind{gap:9px}
+.df2-travel-kind button{min-width:130px;text-align:center;font-size:12px;padding:10px 14px}
+.df2-travel-legs{gap:9px}
+.df2-travel-leg{padding:11px 13px;gap:8px}
+.df2-travel-leg-fields{grid-template-columns:minmax(0,2fr) minmax(95px,1fr)}
+.df2-travel-via{border-color:var(--line);background:var(--paper);font-weight:600}
+.df2-trip-small-link{font-size:11px!important;color:var(--accent-dark)!important;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.df2-google-route-box{gap:12px;padding:16px;border-color:var(--line);background:var(--surface)}
+.df2-google-route-head strong{font-size:13px}
+.df2-trip-access-ready{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--success);font-size:11px}
+.df2-trip-main-time{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px}
+.df2-trip-more-btn{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);padding:11px 2px 2px;background:transparent;color:var(--ink-soft);font-size:12px;cursor:pointer}
+.df2-trip-more-btn span{font-size:16px}
+.df2-travel-route-settings{margin:0;padding:10px;gap:10px}
+.df2-trip-calculate{width:100%;border:1px solid var(--accent-dark);border-radius:10px;background:var(--accent);color:white;min-height:44px;cursor:pointer;font-size:13px;font-weight:750}
+.df2-trip-calculate:hover:not(:disabled){background:var(--accent-dark)}
+.df2-trip-calculate:disabled{opacity:.5;cursor:not-allowed}
+.df2-trip-cost-note{font-size:10px;color:var(--muted);margin:0}
+.df2-google-route-results{padding:14px;gap:12px}
+.df2-trip-result-head{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.df2-trip-result-head>div{display:grid;gap:4px}
+.df2-trip-result-head>div>span{font-size:10px!important;letter-spacing:.06em;font-weight:750;color:var(--muted)}
+.df2-trip-result-head>div>strong{font-size:27px;line-height:1.15;color:var(--ink);letter-spacing:-.02em}
+.df2-google-route-results p{margin:0;font-size:12px;color:var(--ink-soft)}
+.df2-trip-mini-segment{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.df2-trip-mini-segment>span{flex:1;min-width:105px;font-size:12px;color:var(--ink-soft)}
+.df2-trip-mini-segment>strong{font-size:13px}
+.df2-trip-mini-segment>small{flex-basis:100%;font-size:11px;color:var(--ink-soft)}
+.df2-trip-details summary,.df2-trip-legal summary{cursor:pointer;font-size:12px;font-weight:650;color:var(--accent-dark)}
+.df2-trip-details[open],.df2-trip-legal[open]{padding-top:6px}
+.df2-trip-legal{font-size:11px;line-height:1.6;color:var(--muted)}
+.df2-trip-legal p{margin:8px 0}
+.df2-trip-legal a{color:var(--accent-dark);text-decoration:underline}
+.df2-trip-save-section{border-top:1px solid var(--line)}
+.df2-travel-options{grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}
+.df2-travel-dialog footer{position:sticky;bottom:-22px;z-index:5;background:var(--paper);margin:0 -22px -22px;padding:12px 22px;box-shadow:0 -4px 12px rgba(30,30,30,.035);border-top:1px solid var(--line)}
+.df2-travel-dialog footer .df2-travel-save{min-width:155px}
+@media(max-width:560px){
+  .df2-travel-dialog{padding:14px;gap:12px}
+  .df2-trip-place-cards{grid-template-columns:1fr}
+  .df2-trip-place-cards button{min-height:66px}
+  .df2-trip-result-head>div>strong{font-size:23px}
+  .df2-travel-dialog footer{bottom:-14px;margin:0 -14px -14px;padding:12px 14px}
+  .df2-trip-location-editor .df2-travel-map{height:165px}
+  .df2-travel-kind button{min-width:0;flex:1}
+}
+@media(prefers-reduced-motion:reduce){.df2-trip-place-cards button{transition:none}}

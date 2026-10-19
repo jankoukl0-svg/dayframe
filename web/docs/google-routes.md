@@ -24,15 +24,24 @@ This integration is **disabled until all required server-only Vercel secrets AND
    - The alternative names `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are also supported if supplied together. Never copy, disclose, or mix secrets from two databases.
    - `DAYFRAME_ROUTES_ACCESS_TOKEN`: a different random ASCII/Base64URL token, minimum 20 characters, for accessing the private endpoint from your browser. Do **not** paste the Google API key here.
 4. Redeploy `main` on Vercel so the new variables are picked up.
-5. In Dayframe, go to **Týden → Místo konání** and enter the private access token in the route section. It stays only in browser sessionStorage, not in the schedule. After choosing all endpoints and modes the app shows Google estimates and distance, without permanently storing Google's API results.
+5. In Dayframe, go to **Týden → Místo konání** and enter the private access token in the route section. It stays only in browser sessionStorage, not in the schedule. Choose origin, destination and transport, then press **Spočítat trasu** once to request the Google estimate. Changing inputs does not automatically trigger billable requests, and provider results are never persisted.
 6. Confirm the Vercel Upstash resource is on **Free**, with **Auto Upgrade disabled**. The presence of credentials does not confirm its tariff; review the database in Upstash before accepting a billing upgrade.
 7. Test by selecting one simple route and a multi-leg route; verify the route ETA appears and the corresponding count is recorded in Upstash. For a low-cost test, use a mock Google response in CI (already covered in unit/browser tests). Never reveal tokens in support screenshots or GitHub.
 8. Review the [published privacy notice](../public/privacy.html), [terms](../public/terms.html), [Google Routes requirements](https://developers.google.com/maps/documentation/routes/policies), and [Google Maps Platform EEA terms](https://cloud.google.com/terms/maps-platform/eea) before enabling the integration.
 
 
+## Quick route planner UI
+
+The Week location editor is organized as four short sections: (1) **Odkud a kam?** to select the origin, destination, and optional transit points, (2) **Jak pojedeš?** for direct vs combined transport, (3) **Kdy vyrazit?** for a single explicit Google calculation, and (4) **Uložit plán pro Jarvise** for manually entered customary travel time and reserve.
+
+- The map and geocoding picker appear when selecting/changing a location; saved trips reopen with compact location cards and the picker collapsed. Exact coordinates remain available.
+- The session-scoped personal access code is collapsed after valid-format entry and can be edited via **Změnit kód**. This is a UI convenience, not confirmation of provider authorization.
+- Advanced transit priorities and transfer buffer are optional; the result first shows time, distance and a short breakdown; stations and alternatives expand on demand.
+- On a failed Google connection, the manual trip planner continues to work. Any route estimate is deliberately **read-only and ephemeral**, so the user must enter their own planning minutes for Jarvis.
+
 ## Connected transit journeys and alternatives
 
-- The Week location editor offers departure **Now** (calculated when requested) or an explicit local date/time within the next 7 days. Choosing an exact time or transit routing preference requires clicking **Přepočítat podle nastavení** to avoid spending the usage budget on every keystroke.
+- The Week location editor offers departure **Now** (calculated when requested) or an explicit local date/time within the next 7 days. Transit preferences and transfer allowances are tucked under **Upřesnit cestu**. All routing uses the explicit **Spočítat trasu** (or **Přepočítat trasu**) button; editing settings, locations or the personal token never triggers paid requests automatically.
 - Combined routes are calculated **sequentially**, not in parallel. Each following segment uses the preceding segment's chosen estimate plus a configurable **0–30 minute** parking/transfer allowance (default 5 minutes). This is a planning approximation; it does not guarantee a physical transfer or parking availability.
 - Google Routes API `computeAlternativeRoutes: true` can return the primary and up to three alternative routes per request. Dayframe ranks the returned alternatives by the selected criterion (duration by default; transfers or walking distance when requested), displays the top-ranked returned option, and allows comparing others without making extra Google calls. **Not an exhaustive proof of globally fastest transit.**
 - Transit preferences are `fastest` (no transit preference sent), `fewer_transfers` (`FEWER_TRANSFERS`) and `less_walking` (`LESS_WALKING`), scoped only to `TRANSIT` calls. Transit steps display sanitized line names, headsigns, stations, provider-local stop times with their time zones, walking sections and transfer counts when the provider supplies them. When no local time zone is available, fallback times are explicitly marked UTC rather than being silently rendered in the user's device zone.
