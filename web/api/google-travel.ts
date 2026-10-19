@@ -244,7 +244,15 @@ export async function POST(request:Request){
     const response=await reply.json() as {routes?:GoogleRoute[]};
     const options=(Array.isArray(response.routes)?response.routes:[]).slice(0,4)
       .map(route=>routeOption(route,mode)).filter(option=>option!==null)
-      .sort((a,b)=>a.minutes-b.minutes||a.distanceMeters-b.distanceMeters);
+      .sort((a,b)=>{
+        // Explicit MHD preferences rank the returned alternatives by that criterion.
+        // A preference changes prioritization, never promises a globally optimal route.
+        if(mode==="transit"&&preference==="fewer_transfers"&&a.transfers!==b.transfers)
+          return a.transfers-b.transfers;
+        if(mode==="transit"&&preference==="less_walking"&&a.walkingMeters!==b.walkingMeters)
+          return a.walkingMeters-b.walkingMeters;
+        return a.minutes-b.minutes||a.distanceMeters-b.distanceMeters;
+      });
     if(!options.length)
       return send(422,{error:"Google Maps pro tato místa nevrátily platnou trasu."});
     const fastest=options[0];
