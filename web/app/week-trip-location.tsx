@@ -482,7 +482,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const metroPrimary=metroStage>=0?googleEstimates?.[metroStage]?.options[0]:undefined;
   const isMetro=(option:RouteOption)=>option.steps.some(step=>
     step.kind==="transit"&&transitPresentation(step.vehicle,step.line).label==="Metro");
-  const existingMetroOption=metroStage>=0?googleEstimates?.[metroStage]?.options.find(isMetro):undefined;
+  const existingMetroOption=metroStage>=0?googleEstimates?.[metroStage]?.options.slice(1).find(isMetro):undefined;
   const metroOpportunity=metroStage>=0&&Boolean(metroPrimary)&&
     (Boolean(metroComparison)||!isMetro(metroPrimary!)||metroPrimary!.transfers>=2);
   function chooseMetro(stage:number,metro:RouteEstimate){
@@ -503,7 +503,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     if(!googleEstimates||!routeParts||metroStage<0||googleLoading||metroLoading
       ||metroChecked||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
     const stage=metroStage,part=routeParts[stage];
-    const alternative=googleEstimates[stage].options.find(isMetro);
+    const alternative=googleEstimates[stage].options.slice(1).find(isMetro);
     if(alternative){
       chooseMetro(stage,{...googleEstimates[stage],
         minutes:alternative.minutes,distanceMeters:alternative.distanceMeters,
@@ -512,6 +512,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     }
     const currentSignature=routeSignature;
     const departureTime=googleEstimates[stage].departureISO;
+    if(!Number.isFinite(Date.parse(departureTime))||Date.parse(departureTime)<Date.now()-120000){
+      setMetroChecked(true);
+      setMetroMessage("Původní odjezd už uplynul. Nejprve znovu spočítej celou cestu, aby bylo možné metro spravedlivě porovnat ve stejném čase.");
+      return;
+    }
     const controller=new AbortController();
     routeController.current?.abort();
     routeController.current=controller;
@@ -524,7 +529,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
         body:JSON.stringify({from:{lat:part.from.lat,lon:part.from.lon},
           to:{lat:part.to.lat,lon:part.to.lon},mode:"transit",departureTime,
-          transitPreference:"balanced",transitTravelModes:"metro"}),
+          transitPreference:appliedSettings.transitPreference,transitTravelModes:"metro"}),
       });
       const result=await response.json() as {
         minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string;
