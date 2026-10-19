@@ -194,6 +194,12 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [destination,setDestination]=useState<TravelPoint|undefined>(current?.place);
   const [origin,setOrigin]=useState<TravelPoint|undefined>(data.store.origin);
   const [mapTarget,setMapTarget]=useState<"destination"|"origin"|number>("destination");
+  const [placeEditorOpen,setPlaceEditorOpen]=useState(!current?.place);
+  const [advancedOpen,setAdvancedOpen]=useState(false);
+  const [accessEditorOpen,setAccessEditorOpen]=useState(false);
+  function choosePlace(next:"destination"|"origin"|number){
+    setMapTarget(next);setPlaceEditorOpen(true);
+  }
   const [mixed,setMixed]=useState(Boolean(current?.legs?.length));
   const [legs,setLegs]=useState<Array<{mode:TravelMode;minutes:string;via?:TravelPoint}>>(
     ()=>current?.legs?.map(leg=>({...leg,minutes:String(leg.minutes)}))
@@ -227,24 +233,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [transitPreference,setTransitPreference]=useState<TransitPreference>("fastest");
   const [transferMinutes,setTransferMinutes]=useState(5);
   const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"fastest",transferMinutes:5});
-  const [calculateAgain,setCalculateAgain]=useState(0);
-  const [settingsPending,setSettingsPending]=useState(false);
-  function applyRouteSettings(){
-    let departureISO:string|undefined;
-    if(departureMode==="scheduled"){
-      const d=new Date(departureLocal);
-      if(!Number.isFinite(d.getTime())||d.getTime()<Date.now()-120000||d.getTime()>Date.now()+7*86400000){
-        setGoogleError("Zvol čas odjezdu od nynějška nejvýše 7 dní dopředu.");setGoogleEstimates(null);return;
-      }
-      departureISO=d.toISOString();
-    }
-    if(!Number.isInteger(transferMinutes)||transferMinutes<0||transferMinutes>30){
-      setGoogleError("Na přestup lze vyhradit 0 až 30 minut.");setGoogleEstimates(null);return;
-    }
-    setAppliedSettings({departureISO,transitPreference,transferMinutes});
-    setSettingsPending(false);
-    setCalculateAgain(n=>n+1);
-  }
+  const routeController=useRef<AbortController|null>(null);
+  useEffect(()=>()=>routeController.current?.abort(),[]);
   // The separate access secret is session-scoped. Neither it nor the Google API key is persisted with the travel plan.
   useEffect(()=>{
     try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
@@ -289,48 +279,70 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     to:{lat:part.to.lat,lon:part.to.lon},
     mode:part.mode,
   }))):"";
+  // Every paid calculation is deliberate. Editing a point, preference or time never calls Google.
   useEffect(()=>{
+    routeController.current?.abort();
     setGoogleEstimates(null);
     setGoogleError("");
-    if(!offsite||!routeSignature||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))){
-      setGoogleLoading(false);return;
+    setGoogleLoading(false);
+  },[routeSignature,departureMode,departureLocal,transitPreference,transferMinutes,googleAccess,offsite]);
+  async function calculateRoute(){
+    if(!googleAvailable||!routeSignature||!offsite||googleLoading
+      ||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
+    let departureISO:string|undefined;
+    if(departureMode==="scheduled"){
+      const date=new Date(departureLocal);
+      if(!Number.isFinite(date.getTime())||date.getTime()<Date.now()-120000||date.getTime()>Date.now()+7*86400000){
+        setGoogleError("Zvol čas odjezdu od nynějška nejvýše 7 dní dopředu.");
+        return;
+      }
+      departureISO=date.toISOString();
     }
+    if(!Number.isInteger(transferMinutes)||transferMinutes<0||transferMinutes>30){
+      setGoogleError("Na přestup lze vyhradit 0 až 30 minut.");return;
+    }
+    const settings:RouteSettings={departureISO,transitPreference,transferMinutes};
+    routeController.current?.abort();
     const controller=new AbortController();
-    const timer=window.setTimeout(async()=>{
-      setGoogleLoading(true);
-      try{
-        const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
-        const results:RouteEstimate[]=[];
-        // Run in order, never parallel: the transit departure must follow driving and transfer time.
-        // Each stage is still an independently reserved Google Routes request in Upstash.
-        const start=appliedSettings.departureISO?Date.parse(appliedSettings.departureISO):Date.now()+1000;
-        let elapsed=0;
-        for(let i=0;i<parts.length;i++){
-          if(controller.signal.aborted)return;
-          const part=parts[i],departureISO=new Date(start+elapsed*60000).toISOString();
-          const response=await fetch("/api/google-travel",{
-            method:"POST",signal:controller.signal,cache:"no-store",
-            headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
-            body:JSON.stringify({...part,departureTime:departureISO,
-              ...(part.mode==="transit"?{transitPreference:appliedSettings.transitPreference}:{})}),
-          });
-          const result=await response.json() as {
-            minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string};
-          if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
-            throw Error(result.error??"Google Maps trasu nevypočítaly.");
-          const options=Array.isArray(result.options)&&result.options.length?result.options:
-            [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
-          results.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO});
-          elapsed+=result.minutes!;
-          if(i<parts.length-1)elapsed+=appliedSettings.transferMinutes;
-        }
-        if(!controller.signal.aborted)setGoogleEstimates(results);
-      }catch(e){
-        if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
-      }finally{if(!controller.signal.aborted)setGoogleLoading(false);}
-    },800);
-    return ()=>{window.clearTimeout(timer);controller.abort();};
-  },[offsite,routeSignature,googleAvailable,googleAccess,appliedSettings,calculateAgain]);
+    routeController.current=controller;
+    setGoogleLoading(true);
+    setGoogleError("");
+    setGoogleEstimates(null);
+    try{
+      const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
+      const calculated:RouteEstimate[]=[];
+      // Sequential legs: car arrival + selected transfer allowance determines transit departure.
+      const departure=departureISO?Date.parse(departureISO):Date.now()+1000;
+      let elapsed=0;
+      for(let i=0;i<parts.length;i++){
+        if(controller.signal.aborted)return;
+        const part=parts[i],planned=new Date(departure+elapsed*60000).toISOString();
+        const response=await fetch("/api/google-travel",{
+          method:"POST",signal:controller.signal,cache:"no-store",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
+          body:JSON.stringify({...part,departureTime:planned,
+            ...(part.mode==="transit"?{transitPreference:settings.transitPreference}:{})}),
+        });
+        const result=await response.json() as {
+          minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string};
+        if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
+          throw Error(result.error??"Google Maps trasu nevypočítaly.");
+        const options=Array.isArray(result.options)&&result.options.length?result.options:
+          [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
+        calculated.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO:planned});
+        elapsed+=result.minutes!;
+        if(i<parts.length-1)elapsed+=settings.transferMinutes;
+      }
+      if(!controller.signal.aborted){
+        setAppliedSettings(settings);
+        setGoogleEstimates(calculated);
+      }
+    }catch(e){
+      if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
+    }finally{
+      if(!controller.signal.aborted)setGoogleLoading(false);
+    }
+  }
   const googleTotal=googleEstimates?googleEstimates.reduce((sum,item)=>sum+item.minutes,0)
     +(mixed?Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes:0):undefined;
   const googleDistance=googleEstimates?.reduce((sum,item)=>sum+item.distanceMeters,0);
