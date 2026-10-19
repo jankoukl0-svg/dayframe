@@ -222,3 +222,7 @@
 .df2-trip-retry{width:100%;min-height:40px;border:1px solid var(--accent);border-radius:9px;padding:9px 12px;background:var(--accent-wash);color:var(--accent-dark);font-weight:700;font-size:12px;cursor:pointer}
 .df2-trip-retry:hover:not(:disabled){background:var(--surface)}
 .df2-trip-retry:disabled{opacity:.55;cursor:wait}
+
+
+.df2-trip-fallback-note{font-size:12px;line-height:1.55;color:var(--ink);border-left:3px solid var(--accent);padding:8px 10px;background:var(--surface);border-radius:5px}
+.df2-trip-external-route{display:inline-flex;align-items:center;width:fit-content;padding:7px 0;font-size:12px;font-weight:700;color:var(--accent-dark);text-decoration:underline;text-underline-offset:3px}

@@ -11,7 +11,7 @@ type RouteStep={kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:str
   stops?:number;distanceMeters?:number;instructions?:string};
 type RouteOption={minutes:number;distanceMeters:number;steps:RouteStep[];
   transfers:number;walkingMeters:number};
-type RouteEstimate={minutes:number;distanceMeters:number;options:RouteOption[];departureISO:string};
+type RouteEstimate={minutes:number;distanceMeters:number;options:RouteOption[];departureISO:string;trafficAware?:boolean};
 type RouteSettings={departureISO?:string;transitPreference:TransitPreference;transferMinutes:number};
 const formatClock=(iso?:string)=>iso&&Number.isFinite(Date.parse(iso))
   ?new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit"}).format(new Date(iso)):"—";
@@ -270,6 +270,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [googleAccess,setGoogleAccess]=useState("");
   const [googleLoading,setGoogleLoading]=useState(false);
   const [googleError,setGoogleError]=useState("");
+  const [googleDiagnostic,setGoogleDiagnostic]=useState("");
   const [googleEstimates,setGoogleEstimates]=useState<RouteEstimate[]|null>(null);
   const [departureMode,setDepartureMode]=useState<"now"|"scheduled">("now");
   const [departureLocal,setDepartureLocal]=useState(()=>{
@@ -342,6 +343,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     setCanRetrySimplified(false);
     setGoogleEstimates(null);
     setGoogleError("");
+    setGoogleDiagnostic("");
     setGoogleLoading(false);
   },[routeSignature,departureMode,departureLocal,transitPreference,transferMinutes,googleAccess,offsite]);
   async function calculateRoute(resumeFailed=false){
@@ -377,6 +379,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     setFailedStage(null);
     setCanRetrySimplified(false);
     setGoogleError("");
+    setGoogleDiagnostic("");
     setGoogleEstimates(null);
     let stage=0;
     try{
@@ -399,6 +402,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         const result=await response.json() as {
           minutes?:number;distanceMeters?:number;options?:RouteOption[];
           error?:string;providerStatus?:number;retryable?:boolean;
+          providerCode?:string;providerReason?:string;trafficAware?:boolean;
         };
         if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number"){
           // Keep successful earlier stages in memory, never charge for them again on retry.
@@ -408,11 +412,14 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
             setCanRetrySimplified(true);
           }else partialRoute.current=null;
           setFailedStage(i);
+          const details=[result.providerCode,result.providerReason].filter(value=>typeof value==="string"&&/^[A-Z][A-Z0-9_]{2,60}$/.test(value));
+          if(details.length)setGoogleDiagnostic("Kód služby Google: "+details.join(" / "));
           throw Error(`Úsek ${i+1} z ${parts.length} (${TRAVEL_MODE_LABELS[part.mode]}): ${result.error??"Google Maps trasu nevypočítaly."}`);
         }
         const options=Array.isArray(result.options)&&result.options.length?result.options:
           [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
-        calculated.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO:planned});
+        calculated.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO:planned,
+          trafficAware:result.trafficAware});
         elapsed+=result.minutes!+settings.transferMinutes;
       }
       if(!controller.signal.aborted){
@@ -649,6 +656,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   <div><span>VZDÁLENOST</span><strong>{((googleDistance??0)/1000).toFixed(1)} km</strong></div>
                 </div>
                 <p>Vyrazit {formatClock(journeyDeparture)} · příjezd přibližně {formatClock(journeyArrival)}</p>
+                {googleEstimates.some((part,index)=>routeParts?.[index]?.mode==="driving"&&part.trafficAware===false)&&
+                  <p className="df2-trip-fallback-note">Orientační čas autem bez aktuálních kolon. Pro přesnější odhad dopravní situace použij Google Maps.</p>}
                 {googleEstimates.map((part,index)=><div className="df2-trip-mini-segment" key={index}>
                   <span>{mixed?`Úsek ${index+1} · `:""}{TRAVEL_MODE_LABELS[routeParts?.[index]?.mode??"driving"]}</span>
                   <strong>{part.minutes} min</strong>
@@ -674,13 +683,20 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 </p>:null}
                 {canRetrySimplified&&failedStage!==null&&<button type="button" className="df2-trip-retry"
                   onClick={()=>void calculateRoute(true)} disabled={googleLoading}>
-                  Zkusit znovu bez alternativ (od úseku {failedStage+1})
+                  Zkusit jednodušší výpočet (od úseku {failedStage+1})
                 </button>}
                 {canRetrySimplified&&<p className="df2-trip-cost-note">
                   Další pokus spustíš jen tlačítkem. Každý zbývající úsek spotřebuje jeden požadavek.
-                  Bez alternativ může být výpočet rychlejší, ale Google může být stále nedostupný.
+                  Bez alternativ; u auta také bez dopravního modelu. Čas autem bude pouze orientační. Google může být stále nedostupný.
                 </p>}
-                <p className="df2-trip-inline-hint">Můžeš také počkat, otevřít trasu v Google Maps nebo zadat běžný čas ručně.</p>
+                {googleDiagnostic&&<p className="df2-trip-cost-note">{googleDiagnostic}</p>}
+                {failedStage!==null&&routeParts?.[failedStage]&&
+                  <a className="df2-trip-external-route"
+                    href={travelDirectionsUrl(routeParts[failedStage].from,routeParts[failedStage].to,routeParts[failedStage].mode)}
+                    target="_blank" rel="noopener noreferrer">
+                    Otevřít úsek {failedStage+1} v Google Maps ↗
+                  </a>}
+                <p className="df2-trip-inline-hint">Když Google Routes neodpovídá, trasu můžeš otevřít přímo v Google Maps nebo zadat běžný čas ručně.</p>
               </div>}
             </>}
             <details className="df2-trip-legal"><summary>Limity a soukromí</summary>
