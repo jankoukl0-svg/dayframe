@@ -86,8 +86,8 @@ export async function reserveRouteBudget(now:Date=new Date()):Promise<BudgetRese
 
 type Point={lat:number;lon:number};
 type RouteMode="driving"|"walking"|"cycling"|"transit";
-type TransitPreference="fastest"|"fewer_transfers"|"less_walking";
-const TRANSIT_PREFERENCES:Record<Exclude<TransitPreference,"fastest">,string>={
+type TransitPreference="balanced"|"fastest"|"fewer_transfers"|"less_walking";
+const TRANSIT_PREFERENCES:Record<Exclude<TransitPreference,"fastest"|"balanced">,string>={
   fewer_transfers:"FEWER_TRANSFERS",less_walking:"LESS_WALKING",
 };
 const cleanText=(value:unknown,max=120):string=>
@@ -201,9 +201,9 @@ export async function POST(request:Request){
   if(data.simpleRoute!==undefined&&typeof data.simpleRoute!=="boolean")
     return send(400,{error:"Neplatný typ zjednodušeného výpočtu."});
   const simpleRoute=data.simpleRoute===true;
-  const preference=data.transitPreference??"fastest";
-  if(typeof preference!=="string"||!["fastest","fewer_transfers","less_walking"].includes(preference)
-    ||(mode!=="transit"&&preference!=="fastest"))
+  const preference=data.transitPreference??"balanced";
+  if(typeof preference!=="string"||!["balanced","fastest","fewer_transfers","less_walking"].includes(preference)
+    ||(mode!=="transit"&&!["fastest","balanced"].includes(preference)))
     return send(400,{error:"Neplatná preference trasy MHD."});
   // Explicit plans must be recent/future, never allow arbitrary Google requests into the past.
   let departureTime:string|undefined;
@@ -230,7 +230,8 @@ export async function POST(request:Request){
   if(departureTime&&!(simpleRoute&&mode==="driving"))payload.departureTime=departureTime;
   if(mode==="driving")payload.routingPreference=simpleRoute?"TRAFFIC_UNAWARE":"TRAFFIC_AWARE";
   if(mode==="transit"&&preference!=="fastest")
-    payload.transitPreferences={routingPreference:TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest">]};
+    payload.transitPreferences={routingPreference:preference==="balanced"?"LESS_WALKING":
+      TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest"|"balanced">]};
   // Reserve before calling billable Google Routes. Each leg costs one reservation.
   // On Redis failures, never fall back to in-memory counters or unmetered Google calls.
   const reservation=await reserveRouteBudget();
@@ -302,6 +303,14 @@ export async function POST(request:Request){
       .sort((a,b)=>{
         // Explicit MHD preferences rank the returned alternatives by that criterion.
         // A preference changes prioritization, never promises a globally optimal route.
+        if(mode==="transit"&&preference==="balanced"){
+          // A small delay is often preferable to kilometres of walking or many
+          // transfers. Rank only Google's returned options, never invent a route.
+          const score=(option:NonNullable<ReturnType<typeof routeOption>>)=>
+            option.minutes+Math.max(0,option.walkingMeters-350)/75+
+              option.transfers*6+(option.walkingMeters>1200?8:0);
+          return score(a)-score(b)||a.minutes-b.minutes;
+        }
         if(mode==="transit"&&preference==="fewer_transfers"&&a.transfers!==b.transfers)
           return a.transfers-b.transfers;
         if(mode==="transit"&&preference==="less_walking"&&a.walkingMeters!==b.walkingMeters)

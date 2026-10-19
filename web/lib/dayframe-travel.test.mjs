@@ -527,6 +527,43 @@ test("walking turn steps are summarized around late S22 and metro rides",async()
   });
 });
 
+test("default balanced transit prefers the usable metro over a faster 2 km walk to a train",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let count=0;
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      count++;
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.travelMode,"TRANSIT");
+      assert.equal(payload.computeAlternativeRoutes,true);
+      assert.equal(payload.transitPreferences.routingPreference,"LESS_WALKING");
+      return Response.json({routes:[
+        {duration:"2700s",distanceMeters:13000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:1300},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"S3",vehicle:{type:"COMMUTER_TRAIN"}}}},
+          {travelMode:"WALK",distanceMeters:900},
+        ]}]},
+        {duration:"3300s",distanceMeters:15000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:250},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"B",vehicle:{type:"SUBWAY"}}}},
+          {travelMode:"WALK",distanceMeters:250},
+        ]}]},
+      ]});
+    };
+    const response=await POST(googleRequest("transit"));
+    assert.equal(response.status,200);
+    const data=await response.json();
+    assert.equal(data.minutes,55);
+    assert.equal(data.options[0].steps.find(x=>x.kind==="transit").line,"B");
+    assert.equal(data.options[0].walkingMeters,500);
+    assert.equal(data.options[1].walkingMeters,2200);
+    assert.equal(count,1);
+    assert.equal(redis.commands.length,1);
+  });
+});
+
 test("transit preference rankings favor fewer changes or shorter walks",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");

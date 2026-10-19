@@ -581,6 +581,60 @@ test("provider 503 retries only the failed MHD leg with a simpler Google request
   await expect.poll(()=>requests.length).toBe(3);
 });
 
+test("comfort planner warns about 2.2 km walking and suggests metro P+R without hidden billing",async({page})=>{
+  const requests=[];
+  await page.route("**/api/google-travel",async route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const p=route.request().postDataJSON();
+    requests.push(p);
+    if(p.mode==="driving")return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:40,distanceMeters:53200,trafficAware:true,options:[
+        {minutes:40,distanceMeters:53200,steps:[],walkingMeters:0,transfers:0}]})});
+    const metro=p.from.lon>14.57;
+    return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:metro?50:45,distanceMeters:13000,trafficAware:false,
+        options:[{minutes:metro?50:45,distanceMeters:13000,transfers:0,
+          walkingMeters:metro?400:2200,steps:[
+            {kind:"walk",distanceMeters:metro?200:1300},
+            {kind:"transit",vehicle:metro?"SUBWAY":"COMMUTER_TRAIN",
+              line:metro?"B":"S3",from:metro?"Černý Most":"Rajská zahrada",
+              to:metro?"Náměstí Republiky":"Praha hl. n."},
+            {kind:"walk",distanceMeters:metro?200:900},
+          ]}]})});
+  });
+  const title="Pohodlná cesta do školy";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.084,14.442,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.3,14.9,"Doma");
+  await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(dialog,50.1068211,14.5622422,"P+R Rajská zahrada");
+  await dialog.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  const results=dialog.locator(".df2-google-route-results");
+  await expect(results).toContainText("Vlak S3");
+  await expect(results).toContainText("2.2 km chůze");
+  await expect(results.getByRole("button",{name:"Zkusit P+R Černý Most"})).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[1].transitPreference).toBe("balanced");
+  await results.getByRole("button",{name:"Zkusit P+R Černý Most"}).click();
+  await expect(dialog.locator("p.df2-trip-inline-hint[role=status]")).toContainText("P+R Černý Most u metra B");
+  await expect(results).toHaveCount(0);
+  expect(requests).toHaveLength(2);
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
+  expect(requests).toHaveLength(4);
+  expect(requests[2].to.lat).toBeCloseTo(50.1102028,6);
+  expect(requests[2].to.lon).toBeCloseTo(14.5794097,6);
+  expect(requests[3].from.lon).toBeCloseTo(14.5794097,6);
+});
+
 test("Google calculates car to transit in sequence and shows alternative lines without saving Google data",async({page})=>{
   const calls=[];
   await page.route("**/api/google-travel",async route=>{
