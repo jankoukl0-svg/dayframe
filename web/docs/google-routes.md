@@ -72,3 +72,10 @@ Detailed Google error body text is never forwarded; only provider status, retrya
 - The private access token is a deterrent against anonymous budget exhaustion, not a substitute for full user authentication. Anyone with the token can spend the remaining capped allowance; rotate it if exposed.
 - The Vercel runtime and other services may have their own plan limits. This feature controls **Google Routes API calls originating from Dayframe**, not billing for the hosting account or Redis paid plans.
 - The current plan/route interpretation is an informational calculation at request time. Timetables and transfers across independently calculated modes are not guaranteed to connect.
+
+
+### More useful recovery from Google 503
+
+The first Compute Routes request keeps the usual traffic-aware routing, scheduled departure time and optional alternative routes. If Google replies HTTP 503, Dayframe keeps successfully completed legs and offers a **manual**, budgeted retry. For `DRIVE` only, that retry now requests `TRAFFIC_UNAWARE`, omits the prediction departure time and disables alternatives. This is an **average time-independent duration** and is labeled clearly; it does **not** include current traffic, congestion or predictions for the requested future time. For `TRANSIT`, the retry keeps its departure time to preserve meaningful scheduled boarding and only drops alternatives. Upstash daily/monthly caps remain mandatory for every provider request. No automatic retries are triggered and no route details are stored.
+
+When Google returns an error, Dayframe may display only validated uppercase protocol identifiers such as `UNAVAILABLE` and safe ErrorInfo reason codes. It never forwards Google's raw error message, response body, address, route payload or credentials. When the service stays unavailable, the failing segment can always be opened directly in Google Maps using the existing external directions link. Provider errors can still happen; this mechanism does not guarantee recovery.
