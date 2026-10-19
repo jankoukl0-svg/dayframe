@@ -333,6 +333,43 @@ test("transit alternatives choose fastest returned journey and sanitize stop det
     assert.equal(redis.commands.length,1);
   });
 });
+test("transit preference rankings favor fewer changes or shorter walks",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let providerCalls=0;
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      providerCalls++;
+      return Response.json({routes:[
+        {duration:"1200s",distanceMeters:12000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:600},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"A"}}},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"B"}}},
+        ]}]},
+        {duration:"1500s",distanceMeters:14000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:100},
+          {travelMode:"TRANSIT",transitDetails:{transitLine:{nameShort:"C"}}},
+        ]}]},
+      ]});
+    };
+    const makeReq=p=>new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"transit",transitPreference:p}),
+    });
+    const fastest=await (await POST(makeReq("fastest"))).json();
+    assert.equal(fastest.minutes,20);
+    const transfers=await (await POST(makeReq("fewer_transfers"))).json();
+    assert.equal(transfers.minutes,25);
+    assert.equal(transfers.options[0].transfers,0);
+    const walking=await (await POST(makeReq("less_walking"))).json();
+    assert.equal(walking.minutes,25);
+    assert.equal(walking.options[0].walkingMeters,100);
+    assert.equal(providerCalls,3);
+    assert.equal(redis.commands.length,3);
+  });
+});
 test("route preferences and departure time reject bad values without spending budget",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
