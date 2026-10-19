@@ -198,6 +198,9 @@ export async function POST(request:Request){
   if(!point(data.from)||!point(data.to)||typeof data.mode!=="string"||!Object.hasOwn(MODES,data.mode))
     return send(400,{error:"Vyber platný začátek, cíl a způsob dopravy."});
   const mode=data.mode as RouteMode;
+  if(data.simpleRoute!==undefined&&typeof data.simpleRoute!=="boolean")
+    return send(400,{error:"Neplatný typ zjednodušeného výpočtu."});
+  const simpleRoute=data.simpleRoute===true;
   const preference=data.transitPreference??"fastest";
   if(typeof preference!=="string"||!["fastest","fewer_transfers","less_walking"].includes(preference)
     ||(mode!=="transit"&&preference!=="fastest"))
@@ -216,7 +219,7 @@ export async function POST(request:Request){
   const waypoint=(p:Point)=>({location:{latLng:{latitude:p.lat,longitude:p.lon}}});
   const payload:Record<string,unknown>={
     origin:waypoint(data.from),destination:waypoint(data.to),
-    travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:true,
+    travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:!simpleRoute,
   };
   if(departureTime)payload.departureTime=departureTime;
   if(mode==="driving")payload.routingPreference="TRAFFIC_AWARE";
@@ -240,7 +243,7 @@ export async function POST(request:Request){
       method:"POST",signal:controller.signal,headers:{
         "Content-Type":"application/json","X-Goog-Api-Key":apiKey,
         "X-Goog-FieldMask":mode==="transit"
-          ?"routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails"
+          ?"routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.transitDetails"
           :"routes.duration,routes.distanceMeters",
       },body:JSON.stringify(payload),
     });}finally{clearTimeout(timer);}
@@ -256,7 +259,8 @@ export async function POST(request:Request){
         503:"Služba Google Routes je dočasně nedostupná (503).",
       };
       console.error("[dayframe-routes] Google status",reply.status,"mode",mode);
-      return send(502,{error:errors[reply.status]??`Google Routes odmítly výpočet (HTTP ${reply.status}).`});
+      return send(502,{error:errors[reply.status]??`Google Routes odmítly výpočet (HTTP ${reply.status}).`,
+        providerStatus:reply.status,retryable:reply.status===503});
     }
     const response=await reply.json() as {routes?:GoogleRoute[]};
     const options=(Array.isArray(response.routes)?response.routes:[]).slice(0,4)
