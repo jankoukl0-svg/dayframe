@@ -686,11 +686,13 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 {googleEstimates.map((part,index)=><div className="df2-trip-mini-segment" key={index}>
                   <span>{mixed?`Úsek ${index+1} · `:""}{TRAVEL_MODE_LABELS[routeParts?.[index]?.mode??"driving"]}</span>
                   <strong>{part.minutes} min</strong>
-                  {part.options[0]?.steps.some(step=>step.kind==="transit")&&
+                  {part.options[0]?.steps.some(step=>step.kind==="transit")&&<>
                     <small>{part.options[0].steps.filter(step=>step.kind==="transit").map(step=>{
                       const presentation=transitPresentation(step.vehicle,step.line);
                       return presentation.label+(step.line?" "+step.line:"");
-                    }).join(" → ")}</small>}
+                    }).join(" → ")}</small>
+                    <small>Pěšky {part.options[0].walkingMeters} m · {part.options[0].transfers} přestupů</small>
+                  </>}
                 </div>)}
                 {mixed&&<span>Parkování a přestupy: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min navíc (zahrnuto v součtu).</span>}
                 {routeParts?.some((part,index)=>part.mode==="transit"
