@@ -14,13 +14,13 @@ type RouteEstimate={minutes:number;distanceMeters:number;options:RouteOption[];d
 type RouteSettings={departureISO?:string;transitPreference:TransitPreference;transferMinutes:number};
 const formatClock=(iso?:string)=>iso&&Number.isFinite(Date.parse(iso))
   ?new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit"}).format(new Date(iso)):"—";
-function RouteItinerary({estimate,index,mode}:{estimate:RouteEstimate;index:number;mode:TravelMode}){
+function RouteItinerary({estimate,index,mode,preference}:{estimate:RouteEstimate;index:number;mode:TravelMode;preference:TransitPreference}){
   const primary=estimate.options[0];
   return <div className="df2-travel-itinerary">
     <strong>Úsek {index+1}: {estimate.minutes} min · {(estimate.distanceMeters/1000).toFixed(1)} km</strong>
     <span className="df2-travel-hint">Předpokládaný odjezd {formatClock(estimate.departureISO)}</span>
     {mode==="transit"&&<div>
-      <span className="df2-travel-hint">Nejrychlejší nalezená varianta · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
+      <span className="df2-travel-hint">{preference==="fewer_transfers"?"Varianta s prioritou méně přestupů":preference==="less_walking"?"Varianta s prioritou méně chůze":"Nejrychlejší nalezená varianta"} · {primary.transfers} přestupů · pěšky {primary.walkingMeters} m</span>
       {primary.steps.length>0?<ol className="df2-travel-directions">{primary.steps.map((step,i)=>
         <li key={i}>{step.kind==="transit"?<>
           <strong>{step.vehicle==="SUBWAY"?"Metro":step.vehicle==="BUS"?"Autobus":
@@ -500,8 +500,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   <span>Odjezd {formatClock(journeyDeparture)} · příjezd přibližně {formatClock(journeyArrival)}. {mixed?"Časy úseků jsou navazující.":""} {mode==="driving"&&!mixed?"Jízda zohledňuje provoz.":""}</span>
                   {mixed&&<span>Čas na přestupy a parkování: {Math.max(0,googleEstimates.length-1)*appliedSettings.transferMinutes} min (zahrnuto v součtu).</span>}
                   {googleEstimates.map((part,index)=><RouteItinerary key={index} index={index}
-                    estimate={part} mode={routeParts?.[index]?.mode??"driving"}/>)}
-                  <span className="df2-travel-hint">Nejrychlejší z vrácených variant; Google nemusí vrátit všechny možné spoje. Odjezdy MHD a přestupy si před cestou ověř.</span>
+                    estimate={part} mode={routeParts?.[index]?.mode??"driving"} preference={appliedSettings.transitPreference}/>)}
+                  <span className="df2-travel-hint">Vybraná varianta podle preference; Google nemusí vrátit všechny možné spoje. Odjezdy MHD a přestupy si před cestou ověř.</span>
                   <span className="df2-google-route-note">Aktuální údaj Google Maps je pouze pro orientaci. Do uloženého plánu se nepřenáší. Pro Jarvise nastav vlastní obvyklou dobu cesty níže.</span>
                 </div>:googleError?<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>
                 :<p className="df2-travel-hint">Časy se načtou automaticky po výběru všech míst.</p>}
