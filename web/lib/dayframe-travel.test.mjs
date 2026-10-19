@@ -324,6 +324,55 @@ test("503 error remains sanitized and enables explicit simplified retry",async()
     assert.equal(redis.commands.length,2);
   });
 });
+test("traffic-unaware retry works after a recent now-time expires, unlike traffic-aware calls",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    const stale=new Date(Date.now()-3*60000).toISOString();
+    const payloads=[];
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      payloads.push(JSON.parse(options.body));
+      return Response.json({routes:[{duration:"2300s",distanceMeters:17000}]});
+    };
+    const request=(simplified)=>new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"driving",departureTime:stale,
+        ...(simplified?{simpleRoute:true}:{})}),
+    });
+    assert.equal((await POST(request(false))).status,400);
+    const response=await POST(request(true));
+    assert.equal(response.status,200);
+    assert.equal((await response.json()).trafficAware,false);
+    assert.equal(payloads.length,1);
+    assert.equal(payloads[0].departureTime,undefined);
+    assert.equal(payloads[0].routingPreference,"TRAFFIC_UNAWARE");
+    assert.equal(redis.commands.length,1);
+  });
+});
+test("a stalled Google error body cannot prevent a sanitized 503 response",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      const stream=new ReadableStream({
+        start(controller){
+          options.signal.addEventListener("abort",()=>controller.error(new Error("aborted")),{once:true});
+        },
+      });
+      return new Response(stream,{status:503});
+    };
+    const start=Date.now();
+    const response=await POST(googleRequest());
+    assert.equal(response.status,502);
+    assert.equal((await response.json()).providerStatus,503);
+    assert.ok(Date.now()-start<5000,"diagnostic stream timeout should not wait indefinitely");
+    assert.equal(redis.commands.length,1);
+  });
+});
+
 test("simple transit retry preserves departure schedule and provider strips unexpected detail values",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
