@@ -364,7 +364,8 @@ test("Google calculates car to transit in sequence and shows alternative lines w
           {kind:"walk",distanceMeters:200},
           {kind:"transit",vehicle:"SUBWAY",line:"B",headsign:"Zličín",
             from:"Černý Most",to:"Florenc",stops:12,
-            departureTime:"2026-10-18T07:45:00Z",arrivalTime:"2026-10-18T08:05:00Z"}]},
+            departureTime:"2026-10-18T07:45:00Z",arrivalTime:"2026-10-18T08:05:00Z",
+            departureLabel:"09:45",arrivalLabel:"10:05",departureZone:"Europe/Prague",arrivalZone:"Europe/Prague"}]},
         {minutes:26,distanceMeters:15000,transfers:1,walkingMeters:400,steps:[
           {kind:"transit",vehicle:"BUS",line:"100",from:"Zastávka",to:"Stanice"}]},
       ]})});
@@ -388,6 +389,7 @@ test("Google calculates car to transit in sequence and shows alternative lines w
   await expect(dialog.locator(".df2-google-route-results")).toContainText("57 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Černý Most");
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("09:45");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Porovnat 1 další dostupné varianty");
   await expect.poll(()=>calls.length).toBe(2);
   expect(calls[0].mode).toBe("driving");
