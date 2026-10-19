@@ -183,3 +183,33 @@
   .df2-travel-kind button{min-width:0;flex:1}
 }
 @media(prefers-reduced-motion:reduce){.df2-trip-place-cards button{transition:none}}
+
+
+/* Transit journey: show meaningful boardings and grouped walks, not every turn. */
+.df2-route-overview{display:grid;gap:11px;margin-top:4px;min-width:0}
+.df2-route-timeline{list-style:none!important;counter-reset:none;display:grid;gap:0;margin:10px 0!important;padding:0!important}
+.df2-route-timeline-item{position:relative;display:grid;grid-template-columns:38px minmax(0,1fr);gap:10px;min-width:0;padding:0 0 14px!important;margin:0!important;list-style:none}
+.df2-route-timeline-item:last-child{padding-bottom:0!important}
+.df2-route-timeline-item:not(:last-child)::before{content:"";position:absolute;left:18px;top:35px;bottom:0;border-left:1px solid var(--line-strong)}
+.df2-route-step-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;border:1px solid var(--line);background:var(--surface);font-size:18px;line-height:1}
+.df2-route-transit .df2-route-step-icon{border-color:var(--accent);background:var(--accent-wash)}
+.df2-route-step-content{display:grid;gap:6px;min-width:0;padding:7px 0 0}
+.df2-route-step-content>strong{font-size:13px;color:var(--ink)}
+.df2-route-step-content>span,.df2-route-headsign,.df2-route-stop-count{font-size:11px!important;color:var(--muted);overflow-wrap:anywhere}
+.df2-route-line-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.df2-route-line-head>strong{font-size:14px;color:var(--ink)}
+.df2-route-line-number{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:var(--accent-wash);border:1px solid var(--accent);color:var(--accent-dark)!important;padding:3px 8px;font-weight:800;font-size:13px!important;min-width:36px;letter-spacing:.02em}
+.df2-route-stop-pair{display:grid;gap:8px;margin-top:3px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.df2-route-stop-pair>div{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:3px;align-items:center}
+.df2-route-stop-tag{grid-column:1/-1;font-size:10px!important;text-transform:uppercase;letter-spacing:.055em;color:var(--muted)}
+.df2-route-stop-pair strong{font-size:12px;font-weight:650;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
+.df2-route-stop-time{font-size:12px!important;font-weight:700;color:var(--ink)!important;white-space:nowrap}
+.df2-travel-itinerary>strong{font-size:13px}
+.df2-route-walk .df2-route-step-content{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.df2-route-walk .df2-route-step-content>span{font-size:12px!important}
+@media(max-width:460px){
+  .df2-route-timeline-item{grid-template-columns:33px minmax(0,1fr);gap:9px}
+  .df2-route-step-icon{width:32px;height:32px;font-size:17px}
+  .df2-route-timeline-item:not(:last-child)::before{left:16px;top:32px}
+  .df2-route-stop-pair{padding:8px}
+}
