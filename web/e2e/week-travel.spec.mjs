@@ -684,10 +684,10 @@ test("comfort planner warns about 2.2 km walking and suggests metro P+R without 
   const results=dialog.locator(".df2-google-route-results");
   await expect(results).toContainText("Vlak S3");
   await expect(results).toContainText("2.2 km chůze");
-  await expect(results.getByRole("button",{name:"Zkusit P+R Černý Most"})).toBeVisible();
+  await expect(results.getByRole("button",{name:/Nastavit P\+R u metra B/})).toBeVisible();
   expect(requests).toHaveLength(2);
   expect(requests[1].transitPreference).toBe("balanced");
-  await results.getByRole("button",{name:"Zkusit P+R Černý Most"}).click();
+  await results.getByRole("button",{name:/Nastavit P\+R u metra B/}).click();
   await expect(dialog.locator("p.df2-trip-inline-hint[role=status]")).toContainText("P+R Černý Most u metra B");
   await expect(results).toHaveCount(0);
   expect(requests).toHaveLength(2);
