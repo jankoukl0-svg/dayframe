@@ -522,8 +522,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
       const response=await fetch("/api/google-travel",{
         method:"POST",signal:controller.signal,cache:"no-store",
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
-        body:JSON.stringify({...part,departureTime,transitPreference:"balanced",
-          transitTravelModes:"metro"}),
+        body:JSON.stringify({from:{lat:part.from.lat,lon:part.from.lon},
+          to:{lat:part.to.lat,lon:part.to.lon},mode:"transit",departureTime,
+          transitPreference:"balanced",transitTravelModes:"metro"}),
       });
       const result=await response.json() as {
         minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string;
