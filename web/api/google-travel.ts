@@ -86,6 +86,58 @@ export async function reserveRouteBudget(now:Date=new Date()):Promise<BudgetRese
 
 type Point={lat:number;lon:number};
 type RouteMode="driving"|"walking"|"cycling"|"transit";
+type TransitPreference="fastest"|"fewer_transfers"|"less_walking";
+const TRANSIT_PREFERENCES:Record<Exclude<TransitPreference,"fastest">,string>={
+  fewer_transfers:"FEWER_TRANSFERS",less_walking:"LESS_WALKING",
+};
+const cleanText=(value:unknown,max=120):string=>
+  typeof value==="string"?value.replace(/<[^>]*>/g,"").replace(/[\u0000-\u001f]/g," ").trim().slice(0,max):"";
+type GoogleStep={
+  travelMode?:string;distanceMeters?:number;navigationInstruction?:{instructions?:string};
+  transitDetails?:{
+    headsign?:string;stopCount?:number;
+    transitLine?:{name?:string;nameShort?:string;vehicle?:{type?:string}};
+    stopDetails?:{departureStop?:{name?:string};arrivalStop?:{name?:string};
+      departureTime?:string;arrivalTime?:string};
+  };
+};
+type GoogleRoute={duration?:string;distanceMeters?:number;legs?:Array<{steps?:GoogleStep[]}>};
+type DisplayStep={
+  kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:string;
+  from?:string;to?:string;departureTime?:string;arrivalTime?:string;
+  stops?:number;distanceMeters?:number;instructions?:string;
+};
+function routeOption(route:GoogleRoute,mode:RouteMode){
+  const seconds=typeof route.duration==="string"&&/^\d+(?:\.\d+)?s$/.test(route.duration)
+    ?Number(route.duration.slice(0,-1)):NaN;
+  const meters=route.distanceMeters;
+  if(!Number.isFinite(seconds)||seconds<0||seconds>86400
+    ||typeof meters!=="number"||!Number.isFinite(meters)||meters<0)return null;
+  const steps:DisplayStep[]=[];
+  if(mode==="transit")for(const leg of (route.legs??[]).slice(0,2))
+    for(const step of (leg.steps??[]).slice(0,70)){
+      if(steps.length>=30)break;
+      const transit=step.transitDetails;
+      if(transit){
+        const stop=transit.stopDetails;
+        steps.push({
+          kind:"transit",line:cleanText(transit.transitLine?.nameShort||transit.transitLine?.name),
+          vehicle:cleanText(transit.transitLine?.vehicle?.type,32),
+          headsign:cleanText(transit.headsign),
+          from:cleanText(stop?.departureStop?.name),to:cleanText(stop?.arrivalStop?.name),
+          ...(stop?.departureTime?{departureTime:stop.departureTime}:{}),
+          ...(stop?.arrivalTime?{arrivalTime:stop.arrivalTime}:{}),
+          stops:Number.isInteger(transit.stopCount)?transit.stopCount:undefined,
+        });
+      }else if(step.travelMode==="WALK"&&typeof step.distanceMeters==="number"){
+        steps.push({kind:"walk",distanceMeters:Math.max(0,Math.round(step.distanceMeters)),
+          instructions:cleanText(step.navigationInstruction?.instructions,160)});
+      }
+    }
+  return {minutes:Math.max(1,Math.ceil(seconds/60)),distanceMeters:Math.round(meters),steps,
+    transfers:Math.max(0,steps.filter(step=>step.kind==="transit").length-1),
+    walkingMeters:steps.reduce((n,step)=>n+(step.kind==="walk"?(step.distanceMeters??0):0),0)};
+}
 const MODES:Record<RouteMode,string>={driving:"DRIVE",walking:"WALK",cycling:"BICYCLE",transit:"TRANSIT"};
 const headers={"Cache-Control":"no-store, max-age=0","Content-Type":"application/json; charset=utf-8"};
 const send=(status:number,body:object)=>Response.json(body,{status,headers});
@@ -129,12 +181,30 @@ export async function POST(request:Request){
   if(!point(data.from)||!point(data.to)||typeof data.mode!=="string"||!Object.hasOwn(MODES,data.mode))
     return send(400,{error:"Vyber platný začátek, cíl a způsob dopravy."});
   const mode=data.mode as RouteMode;
+  const preference=data.transitPreference??"fastest";
+  if(typeof preference!=="string"||!["fastest","fewer_transfers","less_walking"].includes(preference)
+    ||(mode!=="transit"&&preference!=="fastest"))
+    return send(400,{error:"Neplatná preference trasy MHD."});
+  // Explicit plans must be recent/future, never allow arbitrary Google requests into the past.
+  let departureTime:string|undefined;
+  if(data.departureTime!==undefined){
+    if(typeof data.departureTime!=="string"||data.departureTime.length>35
+      ||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(data.departureTime))
+      return send(400,{error:"Neplatný čas odjezdu."});
+    const timestamp=new Date(data.departureTime).getTime();
+    if(!Number.isFinite(timestamp)||timestamp<Date.now()-120000||timestamp>Date.now()+7*86400000)
+      return send(400,{error:"Odjezd musí být od nynějška nejvýše sedm dní dopředu."});
+    departureTime=new Date(timestamp).toISOString();
+  }
   const waypoint=(p:Point)=>({location:{latLng:{latitude:p.lat,longitude:p.lon}}});
   const payload:Record<string,unknown>={
     origin:waypoint(data.from),destination:waypoint(data.to),
-    travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:false,
+    travelMode:MODES[mode],languageCode:"cs",units:"METRIC",computeAlternativeRoutes:true,
   };
+  if(departureTime)payload.departureTime=departureTime;
   if(mode==="driving")payload.routingPreference="TRAFFIC_AWARE";
+  if(mode==="transit"&&preference!=="fastest")
+    payload.transitPreferences={routingPreference:TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest">]};
   // Reserve before calling billable Google Routes. Each leg costs one reservation.
   // On Redis failures, never fall back to in-memory counters or unmetered Google calls.
   const reservation=await reserveRouteBudget();
@@ -152,7 +222,9 @@ export async function POST(request:Request){
     try{reply=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
       method:"POST",signal:controller.signal,headers:{
         "Content-Type":"application/json","X-Goog-Api-Key":apiKey,
-        "X-Goog-FieldMask":"routes.duration,routes.distanceMeters",
+        "X-Goog-FieldMask":mode==="transit"
+          ?"routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails"
+          :"routes.duration,routes.distanceMeters",
       },body:JSON.stringify(payload),
     });}finally{clearTimeout(timer);}
     if(!reply.ok){
@@ -169,12 +241,15 @@ export async function POST(request:Request){
       console.error("[dayframe-routes] Google status",reply.status,"mode",mode);
       return send(502,{error:errors[reply.status]??`Google Routes odmítly výpočet (HTTP ${reply.status}).`});
     }
-    const response=await reply.json() as {routes?:Array<{duration?:string;distanceMeters?:number}>};
-    const route=response.routes?.[0],seconds=Number(route?.duration?.replace(/s$/,""));
-    const distance=route?.distanceMeters;
-    if(!Number.isFinite(seconds)||seconds<0||seconds>86400||typeof distance!=="number"||!Number.isFinite(distance)||distance<0)
+    const response=await reply.json() as {routes?:GoogleRoute[]};
+    const options=(Array.isArray(response.routes)?response.routes:[]).slice(0,4)
+      .map(route=>routeOption(route,mode)).filter(option=>option!==null)
+      .sort((a,b)=>a.minutes-b.minutes||a.distanceMeters-b.distanceMeters);
+    if(!options.length)
       return send(422,{error:"Google Maps pro tato místa nevrátily platnou trasu."});
-    return send(200,{minutes:Math.max(1,Math.ceil(seconds/60)),distanceMeters:Math.round(distance),source:"Google Maps",trafficAware:mode==="driving"});
+    const fastest=options[0];
+    return send(200,{minutes:fastest.minutes,distanceMeters:fastest.distanceMeters,
+      options,source:"Google Maps",trafficAware:mode==="driving"});
   }catch{return send(502,{error:"Google Maps nyní nejsou dostupné. Použij ruční odhad."});}
 }
 
