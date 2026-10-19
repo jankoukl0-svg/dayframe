@@ -214,6 +214,9 @@ test("incomplete combined route cannot be saved or overwrite an existing locatio
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.08,14.43,"Seminář");
   await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await dialog.getByRole("button",{name:/Vybrat parkoviště/}).click();
+  await expect(dialog.locator(".df2-travel-map-picker")).toBeVisible();
+
   await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("20");
   await dialog.getByRole("spinbutton",{name:"Délka úseku 2"}).fill("15");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
@@ -239,6 +242,25 @@ test("removing an existing location ignores incomplete mixed-mode draft",async({
   expect(Object.keys(saved.blocks)).toHaveLength(0);
 });
 
+test("access code remains editable past twenty characters and can be collapsed explicitly",async({page})=>{
+  let posts=0;
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="POST"){posts++;return route.abort();}
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+  });
+  await makeTask(page,"Test kódu");
+  await openTaskPlace(page,"Test kódu");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Test kódu"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  const access=dialog.getByLabel("Přístupový kód k výpočtu tras");
+  await access.pressSequentially("x".repeat(28));
+  await expect(access).toHaveValue("x".repeat(28));
+  await dialog.getByRole("button",{name:"Hotovo s kódem"}).click();
+  await expect(dialog.getByRole("button",{name:"Změnit kód"})).toBeVisible();
+  await dialog.getByRole("button",{name:"Změnit kód"}).click();
+  await expect(dialog.getByLabel("Přístupový kód k výpočtu tras")).toHaveValue("x".repeat(28));
+  expect(posts).toBe(0);
+});
 test("travel editor defaults to a short journey summary and never auto-spends the Google budget",async({page})=>{
   let posts=0;
   await page.route("**/api/google-travel",route=>{
@@ -333,7 +355,7 @@ test("Google route server unavailable still permits manual travel time",async({p
   await expect(dialog).toContainText("Automatický výpočet není dostupný");
   await expect(dialog.getByLabel("Přístupový kód k výpočtu tras")).toBeVisible();
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
-  await expect(dialog.locator(".df2-google-route-results")).toHaveCount(0);
+  await expect(dialog.locator(".df2-google-attribution img")).toHaveCount(0);
   await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("65");
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
@@ -366,8 +388,6 @@ test("Google Routes 404 retains access field and suppresses paid POST until retr
   isOnline=true;
   await dialog.getByRole("button",{name:"Zkusit připojení znovu"}).click();
   await expect(dialog.getByRole("button",{name:"Spočítat trasu"})).toBeEnabled();
-  await expect(dialog.getByRole("button",{name:"Změnit kód"})).toBeVisible();
-  await dialog.getByRole("button",{name:"Změnit kód"}).click();
   await expect(access).toHaveValue("x".repeat(28));
   await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
   await expect(dialog.locator(".df2-google-route-results")).toContainText("37 min");
