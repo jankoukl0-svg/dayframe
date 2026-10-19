@@ -36,10 +36,10 @@ function distanceBetweenMetres(a:TravelPoint,b:TravelPoint){
 }
 function transitPresentation(vehicle?:string,line?:string){
   const kind=(vehicle??"").toUpperCase();
-  if(kind==="SUBWAY")return {label:"Metro",icon:"🚇"};
+  if(["SUBWAY","METRO_RAIL"].includes(kind))return {label:"Metro",icon:"🚇"};
   if(["COMMUTER_TRAIN","HEAVY_RAIL","HIGH_SPEED_TRAIN","LONG_DISTANCE_TRAIN","RAIL","MONORAIL","TRAIN"].includes(kind))
     return {label:"Vlak",icon:"🚆"};
-  if(["TRAM","LIGHT_RAIL","METRO_RAIL"].includes(kind))return {label:"Tramvaj",icon:"🚋"};
+  if(["TRAM","LIGHT_RAIL"].includes(kind))return {label:"Tramvaj",icon:"🚋"};
   if(["BUS","INTERCITY_BUS","TROLLEYBUS","SHARE_TAXI"].includes(kind))return {label:"Autobus",icon:"🚌"};
   if(kind==="FERRY")return {label:"Přívoz",icon:"⛴️"};
   if(["CABLE_CAR","GONDOLA_LIFT","FUNICULAR"].includes(kind))return {label:"Lanovka",icon:"🚠"};
@@ -796,6 +796,15 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                       U Černého Mostu má smysl prověřit i trasu metrem.</p>
                     </div>
                   </div>
+                  {metroParkingAlternative&&!metroComparison&&
+                    <div className="df2-trip-metro-park">
+                      <span>Vybrané parkoviště může být dál od vstupu do metra. Zvaž P+R Černý Most přímo u stanice B.</span>
+                      <button type="button" onClick={()=>{
+                        setParkSwitchNotice(true);
+                        setLegs(previous=>previous.map((leg,i)=>i===0?{...leg,via:CERNY_MOST_PARK}:leg));
+                        setPlaceEditorOpen(false);
+                      }}>Nastavit P+R u metra B (bez výpočtu)</button>
+                    </div>}
                   {!metroChecked&&!metroComparison&&<button type="button"
                     onClick={()=>void checkMetro()} disabled={googleLoading||metroLoading}>
                     {existingMetroOption?"Porovnat metro z dostupných spojů (zdarma)":"Porovnat trasu metrem B · 1 API požadavek"}
@@ -827,7 +836,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                     <span>Trasa zahrnuje {Math.round(googleEstimates.reduce((sum,part,i)=>sum+
                       (routeParts[i]?.mode==="transit"?(part.options[0]?.walkingMeters??0):0),0)/100)/10} km chůze.
                       Zkus pohodlnější variantu nebo jiné parkování u metra.</span>
-                    {metroParkingAlternative&&<div className="df2-trip-park-suggestion">
+                    {metroParkingAlternative&&!metroOpportunity&&<div className="df2-trip-park-suggestion">
                       <div><strong>Alternativa: P+R Černý Most</strong>
                       <p>Parkovací dům přímo u metra B. Můžeš vyzkoušet trasu přes metro místo vlaku.
                          Google potom spočítá oba nové úseky.</p></div>
