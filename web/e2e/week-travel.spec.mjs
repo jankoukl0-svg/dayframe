@@ -237,6 +237,51 @@ test("removing an existing location ignores incomplete mixed-mode draft",async({
   expect(Object.keys(saved.blocks)).toHaveLength(0);
 });
 
+test("travel editor defaults to a short journey summary and never auto-spends the Google budget",async({page})=>{
+  let posts=0;
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="POST"){posts++;return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:30,distanceMeters:12000,source:"Google Maps",trafficAware:true})});}
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+  });
+  await makeTask(page,"Jednoduché cestování");
+  await openTaskPlace(page,"Jednoduché cestování");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Jednoduché cestování"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await expect(dialog.getByRole("heading",{name:"Odkud a kam?"})).toBeVisible();
+  await expect(dialog.getByRole("heading",{name:"Jak pojedeš?"})).toBeVisible();
+  await expect(dialog.getByRole("heading",{name:"Kdy vyrazit?"})).toBeVisible();
+  await setMapPoint(dialog,50.08,14.43,"Škola");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.1,14.2,"Domov");
+  await dialog.getByRole("button",{name:"Hotovo",exact:true}).click();
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await expect.poll(()=>posts).toBe(0);
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog.locator(".df2-google-route-results")).toContainText("30 min");
+  expect(posts).toBe(1);
+  await dialog.getByRole("button",{name:"Místo konání",exact:true}).click();
+  await setMapPoint(dialog,50.09,14.44,"Jiné místo");
+  await expect(dialog.locator(".df2-google-route-results")).toHaveCount(0);
+  await expect.poll(()=>posts).toBe(1);
+});
+test("saved locations reopen without an expanded map and advanced travel settings stay optional",async({page})=>{
+  await makeTask(page,"Přehledný pohovor");
+  await openTaskPlace(page,"Přehledný pohovor");
+  const dialog=page.getByRole("dialog",{name:"Místo konání: Přehledný pohovor"});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Kancelář");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.1,14.2,"Domov");
+  await dialog.getByRole("button",{name:"Uložit místo"}).click();
+  await openTaskPlace(page,"Přehledný pohovor");
+  const reopened=page.getByRole("dialog",{name:"Místo konání: Přehledný pohovor"});
+  await expect(reopened.getByRole("heading",{name:"Odkud a kam?"})).toBeVisible();
+  await expect(reopened.locator(".df2-travel-map-picker")).toHaveCount(0);
+  await expect(reopened.getByRole("button",{name:"Odkud vyrážím"})).toBeVisible();
+  await reopened.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await expect(reopened.locator(".df2-travel-map-picker")).toBeVisible();
+});
 test("Google ETA remains ephemeral and cannot silently replace private planning time",async({page})=>{
   await page.route("**/api/google-travel",async route=>{
     if(route.request().method()==="GET")return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
@@ -260,7 +305,8 @@ test("Google ETA remains ephemeral and cannot silently replace private planning 
   await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
   await setMapPoint(dialog,50.4,14.7,"Odkud jedu");
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
-  await expect(dialog).toContainText("50 výpočtů denně");
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  await expect(dialog).toContainText("50 požadavků denně");
   await expect(dialog).toContainText("1 000 měsíčně");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("58 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("54.0 km");
@@ -282,7 +328,7 @@ test("Google route server unavailable still permits manual travel time",async({p
   const dialog=page.getByRole("dialog",{name:"Místo konání: Pohovor bez API"});
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.08,14.43,"Cíl");
-  await expect(dialog).toContainText("Serverová služba zatím není aktivní");
+  await expect(dialog).toContainText("Automatický výpočet není dostupný");
   await expect(dialog.getByLabel("Přístupový kód k výpočtu tras")).toBeVisible();
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
   await expect(dialog.locator(".df2-google-attribution img")).toHaveCount(0);
@@ -310,15 +356,16 @@ test("Google Routes 404 retains access field and suppresses paid POST until retr
   await setMapPoint(dialog,50.08,14.43,"Cíl trasy");
   await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
   await setMapPoint(dialog,50.10,14.20,"Výchozí místo");
-  await expect(dialog).toContainText("Serverová funkce pro Google Maps neodpovídá");
+  await expect(dialog).toContainText("Google Maps teď neodpovídají");
   const access=dialog.getByLabel("Přístupový kód k výpočtu tras");
   await expect(access).toBeVisible();
   await access.fill("x".repeat(28));
   await expect.poll(()=>postCount).toBe(0);
   isOnline=true;
-  await dialog.getByRole("button",{name:"Zkontrolovat propojení znovu"}).click();
-  await expect(dialog).toContainText("Bezpečnostní limit Dayframe");
+  await dialog.getByRole("button",{name:"Zkusit připojení znovu"}).click();
+  await expect(dialog.getByRole("button",{name:"Spočítat trasu"})).toBeEnabled();
   await expect(access).toHaveValue("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
   await expect(dialog.locator(".df2-google-route-results")).toContainText("37 min");
   expect(postCount).toBe(1);
 });
@@ -382,10 +429,11 @@ test("Google calculates car to transit in sequence and shows alternative lines w
   await dialog.getByRole("button",{name:"Zastávka 1"}).click();
   await setMapPoint(dialog,50.11,14.22,"Parkoviště");
   await dialog.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await dialog.getByRole("button",{name:/Upřesnit cestu/}).click();
   await dialog.getByRole("combobox",{name:"Preference MHD"}).selectOption("fewer_transfers");
   await dialog.getByRole("spinbutton",{name:"Minuty na přestup"}).fill("7");
-  await dialog.getByRole("button",{name:"Přepočítat podle nastavení"}).click();
   await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
   await expect(dialog.locator(".df2-google-route-results")).toContainText("57 min");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Metro B");
   await expect(dialog.locator(".df2-google-route-results")).toContainText("Černý Most");
