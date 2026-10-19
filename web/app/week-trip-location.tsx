@@ -284,6 +284,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [transferMinutes,setTransferMinutes]=useState(5);
   const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"fastest",transferMinutes:5});
   const routeController=useRef<AbortController|null>(null);
+  const partialRoute=useRef<{
+    signature:string;settings:RouteSettings;startedAt:number;cachedAt:number;estimates:RouteEstimate[];
+  }|null>(null);
+  const [failedStage,setFailedStage]=useState<number|null>(null);
+  const [canRetrySimplified,setCanRetrySimplified]=useState(false);
   useEffect(()=>()=>routeController.current?.abort(),[]);
   // The separate access secret is session-scoped. Neither it nor the Google API key is persisted with the travel plan.
   useEffect(()=>{
@@ -332,11 +337,14 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   // Every paid calculation is deliberate. Editing a point, preference or time never calls Google.
   useEffect(()=>{
     routeController.current?.abort();
+    partialRoute.current=null;
+    setFailedStage(null);
+    setCanRetrySimplified(false);
     setGoogleEstimates(null);
     setGoogleError("");
     setGoogleLoading(false);
   },[routeSignature,departureMode,departureLocal,transitPreference,transferMinutes,googleAccess,offsite]);
-  async function calculateRoute(){
+  async function calculateRoute(resumeFailed=false){
     if(!googleAvailable||!routeSignature||!offsite||googleLoading
       ||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
     let departureISO:string|undefined;
@@ -352,43 +360,72 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
       setGoogleError("Na přestup lze vyhradit 0 až 30 minut.");return;
     }
     const settings:RouteSettings={departureISO,transitPreference,transferMinutes};
+    const previous=partialRoute.current;
+    const canResume=resumeFailed&&previous&&previous.signature===routeSignature
+      &&JSON.stringify(previous.settings)===JSON.stringify(settings)
+      &&Date.now()>=previous.cachedAt&&Date.now()-previous.cachedAt<10*60000;
+    if(resumeFailed&&!canResume){
+      setGoogleError("Dřívější výpočet už není aktuální. Spusť nový výpočet celé trasy.");
+      setCanRetrySimplified(false);
+      partialRoute.current=null;
+      return;
+    }
     routeController.current?.abort();
     const controller=new AbortController();
     routeController.current=controller;
     setGoogleLoading(true);
+    setFailedStage(null);
+    setCanRetrySimplified(false);
     setGoogleError("");
     setGoogleEstimates(null);
+    let stage=0;
     try{
       const parts=JSON.parse(routeSignature) as Array<{from:TravelPoint;to:TravelPoint;mode:TravelMode}>;
-      const calculated:RouteEstimate[]=[];
-      // Sequential legs: car arrival + selected transfer allowance determines transit departure.
-      const departure=departureISO?Date.parse(departureISO):Date.now()+1000;
-      let elapsed=0;
-      for(let i=0;i<parts.length;i++){
+      const calculated:RouteEstimate[]=canResume?[...previous!.estimates]:[];
+      const departure=canResume?previous!.startedAt:
+        departureISO?Date.parse(departureISO):Date.now()+1000;
+      let elapsed=calculated.reduce((sum,part)=>sum+part.minutes+settings.transferMinutes,0);
+      for(let i=calculated.length;i<parts.length;i++){
         if(controller.signal.aborted)return;
+        stage=i;
         const part=parts[i],planned=new Date(departure+elapsed*60000).toISOString();
         const response=await fetch("/api/google-travel",{
           method:"POST",signal:controller.signal,cache:"no-store",
           headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
           body:JSON.stringify({...part,departureTime:planned,
-            ...(part.mode==="transit"?{transitPreference:settings.transitPreference}:{})}),
+            ...(part.mode==="transit"?{transitPreference:settings.transitPreference}:{}),
+            ...(resumeFailed?{simpleRoute:true}:{})}),
         });
         const result=await response.json() as {
-          minutes?:number;distanceMeters?:number;options?:RouteOption[];error?:string};
-        if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number")
-          throw Error(result.error??"Google Maps trasu nevypočítaly.");
+          minutes?:number;distanceMeters?:number;options?:RouteOption[];
+          error?:string;providerStatus?:number;retryable?:boolean;
+        };
+        if(!response.ok||!Number.isInteger(result.minutes)||typeof result.distanceMeters!=="number"){
+          // Keep successful earlier stages in memory, never charge for them again on retry.
+          if(response.status===502&&result.providerStatus===503&&result.retryable){
+            partialRoute.current={signature:routeSignature,settings,startedAt:departure,
+              cachedAt:canResume?previous!.cachedAt:Date.now(),estimates:calculated};
+            setCanRetrySimplified(true);
+          }else partialRoute.current=null;
+          setFailedStage(i);
+          throw Error(`Úsek ${i+1} z ${parts.length} (${TRAVEL_MODE_LABELS[part.mode]}): ${result.error??"Google Maps trasu nevypočítaly."}`);
+        }
         const options=Array.isArray(result.options)&&result.options.length?result.options:
           [{minutes:result.minutes!,distanceMeters:result.distanceMeters,steps:[],transfers:0,walkingMeters:0}];
         calculated.push({minutes:result.minutes!,distanceMeters:result.distanceMeters,options,departureISO:planned});
-        elapsed+=result.minutes!;
-        if(i<parts.length-1)elapsed+=settings.transferMinutes;
+        elapsed+=result.minutes!+settings.transferMinutes;
       }
       if(!controller.signal.aborted){
+        partialRoute.current=null;
         setAppliedSettings(settings);
         setGoogleEstimates(calculated);
       }
     }catch(e){
-      if(!controller.signal.aborted)setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
+      if(!controller.signal.aborted){
+        if(failedStage===null&&!(e instanceof Error&&e.message.startsWith("Úsek ")))
+          setFailedStage(stage);
+        setGoogleError(e instanceof Error?e.message:"Nepodařilo se vypočítat trasu.");
+      }
     }finally{
       if(!controller.signal.aborted)setGoogleLoading(false);
     }
@@ -629,7 +666,22 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   <p className="df2-travel-hint">Google nemusí vrátit všechny možné spoje. Aktuální přestupy si před cestou ověř.</p>
                 </details>
               </div>}
-              {googleError&&<p className="df2-travel-error" role="alert">{googleError} Můžeš pokračovat ručně.</p>}
+              {googleError&&<div className="df2-trip-route-failure" role="alert">
+                <p className="df2-travel-error">{googleError}</p>
+                {partialRoute.current?.estimates.length? <p className="df2-trip-cost-note">
+                  Hotovo: {partialRoute.current.estimates.map((part,i)=>`úsek ${i+1} (${part.minutes} min)`).join(", ")}.
+                  Při opakování se tyto úseky nepočítají znovu.
+                </p>:null}
+                {canRetrySimplified&&failedStage!==null&&<button type="button" className="df2-trip-retry"
+                  onClick={()=>void calculateRoute(true)} disabled={googleLoading}>
+                  Zkusit znovu bez alternativ (od úseku {failedStage+1})
+                </button>}
+                {canRetrySimplified&&<p className="df2-trip-cost-note">
+                  Další pokus spustíš jen tlačítkem. Každý zbývající úsek spotřebuje jeden požadavek.
+                  Bez alternativ může být výpočet rychlejší, ale Google může být stále nedostupný.
+                </p>}
+                <p className="df2-trip-inline-hint">Můžeš také počkat, otevřít trasu v Google Maps nebo zadat běžný čas ručně.</p>
+              </div>}
             </>}
             <details className="df2-trip-legal"><summary>Limity a soukromí</summary>
               <p>Maximálně 50 požadavků denně a 1 000 měsíčně. Údaje Google Maps slouží k orientaci a neukládají se do plánovacího času.</p>
