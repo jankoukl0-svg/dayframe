@@ -468,7 +468,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   </label>
                 </div>
                 {!last&&<button type="button" className="df2-travel-via"
-                  onClick={()=>setMapTarget(index)}>📍 {end?.label??"Vybrat parkoviště / přestup na mapě"}</button>}
+                  onClick={()=>choosePlace(index)}>📍 {end?.label??"Vybrat parkoviště / přestup na mapě"}</button>}
                 {last&&<p className="df2-travel-hint">Cíl: {destination?.label??"Zatím není vybraný"}</p>}
                 {end&&<a className="df2-trip-small-link" href={travelDirectionsUrl(from,end,leg.mode)} target="_blank" rel="noopener noreferrer">
                   Zobrazit tento úsek v Google Maps ↗</a>}
@@ -492,7 +492,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           <div className="df2-google-route-box">
             <div className="df2-google-route-head">
               <strong>Trasa podle Google Maps</strong>
-              <span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>
+              {googleAvailable&&<span translate="no" className="df2-google-attribution"><img src="https://www.gstatic.com/images/branding/product/2x/maps_96dp.png" alt="Google Maps" /><span aria-hidden="true">Google Maps</span></span>}
             </div>
             {(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))&&!accessEditorOpen
               ?<div className="df2-trip-access-ready"><span>✓ Přístupový kód je vyplněný</span>
@@ -501,6 +501,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 <input type="password" autoComplete="off" aria-label="Přístupový kód k výpočtu tras"
                   value={googleAccess} onChange={event=>{
                     const token=event.target.value;
+                    setAccessEditorOpen(true);
                     setGoogleAccess(token);
                     try{if(token)sessionStorage.setItem("dayframe-routes-access-session",token);
                       else sessionStorage.removeItem("dayframe-routes-access-session");}catch{}
