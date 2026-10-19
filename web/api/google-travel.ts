@@ -212,7 +212,8 @@ export async function POST(request:Request){
       ||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(data.departureTime))
       return send(400,{error:"Neplatný čas odjezdu."});
     const timestamp=new Date(data.departureTime).getTime();
-    if(!Number.isFinite(timestamp)||timestamp<Date.now()-120000||timestamp>Date.now()+7*86400000)
+    if(!Number.isFinite(timestamp)||timestamp>Date.now()+7*86400000
+      ||(timestamp<Date.now()-120000&&!(simpleRoute&&mode==="driving")))
       return send(400,{error:"Odjezd musí být od nynějška nejvýše sedm dní dopředu."});
     departureTime=new Date(timestamp).toISOString();
   }
@@ -264,6 +265,9 @@ export async function POST(request:Request){
       // developer message, which could contain input details).
       let providerCode:string|undefined;
       let providerReason:string|undefined;
+      // Google can send error headers and stall the response stream.
+      // Keep diagnostic reading bounded even after the main fetch timer was cleared.
+      const detailTimer=setTimeout(()=>controller.abort(),1200);
       try{
         const raw=await reply.text();
         if(raw.length<12000){
@@ -281,6 +285,7 @@ export async function POST(request:Request){
           }
         }
       }catch{/* Preserve the provider HTTP status without exposing a raw body. */}
+      finally{clearTimeout(detailTimer);}
       console.error("[dayframe-routes] Google status",reply.status,"mode",mode,
         "providerCode",providerCode??"unreported","reason",providerReason??"unreported");
       return send(502,{error:errors[reply.status]??`Google Routes odmítly výpočet (HTTP ${reply.status}).`,
