@@ -283,6 +283,52 @@ test("Google Routes reports actionable but sanitized provider authorization erro
     }
   });
 });
+test("503 error remains sanitized and enables explicit simplified retry",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    const requests=[];
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      requests.push(JSON.parse(options.body));
+      if(requests.length===1)
+        return Response.json({error:{message:"SENSITIVE-REQUEST-CONTEXT"}},{status:503});
+      return Response.json({routes:[{duration:"1500s",distanceMeters:18000}]});
+    };
+    const first=await POST(googleRequest());
+    assert.equal(first.status,502);
+    const failure=await first.json();
+    assert.equal(failure.providerStatus,503);
+    assert.equal(failure.retryable,true);
+    assert.equal(JSON.stringify(failure).includes("SENSITIVE-REQUEST-CONTEXT"),false);
+    assert.equal(requests[0].computeAlternativeRoutes,true);
+    const fallback=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"driving",simpleRoute:true}),
+    });
+    const second=await POST(fallback);
+    assert.equal(second.status,200);
+    assert.equal((await second.json()).minutes,25);
+    assert.equal(requests[1].computeAlternativeRoutes,false);
+    assert.equal(requests.length,2);
+    assert.equal(redis.commands.length,2);
+  });
+});
+test("simplified calculation setting is validated without reserving budget",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    let calls=0;globalThis.fetch=()=>{calls++;throw Error("External requests forbidden")};
+    const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"driving",simpleRoute:"yes"}),
+    });
+    assert.equal((await POST(req)).status,400);
+    assert.equal(calls,0);
+  });
+});
+
 test("transit alternatives choose fastest returned journey and sanitize stop details",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
