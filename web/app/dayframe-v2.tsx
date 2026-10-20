@@ -216,7 +216,8 @@ export function DayframeV2() {
     top:number,lane?:{left:string;width:string},end?:string){
     const key=travelBlockKey(kind,id,date),saved=travelStore.blocks[key];
     const assigned=Boolean(saved);
-    const minutes=saved?(saved.calendarMinutes??travelDuration(saved)):undefined;
+    const minutes=saved?(saved.outboundEnabled===false
+      ?saved.returnMinutes:(saved.calendarMinutes??travelDuration(saved))):undefined;
     const missingDuration=assigned&&(!Number.isInteger(minutes)||minutes!<=0);
     return <button type="button" className={"df2-week-location-btn"+(assigned?" has-location":"")+
         (missingDuration?" needs-travel-duration":"")}
