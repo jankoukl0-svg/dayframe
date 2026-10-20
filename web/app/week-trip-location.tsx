@@ -592,8 +592,10 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   }
   // Metro is a separate, explicitly requested Google calculation. Never requery
   // the driving stage just because an alternative transit route is desired.
+  // A different route duration invalidates any following stage's departure
+  // time; keep free switching and one-call subway comparison on the last leg.
   const transitStage=routeParts&&googleEstimates
-    ?routeParts.findLastIndex((part)=>part.mode==="transit"):-1;
+    &&routeParts[routeParts.length-1]?.mode==="transit"?routeParts.length-1:-1;
   const subwayStageEstimate=transitStage>=0?googleEstimates?.[transitStage]:undefined;
   const subwayPrimary=subwayStageEstimate?.options[0];
   const availableSubway=subwayStageEstimate?.options.slice(1).find(isSubwayOnly);
