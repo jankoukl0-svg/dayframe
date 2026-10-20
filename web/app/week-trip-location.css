@@ -259,3 +259,13 @@
 .df2-trip-metro-choice button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-wash);color:var(--accent-dark)}
 .df2-trip-metro-options>small{grid-column:1/-1;line-height:1.45;color:var(--muted);font-size:11px}
 @media(max-width:480px){.df2-trip-metro-options{grid-template-columns:1fr}}
+
+
+/* One-click car + metro interchange: clear but secondary to standard mode selection. */
+.df2-trip-quick-route{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.df2-trip-quick-route>div{flex:1 1 220px;min-width:0}
+.df2-trip-quick-route strong{font-size:13px;font-weight:700;color:var(--ink)}
+.df2-trip-quick-route p{font-size:12px;line-height:1.5;color:var(--ink-soft);margin:5px 0 0}
+.df2-trip-quick-route button{flex:0 1 auto;min-height:38px;padding:9px 12px;border:1px solid var(--accent);background:var(--accent-wash);color:var(--accent-dark);border-radius:9px;font-weight:700;font-size:12px;cursor:pointer}
+.df2-trip-quick-route button:disabled{opacity:.7;cursor:default}
+.df2-trip-quick-route button:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
