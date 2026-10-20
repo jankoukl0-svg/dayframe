@@ -3,6 +3,9 @@ const base=process.env.DAYFRAME_BASE_URL||"http://127.0.0.1:4173";
 test.beforeEach(async({page})=>{
   await page.clock.setFixedTime(new Date("2026-10-18T08:00:00"));
   await page.route("https://unpkg.com/leaflet@**",route=>route.abort());
+  await page.route("**/api/parking?**",route=>route.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify({items:[],source:"OpenStreetMap"})
+  }));
   await page.goto(base,{waitUntil:"networkidle"});
   // Clear once for isolation, but do not wipe persisted travel data on a test reload.
   await page.evaluate(()=>localStorage.clear());
@@ -725,6 +728,75 @@ test("metro B comparison must not accept an unrelated metro A route",async({page
   await expect(metro.getByRole("button",{name:"Vybrat metro"})).toHaveCount(0);
   expect(calls).toHaveLength(2);
   expect(calls[1].transitTravelModes).toBe("metro");
+});
+
+test("any city automatically finds parking, ranks known prices and inserts garage",async({page})=>{
+  const calls=[];
+  await page.route("**/api/parking?**",route=>{
+    calls.push(new URL(route.request().url()));
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({items:[
+      {id:"node:1",name:"Centrální garáž",lat:49.741,lon:13.381,distanceMeters:300,
+        kind:"multi-storey",access:"yes",price:{kind:"hourly",amount:35,currency:"CZK",label:"35 CZK/hod"},
+        parkRide:false,osmUrl:"https://www.openstreetmap.org/node/1"},
+      {id:"node:2",name:"Neznámý tarif",lat:49.7405,lon:13.3805,distanceMeters:90,
+        kind:"surface",access:"unknown",price:{kind:"unknown",label:"Cena neuvedena"},
+        parkRide:false,osmUrl:"https://www.openstreetmap.org/node/2"},
+      {id:"node:3",name:"Městské zdarma",lat:49.745,lon:13.385,distanceMeters:800,
+        kind:"surface",access:"yes",price:{kind:"free",label:"Zdarma dle OSM"},
+        parkRide:false,osmUrl:"https://www.openstreetmap.org/node/3"}
+    ],source:"OpenStreetMap"})});
+  });
+  let googleCalls=0;
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="POST")googleCalls++;
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+  });
+  const title="Výlet do Plzně";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,49.74,13.38,"Plzeň");
+  const list=dialog.locator(".df2-parking-list");
+  await expect(list).toContainText("Centrální garáž");
+  expect(calls.some(u=>u.searchParams.get("lat")==="49.74"&&u.searchParams.get("lon")==="13.38")).toBe(true);
+  await expect(list.locator(".df2-parking-item").first()).toContainText("Neznámý tarif");
+  await dialog.getByRole("combobox",{name:"Seřadit parkoviště"}).selectOption("price");
+  await expect(list.locator(".df2-parking-item").first()).toContainText("Městské zdarma");
+  await dialog.getByRole("combobox",{name:"Doba parkování"}).selectOption("4");
+  await expect(list).toContainText("asi 140 CZK za 4 h");
+  await list.locator(".df2-parking-item").filter({hasText:"Centrální garáž"}).getByRole("button",{name:"Vybrat"}).click();
+  await expect(dialog.getByRole("combobox",{name:"Doprava úsek 1"})).toHaveValue("driving");
+  await expect(dialog.getByRole("combobox",{name:"Doprava úsek 2"})).toHaveValue("walking");
+  await expect(dialog.getByRole("button",{name:"Zastávka 1"})).toContainText("Centrální garáž");
+  await expect(dialog.getByRole("spinbutton",{name:"Délka úseku 1"})).toHaveValue("");
+  expect(googleCalls).toBe(0);
+});
+
+test("searching near an existing interchange preserves the drive plus transit plan",async({page})=>{
+  const queries=[];
+  await page.route("**/api/parking?**",route=>{
+    queries.push(new URL(route.request().url()));
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      items:[{id:"node:12",name:"Alternativní P+R",lat:50.111,lon:14.580,distanceMeters:80,
+        kind:"multi-storey",access:"yes",parkRide:true,
+        price:{kind:"hourly",amount:20,currency:"CZK",label:"20 CZK/hod"},
+        osmUrl:"https://www.openstreetmap.org/node/12"}]
+    })});
+  });
+  const title="Kombinace do školy";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.084,14.442,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.30,14.90,"Domov");
+  await dialog.getByRole("group",{name:"Rychlá volba cesty"}).getByRole("button",{name:"Použít tuto kombinaci"}).click();
+  await dialog.getByRole("combobox",{name:"Oblast parkování"}).selectOption("interchange");
+  await expect.poll(()=>queries.some(q=>q.searchParams.get("lat")==="50.1102028")).toBe(true);
+  await dialog.locator(".df2-parking-item").filter({hasText:"Alternativní P+R"})
+    .getByRole("button",{name:"Vybrat"}).click();
+  await expect(dialog.getByRole("combobox",{name:"Doprava úsek 2"})).toHaveValue("transit");
+  await expect(dialog.getByRole("button",{name:"Zastávka 1"})).toContainText("Alternativní P+R");
 });
 
 test("comfort planner warns about 2.2 km walking and suggests metro P+R without hidden billing",async({page})=>{
