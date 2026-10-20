@@ -941,7 +941,7 @@ test("Vercel Web default handler dispatches GET and rejects unsupported verbs wi
 test("travel calendar projects Google outbound minutes before event and optional reverse ride after",()=>{
   const store=emptyTravelStore();
   store.blocks["task:english"]={place,mode:"driving",bufferMinutes:10,typicalMinutes:55,calendarMinutes:48,
-    returnHome:true,returnMinutes:52,returnVerified:true,title:"Běžná angličtina",date:"2026-10-20",start:"14:00"};
+    returnHome:true,returnMinutes:52,returnVerified:true,calendarVerified:true,title:"Běžná angličtina",date:"2026-10-20",start:"14:00"};
   const events=[{key:"task:english",date:"2026-10-20",start:"14:00",end:"15:00",title:"Běžná angličtina"}];
   const windows=travelReservationsForDay(store,"2026-10-20",events);
   assert.deepEqual(windows.map(x=>[x.direction,x.start,x.end,x.estimated]),[
@@ -979,7 +979,7 @@ test("return booking validation blocks malformed durations but accepts old saved
   for(const edits of [
     {returnHome:true}, {returnMinutes:0,returnHome:true},
     {returnMinutes:-5,returnHome:true},{calendarMinutes:1441},
-    {returnVerified:"yes"},{returnHome:"false"},
+    {returnVerified:"yes"},{returnHome:"false"},{calendarVerified:"true"},
   ]){
     const store=emptyTravelStore();store.blocks["task:x"]={...trip,...edits};
     assert.equal(parseTravelStore(JSON.stringify(store)).blocked,true);
