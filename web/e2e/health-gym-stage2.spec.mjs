@@ -799,6 +799,73 @@ test("Gym block is draggable within Week and to another day; new time persists w
 });
 
 
+test("past calendar Gym workout can be deleted once without removing future recurring instances",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Historický trénink");
+  await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
+  const original=await page.evaluate(k=>{
+    const s=JSON.parse(localStorage.getItem(k));
+    return {plan:JSON.stringify(s.plans),key:[s.plans[0].id,s.plans[0].days[0].id,"2026-10-12"].join("|")};
+  },KEY);
+  await page.clock.setFixedTime(new Date("2026-10-14T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  const monday=page.locator(".df2-week-day").nth(0);
+  await expect(monday.locator('[data-week-gym="'+original.key+'"]')).toBeVisible();
+  const remove=monday.getByRole("button",{name:/Smazat trénink .* ze dne 2026-10-12/});
+  await monday.locator("[data-week-gym]").first().hover();
+  // A history-delete button must not break the adjacent location pin hover rule.
+  const location=monday.locator('[data-week-place="gym:'+original.key+'"]');
+  await expect(location).toHaveCSS("opacity","1");
+  page.once("dialog",dialog=>dialog.dismiss());
+  await remove.click();
+  await expect(monday.locator("[data-week-gym]")).toHaveCount(1);
+  await monday.locator("[data-week-gym]").first().hover();
+  page.once("dialog",dialog=>dialog.accept());
+  await remove.click();
+  await expect(monday.locator('[data-week-gym="'+original.key+'"]')).toHaveCount(0);
+  const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(saved.deletedOccurrences).toContain(original.key);
+  expect(JSON.stringify(saved.plans)).toBe(original.plan);
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await expect(page.locator(".df2-week-day").nth(0).locator("[data-week-gym]")).toHaveCount(0);
+  await page.locator(".df2-week-controls button").filter({hasText:"→"}).click();
+  await expect(page.locator(".df2-week-day").nth(0).locator("[data-week-gym]")).toHaveCount(1);
+});
+
+test("Gym history deletes completed session including logged progress without erasing its plan",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Deník k opravě");
+  await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
+  await root.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
+  const set=root.locator("[data-gym-log-exercise]").first().locator("[data-gym-set]").first();
+  await set.getByRole("spinbutton",{name:/Váha v kg série 1/}).fill("80");
+  await set.getByRole("spinbutton",{name:/Opakování série 1/}).fill("8");
+  await set.getByRole("button",{name:/Dokončit sérii 1/}).click();
+  await root.getByRole("button",{name:"Dokončit trénink",exact:true}).click();
+  await root.getByRole("button",{name:"← Zpět na plán"}).click();
+  const history=root.locator("[data-gym-history]");
+  await history.locator("summary").click();
+  await expect(history.locator(".df2-gym-history-row")).toHaveCount(1);
+  const before=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(before.sessions).toHaveLength(1);
+  const key=before.sessions[0].occurrenceKey;
+  page.once("dialog",dialog=>dialog.accept());
+  await history.getByRole("button",{name:/Smazat trénink .* ze dne/}).click();
+  await expect(history).toHaveCount(0);
+  const stored=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(stored.sessions).toHaveLength(0);
+  expect(stored.deletedOccurrences).toContain(key);
+  expect(stored.plans).toEqual(before.plans);
+  await root.getByRole("button",{name:"Progres"}).click();
+  await expect(root.locator("[data-gym-progress]")).toContainText("Zatím bez výsledků");
+  await page.reload({waitUntil:"networkidle"});
+  const persisted=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY);
+  expect(persisted.sessions).toHaveLength(0);
+  expect(persisted.deletedOccurrences).toContain(key);
+});
+
 test("past Gym workouts are read-only and future Gym cannot be dropped into an elapsed day",async({page})=>{
   await fresh(page);
   const root=await createPlan(page,"Bez přepisování historie");
