@@ -842,7 +842,7 @@ test("comfort planner warns about 2.2 km walking and suggests metro P+R without 
   expect(requests).toHaveLength(2);
   expect(requests[1].transitPreference).toBe("balanced");
   await results.getByRole("button",{name:/Nastavit P\+R u metra B/}).click();
-  await expect(dialog.locator("p.df2-trip-inline-hint[role=status]")).toContainText("P+R Černý Most u metra B");
+  await expect(dialog.locator("p.df2-trip-inline-hint[role=status]").filter({hasText:"Přestupní místo je nastaveno"})).toContainText("P+R Černý Most u metra B");
   await expect(results).toHaveCount(0);
   expect(requests).toHaveLength(2);
   await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
