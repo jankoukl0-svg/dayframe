@@ -43,7 +43,7 @@ import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
 import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
-import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGymOccurrence } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
@@ -940,6 +940,28 @@ export function DayframeV2() {
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>
+                              {(key<todayKey||occ.session)&&gym.hydrated&&!gym.blocked&&<button
+                                type="button" className="df2-week-gym-delete"
+                                aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
+                                title="Smazat tento trénink z historie (ostatní týdny zůstanou)"
+                                style={{top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
+                                  ?{left:"calc("+lanePositions["gym:"+occ.key].left+" + "+
+                                     lanePositions["gym:"+occ.key].width+" - 23px)",right:"auto"}:{})}}
+                                onClick={event=>{
+                                  event.stopPropagation();
+                                  if(!window.confirm("Smazat trénink „"+occ.name+"“ ze dne "+key+
+                                    "? Smažou se i případné zapsané série a výkony tohoto dne. Ostatní tréninky a opakovaný plán zůstanou."))return;
+                                  let changed=false;
+                                  const saved=gym.persist(store=>{
+                                    const next=deleteGymOccurrence(store,occ.key,key);
+                                    changed=next!==store;
+                                    return next;
+                                  });
+                                  if(saved&&changed){
+                                    removeStoredTrip(travelBlockKey("gym",occ.key,key));
+                                    setNotice("Trénink byl odstraněn pouze z "+key+". Další týdny zůstaly beze změny.");
+                                  }else setNotice("Trénink se nepodařilo smazat.");
+                                }}>×</button>}
                               {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key])}
                               </Fragment>;
                           })}
