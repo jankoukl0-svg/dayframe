@@ -13,6 +13,16 @@ type RouteOption={minutes:number;distanceMeters:number;steps:RouteStep[];
   transfers:number;walkingMeters:number};
 type RouteEstimate={minutes:number;distanceMeters:number;options:RouteOption[];departureISO:string;trafficAware?:boolean};
 type RouteSettings={departureISO?:string;transitPreference:TransitPreference;transferMinutes:number};
+type ParkingItem={id:string;name:string;lat:number;lon:number;distanceMeters:number;
+  kind:string;access:string;capacity?:number;price:{kind:"free"|"hourly"|"paid"|"unknown";
+    label:string;amount?:number;currency?:string};parkRide:boolean;osmUrl:string;website?:string};
+type ParkingSort="nearest"|"price"|"free";
+const parkingCost=(p:ParkingItem,hours:number)=>{
+  if(p.price.kind==="free")return p.price.label;
+  if(p.price.kind!=="hourly"||p.price.amount===undefined||!p.price.currency)return p.price.label;
+  const rate=p.price.amount+" "+p.price.currency+"/h";
+  return hours>0?rate+" · asi "+(Math.round(p.price.amount*hours*100)/100)+" "+p.price.currency+" za "+hours+" h":rate;
+};
 const formatClock=(iso?:string)=>iso&&Number.isFinite(Date.parse(iso))
   ?new Intl.DateTimeFormat("cs-CZ",{hour:"2-digit",minute:"2-digit"}).format(new Date(iso)):"—";
 function formatStationTime(iso?:string,label?:string,zone?:string){
@@ -255,6 +265,16 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [placeEditorOpen,setPlaceEditorOpen]=useState(!current?.place);
   const [advancedOpen,setAdvancedOpen]=useState(false);
   const [parkSwitchNotice,setParkSwitchNotice]=useState(false);
+  const [parkingChoiceNotice,setParkingChoiceNotice]=useState("");
+  const [parkingResults,setParkingResults]=useState<ParkingItem[]>([]);
+  const [parkingStatus,setParkingStatus]=useState<"idle"|"loading"|"ready"|"error">("idle");
+  const [parkingError,setParkingError]=useState("");
+  const [parkingRadius,setParkingRadius]=useState<1800|4000>(1800);
+  const [parkingSort,setParkingSort]=useState<ParkingSort>("nearest");
+  const [parkingHours,setParkingHours]=useState(0);
+  const [parkingAround,setParkingAround]=useState<"destination"|"interchange">("destination");
+  const [parkingExpanded,setParkingExpanded]=useState(false);
+  const [parkingRetry,setParkingRetry]=useState(0);
   const [accessEditorOpen,setAccessEditorOpen]=useState(false);
   function choosePlace(next:"destination"|"origin"|number){
     setMapTarget(next);setPlaceEditorOpen(true);
@@ -363,6 +383,61 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     setMapTarget("destination");
     setPlaceEditorOpen(false);
     setParkSwitchNotice(true);
+  }
+  const isDrivingJourney=mixed?legs[0]?.mode==="driving":mode==="driving";
+  const parkingAtInterchange=parkingAround==="interchange"&&mixed&&legs[0]?.via;
+  const parkingCenter=parkingAtInterchange?legs[0].via:destination;
+  const parkingCenterLat=parkingCenter?.lat,parkingCenterLon=parkingCenter?.lon;
+  useEffect(()=>{
+    if(!offsite||!isDrivingJourney||parkingCenterLat===undefined||parkingCenterLon===undefined){
+      setParkingResults([]);setParkingStatus("idle");setParkingError("");return;
+    }
+    const controller=new AbortController();
+    setParkingStatus("loading");setParkingError("");setParkingResults([]);
+    // Coordinates can be edited digit-by-digit; debounce and cancel stale searches.
+    const timer=window.setTimeout(async()=>{
+      try{
+        const query=new URLSearchParams({lat:String(parkingCenterLat),lon:String(parkingCenterLon),
+          radius:String(parkingRadius)});
+        const response=await fetch("/api/parking?"+query,{signal:controller.signal,cache:"default"});
+        const payload=await response.json() as {items?:ParkingItem[];error?:string};
+        if(controller.signal.aborted)return;
+        if(!response.ok||!Array.isArray(payload.items))throw Error(payload.error??"Parkování není dostupné.");
+        setParkingResults(payload.items);
+        setParkingStatus("ready");
+      }catch(e){
+        if(!controller.signal.aborted){
+          setParkingStatus("error");setParkingError(e instanceof Error?e.message:"Parkování nyní není dostupné.");
+        }
+      }
+    },700);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  },[offsite,isDrivingJourney,parkingCenterLat,parkingCenterLon,parkingRadius,parkingRetry]);
+  const parkingChoices=[...parkingResults].filter(item=>parkingSort!=="free"||item.price.kind==="free")
+    .sort((a,b)=>{
+      if(parkingSort!=="price")return a.distanceMeters-b.distanceMeters;
+      const tier=(p:ParkingItem)=>p.price.kind==="free"?0:p.price.kind==="hourly"?1:2;
+      return tier(a)-tier(b)||
+        (a.price.kind==="hourly"&&b.price.kind==="hourly"
+          ?(a.price.currency??"").localeCompare(b.price.currency??"")||
+            (a.price.amount??0)-(b.price.amount??0):0)||
+        a.distanceMeters-b.distanceMeters;
+    });
+  function chooseFoundParking(item:ParkingItem){
+    const chosen:TravelPoint={lat:item.lat,lon:item.lon,label:item.name+" (OSM parkoviště)"};
+    // Retain TRANSIT only when the user's current path genuinely is drive → MHD.
+    // Otherwise the local last mile should be WALK rather than an invented transit ride.
+    const lastMode:TravelMode=mixed&&legs.length===2&&legs[0].mode==="driving"
+      &&legs[1].mode==="transit"?"transit":"walking";
+    const same=mixed&&legs.length===2&&legs[0].via?.lat===chosen.lat
+      &&legs[0].via?.lon===chosen.lon&&legs[0].mode==="driving"&&legs[1].mode===lastMode;
+    setLegs(previous=>[
+      {mode:"driving",minutes:same?previous[0].minutes:"",via:chosen},
+      {mode:lastMode,minutes:same?previous[1].minutes:""},
+    ]);
+    setMixed(true);setParkSwitchNotice(false);
+    setParkingChoiceNotice("Vybráno: "+item.name+". Spočítej cestu tlačítkem; ověř vjezd a ceník parkoviště.");
+    setParkingAround("destination");setPlaceEditorOpen(false);setMapTarget("destination");
   }
   const metroParkingAlternative=Boolean(mixed&&legs.length===2&&legs[0].mode==="driving"
     &&legs[1].mode==="transit"&&legs[0].via&&destination
@@ -661,6 +736,63 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
             </div>}
             {!destination&&<p className="df2-trip-inline-hint">Nejprve vyber cíl cesty.</p>}
             {destination&&!origin&&<p className="df2-trip-inline-hint">Cíl je vybraný. Ještě nastav místo odjezdu.</p>}
+            {isDrivingJourney&&destination&&<div className="df2-parking-discovery" aria-label="Parkování poblíž">
+              <div className="df2-parking-top">
+                <div><strong>Parkování v okolí</strong>
+                  <p>Vyhledáno automaticky podle místa cesty · OpenStreetMap</p></div>
+                <button type="button" aria-label="Obnovit parkoviště" onClick={()=>setParkingRetry(n=>n+1)}
+                  disabled={parkingStatus==="loading"}>↻ Obnovit</button>
+              </div>
+              <div className="df2-parking-controls">
+                <label>Seřadit
+                  <select aria-label="Seřadit parkoviště" value={parkingSort}
+                    onChange={e=>{setParkingSort(e.target.value as ParkingSort);setParkingExpanded(false);}}>
+                    <option value="nearest">Nejbližší</option>
+                    <option value="price">Podle ceny (známé sazby)</option>
+                    <option value="free">Pouze označená jako zdarma</option>
+                  </select>
+                </label>
+                <label>Okruh
+                  <select aria-label="Okruh parkování" value={parkingRadius}
+                    onChange={e=>{setParkingRadius(Number(e.target.value) as 1800|4000);setParkingExpanded(false);}}>
+                    <option value={1800}>1,8 km</option><option value={4000}>4 km</option>
+                  </select>
+                </label>
+                {mixed&&legs[0]?.via&&<label>Hledat u
+                  <select aria-label="Oblast parkování" value={parkingAround}
+                    onChange={e=>setParkingAround(e.target.value as "destination"|"interchange")}>
+                    <option value="destination">Cíle</option><option value="interchange">Přestupu</option>
+                  </select>
+                </label>}
+                <label>Doba stání
+                  <select aria-label="Doba parkování" value={parkingHours}
+                    onChange={e=>setParkingHours(Number(e.target.value))}>
+                    <option value={0}>Bez odhadu</option>
+                    {[1,2,3,4,6,8,12].map(h=><option key={h} value={h}>{h} h</option>)}
+                  </select>
+                </label>
+              </div>
+              {parkingStatus==="loading"&&<p className="df2-trip-inline-hint" role="status">Hledám parkoviště…</p>}
+              {parkingStatus==="error"&&<p className="df2-trip-inline-hint" role="status">{parkingError} <button type="button" onClick={()=>setParkingRetry(n=>n+1)}>Zkusit znovu</button></p>}
+              {parkingStatus==="ready"&&parkingChoices.length===0&&<p className="df2-trip-inline-hint">V tomto okruhu nejsou dostupná parkoviště s vybraným filtrem. Zvětši okruh, změň filtr nebo vyber místo ručně na mapě.</p>}
+              {parkingStatus==="ready"&&parkingChoices.length>0&&<div className="df2-parking-list">
+                {parkingChoices.slice(0,parkingExpanded?15:5).map(item=><article className="df2-parking-item" key={item.id}>
+                  <div className="df2-parking-item-info"><strong>{item.name}</strong>
+                    <span>{(item.distanceMeters/1000).toFixed(1)} km vzdušnou čarou
+                      {item.parkRide?" · P+R":""}{item.access==="customers"?" · jen zákazníci":""}
+                      {item.capacity?" · "+item.capacity+" míst":""}</span>
+                    <span className="df2-parking-price">{parkingCost(item,parkingHours)}</span>
+                    <a href={item.website??item.osmUrl} target="_blank" rel="noopener noreferrer">
+                      Informace o parkovišti ↗</a>
+                  </div>
+                  <button type="button" onClick={()=>chooseFoundParking(item)}>Vybrat</button>
+                </article>)}
+                {parkingChoices.length>5&&<button type="button" className="df2-parking-expand"
+                  onClick={()=>setParkingExpanded(v=>!v)}>{parkingExpanded?"Zobrazit méně":`Zobrazit další (${parkingChoices.length-5})`}</button>}
+              </div>}
+              {parkingChoiceNotice&&<p className="df2-trip-inline-hint" role="status">{parkingChoiceNotice}</p>}
+              <p className="df2-parking-disclaimer">Ceny jsou neúplná komunitní data, nikoli aktuální tarif. Odhady při uvedené hodinové sazbě jsou orientační; podmínky, vjezd a volná místa vždy ověř. Žádné placené Google volání se při hledání nespouští. © OpenStreetMap contributors.</p>
+            </div>}
           </section>
           <section className="df2-trip-section" aria-label="Způsob dopravy">
             <div className="df2-trip-section-title"><span className="df2-trip-section-number">2</span><h3>Jak pojedeš?</h3></div>
