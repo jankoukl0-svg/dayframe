@@ -353,7 +353,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     &&distanceBetweenMetres(destination,CERNY_MOST_PARK)<26000);
   const metroParkPresetActive=Boolean(mixed&&legs.length===2
     &&legs[0].mode==="driving"&&legs[1].mode==="transit"&&legs[0].via
-    &&distanceBetweenMetres(legs[0].via,CERNY_MOST_PARK)<75);
+    &&legs[0].via.lat===CERNY_MOST_PARK.lat&&legs[0].via.lon===CERNY_MOST_PARK.lon);
   function chooseMetroParkPreset(){
     setLegs(previous=>[
       {mode:"driving",minutes:metroParkPresetActive?previous[0].minutes:"",via:CERNY_MOST_PARK},
