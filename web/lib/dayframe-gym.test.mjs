@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, rescheduleGymOccurrence, setGymWeekdayAssignment, setGymWeekdayTime, gymOccurrenceTime,
-  occurrenceKey, startSession, gymMetrics, lastExercisePerformance,
+  occurrenceKey, startSession, deleteGymOccurrence, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
 
@@ -18,6 +18,69 @@ test("plan templates offer adjustable repeated workout days and a stable occurre
   assert.equal(assignmentsOnDate(s,"2026-10-12")[0].name,"Upper");
   assert.equal(assignmentsOnDate(s,"2026-10-13").length,0);
   assert.equal(assignmentsOnDate(s,"2026-10-19")[0].key,occurrenceKey(s.plans[0].id,day.id,"2026-10-19"));
+});
+test("deleting one past unstarted workout stays deleted while the recurring template and future weeks remain",()=>{
+  let state=active();
+  const previous=assignmentsOnDate(state,"2026-10-12")[0];
+  const next=assignmentsOnDate(state,"2026-10-19")[0];
+  const originalPlan=JSON.stringify(state.plans);
+  state=deleteGymOccurrence(state,previous.key,"2026-10-12");
+  assert.deepEqual(assignmentsOnDate(state,"2026-10-12"),[]);
+  assert.deepEqual(state.deletedOccurrences,[previous.key]);
+  assert.equal(assignmentsOnDate(state,"2026-10-19")[0].key,next.key);
+  assert.equal(JSON.stringify(state.plans),originalPlan);
+  assert.equal(deleteGymOccurrence(state,previous.key,"2026-10-12"),state,"repeated deletion is a no-op");
+  const loaded=parseGymStore(JSON.stringify(state));
+  assert.equal(loaded.blocked,false);
+  assert.deepEqual(assignmentsOnDate(loaded.store,"2026-10-12"),[]);
+  assert.equal(startSession(loaded.store,previous.key,"2026-10-12"),loaded.store,
+    "deleted past training cannot be silently restarted");
+});
+test("deleting one logged Gym workout removes sets and progress but preserves other sessions",()=>{
+  let state=active();
+  const older=assignmentsOnDate(state,"2026-10-12")[0];
+  const future=assignmentsOnDate(state,"2026-10-19")[0];
+  state=startSession(state,older.key,older.date,"2026-10-12T09:00:00Z");
+  state=startSession(state,future.key,future.date,"2026-10-19T09:00:00Z");
+  state={...state,sessions:state.sessions.map(session=>({
+    ...session,completedAt:"2026-10-19T10:00:00Z",
+    exercises:session.exercises.map(ex=>({...ex,sets:ex.sets.map(set=>({
+      ...set,weightKg:50,reps:8,done:true
+    }))}))
+  }))};
+  assert.equal(gymMetrics(state).workouts.length,2);
+  state=deleteGymOccurrence(state,older.key,"2026-10-12");
+  assert.equal(state.sessions.length,1);
+  assert.equal(state.sessions[0].occurrenceKey,future.key);
+  assert.equal(gymMetrics(state).workouts.length,1);
+  assert.equal(assignmentsOnDate(state,"2026-10-12").length,0);
+  assert.equal(assignmentsOnDate(state,"2026-10-19")[0].completed,true);
+  assert.equal(parseGymStore(JSON.stringify(state)).blocked,false);
+});
+test("deleting a rescheduled historical workout removes its time and move and does not resurrect it",()=>{
+  let state=active();
+  const original=assignmentsOnDate(state,"2026-10-12")[0];
+  state=rescheduleGymOccurrence(state,original.key,"2026-10-12","2026-10-13","17:30","2026-10-12");
+  assert.equal(assignmentsOnDate(state,"2026-10-13").length,1);
+  assert.equal(deleteGymOccurrence(state,original.key,"2026-10-12"),state,
+    "wrong displayed date is never deleted");
+  state=deleteGymOccurrence(state,original.key,"2026-10-13");
+  assert.equal(state.moves[original.key],undefined);
+  assert.equal(state.occurrenceTimes?.[original.key],undefined);
+  assert.equal(assignmentsOnDate(state,"2026-10-12").length,0);
+  assert.equal(assignmentsOnDate(state,"2026-10-13").length,0);
+  assert.equal(assignmentsOnDate(state,"2026-10-19").length,1);
+});
+test("malformed Gym history tombstones block writes without erasing existing data",()=>{
+  const store=active();
+  for(const deletedOccurrences of [
+    ["bad"],["a|b|2026-10-12","a|b|2026-10-12"],
+    ["a|b|2026-13-56"],"a|b|2026-10-12",[45],
+  ]){
+    assert.equal(parseGymStore(JSON.stringify({...store,deletedOccurrences})).blocked,true);
+  }
+  assert.equal(parseGymStore(JSON.stringify({...store,deletedOccurrences:undefined})).blocked,false,
+    "older stores without tombstones remain backward compatible");
 });
 test("moving a scheduled occurrence updates both dates without duplicate or new calendar task",()=>{
   let s=active();const occ=assignmentsOnDate(s,"2026-10-12")[0];
