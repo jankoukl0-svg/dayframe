@@ -300,7 +300,13 @@ test("saved locations reopen without an expanded map and advanced travel setting
   await setMapPoint(dialog,50.08,14.43,"Kancelář");
   await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
   await setMapPoint(dialog,50.1,14.2,"Domov");
-  await dialog.getByRole("button",{name:"Uložit místo"}).click();
+  await expect(dialog).toContainText("Chybí délka přímé cesty");
+  await dialog.getByRole("button",{name:"Uložit místo",exact:true}).click();
+  await expect(dialog.getByRole("alert")).toContainText("Přímá cesta zatím nemá délku");
+  // Saving the place without an ETA remains possible, but is now explicit.
+  await dialog.getByRole("button",{name:"Uložit pouze místo (bez cesty)"}).click();
+  await expect(page.getByRole("button",{name:"Místo konání: Přehledný pohovor"}))
+    .toHaveClass(/needs-travel-duration/);
   await openTaskPlace(page,"Přehledný pohovor");
   const reopened=page.getByRole("dialog",{name:"Místo konání: Přehledný pohovor"});
   await expect(reopened.getByRole("heading",{name:"Odkud a kam?"})).toBeVisible();
@@ -309,6 +315,69 @@ test("saved locations reopen without an expanded map and advanced travel setting
   await reopened.getByRole("button",{name:"Odkud vyrážím"}).click();
   await expect(reopened.locator(".df2-travel-map-picker")).toBeVisible();
 });
+for(const mode of ["driving","walking","cycling","transit"]){
+  test("direct "+mode+" manual trip creates visible round-trip reservations in Week",async({page})=>{
+    const title="Jednoduchá cesta "+mode;
+    await makeTask(page,title);
+    await openTaskPlace(page,title);
+    const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+    await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+    await setMapPoint(dialog,50.08,14.43,"Cíl "+mode);
+    await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+    await setMapPoint(dialog,50.4,14.7,"Domov");
+    await dialog.getByRole("combobox",{name:"Způsob dopravy"}).selectOption(mode);
+    await expect(dialog).toContainText("Chybí délka přímé cesty");
+    await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("24");
+    await dialog.getByRole("checkbox",{name:"Přidat cestu domů po skončení bloku"}).check();
+    await expect(dialog).toContainText("24+15 min");
+    await dialog.getByRole("button",{name:"Uložit místo",exact:true}).click();
+    const reservations=page.locator(".df2-week-day").last().locator("[data-week-travel]");
+    await expect(reservations).toHaveCount(2);
+    await expect(reservations.first()).toContainText("09:21–10:00");
+    await expect(reservations.last()).toContainText("10:45–11:09");
+    const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
+    const trip=Object.values(saved.blocks)[0];
+    expect(trip.mode).toBe(mode);
+    expect(trip).toMatchObject({typicalMinutes:24,calendarMinutes:24,returnHome:true,returnMinutes:24});
+    await page.reload({waitUntil:"networkidle"});
+    await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+    await expect(page.locator(".df2-week-day").last().locator("[data-week-travel]")).toHaveCount(2);
+  });
+  test("direct "+mode+" Google calculation persists ETA without a separate planning input",async({page})=>{
+    let paid=0;
+    await page.route("**/api/google-travel",route=>{
+      if(route.request().method()==="GET")
+        return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+      paid++;
+      expect(route.request().postDataJSON().mode).toBe(mode);
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+        minutes:32,distanceMeters:10500,trafficAware:mode==="driving",
+        options:[{minutes:32,distanceMeters:10500,steps:[],transfers:0,walkingMeters:0}]
+      })});
+    });
+    const title="Google přímá cesta "+mode;
+    await makeTask(page,title);
+    await openTaskPlace(page,title);
+    const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+    await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+    await setMapPoint(dialog,50.08,14.43,"Škola");
+    await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+    await setMapPoint(dialog,50.4,14.7,"Domov");
+    await dialog.getByRole("combobox",{name:"Způsob dopravy"}).selectOption(mode);
+    await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+    await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+    await expect(dialog.locator(".df2-google-route-results")).toContainText("32 min");
+    await expect(dialog).toContainText("32+15 min");
+    await dialog.getByRole("checkbox",{name:"Přidat cestu domů po skončení bloku"}).check();
+    await dialog.getByRole("button",{name:"Uložit místo",exact:true}).click();
+    const trip=await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem("dayframe-travel-v1")).blocks)[0]);
+    expect(trip).toMatchObject({mode,typicalMinutes:32,calendarMinutes:32,calendarVerified:true,
+      returnHome:true,returnMinutes:32,returnVerified:false});
+    await expect(page.locator(".df2-week-day").last().locator("[data-week-travel]")).toHaveCount(2);
+    expect(paid).toBe(1,"saving must not requery the provider");
+  });
+}
+
 test("explicit Google calculation supplies persisted Week travel slot without saving provider details",async({page})=>{
   await page.route("**/api/google-travel",async route=>{
     if(route.request().method()==="GET")return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});

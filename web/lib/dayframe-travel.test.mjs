@@ -938,6 +938,30 @@ test("Vercel Web default handler dispatches GET and rejects unsupported verbs wi
   }finally{globalThis.fetch=oldFetch;}
 });
 
+test("single-stage car, walk, bike and public transit reserve both Week directions by actual minutes",()=>{
+  const events=[{key:"task:english",date:"2026-10-20",start:"14:00",end:"15:30",title:"Běžná angličtina"}];
+  for(const mode of ["driving","walking","cycling","transit"]){
+    const store=emptyTravelStore();
+    store.blocks["task:english"]={place,mode,bufferMinutes:15,typicalMinutes:32,
+      calendarMinutes:32,calendarVerified:true,returnHome:true,returnMinutes:38,
+      returnVerified:false,title:events[0].title,date:"2026-10-20",start:"14:00"};
+    const windows=travelReservationsForDay(store,"2026-10-20",events);
+    assert.deepEqual(windows.map(w=>[w.direction,w.start,w.end,w.estimated]),[
+      ["outbound",13*60+13,14*60,false],["return",15*60+30,16*60+8,true]
+    ],"mode "+mode+" must not change reservation projection");
+    assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+  }
+});
+test("legacy location-only direct trips never invent travel time and remain editable",()=>{
+  const store=emptyTravelStore();
+  store.blocks["task:english"]={place,mode:"driving",bufferMinutes:15,title:"Angličtina",
+    date:"2026-10-20",start:"14:00"};
+  const events=[{key:"task:english",date:"2026-10-20",start:"14:00",end:"15:30",title:"Angličtina"}];
+  assert.equal(travelReservationsForDay(store,"2026-10-20",events).length,0);
+  assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+  store.blocks["task:english"].typicalMinutes=27;
+  assert.equal(travelReservationsForDay(store,"2026-10-20",events)[0].duration,42);
+});
 test("travel calendar projects Google outbound minutes before event and optional reverse ride after",()=>{
   const store=emptyTravelStore();
   store.blocks["task:english"]={place,mode:"driving",bufferMinutes:10,typicalMinutes:55,calendarMinutes:48,

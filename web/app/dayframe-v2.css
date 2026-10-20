@@ -1010,3 +1010,6 @@
 .df2-week-travel-outside>strong{font-size:9px;line-height:1.3}
 .df2-week-travel-outside>button{padding:2px 0;text-align:left;border:0;background:transparent;color:inherit;font-size:9px;line-height:1.35;cursor:pointer;overflow-wrap:anywhere}
 .df2-week-travel-outside>button:hover{text-decoration:underline}
+
+/* Older location-only records have no duration and therefore cannot reserve a slot. */
+.df2-week-location-btn.needs-travel-duration{background:var(--paper);color:#aa5c34;border-color:#cba38d}

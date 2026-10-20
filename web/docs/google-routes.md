@@ -147,3 +147,12 @@ The limitation is structural: Google Routes returns only a restricted selection 
 - Planning and reprojection use travel time as unavailable for adding manual/automatic tasks, week recalculation and drag/drop + Hygiene repositioning. Already-overlapping manual entries are visual conflicts; do not silently reschedule finished/manual events.
 - Week calendar's standard visible hours are 08:00–02:00. Reservations partly outside those bounds still count for collision calculations but their visible portion is clipped; the visual label should clearly indicate any portion outside the view.
 - Changing the saved place/time may require a new **explicit** Google calculation. Cached duration is an estimate at a prior departure time, not a live journey ETA. Times are snapshots and cannot guarantee future traffic, schedules or parking availability.
+
+
+## Direct route time reservation (car, walk, bicycle, MHD)
+
+- The **same one-stage time reservation** is used for all travel modes. When a user explicitly runs Google Routes, the returned minutes populate the saved planning duration, and Week projects outbound time + buffer before the parent event, with an optional return after the parent event. Without Google, a manually entered positive duration does the same.
+- An offsite event with a known origin, destination and start/end must not silently save a single-mode trip without its duration. Present an actionable warning, and offer a separately labeled **Uložit pouze místo (bez cesty)** for intentional location-only records. Do not fabricate travel times or make a paid Google call on save.
+- Older saved location-only trips still parse and remain editable. Their Week location pins use an **⏱** indicator until a positive duration is supplied. Missing duration means no calendar minutes can be claimed.
+- Switching from combined to direct, or switching the direct mode, clears stale manual ETA and return verification. A car ETA must never be silently repurposed as a walking, cycling or transit estimate.
+- The 50/day, 1,000/month protected paid Google Routes limits stay unchanged. E2E coverage includes each direct mode using both manual and explicitly calculated ETAs.

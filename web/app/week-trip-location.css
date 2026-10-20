@@ -316,3 +316,9 @@
 .df2-trip-return-calc:disabled{opacity:.5;cursor:wait}
 .df2-trip-calendar-info{border-left:3px solid var(--accent);background:var(--accent-wash);padding:10px 12px;
   color:var(--ink);font-size:12px;line-height:1.5;margin:0}
+
+/* A route without a duration cannot occupy any calendar minutes. */
+.df2-trip-calendar-missing{margin:8px 0;padding:10px 12px;border:1px solid #cda58c;border-radius:9px;background:var(--paper);color:var(--ink-soft);font-size:12px;line-height:1.6}
+.df2-trip-calendar-missing strong{display:block;color:#a35531;font-size:12px}
+.df2-travel-dialog footer .df2-travel-location-only{border:1px solid var(--line-strong);background:var(--paper);color:var(--ink-soft)}
+@media(max-width:480px){.df2-travel-dialog footer{flex-wrap:wrap}.df2-travel-dialog footer button{min-height:38px}}
