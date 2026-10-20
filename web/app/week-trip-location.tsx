@@ -1387,8 +1387,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
             </div>
             {!target.start&&<p className="df2-trip-kind-help">Blok zatím nemá začátek. Časovou rezervaci bude možné naplánovat až po stanovení začátku i konce.</p>}
           </section>
-          {!mixed&&destination&&<a target="_blank" rel="noopener noreferrer"
-            href={travelDirectionsUrl(returnOnly?destination:origin,returnOnly?origin:destination,mode)}>
+          {!mixed&&destination&&(!returnOnly||origin)&&<a target="_blank" rel="noopener noreferrer"
+            href={travelDirectionsUrl(returnOnly?destination:origin,returnOnly?origin!:destination,mode)}>
             {returnOnly?"Otevřít cestu domů v Google Maps ↗":"Otevřít trasu v Google Maps ↗"}</a>}
         </>}
         {error&&<p role="alert" className="df2-travel-error">{error}</p>}
