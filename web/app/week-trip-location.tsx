@@ -867,7 +867,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const typicalMinutes=returnOnly?undefined:mixed?total:(googleTotal??(typical.trim()?Number(typical):undefined));
     const calendarMinutes=returnOnly?undefined:googleTotal??typicalMinutes;
     const reverseDuration=returnMinutes.trim()?Number(returnMinutes):
-      (returnOnly?(googleTotal??(typical.trim()?Number(typical):undefined)):calendarMinutes);
+      (returnOnly?undefined:calendarMinutes);
     // A direct itinerary may intentionally be saved as a location-only record,
     // but it must not silently look like a scheduled commute. The user has an
     // explicit secondary action for that instead of accidentally losing time.
@@ -924,15 +924,17 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               <button type="button" aria-label="Odkud vyrážím" aria-pressed={mapTarget==="origin"&&placeEditorOpen}
                 className={mapTarget==="origin"&&placeEditorOpen?"is-active":""}
                 onClick={()=>choosePlace("origin")}>
-                <small>ODKUD</small>
-                <strong>{origin?origin.label.split(",").slice(0,2).join(","):"Vybrat místo odjezdu"}</strong>
+                <small>{returnOnly?"DOMŮ":"ODKUD"}</small>
+                <strong>{origin?origin.label.split(",").slice(0,2).join(","):
+                  returnOnly?"Vybrat domov":"Vybrat místo odjezdu"}</strong>
                 <span>{origin?"Změnit místo":"Klikni pro výběr"}</span>
               </button>
               <button type="button" aria-label="Místo konání" aria-pressed={mapTarget==="destination"&&placeEditorOpen}
                 className={mapTarget==="destination"&&placeEditorOpen?"is-active":""}
                 onClick={()=>choosePlace("destination")}>
-                <small>KAM</small>
-                <strong>{destination?destination.label.split(",").slice(0,2).join(","):"Vybrat cíl cesty"}</strong>
+                <small>{returnOnly?"MÍSTO BLOKU":"KAM"}</small>
+                <strong>{destination?destination.label.split(",").slice(0,2).join(","):
+                  returnOnly?"Vybrat místo aktivity":"Vybrat cíl cesty"}</strong>
                 <span>{destination?"Změnit místo":"Klikni pro výběr"}</span>
               </button>
               {mixed&&legs.slice(0,-1).map((leg,index)=>
@@ -1029,7 +1031,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 {metroParkPresetActive?"P+R Černý Most vybráno":"Použít tuto kombinaci"}
               </button>
             </div>}
-            <p className="df2-trip-kind-help">{mixed?"Naplánuj postupně auto, MHD, chůzi a případná přestupní místa.":"Stačí vybrat jeden dopravní prostředek."}</p>
+            <p className="df2-trip-kind-help">{mixed
+              ?returnOnly
+                ?"Zadej přestupní místa od domova k aktivitě; při výpočtu návratu se pořadí obrátí. Délky úseků tam nejsou potřeba."
+                :"Naplánuj postupně auto, MHD, chůzi a případná přestupní místa."
+              :returnOnly?"Vyber dopravní prostředek pro návrat domů.":"Stačí vybrat jeden dopravní prostředek."}</p>
           {mixed?<section className="df2-travel-legs" aria-label="Úseky cesty">
             <p className="df2-trip-kind-help">Přestupní místo vybereš kliknutím na kartu výše. Minuty jsou tvůj plánovací odhad pro Jarvise, nikoli automaticky uložený čas Googlu.</p>
             {legs.map((leg,index)=>{
@@ -1081,7 +1087,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           </label>}
           </section>
           <section className="df2-trip-section" aria-label="Výpočet cesty">
-            <div className="df2-trip-section-title"><span className="df2-trip-section-number">3</span><h3>Kdy vyrazit?</h3></div>
+            <div className="df2-trip-section-title"><span className="df2-trip-section-number">3</span><h3>{returnOnly?"Výpočet návratu domů":"Kdy vyrazit?"}</h3></div>
           <div className="df2-google-route-box">
             <div className="df2-google-route-head">
               <strong>Trasa podle Google Maps</strong>
@@ -1102,7 +1108,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 {(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))&&
                   <button className="df2-trip-small-link" type="button" onClick={()=>setAccessEditorOpen(false)}>Hotovo s kódem</button>}
               </label>}
-            <div className="df2-trip-main-time">
+            {!returnOnly&&<div className="df2-trip-main-time">
               <label>Kdy chceš odjet?
                 <select aria-label="Čas odjezdu" value={departureMode}
                   onChange={e=>setDepartureMode(e.target.value as "now"|"scheduled")}>
@@ -1114,7 +1120,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 <input aria-label="Datum a čas odjezdu" type="datetime-local" value={departureLocal}
                   onChange={e=>setDepartureLocal(e.target.value)}/>
               </label>}
-            </div>
+            </div>}
+            {returnOnly&&<p className="df2-trip-kind-help">
+              Pro tento blok neplánuješ cestu tam. Výpočet návratu je v kroku 4,
+              pro čas ukončení aktivity. Google se použije pouze po kliknutí.
+            </p>}
             {(mixed||mode==="transit")&&<>
               <button type="button" className="df2-trip-more-btn" aria-expanded={advancedOpen}
                 onClick={()=>setAdvancedOpen(open=>!open)}>{advancedOpen?"Skrýt upřesnění":"Upřesnit cestu (volitelné)"} <span aria-hidden="true">{advancedOpen?"⌃":"⌄"}</span></button>
@@ -1143,10 +1153,10 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               <button type="button" className="df2-travel-use-estimate"
                 onClick={()=>setGoogleStatusRetry(n=>n+1)}>Zkusit připojení znovu</button>
             </div>:<>
-              <button type="button" className="df2-trip-calculate" onClick={()=>void calculateRoute()}
+              {!returnOnly&&<button type="button" className="df2-trip-calculate" onClick={()=>void calculateRoute()}
                 disabled={!offsite||!routeParts||googleLoading||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))}>
                 {googleLoading?"Počítám trasu…":googleEstimates?"Přepočítat trasu":"Spočítat trasu"}
-              </button>
+              </button>}
               {parkSwitchNotice&&<p className="df2-trip-inline-hint" role="status">
                 Přestupní místo je nastaveno na P+R Černý Most u metra B.
                 Klikni na „Spočítat trasu“ pro nový odhad (u kombinace dvě API volání).
@@ -1155,7 +1165,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               {!routeParts?<p className="df2-trip-inline-hint">K výpočtu vyber odkud, kam a případná přestupní místa.</p>
                 :!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess))?<p className="df2-trip-inline-hint">Pro výpočet zadej svůj osobní přístupový kód.</p>
                 :<p className="df2-trip-cost-note">Výpočet spustíš jen tlačítkem. {mixed?`Každý z ${routeParts.length} úseků spotřebuje jeden požadavek.`:"Jeden výpočet spotřebuje jeden požadavek."}</p>}
-              {googleEstimates&&<div className="df2-google-route-results" role="status">
+              {!returnOnly&&googleEstimates&&<div className="df2-google-route-results" role="status">
                 <div className="df2-trip-result-head">
                   <div><span>ODHAD CESTY</span><strong>{googleTotal} min</strong></div>
                   <div><span>VZDÁLENOST</span><strong>{((googleDistance??0)/1000).toFixed(1)} km</strong></div>
@@ -1378,7 +1388,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
             {!target.start&&<p className="df2-trip-kind-help">Blok zatím nemá začátek. Časovou rezervaci bude možné naplánovat až po stanovení začátku i konce.</p>}
           </section>
           {!mixed&&destination&&<a target="_blank" rel="noopener noreferrer"
-            href={travelDirectionsUrl(origin,destination,mode)}>Otevřít trasu v Google Maps ↗</a>}
+            href={travelDirectionsUrl(returnOnly?destination:origin,returnOnly?origin:destination,mode)}>
+            {returnOnly?"Otevřít cestu domů v Google Maps ↗":"Otevřít trasu v Google Maps ↗"}</a>}
         </>}
         {error&&<p role="alert" className="df2-travel-error">{error}</p>}
         <footer><button type="button" onClick={onClose}>Zrušit</button>
