@@ -641,7 +641,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     setMetroComparison({...comparison,chosen:which});
   }
   async function checkMetro(){
-    if(!googleEstimates||!routeParts||metroStage<0||googleLoading||metroLoading
+    if(!googleEstimates||!routeParts||metroStage<0||googleLoading||metroLoading||subwayLoading
       ||metroChecked||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
     const stage=metroStage,part=routeParts[stage];
     const alternative=googleEstimates[stage].options.slice(1).find(isMetroB);
@@ -1166,7 +1166,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                   {googleEstimates.map((part,index)=><RouteItinerary key={index} index={index}
                     estimate={part} mode={routeParts?.[index]?.mode??"driving"}
                     preference={appliedSettings.transitPreference}
-                    onChoose={routeParts?.[index]?.mode==="transit"&&index===routeParts.length-1
+                    onChoose={routeParts?.[index]?.mode==="transit"&&index===(routeParts?.length??0)-1
                       ?(optionIndex)=>chooseReturnedTransitOption(index,optionIndex):undefined}/>)}
                   <p className="df2-travel-hint">Google nemusí vrátit všechny možné spoje. Aktuální přestupy si před cestou ověř.</p>
                 </details>
