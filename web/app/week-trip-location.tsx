@@ -346,6 +346,24 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         :null
       :[{from:origin,to:destination,mode}]
     :null;
+  // A single explicit action prepares a practical car → metro interchange without
+  // querying Google. Never infer a specific service or overwrite saved plans.
+  const metroParkPresetEligible=Boolean(origin&&destination
+    &&distanceBetweenMetres(origin,CERNY_MOST_PARK)>8000
+    &&distanceBetweenMetres(destination,CERNY_MOST_PARK)<26000);
+  const metroParkPresetActive=Boolean(mixed&&legs.length===2
+    &&legs[0].mode==="driving"&&legs[1].mode==="transit"&&legs[0].via
+    &&distanceBetweenMetres(legs[0].via,CERNY_MOST_PARK)<75);
+  function chooseMetroParkPreset(){
+    setLegs(previous=>[
+      {mode:"driving",minutes:metroParkPresetActive?previous[0].minutes:"",via:CERNY_MOST_PARK},
+      {mode:"transit",minutes:metroParkPresetActive?previous[1].minutes:""},
+    ]);
+    setMixed(true);
+    setMapTarget("destination");
+    setPlaceEditorOpen(false);
+    setParkSwitchNotice(true);
+  }
   const metroParkingAlternative=Boolean(mixed&&legs.length===2&&legs[0].mode==="driving"
     &&legs[1].mode==="transit"&&legs[0].via&&destination
     &&distanceBetweenMetres(legs[0].via,CERNY_MOST_PARK)<8000
@@ -480,11 +498,14 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
       &&distanceBetweenMetres(part.to,CERNY_MOST_PARK)<26000)
     :-1;
   const metroPrimary=metroStage>=0?googleEstimates?.[metroStage]?.options[0]:undefined;
-  const isMetro=(option:RouteOption)=>option.steps.some(step=>
-    step.kind==="transit"&&transitPresentation(step.vehicle,step.line).label==="Metro");
-  const existingMetroOption=metroStage>=0?googleEstimates?.[metroStage]?.options.slice(1).find(isMetro):undefined;
+  // Černý Most connects to metro B. A ride on metro A or C must not be
+  // described as a verified B alternative, even if Google returned SUBWAY.
+  const isMetroB=(option:RouteOption)=>option.steps.some(step=>
+    step.kind==="transit"&&transitPresentation(step.vehicle,step.line).label==="Metro"
+    &&/^(?:METRO\\s*)?B$/i.test((step.line??"").trim()));
+  const existingMetroOption=metroStage>=0?googleEstimates?.[metroStage]?.options.slice(1).find(isMetroB):undefined;
   const metroOpportunity=metroStage>=0&&Boolean(metroPrimary)&&
-    (Boolean(metroComparison)||!isMetro(metroPrimary!)||metroPrimary!.transfers>=2);
+    (Boolean(metroComparison)||!isMetroB(metroPrimary!)||metroPrimary!.transfers>=2);
   function chooseMetro(stage:number,metro:RouteEstimate){
     if(!googleEstimates)return;
     const original=googleEstimates[stage];
@@ -503,7 +524,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     if(!googleEstimates||!routeParts||metroStage<0||googleLoading||metroLoading
       ||metroChecked||!googleAvailable||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
     const stage=metroStage,part=routeParts[stage];
-    const alternative=googleEstimates[stage].options.slice(1).find(isMetro);
+    const alternative=googleEstimates[stage].options.slice(1).find(isMetroB);
     if(alternative){
       chooseMetro(stage,{...googleEstimates[stage],
         minutes:alternative.minutes,distanceMeters:alternative.distanceMeters,
@@ -539,9 +560,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         setMetroMessage(result.error??"Google metro nyní nedokáže ověřit.");
         return;
       }
-      const metroRoute=result.options?.find(isMetro);
+      const metroRoute=result.options?.find(isMetroB);
       if(!metroRoute){
-        setMetroMessage("Google ani s preferencí metra B nenabídl ověřenou trasu metrem. Zkus P+R přímo u stanice nebo otevři spojení v Google Maps.");
+        setMetroMessage("Google ani s preferencí metra nenabídl ověřenou trasu linkou B. Zkus P+R přímo u stanice nebo otevři spojení v Google Maps.");
         return;
       }
       const metro:RouteEstimate={minutes:metroRoute.minutes,
@@ -649,6 +670,15 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
                 onClick={()=>{setMixed(true);setPlaceEditorOpen(false);}}>Kombinovaná cesta</button>
             </div>
+            {metroParkPresetEligible&&<div className="df2-trip-quick-route" role="group" aria-label="Rychlá volba cesty">
+              <div><strong>🚗 Auto → P+R Černý Most → MHD</strong>
+                <p>Jedním kliknutím nastavíš přestup u metra B. Google pak ověří skutečný spoj, dobu i chůzi.</p>
+              </div>
+              <button type="button" aria-pressed={metroParkPresetActive}
+                onClick={chooseMetroParkPreset} disabled={metroParkPresetActive}>
+                {metroParkPresetActive?"P+R Černý Most vybráno":"Použít tuto kombinaci"}
+              </button>
+            </div>}
             <p className="df2-trip-kind-help">{mixed?"Naplánuj postupně auto, MHD, chůzi a případná přestupní místa.":"Stačí vybrat jeden dopravní prostředek."}</p>
           {mixed?<section className="df2-travel-legs" aria-label="Úseky cesty">
             <p className="df2-trip-kind-help">Přestupní místo vybereš kliknutím na kartu výše. Minuty jsou tvůj plánovací odhad pro Jarvise, nikoli automaticky uložený čas Googlu.</p>
