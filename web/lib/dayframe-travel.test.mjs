@@ -192,6 +192,9 @@ test("parking discovery reports real OSM fee states and filters private spaces",
       {type:"way",id:104,center:{lat:49.744,lon:13.384},tags:{name:"Neznámý tarif",fee:"yes",charge:"různé"}},
       {type:"way",id:105,center:{lat:49.745,lon:13.385},tags:{name:"Podmíněná zdarma",fee:"no","fee:conditional":"yes @ (Mo-Fr 08:00-18:00)"}},
       {type:"node",id:106,lat:49.746,lon:13.386,tags:{name:"Zákaznické",access:"customers",fee:"yes"}},
+      {type:"node",id:107,lat:49.745,lon:13.383,tags:{name:"Soukromá pro auta",motor_vehicle:"private",fee:"no"}},
+      {type:"node",id:108,lat:49.745,lon:13.383,tags:{name:"Pro držitele povolení",motorcar:"permit",fee:"no"}},
+      {type:"node",id:109,lat:49.745,lon:13.383,tags:{name:"Bez vjezdu aut",vehicle:"no",fee:"no"}},
     ]});
   };
   try{
