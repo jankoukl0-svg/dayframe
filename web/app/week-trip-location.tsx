@@ -1326,7 +1326,13 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
                 checked={returnOnly}
                 onChange={e=>{
                   setReturnOnly(e.target.checked);
-                  if(e.target.checked)setReturnHome(true);
+                  if(e.target.checked){
+                    setReturnHome(true);
+                    // A previous round trip may have saved its outward duration as
+                    // a fallback return estimate. Never silently inherit it.
+                    setReturnMinutes("");
+                    setReturnVerified(false);
+                  }
                 }}/>
               <span><strong>Pouze cesta domů (bez cesty tam)</strong>
                 <small>V Týdnu se zablokuje jen čas po skončení aktivity. Před ní nebude žádná cesta.</small></span>
