@@ -49,9 +49,11 @@ function parseElements(json:unknown,center:Point):Parking[]{
     if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat!)>90||Math.abs(lon!)>180)continue;
     if(!["node","way","relation"].includes(el.type??"")||
       !Number.isSafeInteger(el.id)||Number(el.id)<=0)continue;
-    const access=tags.access??"unknown";
+    // OSM vehicle access follows motorcar → motor_vehicle → vehicle → access.
+    // A more specific motorcar permission can override a general restriction.
+    const access=tags.motorcar??tags.motor_vehicle??tags.vehicle??tags.access??"unknown";
     if(["private","no","permit","delivery","agricultural","forestry"].includes(access)
-      ||tags.parking==="private"||tags["motorcar"]==="no")continue;
+      ||tags.parking==="private")continue;
     const name=(tags.name||tags.operator||"Parkoviště").trim().slice(0,120);
     const p={lat:lat!,lon:lon!};
     const kind=tags.parking??"surface";
