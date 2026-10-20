@@ -47,7 +47,7 @@ import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGy
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
-import {readTravelStore,saveTravelStore,travelBlockKey,liveTravelTaskKeys,
+import {readTravelStore,saveTravelStore,travelBlockKey,liveTravelTaskKeys,travelDuration,
   travelReservationsForDay,type TravelCalendarEvent,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 
 const STORAGE_KEY = "dayframe-v1";
@@ -214,13 +214,19 @@ export function DayframeV2() {
   }
   function travelPin(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,
     top:number,lane?:{left:string;width:string},end?:string){
-    const key=travelBlockKey(kind,id,date),assigned=Boolean(travelStore.blocks[key]);
-    return <button type="button" className={"df2-week-location-btn"+(assigned?" has-location":"")}
+    const key=travelBlockKey(kind,id,date),saved=travelStore.blocks[key];
+    const assigned=Boolean(saved);
+    const minutes=saved?(saved.calendarMinutes??travelDuration(saved)):undefined;
+    const missingDuration=assigned&&(!Number.isInteger(minutes)||minutes!<=0);
+    return <button type="button" className={"df2-week-location-btn"+(assigned?" has-location":"")+
+        (missingDuration?" needs-travel-duration":"")}
       key={"loc-"+key} aria-label={"Místo konání: "+title}
-      title={"Místo konání – "+title} data-week-place={key}
+      title={missingDuration
+        ?"Místo konání – "+title+" · Doplň dobu cesty, jinak se v Týdnu nerezervuje"
+        :"Místo konání – "+title} data-week-place={key}
       style={{top:top+3,...(lane?{left:"calc("+lane.left+" + "+lane.width+" - 25px)",right:"auto"}:{})}}
       onClick={e=>{e.stopPropagation();openTrip(kind,id,date,title,start,false,end);}}>
-      {assigned?"📍":"⌖"}
+      {missingDuration?"⏱":assigned?"📍":"⌖"}
     </button>;
   }
   const [editingCare, setEditingCare] = useState<{ date: string; id: WeekCareId; duration: number; title: string } | null>(null);
