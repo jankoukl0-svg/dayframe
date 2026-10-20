@@ -785,6 +785,10 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const journeyDeparture=googleEstimates?.[0]?.departureISO;
   const journeyArrival=journeyDeparture&&googleTotal!==undefined
     ?new Date(Date.parse(journeyDeparture)+googleTotal*60000).toISOString():undefined;
+  const calendarMinutes=googleTotal??(mixed
+    ?legs.every(leg=>Number.isInteger(Number(leg.minutes))&&Number(leg.minutes)>0)
+      ?legs.reduce((total,leg)=>total+Number(leg.minutes),0):undefined
+    :typical.trim()&&Number.isInteger(Number(typical))&&Number(typical)>0?Number(typical):undefined);
   /** Reverse each actual leg as a new Google query. Not a mathematically
    * reversible ETA: transit schedules/traffic can differ after the event.
    * Never request automatically or bypass the existing Redis quotas.
