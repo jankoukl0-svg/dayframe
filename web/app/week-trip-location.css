@@ -322,3 +322,10 @@
 .df2-trip-calendar-missing strong{display:block;color:#a35531;font-size:12px}
 .df2-travel-dialog footer .df2-travel-location-only{border:1px solid var(--line-strong);background:var(--paper);color:var(--ink-soft)}
 @media(max-width:480px){.df2-travel-dialog footer{flex-wrap:wrap}.df2-travel-dialog footer button{min-height:38px}}
+
+/* Independent return-only choice. Uses the same low-noise pattern as the round-trip switch. */
+.df2-trip-only-return-toggle{display:flex!important;align-items:flex-start!important;gap:10px;padding:12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--paper)}
+.df2-trip-only-return-toggle input{width:18px!important;height:18px!important;flex:0 0 18px;margin:1px 0}
+.df2-trip-only-return-toggle>span{display:grid;gap:4px}
+.df2-trip-only-return-toggle strong{font-size:12px;color:var(--ink)}
+.df2-trip-only-return-toggle small{color:var(--muted);font-size:11px;font-weight:500;line-height:1.45}

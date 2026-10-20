@@ -962,6 +962,58 @@ test("legacy location-only direct trips never invent travel time and remain edit
   store.blocks["task:english"].typicalMinutes=27;
   assert.equal(travelReservationsForDay(store,"2026-10-20",events)[0].duration,42);
 });
+test("return-only travel reserves only minutes after event without an outbound duration",()=>{
+  for(const mode of ["driving","walking","cycling","transit"]){
+    const store=emptyTravelStore();
+    store.blocks["task:lesson"]={place,mode,bufferMinutes:15,outboundEnabled:false,
+      returnHome:true,returnMinutes:42,returnVerified:true,
+      title:"Běžná angličtina",date:"2026-10-20",start:"14:00"};
+    const events=[{key:"task:lesson",date:"2026-10-20",
+      start:"14:00",end:"15:30",title:"Běžná angličtina"}];
+    assert.deepEqual(travelReservationsForDay(store,"2026-10-20",events).map(r=>[
+      r.direction,r.start,r.end,r.estimated]),[["return",930,972,false]]);
+    assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+    assert.equal(upcomingTravelTrips(store,new Date("2026-10-20T13:00:00"),[
+      {id:"lesson",date:"2026-10-20",start:"14:00",title:"Běžná angličtina",completed:false},
+    ]).length,0,"return-only must not advise leaving home");
+    const shifted=travelReservationsForDay(store,"2026-10-21",
+      [{...events[0],date:"2026-10-21",start:"16:00",end:"17:30"}]);
+    assert.deepEqual(shifted.map(r=>[r.start,r.end]),[[1050,1092]]);
+  }
+});
+test("return-only combined route stores geometry without requiring outbound leg times",()=>{
+  const store=emptyTravelStore();
+  store.blocks["task:lesson"]={place,mode:"driving",bufferMinutes:15,outboundEnabled:false,
+    returnHome:true,returnMinutes:51,returnVerified:false,title:"Škola",
+    date:"2026-10-20",start:"14:00",
+    pathLegs:[{mode:"driving",via:{lat:50.11,lon:14.58,label:"P+R"}},
+      {mode:"transit"}]};
+  const read=parseTravelStore(JSON.stringify(store));
+  assert.equal(read.blocked,false);
+  assert.deepEqual(read.store.blocks["task:lesson"].pathLegs,store.blocks["task:lesson"].pathLegs);
+  assert.deepEqual(travelReservationsForDay(store,"2026-10-20",
+    [{key:"task:lesson",date:"2026-10-20",start:"14:00",end:"15:30",title:"Škola"}]
+  ).map(r=>[r.direction,r.duration]),[["return",51]]);
+});
+test("return-only invalid configurations fail closed without rewriting stored travel",()=>{
+  const normal={place,mode:"driving",bufferMinutes:15,outboundEnabled:false,
+    returnHome:true,returnMinutes:25,title:"Škola",date:"2026-10-20",start:"14:00"};
+  for(const change of [
+    {returnHome:false},{returnMinutes:undefined},{calendarMinutes:30},
+    {typicalMinutes:30},{legs:[{mode:"driving",minutes:30}]},
+    {pathLegs:[{mode:"driving",via:{lat:50.1,lon:14.6,label:"Parkoviště"}},{mode:"walk"}]},
+    {pathLegs:[{mode:"driving"},{mode:"walking"}]},
+    {pathLegs:[{mode:"walking",via:{lat:50.1,lon:14.6,label:"P+R"}},{mode:"transit"}]},
+  ]){
+    const entry={...normal,...change};
+    const store=emptyTravelStore();store.blocks["task:bad"]=entry;
+    assert.equal(parseTravelStore(JSON.stringify(store)).blocked,true,JSON.stringify(change));
+  }
+  const legacy=emptyTravelStore();
+  legacy.blocks["task:ok"]={place,mode:"driving",bufferMinutes:10,typicalMinutes:30,
+    returnHome:true,returnMinutes:30,title:"Běžná cesta",date:"2026-10-20",start:"14:00"};
+  assert.equal(parseTravelStore(JSON.stringify(legacy)).blocked,false);
+});
 test("travel calendar projects Google outbound minutes before event and optional reverse ride after",()=>{
   const store=emptyTravelStore();
   store.blocks["task:english"]={place,mode:"driving",bufferMinutes:10,typicalMinutes:55,calendarMinutes:48,
