@@ -687,8 +687,8 @@ test("balanced comfort ranking prefers metro-to-metro over mixed transit for sim
     const transit=(line,type)=>({travelMode:"TRANSIT",transitDetails:{
       transitLine:{nameShort:line,vehicle:{type}}
     }});
-    globalThis.fetch=async(url)=>{
-      if(String(url)===TEST_REDIS_URL)return redis.fetch(url);
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
       return Response.json({routes:[
         {duration:"2400s",distanceMeters:12000,legs:[{steps:[
           {travelMode:"WALK",distanceMeters:300},transit("B","SUBWAY"),
