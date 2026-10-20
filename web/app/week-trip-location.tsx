@@ -840,7 +840,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         " Původní odhad lze použít bez dalšího volání.");
     }finally{if(!controller.signal.aborted)setReverseLoading(false);}
   }
-  function submit(){
+  function submit(locationOnly=false){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
     // Removing a trip must never depend on unsaved or incomplete leg drafts.
@@ -865,6 +865,17 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const typicalMinutes=mixed?total:(googleTotal??(typical.trim()?Number(typical):undefined));
     const calendarMinutes=googleTotal??typicalMinutes;
     const reverseDuration=returnMinutes.trim()?Number(returnMinutes):calendarMinutes;
+    // A direct itinerary may intentionally be saved as a location-only record,
+    // but it must not silently look like a scheduled commute. The user has an
+    // explicit secondary action for that instead of accidentally losing time.
+    if(!mixed&&origin&&target.start&&target.end&&typicalMinutes===undefined&&!locationOnly){
+      setError("Přímá cesta zatím nemá délku. Klikni na „Spočítat trasu“ nebo vyplň „Můj běžný čas cesty“. Bez času se cesta v Týdnu nezobrazí. Chceš-li uložit jen místo, použij samostatné tlačítko.");
+      return;
+    }
+    if(returnHome&&locationOnly){
+      setError("Při zpáteční cestě musí být určená délka cesty tam. Nejdřív ji spočítej nebo zadej ručně.");
+      return;
+    }
     if(returnHome&&(!origin||!target.start||!target.end||!Number.isInteger(reverseDuration)
       ||reverseDuration!<1||reverseDuration!>1440)){
       setError("Pro zpáteční cestu nastav čas začátku a konce bloku a platnou délku cesty domů.");return;
@@ -1303,6 +1314,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               Cesta tam bude v Týdnu vyhrazena na <strong>{calendarMinutes}+{buffer} min</strong>
               (cesta + rezerva) bezprostředně před začátkem bloku. Doba z Googlu se uloží až po kliknutí na „Uložit místo“.
             </p>}
+            {!mixed&&calendarMinutes===undefined&&<p className="df2-trip-calendar-missing" role="status">
+              <strong>Chybí délka přímé cesty.</strong> Bez ní nelze v Týdnu rezervovat čas.
+              Použij tlačítko „Spočítat trasu“ (placený API požadavek jen na kliknutí)
+              nebo zadej obvyklou dobu cesty ručně. Platí pro auto, MHD, chůzi i kolo.
+            </p>}
             <div className="df2-trip-return">
               <label className="df2-trip-return-toggle">
                 <input type="checkbox" aria-label="Přidat cestu domů po skončení bloku"
@@ -1338,7 +1354,10 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
         </>}
         {error&&<p role="alert" className="df2-travel-error">{error}</p>}
         <footer><button type="button" onClick={onClose}>Zrušit</button>
-          <button type="button" className="df2-travel-save" onClick={submit}>Uložit místo</button></footer>
+          {offsite&&!mixed&&origin&&target.start&&target.end&&calendarMinutes===undefined&&!returnHome&&
+            <button type="button" className="df2-travel-location-only"
+              onClick={()=>submit(true)}>Uložit pouze místo (bez cesty)</button>}
+          <button type="button" className="df2-travel-save" onClick={()=>submit()}>Uložit místo</button></footer>
       </>}
     </section>
   </div>;
