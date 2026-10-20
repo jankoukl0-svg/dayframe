@@ -1005,7 +1005,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
             <div className="df2-trip-section-title"><span className="df2-trip-section-number">2</span><h3>Jak pojedeš?</h3></div>
             <div className="df2-travel-kind" role="group" aria-label="Typ cesty">
               <button type="button" aria-pressed={!mixed} className={!mixed?"is-active":""}
-                onClick={()=>{setMixed(false);setMapTarget("destination");setPlaceEditorOpen(false);}}>Jednoduchá cesta</button>
+                onClick={()=>{if(mixed){setTypical("");setReturnMinutes("");setReturnVerified(false);}
+                  setMixed(false);setMapTarget("destination");setPlaceEditorOpen(false);}}>Jednoduchá cesta</button>
               <button type="button" aria-pressed={mixed} className={mixed?"is-active":""}
                 onClick={()=>{setMixed(true);setPlaceEditorOpen(false);}}>Kombinovaná cesta</button>
             </div>
@@ -1063,7 +1064,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               ?legs.reduce((sum,leg)=>sum+Number(leg.minutes),0)+" min":"doplň časy úseků"}.</p>
           </section>:<label className="df2-travel-single-mode">Způsob dopravy
             <select aria-label="Způsob dopravy" value={mode}
-              onChange={e=>setMode(e.target.value as TravelMode)}>
+              onChange={e=>{if(e.target.value!==mode){setTypical("");setReturnMinutes("");setReturnVerified(false);}
+                setMode(e.target.value as TravelMode);}}>
               {Object.entries(TRAVEL_MODE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </label>}
