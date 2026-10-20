@@ -419,6 +419,114 @@ test("explicit Google calculation supplies persisted Week travel slot without sa
   await expect(page.locator("[data-week-travel]")).toHaveCount(1);
   await expect(page.locator("[data-week-travel]")).toContainText("Cesta tam");
 });
+for(const mode of ["driving","walking","cycling","transit"]){
+  test("only home by "+mode+" reserves no outbound time, survives reload and allows later round trip",async({page})=>{
+    const title="Domů jen "+mode;
+    await makeTask(page,title);await openTaskPlace(page,title);
+    const editor=page.getByRole("dialog",{name:"Místo konání: "+title});
+    await editor.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+    await setMapPoint(editor,50.08,14.43,"Škola");
+    await editor.getByRole("button",{name:"Odkud vyrážím"}).click();
+    await setMapPoint(editor,50.4,14.7,"Domov");
+    await editor.getByRole("combobox",{name:"Způsob dopravy"}).selectOption(mode);
+    await editor.getByRole("checkbox",{name:"Pouze cesta domů (bez cesty tam)"}).check();
+    await expect(editor.getByRole("checkbox",{name:"Přidat cestu domů po skončení bloku"})).toBeChecked();
+    await expect(editor.getByRole("spinbutton",{name:"Obvyklá doba cesty"})).toHaveCount(0);
+    await editor.getByRole("button",{name:"Uložit místo",exact:true}).click();
+    await expect(editor.getByRole("alert")).toContainText("platnou dobu návratu");
+    await editor.getByRole("spinbutton",{name:"Doba cesty domů"}).fill("32");
+    await editor.getByRole("button",{name:"Uložit místo",exact:true}).click();
+    const reservations=page.locator(".df2-week-day").last().locator("[data-week-travel]");
+    await expect(reservations).toHaveCount(1);
+    await expect(reservations).toContainText("Cesta domů");
+    await expect(reservations).toContainText("10:45–11:17");
+    await expect(page.locator("[data-week-travel$='outbound']")).toHaveCount(0);
+    const stored=await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem("dayframe-travel-v1")).blocks)[0]);
+    expect(stored).toMatchObject({outboundEnabled:false,returnHome:true,returnMinutes:32,mode});
+    expect(stored).not.toHaveProperty("typicalMinutes");
+    expect(stored).not.toHaveProperty("calendarMinutes");
+    await expect(page.getByRole("button",{name:"Místo konání: "+title})).not.toHaveClass(/needs-travel-duration/);
+    await page.reload({waitUntil:"networkidle"});
+    await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+    await expect(page.locator("[data-week-travel]")).toHaveCount(1);
+    await openTaskPlace(page,title);
+    const reopened=page.getByRole("dialog",{name:"Místo konání: "+title});
+    await expect(reopened.getByRole("checkbox",{name:"Pouze cesta domů (bez cesty tam)"})).toBeChecked();
+    await reopened.getByRole("checkbox",{name:"Pouze cesta domů (bez cesty tam)"}).uncheck();
+    await reopened.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("22");
+    await reopened.getByRole("button",{name:"Uložit místo",exact:true}).click();
+    await expect(page.locator("[data-week-travel]")).toHaveCount(2);
+  });
+}
+test("only home Google calculation reverses the trip without calculating outbound",async({page})=>{
+  const calls=[];
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    calls.push(route.request().postDataJSON());
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      minutes:29,distanceMeters:14000,trafficAware:true,
+      options:[{minutes:29,distanceMeters:14000,steps:[],transfers:0,walkingMeters:0}]
+    })});
+  });
+  const title="Pouze domů s Googlem";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const editor=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await editor.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(editor,50.08,14.43,"Škola");
+  await editor.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(editor,50.4,14.7,"Domov");
+  await editor.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await editor.getByRole("checkbox",{name:"Pouze cesta domů (bez cesty tam)"}).check();
+  await expect(editor.getByRole("button",{name:"Spočítat trasu",exact:true})).toHaveCount(0);
+  await expect(editor.getByRole("button",{name:/Spočítat zpáteční trasu/})).toBeVisible();
+  await editor.getByRole("button",{name:/Spočítat zpáteční trasu/}).click();
+  await expect(editor.getByRole("spinbutton",{name:"Doba cesty domů"})).toHaveValue("29");
+  expect(calls).toHaveLength(1);
+  expect(calls[0].from).toEqual({lat:50.08,lon:14.43});
+  expect(calls[0].to).toEqual({lat:50.4,lon:14.7});
+  expect(calls[0].mode).toBe("driving");
+  await editor.getByRole("button",{name:"Uložit místo",exact:true}).click();
+  const saved=await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem("dayframe-travel-v1")).blocks)[0]);
+  expect(saved).toMatchObject({outboundEnabled:false,returnHome:true,returnMinutes:29,returnVerified:true});
+  expect(saved).not.toHaveProperty("calendarMinutes");
+  await expect(page.locator("[data-week-travel]")).toHaveCount(1);
+  await expect(page.locator("[data-week-travel]")).toContainText("10:45–11:14");
+  expect(calls).toHaveLength(1,"saving return-only journey must not bill again");
+});
+test("mixed return-only itinerary needs no outward per-leg minutes and keeps interchange on reopen",async({page})=>{
+  const title="Z knihovny přes metro domů";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const editor=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await editor.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(editor,50.08,14.43,"Knihovna");
+  await editor.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(editor,50.4,14.7,"Domov");
+  await editor.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await editor.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(editor,50.11,14.58,"P+R");
+  await editor.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await editor.getByRole("checkbox",{name:"Pouze cesta domů (bez cesty tam)"}).check();
+  await editor.getByRole("spinbutton",{name:"Doba cesty domů"}).fill("44");
+  await editor.getByRole("button",{name:"Uložit místo",exact:true}).click();
+  const store=await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem("dayframe-travel-v1")).blocks)[0]);
+  expect(store).toMatchObject({outboundEnabled:false,returnHome:true,returnMinutes:44});
+  expect(store).not.toHaveProperty("legs");
+  expect(store.pathLegs).toEqual([
+    {mode:"driving",via:{lat:50.11,lon:14.58,label:"P+R"}},
+    {mode:"transit"}
+  ]);
+  await expect(page.locator("[data-week-travel]")).toHaveCount(1);
+  await expect(page.locator("[data-week-travel]")).toContainText("10:45–11:29");
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await openTaskPlace(page,title);
+  const reopened=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await expect(reopened.getByRole("button",{name:"Kombinovaná cesta"})).toHaveAttribute("aria-pressed","true");
+  await expect(reopened.getByRole("button",{name:"Zastávka 1"})).toContainText("P+R");
+  await expect(reopened.getByRole("spinbutton",{name:"Délka úseku 1"})).toHaveValue("");
+  await expect(reopened.getByRole("spinbutton",{name:"Délka úseku 2"})).toHaveValue("");
+});
 test("Google return journey reverses the endpoints, saves separate duration and adds both Week blocks",async({page})=>{
   const calls=[];
   await page.route("**/api/google-travel",route=>{
