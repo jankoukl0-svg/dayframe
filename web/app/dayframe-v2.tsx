@@ -117,6 +117,11 @@ function longDate(key: string) {
   return new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(key));
 }
 
+function travelClock(total:number){
+  const minute=((Math.round(total)%1440)+1440)%1440;
+  return String(Math.floor(minute/60)).padStart(2,"0")+":"+String(minute%60).padStart(2,"0");
+}
+
 function totalMinutes(items: CalendarTask[]) {
   return items.filter((task) => task.start && task.end).reduce((sum, task) => sum + task.duration, 0);
 }
@@ -975,7 +980,7 @@ export function DayframeV2() {
                               setTripTarget({key:res.key,date:key,title:res.title,
                                 start:src?.start??"",end:src?.end});}}>
                             {res.direction==="outbound"?"Cesta tam":"Cesta domů"} · {res.title} ·
-                            {minutesToTime(res.start)}–{minutesToTime(res.end)}
+                            {travelClock(res.start)}–{travelClock(res.end)}
                           </button>)}
                         </div>}
                         <div
@@ -1008,7 +1013,7 @@ export function DayframeV2() {
                             const source=travelEvents.find(e=>e.key===reservation.key);
                             const dir=reservation.direction==="outbound"?"Cesta tam":"Cesta domů";
                             const label=dir+" · "+reservation.title;
-                            const range=minutesToTime(reservation.start)+"–"+minutesToTime(reservation.end);
+                            const range=travelClock(reservation.start)+"–"+travelClock(reservation.end);
                             return <button key={"travel:"+reservation.id} type="button"
                               data-week-travel={reservation.id}
                               className={"df2-week-travel"+(reservation.estimated?" is-estimate":"")}
