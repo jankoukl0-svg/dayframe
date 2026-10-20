@@ -8,7 +8,7 @@ export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
 export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; scheduledTime?:GymTime; exercises: GymSessionExercise[] };
-export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string>; occurrenceTimes?: Record<string,GymTime> };
+export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string>; occurrenceTimes?: Record<string,GymTime>; deletedOccurrences?:string[] };
 export type GymOccurrence = { key: string; planId: string; dayId: string; name: string; date: string; originalDate: string; completed: boolean; session: GymSession | null };
 export type GymTime = {start:string|null;duration:number};
 
@@ -113,7 +113,7 @@ export function extendGymExerciseCatalog(store: GymStore): GymStore {
 }
 
 export function emptyGymStore(): GymStore {
-  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [], sessions: [], moves: {}, occurrenceTimes: {} };
+  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [],  sessions: [], moves: {}, occurrenceTimes: {}, deletedOccurrences: [] };
 }
 const str = (value: unknown, max=300) => typeof value === "string" && value.length <= max;
 const num = (value: unknown, min: number, max: number) => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
@@ -170,6 +170,16 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
       || !distinct(s.activations.map(x=>({id:x.effectiveFrom})))
       || s.activations.some(x=>!x||!dateValid(x.effectiveFrom)||!(x.planId===null || str(x.planId,100))))) throw Error("activations");
     for(const [key,date] of Object.entries(s.moves)) if(!str(key,300)||!dateValid(date)) throw Error("move");
+    // Optional tombstones keep past single-occurrence removals stable without
+    // mutating the recurring plan or its historical schedule revisions.
+    if(s.deletedOccurrences!==undefined){
+      if(!Array.isArray(s.deletedOccurrences)
+        ||s.deletedOccurrences.length>20000
+        ||new Set(s.deletedOccurrences).size!==s.deletedOccurrences.length
+        ||s.deletedOccurrences.some(key=>typeof key!=="string"||key.length>300
+          ||key.split("|").length!==3||!key.split("|")[0]||!key.split("|")[1]
+          ||!dateValid(key.split("|")[2])))throw Error("deleted occurrences");
+    }
     if(s.occurrenceTimes!==undefined){
       if(!s.occurrenceTimes||typeof s.occurrenceTimes!=="object"||Array.isArray(s.occurrenceTimes))throw Error("occurrence times");
       for(const [key,time] of Object.entries(s.occurrenceTimes)){
@@ -306,6 +316,7 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   const result:GymOccurrence[]=[];
   const append=(plan:GymPlan,day:GymPlanDay,origin:string)=>{
     const key=occurrenceKey(plan.id,day.id,origin);
+    if(store.deletedOccurrences?.includes(key))return;
     // A move was validated when saved. Subsequent changes to the recurring
     // weekday must not silently erase that one-off date assignment.
     const explicitMove=Object.prototype.hasOwnProperty.call(store.moves,key)&&store.moves[key]===date;
@@ -329,13 +340,31 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
   }
   // Sessions are factual history even when the plan was later deactivated,
   // removed or assigned a new weekday. Never hide a recorded completion.
-  for(const session of store.sessions.filter(s=>s.date===date)){
+  for(const session of store.sessions.filter(s=>s.date===date
+    &&!store.deletedOccurrences?.includes(s.occurrenceKey))){
     if(result.some(x=>x.key===session.occurrenceKey))continue;
     const originalDate=session.occurrenceKey.split("|")[2]??date;
     result.push({key:session.occurrenceKey,planId:session.planId,dayId:session.dayId,
       name:session.title,date,originalDate,completed:!!session.completedAt,session});
   }
   return result.sort((a,b)=>a.name.localeCompare(b.name,"cs")||a.key.localeCompare(b.key));
+}
+/** Delete exactly one scheduled/historical workout, including its logged sets and
+ * progress contribution. The original recurring template remains untouched.
+ * A tombstone prevents the removed past occurrence from being recreated.
+ */
+export function deleteGymOccurrence(store:GymStore,key:string,date:string):GymStore{
+  if(!dateValid(date)||store.deletedOccurrences?.includes(key)
+    ||!assignmentsOnDate(store,date).some(o=>o.key===key))return store;
+  const moves={...store.moves};
+  delete moves[key];
+  const occurrenceTimes={...(store.occurrenceTimes??{})};
+  delete occurrenceTimes[key];
+  return {...store,
+    sessions:store.sessions.filter(session=>session.occurrenceKey!==key),
+    moves,occurrenceTimes,
+    deletedOccurrences:[...(store.deletedOccurrences??[]),key],
+  };
 }
 export function moveOccurrence(store:GymStore,key:string,target:string):GymStore {
   const [planId,dayId,origin,...rest]=key.split("|");
