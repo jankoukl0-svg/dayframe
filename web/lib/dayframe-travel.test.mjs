@@ -162,6 +162,72 @@ test("invalid multi-stage routes are blocked without discarding valid legacy dat
   assert.equal(isBlocked(original),false);
 });
 
+test("parking discovery validates bounded worldwide queries without provider calls",async()=>{
+  const {GET}=await import("../api/parking.ts");
+  const previous=globalThis.fetch;
+  let calls=0;
+  globalThis.fetch=()=>{calls++;throw Error("Should not call Overpass")};
+  try{
+    for(const invalid of ["?lat=999&lon=14","?lat=50&lon=x","?lat=50&lon=14&radius=99999",
+      "?lat=NaN&lon=14","?lon=14"]){
+      const response=await GET(new Request("https://example.test/api/parking"+invalid));
+      assert.equal(response.status,400);
+    }
+    assert.equal(calls,0);
+  }finally{globalThis.fetch=previous;}
+});
+
+test("parking discovery reports real OSM fee states and filters private spaces",async()=>{
+  const {GET}=await import("../api/parking.ts");
+  const previous=globalThis.fetch;
+  const calls=[];
+  globalThis.fetch=async(url,options)=>{
+    calls.push({url,options});
+    assert.equal(url,"https://overpass-api.de/api/interpreter");
+    assert.match(String(options.body),/amenity/);
+    return Response.json({elements:[
+      {type:"node",id:101,lat:49.7400,lon:13.3800,tags:{name:"Placená garáž",fee:"yes",charge:"35 CZK/hour",parking:"multi-storey"}},
+      {type:"node",id:102,lat:49.7420,lon:13.3810,tags:{name:"Zdarma",fee:"no"}},
+      {type:"node",id:103,lat:49.7430,lon:13.3830,tags:{name:"Pouze pro rezidenty",fee:"no",access:"private"}},
+      {type:"way",id:104,center:{lat:49.744,lon:13.384},tags:{name:"Neznámý tarif",fee:"yes",charge:"různé"}},
+      {type:"way",id:105,center:{lat:49.745,lon:13.385},tags:{name:"Podmíněná zdarma",fee:"no","fee:conditional":"yes @ (Mo-Fr 08:00-18:00)"}},
+      {type:"node",id:106,lat:49.746,lon:13.386,tags:{name:"Zákaznické",access:"customers",fee:"yes"}},
+    ]});
+  };
+  try{
+    const url="https://example.test/api/parking?lat=49.74&lon=13.38&radius=1800";
+    const result=await GET(new Request(url));
+    assert.equal(result.status,200);
+    const body=await result.json();
+    assert.equal(body.source,"OpenStreetMap");
+    assert.equal(body.items.length,5);
+    assert.deepEqual(body.items.find(p=>p.id==="node:101").price,
+      {kind:"hourly",label:"35 CZK/hod",amount:35,currency:"CZK"});
+    assert.equal(body.items.find(p=>p.id==="node:102").price.kind,"free");
+    assert.equal(body.items.find(p=>p.id==="way:104").price.kind,"paid");
+    assert.equal(body.items.find(p=>p.id==="way:105").price.kind,"paid");
+    assert.equal(body.items.find(p=>p.id==="node:106").access,"customers");
+    assert.equal(calls.length,1);
+    assert.equal((await GET(new Request(url))).status,200);
+    assert.equal(calls.length,1,"nearby searches should reuse cache, not overload public Overpass");
+    // Different location must be queried independently, not tied to Prague.
+    const result2=await GET(new Request("https://example.test/api/parking?lat=49.75&lon=13.4&radius=4000"));
+    assert.equal(result2.status,200);
+    assert.equal(calls.length,2);
+  }finally{globalThis.fetch=previous;}
+});
+
+test("parking discovery degrades safely when Overpass is unavailable",async()=>{
+  const {GET}=await import("../api/parking.ts");
+  const previous=globalThis.fetch;
+  globalThis.fetch=async()=>Response.json({error:"not available"},{status:429});
+  try{
+    const res=await GET(new Request("https://example.test/api/parking?lat=42.772&lon=12.991&radius=1800"));
+    assert.equal(res.status,503);
+    assert.match((await res.json()).error,/OpenStreetMap/);
+  }finally{globalThis.fetch=previous;}
+});
+
 const TEST_REDIS_URL="https://route-budget-test.upstash.io";
 function withBudgetEnv(fn){
   const keys=["GOOGLE_MAPS_ROUTES_API_KEY","DAYFRAME_ROUTES_ACCESS_TOKEN",
