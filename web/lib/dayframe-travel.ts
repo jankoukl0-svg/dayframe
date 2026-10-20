@@ -6,7 +6,9 @@ const isTravelMode=(value:unknown):value is TravelMode=>["driving","walking","cy
 export type TravelPoint={lat:number;lon:number;label:string};
 /** Each leg arrives at its via point, except the final leg which ends at the event location. */
 export type TravelLeg={mode:TravelMode;minutes:number;via?:TravelPoint};
-export type TravelBlock={place:TravelPoint;mode:TravelMode;bufferMinutes:number;typicalMinutes?:number;legs?:TravelLeg[];title:string;date:string;start:string};
+export type TravelBlock={place:TravelPoint;mode:TravelMode;bufferMinutes:number;typicalMinutes?:number;legs?:TravelLeg[];title:string;date:string;start:string;
+  /** Calendar-only duration from the explicitly selected Google route, or the saved manual estimate. */
+  calendarMinutes?:number;calendarVerified?:boolean;returnHome?:boolean;returnMinutes?:number;returnVerified?:boolean;};
 export function travelDuration(trip:Pick<TravelBlock,"legs"|"typicalMinutes">):number|undefined{
   return trip.legs?.length?trip.legs.reduce((minutes,leg)=>minutes+leg.minutes,0):trip.typicalMinutes;
 }
@@ -44,6 +46,12 @@ export function parseTravelStore(value:string|null):{store:TravelStore;blocked:b
       if(!validPoint(v.place)||!isTravelMode(v.mode)
         ||!Number.isInteger(v.bufferMinutes)||v.bufferMinutes<0||v.bufferMinutes>180
         ||(v.typicalMinutes!==undefined&&(!Number.isInteger(v.typicalMinutes)||v.typicalMinutes<1||v.typicalMinutes>1440))
+        ||(v.calendarMinutes!==undefined&&(!Number.isInteger(v.calendarMinutes)||v.calendarMinutes<1||v.calendarMinutes>1440))
+        ||(v.calendarVerified!==undefined&&typeof v.calendarVerified!=="boolean")
+        ||(v.returnHome!==undefined&&typeof v.returnHome!=="boolean")
+        ||(v.returnVerified!==undefined&&typeof v.returnVerified!=="boolean")
+        ||(v.returnMinutes!==undefined&&(!Number.isInteger(v.returnMinutes)||v.returnMinutes<1||v.returnMinutes>1440))
+        ||(v.returnHome&&v.returnMinutes===undefined)
         ||typeof v.title!=="string"||v.title.length>300||!validDate(v.date)||!(v.start===""||validTime(v.start)))throw Error("invalid trip");
       if(v.legs!==undefined){
         if(!Array.isArray(v.legs)||v.legs.length<2||v.legs.length>6)throw Error("invalid route length");
@@ -76,6 +84,44 @@ export function saveTravelStore(store:TravelStore){
     window.dispatchEvent(new Event(TRAVEL_SYNC_EVENT));
     return true;
   }catch{return false;}
+}
+/** Pure calendar projection: travel is not a study/work task and is never
+ *  written into calendar plans. Always use the live event date/time, not the
+ *  stale travel snapshot after a user edits or moves an appointment.
+ */
+export type TravelCalendarEvent={key:string;date:string;start:string;end:string;title:string};
+export type TravelReservation={id:string;key:string;date:string;title:string;
+  direction:"outbound"|"return";start:number;end:number;duration:number;
+  estimated:boolean;bufferMinutes:number;outsideCalendar:boolean;};
+const planningClock=(time:string):number=>{
+  if(!validTime(time))return NaN;
+  const [hour,minute]=time.split(":").map(Number);
+  return (hour<8?hour+24:hour)*60+minute;
+};
+export function travelReservationsForDay(store:TravelStore,date:string,
+  events:TravelCalendarEvent[]):TravelReservation[]{
+  const result:TravelReservation[]=[];
+  for(const event of events){
+    const trip=store.blocks[event.key];
+    if(!trip||!event.start||!event.end||event.date!==date)continue;
+    const eventStart=planningClock(event.start),eventEnd=planningClock(event.end);
+    if(!Number.isFinite(eventStart)||!Number.isFinite(eventEnd)||eventEnd<=eventStart)continue;
+    const duration=trip.calendarMinutes??travelDuration(trip);
+    if(!Number.isInteger(duration)||duration!<=0||duration!>1440)continue;
+    const outboundStart=eventStart-duration!-trip.bufferMinutes;
+    result.push({id:event.key+":outbound",key:event.key,date,title:event.title,
+      direction:"outbound",start:outboundStart,end:eventStart,
+      duration:duration!+trip.bufferMinutes,estimated:trip.calendarVerified!==true,
+      bufferMinutes:trip.bufferMinutes,outsideCalendar:outboundStart<480||eventStart>1560});
+    if(trip.returnHome&&Number.isInteger(trip.returnMinutes)&&trip.returnMinutes!>0){
+      const returnEnd=eventEnd+trip.returnMinutes!;
+      result.push({id:event.key+":return",key:event.key,date,title:event.title,
+        direction:"return",start:eventEnd,end:returnEnd,duration:trip.returnMinutes!,
+        estimated:!trip.returnVerified,bufferMinutes:0,
+        outsideCalendar:eventEnd<480||returnEnd>1560});
+    }
+  }
+  return result;
 }
 /** Backlog tasks still exist, even without a scheduled time in the Week grid. */
 export function liveTravelTaskKeys(

@@ -302,3 +302,17 @@
 .df2-trip-subway-compare>button:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
 .df2-travel-alternative-select{display:block;margin-top:7px;border:1px solid var(--accent);background:var(--accent-wash);color:var(--accent-dark);border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer}
 .df2-travel-alternative-select:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+
+.df2-trip-return{display:grid;gap:11px;padding:13px;border:1px solid var(--line);border-radius:11px;background:var(--surface);min-width:0}
+.df2-trip-return-toggle{display:flex!important;align-items:flex-start!important;gap:10px}
+.df2-trip-return-toggle input{height:18px!important;width:18px!important;flex:0 0 18px;margin:1px 0}
+.df2-trip-return-toggle>span{display:grid;gap:3px}
+.df2-trip-return-toggle small{font-size:11px;color:var(--muted);font-weight:500}
+.df2-trip-return>label:not(.df2-trip-return-toggle){max-width:300px}
+.df2-trip-return>p{font-size:11px;line-height:1.5;margin:0;color:var(--ink-soft)}
+.df2-trip-return-calc{justify-self:start;border:1px solid var(--accent);border-radius:8px;
+  background:var(--accent-wash);color:var(--accent-dark);padding:10px 13px;font-size:12px;
+  font-weight:700;cursor:pointer}
+.df2-trip-return-calc:disabled{opacity:.5;cursor:wait}
+.df2-trip-calendar-info{border-left:3px solid var(--accent);background:var(--accent-wash);padding:10px 12px;
+  color:var(--ink);font-size:12px;line-height:1.5;margin:0}

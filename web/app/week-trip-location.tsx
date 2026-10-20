@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from "react";
 import {readTravelStore,saveTravelStore,travelDirectionsUrl,
   type TravelPoint,type TravelMode,type TravelLeg,TRAVEL_MODE_LABELS,eventStart} from "@/lib/dayframe-travel";
 
-export type TripTarget={key:string;title:string;date:string;start:string;initialOffsite?:boolean};
+export type TripTarget={key:string;title:string;date:string;start:string;end?:string;initialOffsite?:boolean};
 type TransitPreference="balanced"|"fastest"|"fewer_transfers"|"less_walking";
 type RouteStep={kind:"transit"|"walk";line?:string;vehicle?:string;headsign?:string;
   from?:string;to?:string;departureTime?:string;arrivalTime?:string;
@@ -304,6 +304,11 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [mode,setMode]=useState<TravelMode>(current?.mode??"driving");
   const [buffer,setBuffer]=useState(current?.bufferMinutes??15);
   const [typical,setTypical]=useState(current?.typicalMinutes?.toString()??"");
+  const [returnHome,setReturnHome]=useState(current?.returnHome??false);
+  const [returnMinutes,setReturnMinutes]=useState(current?.returnMinutes?.toString()??"");
+  const [returnVerified,setReturnVerified]=useState(current?.returnVerified??false);
+  const [reverseLoading,setReverseLoading]=useState(false);
+  const [reverseError,setReverseError]=useState("");
   const [error,setError]=useState("");
   const [googleAvailable,setGoogleAvailable]=useState(false);
   const [googleConnection,setGoogleConnection]=useState<"checking"|"ready"|"disabled"|"unreachable">("checking");
@@ -340,12 +345,13 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const [transferMinutes,setTransferMinutes]=useState(5);
   const [appliedSettings,setAppliedSettings]=useState<RouteSettings>({transitPreference:"balanced",transferMinutes:5});
   const routeController=useRef<AbortController|null>(null);
+  const returnController=useRef<AbortController|null>(null);
   const partialRoute=useRef<{
     signature:string;settings:RouteSettings;startedAt:number;cachedAt:number;estimates:RouteEstimate[];
   }|null>(null);
   const [failedStage,setFailedStage]=useState<number|null>(null);
   const [canRetrySimplified,setCanRetrySimplified]=useState(false);
-  useEffect(()=>()=>routeController.current?.abort(),[]);
+  useEffect(()=>()=>{routeController.current?.abort();returnController.current?.abort();},[]);
   // The separate access secret is session-scoped. Neither it nor the Google API key is persisted with the travel plan.
   useEffect(()=>{
     try{setGoogleAccess(sessionStorage.getItem("dayframe-routes-access-session")??"");}catch{}
@@ -468,6 +474,15 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     to:{lat:part.to.lat,lon:part.to.lon},
     mode:part.mode,
   }))):"";
+  const returnRouteSignature=JSON.stringify({routeSignature,transitPreference,transferMinutes});
+  const previousReturnSignature=useRef(returnRouteSignature);
+  useEffect(()=>{
+    if(previousReturnSignature.current===returnRouteSignature)return;
+    previousReturnSignature.current=returnRouteSignature;
+    returnController.current?.abort();
+    setReverseLoading(false);setReverseError("");
+    setReturnMinutes("");setReturnVerified(false);
+  },[returnRouteSignature]);
   // Every paid calculation is deliberate. Editing a point, preference or time never calls Google.
   useEffect(()=>{
     routeController.current?.abort();
@@ -771,6 +786,60 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   const journeyDeparture=googleEstimates?.[0]?.departureISO;
   const journeyArrival=journeyDeparture&&googleTotal!==undefined
     ?new Date(Date.parse(journeyDeparture)+googleTotal*60000).toISOString():undefined;
+  const calendarMinutes=googleTotal??(mixed
+    ?legs.every(leg=>Number.isInteger(Number(leg.minutes))&&Number(leg.minutes)>0)
+      ?legs.reduce((total,leg)=>total+Number(leg.minutes),0):undefined
+    :typical.trim()&&Number.isInteger(Number(typical))&&Number(typical)>0?Number(typical):undefined);
+  /** Reverse each actual leg as a new Google query. Not a mathematically
+   * reversible ETA: transit schedules/traffic can differ after the event.
+   * Never request automatically or bypass the existing Redis quotas.
+   */
+  async function calculateReturn(){
+    if(!routeParts||!googleAvailable||reverseLoading||googleLoading||metroLoading||subwayLoading
+      ||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
+    const end=target.end?eventStart(target.date,target.end):null;
+    // The planning day runs until 02:00 of the following calendar day.
+    if(end&&target.end==="02:00")end.setDate(end.getDate()+1);
+    if(!end||end.getTime()<Date.now()-120000||end.getTime()>Date.now()+7*86400000){
+      setReverseError("Pro ověření zpáteční cesty musí mít blok konec v následujících 7 dnech. Můžeš použít orientační dobu cesty tam.");return;
+    }
+    returnController.current?.abort();
+    const controller=new AbortController();
+    returnController.current=controller;
+    setReverseLoading(true);setReverseError("");setReturnVerified(false);
+    // Strip user labels from every reversed endpoint, exactly like the
+    // outbound path. The provider only needs coordinates; labels stay local.
+    const reversed=[...routeParts].reverse().map(part=>({
+      mode:part.mode,
+      from:{lat:part.to.lat,lon:part.to.lon},
+      to:{lat:part.from.lat,lon:part.from.lon},
+    }));
+    let elapsed=0;
+    try{
+      for(let i=0;i<reversed.length;i++){
+        if(controller.signal.aborted)return;
+        const part=reversed[i];
+        const response=await fetch("/api/google-travel",{
+          method:"POST",signal:controller.signal,cache:"no-store",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+googleAccess},
+          body:JSON.stringify({...part,departureTime:new Date(end.getTime()+elapsed*60000).toISOString(),
+            ...(part.mode==="transit"?{transitPreference}:{}),
+          }),
+        });
+        const result=await response.json() as {minutes?:number;error?:string};
+        if(!response.ok||!Number.isInteger(result.minutes)||result.minutes!<1){
+          throw Error("Zpáteční úsek "+(i+1)+": "+(result.error??"Google trasu nespočítal."));
+        }
+        elapsed+=result.minutes!+(i<reversed.length-1?transferMinutes:0);
+      }
+      if(!controller.signal.aborted){
+        setReturnMinutes(String(elapsed));setReturnVerified(true);
+      }
+    }catch(e){
+      if(!controller.signal.aborted)setReverseError((e instanceof Error?e.message:"Zpáteční cesta není dostupná.")+
+        " Původní odhad lze použít bez dalšího volání.");
+    }finally{if(!controller.signal.aborted)setReverseLoading(false);}
+  }
   function submit(){
     const latest=readTravelStore();
     if(latest.blocked){setError("Uložená data o cestách nelze bezpečně změnit.");return;}
@@ -785,11 +854,21 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     if((destination&&destination.label.trim().length>300)||(origin&&origin.label.trim().length>300)){
       setError("Název místa může mít maximálně 300 znaků.");return;
     }
-    const stages:TravelLeg[]|undefined=mixed?legs.map(leg=>({
-      mode:leg.mode,minutes:leg.minutes.trim()?Number(leg.minutes):NaN,via:leg.via,
+    const stages:TravelLeg[]|undefined=mixed?legs.map((leg,index)=>({
+      mode:leg.mode,
+      minutes:googleEstimates?.[index]
+        ?googleEstimates[index].minutes+(index<legs.length-1?appliedSettings.transferMinutes:0)
+        :leg.minutes.trim()?Number(leg.minutes):NaN,
+      via:leg.via,
     })):undefined;
     const total=stages?.reduce((sum,leg)=>sum+leg.minutes,0);
-    const typicalMinutes=mixed?total:(typical.trim()?Number(typical):undefined);
+    const typicalMinutes=mixed?total:(googleTotal??(typical.trim()?Number(typical):undefined));
+    const calendarMinutes=googleTotal??typicalMinutes;
+    const reverseDuration=returnMinutes.trim()?Number(returnMinutes):calendarMinutes;
+    if(returnHome&&(!origin||!target.start||!target.end||!Number.isInteger(reverseDuration)
+      ||reverseDuration!<1||reverseDuration!>1440)){
+      setError("Pro zpáteční cestu nastav čas začátku a konce bloku a platnou délku cesty domů.");return;
+    }
     if(!Number.isInteger(buffer)||buffer<0||buffer>180||
       (typicalMinutes!==undefined&&(!Number.isInteger(typicalMinutes)||typicalMinutes<1||typicalMinutes>1440))){
       setError("Zkontroluj dobu cesty a rezervu.");return;
@@ -802,6 +881,9 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const next={...latest.store,origin,blocks:{...latest.store.blocks}};
     next.blocks[target.key]={
       place:destination!,mode:mixed?legs[0].mode:mode,bufferMinutes:buffer,typicalMinutes,...(mixed?{legs:stages}:{}),
+      ...(calendarMinutes?{calendarMinutes,calendarVerified:googleTotal!==undefined}:{}),returnHome,
+      ...(returnHome?{returnMinutes:reverseDuration,returnVerified:returnVerified&&
+        Number(returnMinutes)===reverseDuration}:{}),
       title:target.title.slice(0,300),date:target.date,start:target.start,
     };
     if(!saveTravelStore(next)){setError("Místo se nepodařilo uložit.");return;}
@@ -1205,7 +1287,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
           </section>
           <section className="df2-trip-section df2-trip-save-section" aria-label="Plán pro Jarvise">
             <div className="df2-trip-section-title"><span className="df2-trip-section-number">4</span><h3>Uložit plán pro Jarvise</h3></div>
-            <p className="df2-trip-kind-help">Jarvis plánuje odjezd podle tvého běžného času. Automatický odhad Googlu zůstává pouze pro náhled.</p>
+            <p className="df2-trip-kind-help">Po explicitním výpočtu se pro plánování Týdne uloží vypočtená doba; bez výpočtu použije Dayframe tvůj ruční odhad. Google se nepřepočítává automaticky.</p>
             <div className="df2-travel-options">
               {!mixed&&<label>Můj běžný čas cesty (min)
                 <input aria-label="Obvyklá doba cesty" type="number" min="1" max="1440"
@@ -1217,6 +1299,38 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
               </label>
             </div>
             {mixed&&<p className="df2-trip-kind-help">U kombinované cesty se pro Jarvise sečtou plánovací minuty z jednotlivých úseků výše.</p>}
+            {calendarMinutes!==undefined&&<p className="df2-trip-calendar-info" role="status">
+              Cesta tam bude v Týdnu vyhrazena na <strong>{calendarMinutes}+{buffer} min</strong>
+              (cesta + rezerva) bezprostředně před začátkem bloku. Doba z Googlu se uloží až po kliknutí na „Uložit místo“.
+            </p>}
+            <div className="df2-trip-return">
+              <label className="df2-trip-return-toggle">
+                <input type="checkbox" aria-label="Přidat cestu domů po skončení bloku"
+                  checked={returnHome} onChange={e=>setReturnHome(e.target.checked)}/>
+                <span><strong>Přidat cestu domů po skončení bloku</strong>
+                  <small>Obrácené pořadí úseků · samostatný blok v Týdnu</small></span>
+              </label>
+              {returnHome&&<>
+                {!target.end&&<p>Blok nemá stanovený čas konce. Pro návrat ho nejprve naplánuj.</p>}
+                <label>Doba zpáteční cesty (min)
+                  <input type="number" min="1" max="1440" aria-label="Doba cesty domů"
+                    value={returnMinutes} placeholder={String(calendarMinutes??"")}
+                    onChange={e=>{setReturnMinutes(e.target.value);setReturnVerified(false);}}/>
+                </label>
+                <p className="df2-trip-kind-help">{returnVerified
+                  ?"Zpáteční doba ověřena samostatným výpočtem pro čas po skončení bloku."
+                  :"Pokud nezadáš vlastní dobu, použije se délka cesty tam jako orientační odhad. Skutečná cesta zpět se může lišit."}</p>
+                {routeParts&&googleAvailable&&target.end&&<button type="button" className="df2-trip-return-calc"
+                  disabled={reverseLoading||googleLoading||metroLoading||subwayLoading}
+                  onClick={()=>void calculateReturn()}>
+                  {reverseLoading?"Počítám zpáteční trasu…":
+                    "Spočítat zpáteční trasu ("+routeParts.length+" API požad.)"}
+                </button>}
+                {reverseError&&<p role="alert" className="df2-travel-error">{reverseError}</p>}
+                {target.end&&<p className="df2-trip-kind-help">Návrat začne po skončení bloku v {target.end}.
+                  Vyhradí {returnMinutes||calendarMinutes||"?"} min. Zbytek týdne nesmí automaticky zasahovat do této rezervace.</p>}
+              </>}
+            </div>
             {!target.start&&<p className="df2-trip-kind-help">Blok zatím nemá začátek. Jarvis odjezd dopočítá, až blok naplánuješ na určitý čas.</p>}
           </section>
           {!mixed&&destination&&<a target="_blank" rel="noopener noreferrer"

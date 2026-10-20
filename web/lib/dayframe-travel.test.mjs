@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {emptyTravelStore,parseTravelStore,travelBlockKey,travelDirectionsUrl,eventStart,upcomingTravelTrips,liveTravelTaskKeys,travelDuration,travelSegments} from "./dayframe-travel.ts";
+import {emptyTravelStore,parseTravelStore,travelBlockKey,travelDirectionsUrl,eventStart,upcomingTravelTrips,liveTravelTaskKeys,travelDuration,travelSegments,travelReservationsForDay} from "./dayframe-travel.ts";
 const home={lat:50.1,lon:14.2,label:"Domov"},place={lat:50.08,lon:14.43,label:"Fakulta"};
 test("missing and damaged location data",()=>{
   assert.deepEqual(parseTravelStore(null).store,emptyTravelStore());
@@ -936,4 +936,62 @@ test("Vercel Web default handler dispatches GET and rejects unsupported verbs wi
     assert.equal(wrong.status,405);
     assert.equal(wrong.headers.get("allow"),"GET, POST");
   }finally{globalThis.fetch=oldFetch;}
+});
+
+test("travel calendar projects Google outbound minutes before event and optional reverse ride after",()=>{
+  const store=emptyTravelStore();
+  store.blocks["task:english"]={place,mode:"driving",bufferMinutes:10,typicalMinutes:55,calendarMinutes:48,
+    returnHome:true,returnMinutes:52,returnVerified:true,calendarVerified:true,title:"Běžná angličtina",date:"2026-10-20",start:"14:00"};
+  const events=[{key:"task:english",date:"2026-10-20",start:"14:00",end:"15:00",title:"Běžná angličtina"}];
+  const windows=travelReservationsForDay(store,"2026-10-20",events);
+  assert.deepEqual(windows.map(x=>[x.direction,x.start,x.end,x.estimated]),[
+    ["outbound",13*60+2,14*60,false],
+    ["return",15*60,15*60+52,false],
+  ]);
+  assert.equal(windows[0].bufferMinutes,10);
+  assert.equal(windows[0].duration,58);
+  assert.equal(windows[1].duration,52);
+  assert.equal(parseTravelStore(JSON.stringify(store)).blocked,false);
+  const moved=travelReservationsForDay(store,"2026-10-21",events.map(x=>({...x,date:"2026-10-21",
+    start:"16:15",end:"17:15"})));
+  assert.equal(moved.length,2);
+  assert.equal(moved[0].start,16*60+15-58);
+  assert.deepEqual(travelReservationsForDay(store,"2026-10-20",[]),[],"no orphan ghost for deleted event");
+});
+test("return journey is never projected unless opted in, and manual direction is flagged estimate",()=>{
+  const store=emptyTravelStore();
+  store.blocks["task:abc"]={place,mode:"walking",bufferMinutes:5,typicalMinutes:20,
+    title:"Kurz",date:"2026-10-20",start:"13:00"};
+  const event=[{key:"task:abc",date:"2026-10-20",start:"13:00",end:"14:15",title:"Kurz"}];
+  assert.equal(travelReservationsForDay(store,"2026-10-20",event).length,1);
+  assert.equal(travelReservationsForDay(store,"2026-10-20",event)[0].estimated,true);
+  store.blocks["task:abc"].returnHome=true;
+  store.blocks["task:abc"].returnMinutes=20;
+  const reservations=travelReservationsForDay(store,"2026-10-20",event);
+  assert.equal(reservations.length,2);
+  assert.equal(reservations[1].estimated,true);
+  assert.equal(reservations[1].start,14*60+15);
+});
+test("return booking validation blocks malformed durations but accepts old saved journeys",()=>{
+  const trip={place,mode:"transit",bufferMinutes:15,typicalMinutes:31,
+    title:"Návštěva",date:"2026-10-20",start:"17:00"};
+  assert.equal(parseTravelStore(JSON.stringify({version:1,blocks:{"task:old":trip}})).blocked,false);
+  for(const edits of [
+    {returnHome:true}, {returnMinutes:0,returnHome:true},
+    {returnMinutes:-5,returnHome:true},{calendarMinutes:1441},
+    {returnVerified:"yes"},{returnHome:"false"},{calendarVerified:"true"},
+  ]){
+    const store=emptyTravelStore();store.blocks["task:x"]={...trip,...edits};
+    assert.equal(parseTravelStore(JSON.stringify(store)).blocked,true);
+  }
+});
+test("trip reservations outside the visible working hours are flagged not silently truncated",()=>{
+  const store=emptyTravelStore();
+  store.blocks["task:early"]={place,mode:"driving",bufferMinutes:10,calendarMinutes:95,
+    returnHome:true,returnMinutes:140,title:"Včasný vlak",date:"2026-10-20",start:"08:30"};
+  const reservations=travelReservationsForDay(store,"2026-10-20",
+    [{key:"task:early",date:"2026-10-20",start:"08:30",end:"23:45",title:"Včasný vlak"}]);
+  assert.equal(reservations[0].start,6*60+45);
+  assert.equal(reservations[0].outsideCalendar,true);
+  assert.equal(reservations[1].outsideCalendar,true);
 });
