@@ -875,7 +875,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const next={...latest.store,origin,blocks:{...latest.store.blocks}};
     next.blocks[target.key]={
       place:destination!,mode:mixed?legs[0].mode:mode,bufferMinutes:buffer,typicalMinutes,...(mixed?{legs:stages}:{}),
-      ...(calendarMinutes?{calendarMinutes}:{}),returnHome,
+      ...(calendarMinutes?{calendarMinutes,calendarVerified:googleTotal!==undefined}:{}),returnHome,
       ...(returnHome?{returnMinutes:reverseDuration,returnVerified:returnVerified&&
         Number(returnMinutes)===reverseDuration}:{}),
       title:target.title.slice(0,300),date:target.date,start:target.start,
