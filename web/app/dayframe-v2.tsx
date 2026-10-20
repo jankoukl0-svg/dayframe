@@ -679,22 +679,40 @@ export function DayframeV2() {
     const max = calendarBounds.dayEnd - duration;
     const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
     const destination = getTasksForDate(data, date).filter(task => dragging?.kind==="task" ? task.id!==id : true);
-    const otherGym = dragging?.kind==="gym"||dragging?.kind==="care"
-      ? assignmentsOnDate(gym.store,date)
-        .filter(occ=>occ.key!==id)
-        .map(occ=>gymOccurrenceTime(gym.store,occ))
-        .filter(time=>time.start!==null)
-        .map(time=>({start:timeToMinutes(time.start??undefined),end:timeToMinutes(time.start??undefined)+time.duration}))
-      : [];
+    const otherGym = assignmentsOnDate(gym.store,date)
+      .filter(occ=>dragging?.kind!=="gym"||occ.key!==id)
+      .map(occ=>gymOccurrenceTime(gym.store,occ))
+      .filter(time=>time.start!==null)
+      .map(time=>({start:timeToMinutes(time.start??undefined),end:timeToMinutes(time.start??undefined)+time.duration}));
     const otherCare=weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
       .filter(item=>dragging?.kind!=="care"||date!==dragging.date||item.id!==dragging.id)
       .map(item=>({start:timeToMinutes(item.start),end:timeToMinutes(item.start)+item.duration}));
+    const ownerKey=dragging?.kind==="task"?travelBlockKey("task",dragging.id):
+      dragging?.kind==="gym"?travelBlockKey("gym",dragging.id):
+        travelBlockKey("care",dragging?.id??"",dragging?.date);
+    const otherJourneys=reservedTravel(date).filter(r=>r.key!==ownerKey);
+    const busyForJourney=[
+      ...destination.filter(t=>t.start&&t.end).map(t=>({
+        start:timeToMinutes(t.start),end:timeToMinutes(t.end)})),
+      ...otherGym,...otherCare,
+      ...otherJourneys.map(r=>({start:r.start,end:r.end})),
+    ];
     const offsets = [0, -15, 15, -30, 30, -45, 45, -60, 60];
     for (const offset of offsets) {
       if (Math.abs(offset) > DROP_MAGNET_RANGE) continue;
       const candidate = rounded + offset;
       if (candidate < min || candidate > max) continue;
       if (dragging?.kind==="care"&&date===todayKey&&candidate<=planningMinute(now))continue;
+      // A journey follows its parent block. Check its newly projected outbound
+      // and return slots against all other events, not just the dragged event.
+      if(travelStore.blocks[ownerKey]){
+        const own=travelReservationsForDay(travelStore,date,[{
+          key:ownerKey,date,start:minutesToTime(candidate),
+          end:minutesToTime(candidate+duration),title:"",
+        }]);
+        if(own.some(res=>busyForJourney.some(other=>
+          res.start<other.end&&res.end>other.start)))continue;
+      }
       if (canPlaceAt(destination, candidate, duration)
         && !intersectsTravel(date,candidate,candidate+duration,
           dragging?.kind==="task"?travelBlockKey("task",dragging.id):
@@ -948,6 +966,18 @@ export function DayframeV2() {
                           {/* Unscheduled Gym items remain in the Gym planner and daily checklist.
                                We never fabricate an hour or float them above the week grid. */}
                         </div>
+                        {travelReservations.some(res=>res.outsideCalendar)&&<div className="df2-week-travel-outside"
+                          role="note" aria-label="Cesta mimo zobrazené hodiny">
+                          <strong>Část cesty mimo zobrazené hodiny</strong>
+                          {travelReservations.filter(res=>res.outsideCalendar).map(res=><button
+                            key={res.id} type="button"
+                            onClick={()=>{const src=travelEvents.find(e=>e.key===res.key);
+                              setTripTarget({key:res.key,date:key,title:res.title,
+                                start:src?.start??"",end:src?.end});}}>
+                            {res.direction==="outbound"?"Cesta tam":"Cesta domů"} · {res.title} ·
+                            {minutesToTime(res.start)}–{minutesToTime(res.end)}
+                          </button>)}
+                        </div>}
                         <div
                           className={`df2-time-body ${dropPreview?.date === key ? "drop-active" : ""}`}
                           style={{ height: `${(calendarBounds.dayEnd - calendarBounds.dayStart) * MINUTE_HEIGHT}px` }}
