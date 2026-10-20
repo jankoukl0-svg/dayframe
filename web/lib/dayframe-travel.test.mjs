@@ -638,6 +638,72 @@ test("metro preference requests actual SUBWAY service in one budgeted MHD call",
     assert.equal(providerCalls,1);
   });
 });
+test("subway-only preference prioritizes a verified B to C ride in one paid call",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    let provider=0;
+    globalThis.fetch=async(url,options)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url,options);
+      provider++;
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.travelMode,"TRANSIT");
+      assert.equal(payload.computeAlternativeRoutes,true);
+      assert.equal(payload.transitPreferences.routingPreference,"FEWER_TRANSFERS");
+      assert.deepEqual(payload.transitPreferences.allowedTravelModes,["SUBWAY"]);
+      const transit=(line,type)=>({travelMode:"TRANSIT",transitDetails:{
+        transitLine:{nameShort:line,vehicle:{type}},
+        stopDetails:{departureStop:{name:"Florenc"},arrivalStop:{name:"Hlavní nádraží"}}
+      }});
+      return Response.json({routes:[
+        {duration:"2640s",distanceMeters:13600,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:150},transit("B","SUBWAY"),
+          transit("26","TRAM"),{travelMode:"WALK",distanceMeters:200}]}]},
+        {duration:"2760s",distanceMeters:13200,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:150},transit("B","SUBWAY"),
+          transit("C","SUBWAY"),{travelMode:"WALK",distanceMeters:500}]}]},
+      ]});
+    };
+    const req=new Request("https://dayframe2.vercel.app/api/google-travel",{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+"a".repeat(28),origin:"https://dayframe2.vercel.app"},
+      body:JSON.stringify({from:home,to:place,mode:"transit",transitTravelModes:"subway_only"}),
+    });
+    const response=await POST(req);
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.deepEqual(result.options[0].steps.filter(x=>x.kind==="transit").map(x=>x.line),["B","C"]);
+    assert.equal(result.options[0].minutes,46);
+    assert.equal(result.options[1].minutes,44);
+    assert.equal(provider,1);
+    assert.equal(redis.commands.length,1);
+  });
+});
+
+test("balanced comfort ranking prefers metro-to-metro over mixed transit for similar trips",async()=>{
+  await withBudgetEnv(async()=>{
+    const {POST}=await import("../api/google-travel.ts");
+    const redis=mockAtomicRedis();
+    const transit=(line,type)=>({travelMode:"TRANSIT",transitDetails:{
+      transitLine:{nameShort:line,vehicle:{type}}
+    }});
+    globalThis.fetch=async(url)=>{
+      if(String(url)===TEST_REDIS_URL)return redis.fetch(url);
+      return Response.json({routes:[
+        {duration:"2400s",distanceMeters:12000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:300},transit("B","SUBWAY"),
+          transit("26","TRAM"),{travelMode:"WALK",distanceMeters:250}]}]},
+        {duration:"2580s",distanceMeters:12000,legs:[{steps:[
+          {travelMode:"WALK",distanceMeters:300},transit("B","SUBWAY"),
+          transit("C","SUBWAY"),{travelMode:"WALK",distanceMeters:250}]}]},
+      ]});
+    };
+    const result=await (await POST(googleRequest("transit"))).json();
+    assert.equal(result.minutes,43);
+    assert.deepEqual(result.options[0].steps.filter(x=>x.kind==="transit").map(x=>x.line),["B","C"]);
+  });
+});
+
 test("rejects subway preference on a car route without billing Google",async()=>{
   await withBudgetEnv(async()=>{
     const {POST}=await import("../api/google-travel.ts");
