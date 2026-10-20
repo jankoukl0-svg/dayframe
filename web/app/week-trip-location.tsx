@@ -502,7 +502,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
   // described as a verified B alternative, even if Google returned SUBWAY.
   const isMetroB=(option:RouteOption)=>option.steps.some(step=>
     step.kind==="transit"&&transitPresentation(step.vehicle,step.line).label==="Metro"
-    &&/^(?:METRO\\s*)?B$/i.test((step.line??"").trim()));
+    &&/^(?:METRO[ ]*)?B$/i.test((step.line??"").trim()));
   const existingMetroOption=metroStage>=0?googleEstimates?.[metroStage]?.options.slice(1).find(isMetroB):undefined;
   const metroOpportunity=metroStage>=0&&Boolean(metroPrimary)&&
     (Boolean(metroComparison)||!isMetroB(metroPrimary!)||metroPrimary!.transfers>=2);
