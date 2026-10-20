@@ -413,6 +413,8 @@ test("manual round trip is marked as estimate and changing a task updates projec
   const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
   await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
   await setMapPoint(dialog,50.08,14.43,"Knihovna");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.40,14.7,"Domov");
   await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("35");
   await dialog.getByRole("checkbox",{name:"Přidat cestu domů po skončení bloku"}).check();
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
