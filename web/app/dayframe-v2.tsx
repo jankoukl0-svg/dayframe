@@ -306,7 +306,8 @@ export function DayframeV2() {
     if (!hydrated) return;
     const monday = addDays(startOfWeek(dateFromKey(todayKey)), weekOffset * 7);
     const keys = weekKeys(monday);
-    setData((current) => materializeRange(current, keys[0], keys[6], new Date()));
+    setData((current) => materializeRange(current, keys[0], keys[6], new Date(),
+      travelBusyBetween(keys[0],keys[6])));
   }, [weekOffset, hydrated, todayKey]);
 
   useEffect(() => {
@@ -505,7 +506,9 @@ export function DayframeV2() {
       category: draft.category,
       repeat: draft.repeat,
     };
-    const result = addTask(data, effective, now);
+    const targetFrom=effective.date||todayKey;
+    const targetTo=effective.date||addDaysKey(todayKey,6);
+    const result = addTask(data, effective, now, travelBusyBetween(targetFrom,targetTo));
     if(result.status==="invalid"){
       setError(result.error);
       return;
@@ -529,6 +532,10 @@ export function DayframeV2() {
     const date = String(form.get("date") || editing.date);
     const duration = Number(form.get("duration")) || editing.duration;
     const start = String(form.get("start") || "");
+    if(start&&intersectsTravel(date,timeToMinutes(start),timeToMinutes(start)+duration,
+      travelBlockKey("task",editing.id))){
+      setError("Tento čas zabírá naplánovaná cesta. Vyber jiný termín.");return;
+    }
     const result = updateTask(data, editing.id, {
       title: String(form.get("title") || editing.title).trim(),
       date,
@@ -568,6 +575,15 @@ export function DayframeV2() {
       })),
     ];
     return travelReservationsForDay(travelStore,date,events);
+  }
+  function travelBusyBetween(from:string,to:string){
+    const result:Record<string,Array<{start:number;end:number}>>={};
+    if(from>to)return result;
+    for(let date=from;date<=to;date=addDaysKey(date,1)){
+      const projected=reservedTravel(date).map(({start,end})=>({start,end}));
+      if(projected.length)result[date]=projected;
+    }
+    return result;
   }
   function intersectsTravel(date:string,start:number,end:number,ignoreKey?:string):boolean{
     return reservedTravel(date).some(r=>r.key!==ignoreKey&&start<r.end&&end>r.start);
@@ -881,7 +897,8 @@ export function DayframeV2() {
                   <button onClick={() => setWeekOffset((value) => value - 1)}>←</button>
                   <button onClick={() => setWeekOffset(0)}>Tento týden</button>
                   <button onClick={() => setWeekOffset((value) => value + 1)}>→</button>
-                  <button className="df2-accent-button" onClick={() => setData((current) => replanWeek(current, monday, now))}>Přepočítat týden</button>
+                  <button className="df2-accent-button" onClick={() => setData((current) => replanWeek(current, monday, now,
+                    travelBusyBetween(weekKeys(monday)[0],weekKeys(monday)[6])))}>Přepočítat týden</button>
                 </div>
               </header>
               {notice && <div className="df2-notice">{notice}<button onClick={() => setNotice("")}>×</button></div>}
