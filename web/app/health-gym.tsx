@@ -5,7 +5,7 @@ import {GymExercisePicker} from "./gym-exercise-picker";
 import {removeTravelBlocksWhere} from "@/lib/dayframe-travel";
 import {
   assignmentsOnDate, dateShift, gymMetrics, gymDayWeekdayOnDate, gymDayTimeOnDate, setGymWeekdayAssignment, setGymWeekdayTime, lastExercisePerformance, weekday,
-  makeGymPlan, newSet, startSession, uid, setActiveGymPlan,
+  makeGymPlan, newSet, startSession, uid, setActiveGymPlan, deleteGymOccurrence,
   type GymExercise, type GymPlan, type GymPlanDay, type GymPlanExercise,
   type GymSession, type GymSessionExercise, type GymSet, type GymTemplate
 } from "@/lib/dayframe-gym";
@@ -191,6 +191,22 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
     }
   };
   const restRemaining=session?.restUntil?Math.max(0,Math.ceil((session.restUntil-clock)/1000)):0;
+  function deleteLoggedWorkout(logged:GymSession){
+    if(blocked||!window.confirm("Smazat trénink „"+logged.title+"“ ze dne "+logged.date+
+      "? Zmizí z historie, kalendáře i výsledků včetně zapsaných sérií. Týdenní plán a další tréninky zůstanou."))return;
+    let changed=false;
+    const saved=persist(current=>{
+      const next=deleteGymOccurrence(current,logged.occurrenceKey,logged.date);
+      changed=next!==current;
+      return next;
+    });
+    if(saved&&changed){
+      removeTravelBlocksWhere(key=>key==="gym:"+logged.occurrenceKey);
+      setSelectedSession(null);
+      setFocusedWorkout(null);
+      setMessage("Trénink ze dne "+logged.date+" byl smazán. Další týdny zůstávají.");
+    }else setMessage("Trénink se nepodařilo smazat.");
+  }
   const history=store.sessions.slice().sort((a,b)=>b.startedAt.localeCompare(a.startedAt));
   const totalSets=session?.exercises.reduce((sum,ex)=>sum+ex.sets.length,0)??0;
   const doneSets=session?.exercises.reduce((sum,ex)=>sum+ex.sets.filter(set=>set.done).length,0)??0;
@@ -211,7 +227,11 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         <header className="df2-gym-section-head df2-gym-session-heading">
           <div><span>{pretty(session.date)} · {session.completedAt?"Dokončeno":"Tréninkový deník"}</span>
             <h3>{session.title}</h3><small>{doneSets} z {totalSets} sérií hotovo</small></div>
-          <button type="button" onClick={()=>setSelectedSession(null)}>← Zpět na plán</button>
+          <div className="df2-gym-session-heading-actions">
+            <button type="button" onClick={()=>setSelectedSession(null)}>← Zpět na plán</button>
+            <button type="button" className="df2-gym-remove-session" disabled={blocked}
+              onClick={()=>deleteLoggedWorkout(session)}>Smazat trénink</button>
+          </div>
         </header>
         <div className="df2-gym-session-progress" role="progressbar" aria-label="Dokončené série" aria-valuemin={0}
           aria-valuemax={totalSets} aria-valuenow={doneSets}>
@@ -397,8 +417,14 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
         {!!history.length&&<details className="df2-gym-history" data-gym-history>
           <summary>Historie tréninků <span>{history.length} záznamů</span></summary>
           <div className="df2-gym-history-list">
-            {history.slice(0,20).map(s=><button key={s.id} type="button" onClick={()=>setSelectedSession(s.id)}>
-              <span>{s.date} · {s.title}</span><strong>{s.completedAt?"Dokončeno":"Rozpracováno"}</strong></button>)}
+            {history.slice(0,20).map(s=><div className="df2-gym-history-row" key={s.id}>
+              <button type="button" onClick={()=>setSelectedSession(s.id)}>
+                <span>{s.date} · {s.title}</span><strong>{s.completedAt?"Dokončeno":"Rozpracováno"}</strong>
+              </button>
+              <button type="button" className="df2-gym-remove-session"
+                aria-label={"Smazat trénink "+s.title+" ze dne "+s.date} disabled={blocked}
+                onClick={()=>deleteLoggedWorkout(s)}>Smazat</button>
+            </div>)}
           </div>
         </details>}
       </>}
