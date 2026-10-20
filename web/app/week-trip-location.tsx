@@ -474,14 +474,15 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     to:{lat:part.to.lat,lon:part.to.lon},
     mode:part.mode,
   }))):"";
-  const previousReturnSignature=useRef(routeSignature);
+  const returnRouteSignature=JSON.stringify({routeSignature,transitPreference,transferMinutes});
+  const previousReturnSignature=useRef(returnRouteSignature);
   useEffect(()=>{
-    if(previousReturnSignature.current===routeSignature)return;
-    previousReturnSignature.current=routeSignature;
+    if(previousReturnSignature.current===returnRouteSignature)return;
+    previousReturnSignature.current=returnRouteSignature;
     returnController.current?.abort();
     setReverseLoading(false);setReverseError("");
     setReturnMinutes("");setReturnVerified(false);
-  },[routeSignature]);
+  },[returnRouteSignature]);
   // Every paid calculation is deliberate. Editing a point, preference or time never calls Google.
   useEffect(()=>{
     routeController.current?.abort();
@@ -797,6 +798,8 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     if(!routeParts||!googleAvailable||reverseLoading||googleLoading||metroLoading||subwayLoading
       ||!(/^[A-Za-z0-9_-]{20,}$/.test(googleAccess)))return;
     const end=target.end?eventStart(target.date,target.end):null;
+    // The planning day runs until 02:00 of the following calendar day.
+    if(end&&target.end==="02:00")end.setDate(end.getDate()+1);
     if(!end||end.getTime()<Date.now()-120000||end.getTime()>Date.now()+7*86400000){
       setReverseError("Pro ověření zpáteční cesty musí mít blok konec v následujících 7 dnech. Můžeš použít orientační dobu cesty tam.");return;
     }
@@ -856,7 +859,7 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const typicalMinutes=mixed?total:(googleTotal??(typical.trim()?Number(typical):undefined));
     const calendarMinutes=googleTotal??typicalMinutes;
     const reverseDuration=returnMinutes.trim()?Number(returnMinutes):calendarMinutes;
-    if(returnHome&&(!target.start||!target.end||!Number.isInteger(reverseDuration)
+    if(returnHome&&(!origin||!target.start||!target.end||!Number.isInteger(reverseDuration)
       ||reverseDuration!<1||reverseDuration!>1440)){
       setError("Pro zpáteční cestu nastav čas začátku a konce bloku a platnou délku cesty domů.");return;
     }
