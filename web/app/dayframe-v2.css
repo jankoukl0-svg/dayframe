@@ -1004,3 +1004,9 @@
 .df2-week-travel.is-estimate{border-style:dashed;background:#eff4f7}
 .df2-week-travel:hover{filter:brightness(.97);z-index:5}
 .df2-week-travel:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+
+/* One visible notice per day even when an off-hours trip is fully clipped. */
+.df2-week-travel-outside{display:grid;gap:4px;padding:6px;background:#f3ede2;border-bottom:1px solid #dacbb3;color:#69543a}
+.df2-week-travel-outside>strong{font-size:9px;line-height:1.3}
+.df2-week-travel-outside>button{padding:2px 0;text-align:left;border:0;background:transparent;color:inherit;font-size:9px;line-height:1.35;cursor:pointer;overflow-wrap:anywhere}
+.df2-week-travel-outside>button:hover{text-decoration:underline}
