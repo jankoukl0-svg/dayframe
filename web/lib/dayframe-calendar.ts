@@ -336,7 +336,13 @@ export function canPlaceAt(tasks: CalendarTask[], start: number, duration: numbe
   return !occupiedBlocks(tasks, ignoreId).some((block) => start < block.end && end > block.start);
 }
 
-export function findSlot(tasks: CalendarTask[], date: string, duration: number, now: Date, deadlineTime = "22:30", exactStart?: string) {
+export type CalendarReservations=Record<string,Array<{start:number;end:number}>>;
+export function reservedSlotFree(reservations:Array<{start:number;end:number}>,start:number,duration:number){
+  return !reservations.some(block=>Number.isFinite(block.start)&&Number.isFinite(block.end)
+    &&start<block.end&&start+duration>block.start);
+}
+export function findSlot(tasks: CalendarTask[], date: string, duration: number, now: Date,
+  deadlineTime = "22:30", exactStart?: string, reservations:Array<{start:number;end:number}>=[]) {
   const todayKey = planningDateKey(now);
   const deadline = Math.min(DAY_END, timeToMinutes(deadlineTime));
   const floor = date === todayKey
@@ -347,7 +353,7 @@ export function findSlot(tasks: CalendarTask[], date: string, duration: number, 
   if (exactStart) {
     const start = timeToMinutes(exactStart);
     const manualDeadline = deadlineTime === "22:30" ? DAY_END : deadline;
-    if (!Number.isFinite(start) || start < floor || start + duration > manualDeadline || !canPlaceAt(tasks, start, duration)) return null;
+    if (!Number.isFinite(start) || start < floor || start + duration > manualDeadline || (!canPlaceAt(tasks, start, duration)||!reservedSlotFree(reservations,start,duration))) return null;
     return { start: minutesToTime(start), end: minutesToTime(start + duration) };
   }
 
@@ -355,12 +361,14 @@ export function findSlot(tasks: CalendarTask[], date: string, duration: number, 
      looks elsewhere first; users can still override this manually. */
   for (let start = floor; start + duration <= deadline; start += SLOT) {
     if (overlapsLunch(start, start + duration)) continue;
-    if (canPlaceAt(tasks, start, duration)) return { start: minutesToTime(start), end: minutesToTime(start + duration) };
+    if (canPlaceAt(tasks, start, duration)&&reservedSlotFree(reservations,start,duration))
+      return { start: minutesToTime(start), end: minutesToTime(start + duration) };
   }
   return null;
 }
 
-function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date) {
+function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date,
+  reservations:Array<{start:number;end:number}>=[]) {
   const current = [...(state.plans[date] ?? [])];
   const scheduled = current.filter((task) => task.start && task.end);
   const waiting = current
@@ -369,7 +377,7 @@ function scheduleUnscheduledOnDate(state: DayframeState, date: string, now: Date
 
   const next = [...scheduled];
   waiting.forEach((task) => {
-    const slot = findSlot(next, date, task.duration, now, task.deadlineTime, task.requestedStart);
+    const slot = findSlot(next, date, task.duration, now, task.deadlineTime, task.requestedStart,reservations);
     if (slot) next.push({ ...task, ...slot, autoScheduled: !task.requestedStart, mode: "flexible" });
     else next.push(task);
   });
@@ -398,7 +406,8 @@ export function pruneHistoricalRoutineProjections(state: DayframeState, now = ne
   return plans ? { ...state, plans } : state;
 }
 
-export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date()) {
+export function materializeRange(state: DayframeState, fromKey: string, toKey: string, now = new Date(),
+  reservations:CalendarReservations={}) {
   // Clean already-saved ghost instances before projecting any future days.
   // This also runs on hydration and when the 02:00 planning day changes.
   const cleaned = pruneHistoricalRoutineProjections(state, now);
@@ -453,7 +462,7 @@ export function materializeRange(state: DayframeState, fromKey: string, toKey: s
       });
     }
     next.plans[cursor] = sortTasks(existing);
-    next = scheduleUnscheduledOnDate(next, cursor, now);
+    next = scheduleUnscheduledOnDate(next, cursor, now,reservations[cursor]??[]);
   }
   return next;
 }
@@ -505,7 +514,8 @@ function dateRangeForDraft(draft: TaskDraft, now: Date) {
   return keys;
 }
 
-export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()) {
+export function addTask(state: DayframeState, draft: TaskDraft, now = new Date(),
+  reservations:CalendarReservations={}) {
   const recurring = Boolean(draft.repeat && draft.repeat !== "none");
   const today = planningDateKey(now),startMinute = timeToMinutes(draft.start);
   // Explicit historical dates are invalid for recurrences, but an undated
@@ -521,11 +531,11 @@ export function addTask(state: DayframeState, draft: TaskDraft, now = new Date()
   // A due date can leave no eligible future slot; never create an old backlog item.
   if(!dates.length)return {state,status:"invalid" as const,
     error:"Pro rutinu není dostupný budoucí den. Posuň datum nebo termín dokončení."};
-  let next = materializeRange(state, dates[0], dates[dates.length - 1], now);
+  let next = materializeRange(state, dates[0], dates[dates.length - 1], now,reservations);
   const base = createTaskFromDraft(draft, dates[0], now, Boolean(draft.date));
 
   for (const date of dates) {
-    const slot = findSlot(next.plans[date] ?? [], date, base.duration, now, draft.deadlineTime, draft.start);
+    const slot = findSlot(next.plans[date] ?? [], date, base.duration, now, draft.deadlineTime, draft.start,reservations[date]??[]);
     if (!slot) continue;
     const task = { ...base, date, ...slot, dateLocked: Boolean(draft.date), autoScheduled: !draft.start };
     next = { ...next, plans: { ...next.plans, [date]: sortTasks([...(next.plans[date] ?? []), task]) } };
@@ -677,9 +687,10 @@ export function moveTaskToTomorrow(state: DayframeState, id: string, now = new D
   return scheduleUnscheduledOnDate(next, tomorrow, now);
 }
 
-export function replanWeek(state: DayframeState, reference: Date, now = new Date()) {
+export function replanWeek(state: DayframeState, reference: Date, now = new Date(),
+  reservations:CalendarReservations={}) {
   const keys = weekKeys(reference);
-  let next = materializeRange(state, keys[0], keys[6], now);
+  let next = materializeRange(state, keys[0], keys[6], now,reservations);
   const movable: CalendarTask[] = [];
   const plans = { ...next.plans };
 
@@ -702,7 +713,7 @@ export function replanWeek(state: DayframeState, reference: Date, now = new Date
     const allowed = keys.filter((date) => date >= planningDateKey(now) && (!task.dueDate || date <= task.dueDate));
     let placed = false;
     for (const date of allowed) {
-      const slot = findSlot(next.plans[date] ?? [], date, task.duration, now, task.deadlineTime);
+      const slot = findSlot(next.plans[date] ?? [], date, task.duration, now, task.deadlineTime,undefined,reservations[date]??[]);
       if (!slot) continue;
       const moved = { ...task, date, ...slot, mode: "flexible" as const, autoScheduled: true };
       next.plans[date] = sortTasks([...(next.plans[date] ?? []), moved]);
