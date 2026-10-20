@@ -27,7 +27,7 @@ function price(tags:Record<string,string>):ParkingPrice{
   const charge=(tags.charge??"").trim();
   const conditional=Boolean(tags["fee:conditional"]||tags["charge:conditional"]);
   if(charge&&!conditional){
-    const match=/^(\\d+(?:[.,]\\d+)?)\\s*(CZK|EUR|USD|GBP|CHF|PLN)\\s*\\/\\s*(?:hour|h|1\\s*h|60\\s*min)$/i.exec(charge);
+    const match=/^(\d+(?:[.,]\d+)?)\s*(CZK|EUR|USD|GBP|CHF|PLN)\s*\/\s*(?:hour|h|1\s*h|60\s*min)$/i.exec(charge);
     if(match){
       const amount=Number(match[1].replace(",","."));
       if(Number.isFinite(amount)&&amount>=0&&amount<=100000)
