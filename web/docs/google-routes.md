@@ -107,3 +107,11 @@ For a final TRANSIT stage whose start is within 3 km of the official P+R Černý
 5. Every provider request, including the metro comparison, still uses the atomic Redis reservation (50/day and 1000/month). No auto background scans, additional keys, or route storage. Metro comparison does not rerun the driving stage.
 
 The limitation is structural: Google Routes returns only a restricted selection of transit alternatives; ordinary `LESS_WALKING` does not force subway. Explicit comparison makes metro visible when Google will actually supply it without claiming a globally optimal route.
+
+
+### One-click interchange at P+R Černý Most
+
+- If origin is more than 8 km from the verified P+R Černý Most coordinate and the destination is within 26 km, step **Jak pojedeš?** offers a compact **Auto → P+R Černý Most → MHD** preset. These distance thresholds are a convenience heuristic, not a claim of optimal parking.
+- A click creates a draft DRIVE stage ending at the known P+R and a TRANSIT stage ending at the event. It does not call Google, persist the trip, assume parking is available, or populate an invented travel duration. Previously entered manual minutes are kept only if the same preset was already selected; switching from another itinerary clears them.
+- The user must explicitly calculate the route (two counted Google requests) and enter planning minutes before saving the trip for Jarvis. Google may still return a train or bus instead of subway; the itinerary must reflect the actual response.
+- In the existing **A co metro B?** comparison, an option is eligible as metro B only when Google returns a subway boarding with line **B** (or **Metro B**). A route on A or C cannot be relabeled as B, regardless of the requested transit mode preference.
