@@ -814,6 +814,9 @@ test("past calendar Gym workout can be deleted once without removing future recu
   await expect(monday.locator('[data-week-gym="'+original.key+'"]')).toBeVisible();
   const remove=monday.getByRole("button",{name:/Smazat trénink .* ze dne 2026-10-12/});
   await monday.locator("[data-week-gym]").first().hover();
+  // A history-delete button must not break the adjacent location pin hover rule.
+  const location=monday.locator('[data-week-place="gym:'+original.key+'"]');
+  await expect(location).toHaveCSS("opacity","1");
   page.once("dialog",dialog=>dialog.dismiss());
   await remove.click();
   await expect(monday.locator("[data-week-gym]")).toHaveCount(1);
