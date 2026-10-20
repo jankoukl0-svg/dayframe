@@ -156,3 +156,12 @@ The limitation is structural: Google Routes returns only a restricted selection 
 - Older saved location-only trips still parse and remain editable. Their Week location pins use an **⏱** indicator until a positive duration is supplied. Missing duration means no calendar minutes can be claimed.
 - Switching from combined to direct, or switching the direct mode, clears stale manual ETA and return verification. A car ETA must never be silently repurposed as a walking, cycling or transit estimate.
 - The 50/day, 1,000/month protected paid Google Routes limits stay unchanged. E2E coverage includes each direct mode using both manual and explicitly calculated ETAs.
+
+
+## Return-only travel after an offsite event
+
+- The user can check **Pouze cesta domů (bez cesty tam)** independently from the existing return-home checkbox. This automatically enables return time and suppresses the outbound calendar reservation. Turning the return checkbox off restores the outbound-only choice, preventing a plan with neither direction.
+- In the calendar, a return-only trip reserves **exactly one block starting at the parent activity's end**, with its own manually entered or explicitly Google-calculated positive duration. Travel is still a derived block, so moving/deleting the parent automatically repositions/removes it; collision checks receive the same reservation interval. The normal round-trip and outbound-only paths are unchanged.
+- The destination is the **activity**; the existing origin / home pin is the destination of the reverse ride. Reverse Google calculations explicitly reverse coordinates and the order of combined stages, and use the event end as departure time. They consume one of the existing 50/day and 1,000/month quota per stage, only on click. **No outbound Google calculation is needed**.
+- When no duration was entered or calculated, saving a return-only trip fails with an actionable error; never guess its duration from the outbound route. Previously stored outbound-only and round-trip records continue to behave the same way (missing outboundEnabled defaults to enabled).
+- A return-only mixed itinerary stores only typed stage geometry and via points in `pathLegs`, without inventing outward leg minutes. The Week location icon considers returnMinutes as a complete time estimate. Jarvis does not advise leaving home for trips explicitly marked return-only.
