@@ -201,9 +201,10 @@ export async function POST(request:Request){
   // Optional explicit, budgeted metro comparison for one MHD stage.
   // Google's allowedTravelModes is a preference, not a guaranteed metro-only route.
   if(data.transitTravelModes!==undefined&&
-    (mode!=="transit"||data.transitTravelModes!=="metro"))
+    (mode!=="transit"||!["metro","subway_only"].includes(String(data.transitTravelModes))))
     return send(400,{error:"Neplatná volba preferovaného dopravního prostředku."});
   const metroRequested=data.transitTravelModes==="metro";
+  const subwayOnlyRequested=data.transitTravelModes==="subway_only";
   if(data.simpleRoute!==undefined&&typeof data.simpleRoute!=="boolean")
     return send(400,{error:"Neplatný typ zjednodušeného výpočtu."});
   const simpleRoute=data.simpleRoute===true;
@@ -235,11 +236,13 @@ export async function POST(request:Request){
   // It is an average, time-independent estimate, NOT live or predictive traffic.
   if(departureTime&&!(simpleRoute&&mode==="driving"))payload.departureTime=departureTime;
   if(mode==="driving")payload.routingPreference=simpleRoute?"TRAFFIC_UNAWARE":"TRAFFIC_AWARE";
-  if(mode==="transit"&&(preference!=="fastest"||metroRequested))
+  if(mode==="transit"&&(preference!=="fastest"||metroRequested||subwayOnlyRequested))
     payload.transitPreferences={
-      ...(preference!=="fastest"?{routingPreference:preference==="balanced"?"LESS_WALKING":
-        TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest"|"balanced">]}:{}),
-      ...(metroRequested?{allowedTravelModes:["SUBWAY","BUS","LIGHT_RAIL"]}:{}),
+      ...(subwayOnlyRequested?{routingPreference:"FEWER_TRANSFERS"}:
+        preference!=="fastest"?{routingPreference:preference==="balanced"?"LESS_WALKING":
+          TRANSIT_PREFERENCES[preference as Exclude<TransitPreference,"fastest"|"balanced">]}:{}),
+      ...(subwayOnlyRequested?{allowedTravelModes:["SUBWAY"]}:
+        metroRequested?{allowedTravelModes:["SUBWAY","BUS","LIGHT_RAIL"]}:{}),
     };
   // Reserve before calling billable Google Routes. Each leg costs one reservation.
   // On Redis failures, never fall back to in-memory counters or unmetered Google calls.
@@ -312,9 +315,16 @@ export async function POST(request:Request){
       .sort((a,b)=>{
         // Explicit MHD preferences rank the returned alternatives by that criterion.
         // A preference changes prioritization, never promises a globally optimal route.
-        if(mode==="transit"&&metroRequested){
+        if(mode==="transit"&&(metroRequested||subwayOnlyRequested)){
+          const boardings=(option:NonNullable<ReturnType<typeof routeOption>>)=>
+            option.steps.filter(step=>step.kind==="transit");
+          const isSubway=(vehicle?:string)=>["SUBWAY","METRO_RAIL"].includes(vehicle??"");
+          // An allowed mode is only a preference; never label an actual
+          // tram/bus ride as "metro only" if Google includes it anyway.
           const metro=(option:NonNullable<ReturnType<typeof routeOption>>)=>
-            option.steps.some(step=>step.kind==="transit"&&step.vehicle==="SUBWAY");
+            subwayOnlyRequested
+              ?boardings(option).length>0&&boardings(option).every(step=>isSubway(step.vehicle))
+              :boardings(option).some(step=>isSubway(step.vehicle));
           if(metro(a)!==metro(b))return metro(a)?-1:1;
         }
         if(mode==="transit"&&preference==="balanced"){
@@ -322,7 +332,16 @@ export async function POST(request:Request){
           // transfers. Rank only Google's returned options, never invent a route.
           const score=(option:NonNullable<ReturnType<typeof routeOption>>)=>
             option.minutes+Math.max(0,option.walkingMeters-350)/75+
-              option.transfers*6+(option.walkingMeters>1200?8:0);
+              option.transfers*6+(option.walkingMeters>1200?8:0)+
+              // A transfer across different types of vehicle is often more
+              // cumbersome than a same-system connection (e.g. metro B → C).
+              option.steps.filter(step=>step.kind==="transit")
+                .reduce((state,step)=>{
+                  const vehicle=["SUBWAY","METRO_RAIL"].includes(step.vehicle??"")
+                    ?"metro":step.vehicle??"unknown";
+                  return {previous:vehicle,
+                    penalty:state.penalty+(state.previous&&state.previous!==vehicle?7:0)};
+                },{previous:"",penalty:0}).penalty;
           return score(a)-score(b)||a.minutes-b.minutes;
         }
         if(mode==="transit"&&preference==="fewer_transfers"&&a.transfers!==b.transfers)
