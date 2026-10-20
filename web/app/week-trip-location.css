@@ -293,3 +293,12 @@
 .df2-parking-expand{border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);padding:10px;border-radius:8px;font-size:11px;cursor:pointer}
 .df2-parking-disclaimer{font-size:10px;line-height:1.6;color:var(--muted);margin:0}
 @media(max-width:480px){.df2-parking-item{align-items:flex-start}.df2-parking-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Simpler public transport: opt-in, budgeted metro-only query and free choice from returned routes. */
+.df2-trip-subway-compare{display:grid;gap:10px;margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);min-width:0}
+.df2-trip-subway-compare>.df2-trip-metro-heading p{line-height:1.55}
+.df2-trip-subway-compare>button{min-height:39px;padding:9px 11px;text-align:left;font-size:12px;font-weight:700;color:var(--accent-dark);border:1px solid var(--accent);border-radius:8px;background:var(--accent-wash);cursor:pointer}
+.df2-trip-subway-compare>button:disabled{opacity:.55;cursor:wait}
+.df2-trip-subway-compare>button:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+.df2-travel-alternative-select{display:block;margin-top:7px;border:1px solid var(--accent);background:var(--accent-wash);color:var(--accent-dark);border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer}
+.df2-travel-alternative-select:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
