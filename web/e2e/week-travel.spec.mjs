@@ -458,6 +458,30 @@ for(const mode of ["driving","walking","cycling","transit"]){
     await expect(page.locator("[data-week-travel]")).toHaveCount(2);
   });
 }
+test("switching a saved round trip into only home requires a new return duration",async({page})=>{
+  const title="Změna na jediný návrat";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const editor=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await editor.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(editor,50.08,14.43,"Knihovna");
+  await editor.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(editor,50.4,14.7,"Domov");
+  await editor.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("35");
+  await editor.getByRole("checkbox",{name:"Přidat cestu domů po skončení bloku"}).check();
+  await editor.getByRole("button",{name:"Uložit místo",exact:true}).click();
+  await expect(page.locator("[data-week-travel]")).toHaveCount(2);
+  await openTaskPlace(page,title);
+  const reopened=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await expect(reopened.getByRole("spinbutton",{name:"Doba cesty domů"})).toHaveValue("35");
+  await reopened.getByRole("checkbox",{name:"Pouze cesta domů (bez cesty tam)"}).check();
+  await expect(reopened.getByRole("spinbutton",{name:"Doba cesty domů"})).toHaveValue("");
+  await reopened.getByRole("button",{name:"Uložit místo",exact:true}).click();
+  await expect(reopened.getByRole("alert")).toContainText("platnou dobu návratu");
+  await reopened.getByRole("spinbutton",{name:"Doba cesty domů"}).fill("42");
+  await reopened.getByRole("button",{name:"Uložit místo",exact:true}).click();
+  await expect(page.locator("[data-week-travel]")).toHaveCount(1);
+  await expect(page.locator("[data-week-travel]")).toContainText("10:45–11:27");
+});
 test("only home Google calculation reverses the trip without calculating outbound",async({page})=>{
   const calls=[];
   await page.route("**/api/google-travel",route=>{
