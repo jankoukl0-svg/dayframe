@@ -940,6 +940,7 @@ export function DayframeV2() {
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>
+                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key])}
                               {(key<todayKey||occ.session)&&gym.hydrated&&!gym.blocked&&<button
                                 type="button" className="df2-week-gym-delete"
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
@@ -962,7 +963,7 @@ export function DayframeV2() {
                                     setNotice("Trénink byl odstraněn pouze z "+key+". Další týdny zůstaly beze změny.");
                                   }else setNotice("Trénink se nepodařilo smazat.");
                                 }}>×</button>}
-                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key])}
+
                               </Fragment>;
                           })}
                           {timedCare.map(item=>{
