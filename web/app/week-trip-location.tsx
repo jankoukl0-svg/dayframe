@@ -807,7 +807,13 @@ export function WeekTripLocationModal({target,onClose,onSaved}:{
     const controller=new AbortController();
     returnController.current=controller;
     setReverseLoading(true);setReverseError("");setReturnVerified(false);
-    const reversed=[...routeParts].reverse().map(part=>({mode:part.mode,from:part.to,to:part.from}));
+    // Strip user labels from every reversed endpoint, exactly like the
+    // outbound path. The provider only needs coordinates; labels stay local.
+    const reversed=[...routeParts].reverse().map(part=>({
+      mode:part.mode,
+      from:{lat:part.to.lat,lon:part.to.lon},
+      to:{lat:part.from.lat,lon:part.from.lon},
+    }));
     let elapsed=0;
     try{
       for(let i=0;i<reversed.length;i++){
