@@ -550,3 +550,25 @@ test("empty historical days never materialize any routine again on revisit",()=>
   assert.deepEqual(cleaned.plans["2026-09-21"],[]);
   assert.equal(cleaned.routines.some(x=>x.id==="read"),true,"The underlying schedule remains active");
 });
+
+test("travel time reservations prevent auto placement and remain outside saved task records",()=>{
+  const now=new Date("2026-10-20T08:00:00");
+  const state={schema:5,plans:{},backlog:[],routines:[],routineSkips:[],
+    milestones:[],dismissedOverdueKeys:[]};
+  const reservations={"2026-10-20":[{start:9*60,end:10*60},
+    {start:11*60,end:11*60+30}]};
+  const draft={title:"Matematika",duration:45,date:"2026-10-20",start:"09:15",
+    category:"Studium",priority:"normal"};
+  const blocked=addTask(state,draft,now,reservations);
+  assert.equal(blocked.status,"waiting","manual conflict may not be silently scheduled");
+  const freed=addTask(state,{...draft,start:"10:00"},now,reservations);
+  assert.equal(freed.status,"scheduled");
+  assert.equal(freed.task.start,"10:00");
+  const timed=findSlot([],"2026-10-20",30,now,"22:30","09:30",reservations["2026-10-20"]);
+  assert.equal(timed,null);
+  const auto=addTask(state,{...draft,start:undefined},now,reservations);
+  assert.equal(auto.task.start,"08:00");
+  const later=addTask(state,{...draft,start:"11:00"},now,reservations);
+  assert.equal(later.status,"waiting");
+  assert.equal(getTasksForDate(freed.state,"2026-10-20").length,1);
+});
