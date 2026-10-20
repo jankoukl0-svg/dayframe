@@ -671,6 +671,12 @@ test("one-click P+R preset prepares drive plus MHD without paid requests or inve
   await expect(dialog.getByRole("spinbutton",{name:"Délka úseku 1"})).toHaveValue("");
   await expect(dialog.getByRole("spinbutton",{name:"Délka úseku 2"})).toHaveValue("");
   await expect(dialog.getByRole("button",{name:"Zastávka 1"})).toContainText("P+R Černý Most");
+  // A nearby pedestrian/metro entrance is NOT the verified garage coordinate.
+  await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(dialog,50.1104,14.5794097,"Pěší vstup u metra");
+  await expect(preset.getByRole("button",{name:"Použít tuto kombinaci"})).toBeEnabled();
+  await preset.getByRole("button",{name:"Použít tuto kombinaci"}).click();
+  await expect(preset.getByRole("button",{name:/P\\+R Černý Most vybráno/})).toBeDisabled();
   expect(paidCalls).toBe(0);
   await dialog.getByRole("spinbutton",{name:"Délka úseku 1"}).fill("40");
   await dialog.getByRole("spinbutton",{name:"Délka úseku 2"}).fill("45");
