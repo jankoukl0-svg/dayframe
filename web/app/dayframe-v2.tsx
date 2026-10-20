@@ -47,7 +47,8 @@ import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGy
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
-import {readTravelStore,saveTravelStore,travelBlockKey,liveTravelTaskKeys,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
+import {readTravelStore,saveTravelStore,travelBlockKey,liveTravelTaskKeys,
+  travelReservationsForDay,type TravelCalendarEvent,TRAVEL_SYNC_EVENT} from "@/lib/dayframe-travel";
 
 const STORAGE_KEY = "dayframe-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
@@ -155,8 +156,9 @@ export function DayframeV2() {
     window.addEventListener(TRAVEL_SYNC_EVENT,refresh);window.addEventListener("storage",refresh);
     return ()=>{window.removeEventListener(TRAVEL_SYNC_EVENT,refresh);window.removeEventListener("storage",refresh);};
   },[]);
-  function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,initialOffsite=false){
-    setTripTarget({key:travelBlockKey(kind,id,date),title,date,start,initialOffsite});
+  function openTrip(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,
+    initialOffsite=false,end?:string){
+    setTripTarget({key:travelBlockKey(kind,id,date),title,date,start,end,initialOffsite});
   }
   function migrateTaskTrip(oldId:string,newId:string,newDate:string,newStart:string){
     if(oldId===newId)return;
@@ -206,13 +208,13 @@ export function DayframeV2() {
     saveTravelStore({...current.store,blocks});
   }
   function travelPin(kind:"task"|"gym"|"care",id:string,date:string,title:string,start:string,
-    top:number,lane?:{left:string;width:string}){
+    top:number,lane?:{left:string;width:string},end?:string){
     const key=travelBlockKey(kind,id,date),assigned=Boolean(travelStore.blocks[key]);
     return <button type="button" className={"df2-week-location-btn"+(assigned?" has-location":"")}
       key={"loc-"+key} aria-label={"Místo konání: "+title}
       title={"Místo konání – "+title} data-week-place={key}
       style={{top:top+3,...(lane?{left:"calc("+lane.left+" + "+lane.width+" - 25px)",right:"auto"}:{})}}
-      onClick={e=>{e.stopPropagation();openTrip(kind,id,date,title,start);}}>
+      onClick={e=>{e.stopPropagation();openTrip(kind,id,date,title,start,false,end);}}>
       {assigned?"📍":"⌖"}
     </button>;
   }
@@ -515,7 +517,7 @@ export function DayframeV2() {
     setDraft(emptyDraft());
     setAddingTask(false);
     if(offsiteOnCreate)
-      openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"",true);
+      openTrip("task",result.task.id,result.task.date,result.task.title,result.task.start??"",true,result.task.end);
     setOffsiteOnCreate(false);
   }
 
@@ -550,6 +552,26 @@ export function DayframeV2() {
     setEditing(null);
   }
 
+  function reservedTravel(date:string){
+    const events:TravelCalendarEvent[]=[
+      ...getTasksForDate(data,date).filter(t=>t.start&&t.end).map(t=>({
+        key:travelBlockKey("task",t.id),date,start:t.start!,end:t.end!,title:t.title,
+      })),
+      ...assignmentsOnDate(gym.store,date).map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
+        .filter(({time})=>time.start!==null).map(({occ,time})=>({
+          key:travelBlockKey("gym",occ.key),date,start:time.start!,
+          end:minutesToTime(timeToMinutes(time.start!)+time.duration),title:occ.name,
+        })),
+      ...weekCareBlocks(care.store,date,todayKey,care.times,care.hidden).map(item=>({
+        key:travelBlockKey("care",item.id,date),date,start:item.start,
+        end:minutesToTime(timeToMinutes(item.start)+item.duration),title:item.title,
+      })),
+    ];
+    return travelReservationsForDay(travelStore,date,events);
+  }
+  function intersectsTravel(date:string,start:number,end:number,ignoreKey?:string):boolean{
+    return reservedTravel(date).some(r=>r.key!==ignoreKey&&start<r.end&&end>r.start);
+  }
   function careHasRecordedProgress(date: string, routineId: string): boolean {
     return Object.keys(care.store?.records[date]?.[routineId]?.states ?? {}).length > 0;
   }
@@ -565,6 +587,7 @@ export function DayframeV2() {
       .filter(item => item.start !== null)
       .map(item => ({ start: timeToMinutes(item.start ?? undefined), end: timeToMinutes(item.start ?? undefined) + item.duration }));
     return canPlaceAt(tasks, minute, duration)
+      && !intersectsTravel(date,minute,minute+duration,travelBlockKey("care",id,date))
       && ![...otherCare, ...otherGym].some(item => minute < item.end && minute + duration > item.start);
   }
 
@@ -657,6 +680,10 @@ export function DayframeV2() {
       if (candidate < min || candidate > max) continue;
       if (dragging?.kind==="care"&&date===todayKey&&candidate<=planningMinute(now))continue;
       if (canPlaceAt(destination, candidate, duration)
+        && !intersectsTravel(date,candidate,candidate+duration,
+          dragging?.kind==="task"?travelBlockKey("task",dragging.id):
+            dragging?.kind==="gym"?travelBlockKey("gym",dragging.id):
+              travelBlockKey("care",dragging?.id??"",dragging?.date))
         && !otherGym.some(block=>candidate<block.end && candidate+duration>block.start)
         && !otherCare.some(block=>candidate<block.end && candidate+duration>block.start))return candidate;
     }
@@ -870,7 +897,19 @@ export function DayframeV2() {
                     const timedGym=assignmentsOnDate(gym.store,key)
                       .map(occ=>({occ,time:gymOccurrenceTime(gym.store,occ)}))
                       .filter(item=>item.time.start!==null);
+                    const travelEvents:TravelCalendarEvent[]=[
+                      ...scheduled.map(task=>({key:travelBlockKey("task",task.id),date:key,
+                        start:task.start!,end:task.end!,title:task.title})),
+                      ...timedCare.map(item=>({key:travelBlockKey("care",item.id,key),date:key,
+                        start:item.start,end:minutesToTime(timeToMinutes(item.start)+item.duration),title:item.title})),
+                      ...timedGym.map(({occ,time})=>({key:travelBlockKey("gym",occ.key),date:key,
+                        start:time.start!,end:minutesToTime(timeToMinutes(time.start!)+time.duration),title:occ.name})),
+                    ];
+                    const travelReservations=travelReservationsForDay(travelStore,key,travelEvents);
                     const lanePositions=placeWeekGymCollisions([
+                      ...travelReservations.map(item=>({id:"travel:"+item.id,
+                        start:Math.max(calendarBounds.dayStart,item.start),
+                        end:Math.min(calendarBounds.dayEnd,item.end),gym:true})),
                       ...timedCare.map(item=>({
                         id:"care:"+item.id,start:timeToMinutes(item.start),
                         end:timeToMinutes(item.start)+item.duration,gym:true})),
@@ -915,6 +954,33 @@ export function DayframeV2() {
                               <strong>{dropPreview.valid ? dropPreview.start : "není místo"}</strong>
                             </div>
                           )}
+                          {travelReservations.map(reservation=>{
+                            const from=Math.max(calendarBounds.dayStart,reservation.start);
+                            const to=Math.min(calendarBounds.dayEnd,reservation.end);
+                            if(to<=from)return null;
+                            const source=travelEvents.find(e=>e.key===reservation.key);
+                            const dir=reservation.direction==="outbound"?"Cesta tam":"Cesta domů";
+                            const label=dir+" · "+reservation.title;
+                            const range=minutesToTime(reservation.start)+"–"+minutesToTime(reservation.end);
+                            return <button key={"travel:"+reservation.id} type="button"
+                              data-week-travel={reservation.id}
+                              className={"df2-week-travel"+(reservation.estimated?" is-estimate":"")}
+                              style={{
+                                top:(from-calendarBounds.dayStart)*MINUTE_HEIGHT+"px",
+                                height:Math.max(18,(to-from)*MINUTE_HEIGHT)+"px",
+                                ...(lanePositions["travel:"+reservation.id]??{}),
+                              }}
+                              aria-label={label+", "+range}
+                              title={label+" · "+range+(reservation.estimated?" · orientační odhad":"")}
+                              onClick={()=>setTripTarget({
+                                key:reservation.key,title:reservation.title,date:key,
+                                start:source?.start??"",end:source?.end,
+                              })}>
+                              <span>{range}</span>
+                              <strong>{reservation.direction==="outbound"?"→ Cesta tam":"← Cesta domů"}</strong>
+                              <small>{reservation.title}{reservation.estimated?" · odhad":""}</small>
+                            </button>;
+                          })}
                           {timedGym.map(({occ,time})=>{
                             if(!time.start)return null;
                             const top=(timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT;
@@ -940,7 +1006,7 @@ export function DayframeV2() {
                               <span>{time.start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>
-                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key])}
+                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key],end)}
                               {(key<todayKey||occ.session)&&gym.hydrated&&!gym.blocked&&<button
                                 type="button" className="df2-week-gym-delete"
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
@@ -1012,7 +1078,7 @@ export function DayframeV2() {
                               </button>
                               {travelPin("care",item.id,key,item.title,item.start,
                                 (timeToMinutes(item.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
-                                lanePositions["care:"+item.id])}
+                                lanePositions["care:"+item.id],minutesToTime(timeToMinutes(item.start)+item.duration))}
                               </Fragment>
                             );
                           })}
@@ -1041,7 +1107,7 @@ export function DayframeV2() {
                               </button>
                               {travelPin("task",task.id,key,task.title,task.start!,
                                 (timeToMinutes(task.start)-calendarBounds.dayStart)*MINUTE_HEIGHT,
-                                lanePositions["task:"+task.id])}
+                                lanePositions["task:"+task.id],task.end)}
                               </Fragment>
                             );
                           })}
@@ -1136,7 +1202,8 @@ export function DayframeV2() {
             <p className="df2-week-care-help">Čas lze změnit přetažením. Opakovanou rutinu lze přesunout i na jiný den mimo neděli; úprava se týká pouze tohoto výskytu.</p>
             {editingCareError && <p className="df2-error" role="alert">{editingCareError}</p>}
             <button type="button" className="df2-trip-in-edit"
-              onClick={()=>openTrip("care",editingCare.id,editingCare.date,editingCare.title,editingCareStart)}>
+              onClick={()=>openTrip("care",editingCare.id,editingCare.date,editingCare.title,editingCareStart,false,
+                minutesToTime(timeToMinutes(editingCareStart)+editingCare.duration))}>
               📍 Místo konání / cesta
             </button>
             <div className="df2-modal-actions">
@@ -1177,7 +1244,7 @@ export function DayframeV2() {
             <div className="df2-form-grid"><label>Priorita<select name="priority" defaultValue={editing.priority}><option value="high">Vysoká</option><option value="normal">Běžná</option><option value="low">Nízká</option></select></label><label>Oblast<select name="category" defaultValue={editing.category}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
             <div className="df2-form-grid"><label>Dokončit do<input name="dueDate" type="date" defaultValue={editing.dueDate ?? ""} /></label><label>Nejpozději v<input name="deadlineTime" type="time" defaultValue={editing.deadlineTime ?? "22:30"} /></label></div>
             <button type="button" className="df2-trip-in-edit"
-              onClick={()=>openTrip("task",editing.id,editing.date,editing.title,editing.start??"")}>
+              onClick={()=>openTrip("task",editing.id,editing.date,editing.title,editing.start??"",false,editing.end)}>
               📍 Místo konání / cesta
             </button>
             {error && <p className="df2-error">{error}</p>}
