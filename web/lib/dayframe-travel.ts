@@ -8,7 +8,7 @@ export type TravelPoint={lat:number;lon:number;label:string};
 export type TravelLeg={mode:TravelMode;minutes:number;via?:TravelPoint};
 export type TravelBlock={place:TravelPoint;mode:TravelMode;bufferMinutes:number;typicalMinutes?:number;legs?:TravelLeg[];title:string;date:string;start:string;
   /** Calendar-only duration from the explicitly selected Google route, or the saved manual estimate. */
-  calendarMinutes?:number;returnHome?:boolean;returnMinutes?:number;returnVerified?:boolean;};
+  calendarMinutes?:number;calendarVerified?:boolean;returnHome?:boolean;returnMinutes?:number;returnVerified?:boolean;};
 export function travelDuration(trip:Pick<TravelBlock,"legs"|"typicalMinutes">):number|undefined{
   return trip.legs?.length?trip.legs.reduce((minutes,leg)=>minutes+leg.minutes,0):trip.typicalMinutes;
 }
@@ -47,6 +47,7 @@ export function parseTravelStore(value:string|null):{store:TravelStore;blocked:b
         ||!Number.isInteger(v.bufferMinutes)||v.bufferMinutes<0||v.bufferMinutes>180
         ||(v.typicalMinutes!==undefined&&(!Number.isInteger(v.typicalMinutes)||v.typicalMinutes<1||v.typicalMinutes>1440))
         ||(v.calendarMinutes!==undefined&&(!Number.isInteger(v.calendarMinutes)||v.calendarMinutes<1||v.calendarMinutes>1440))
+        ||(v.calendarVerified!==undefined&&typeof v.calendarVerified!=="boolean")
         ||(v.returnHome!==undefined&&typeof v.returnHome!=="boolean")
         ||(v.returnVerified!==undefined&&typeof v.returnVerified!=="boolean")
         ||(v.returnMinutes!==undefined&&(!Number.isInteger(v.returnMinutes)||v.returnMinutes<1||v.returnMinutes>1440))
@@ -110,7 +111,7 @@ export function travelReservationsForDay(store:TravelStore,date:string,
     const outboundStart=eventStart-duration!-trip.bufferMinutes;
     result.push({id:event.key+":outbound",key:event.key,date,title:event.title,
       direction:"outbound",start:outboundStart,end:eventStart,
-      duration:duration!+trip.bufferMinutes,estimated:trip.calendarMinutes===undefined,
+      duration:duration!+trip.bufferMinutes,estimated:trip.calendarVerified!==true,
       bufferMinutes:trip.bufferMinutes,outsideCalendar:outboundStart<480||eventStart>1560});
     if(trip.returnHome&&Number.isInteger(trip.returnMinutes)&&trip.returnMinutes!>0){
       const returnEnd=eventEnd+trip.returnMinutes!;
