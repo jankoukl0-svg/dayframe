@@ -648,6 +648,135 @@ test("Černý Most metro B can be compared with awkward bus-train-tram in exactl
   expect(calls).toHaveLength(3);
 });
 
+test("Florenc metro B to C can be compared without requerying car or inventing tram-less rides",async({page})=>{
+  const calls=[];
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const p=route.request().postDataJSON();calls.push(p);
+    if(p.mode==="driving")return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:36,distanceMeters:52000,trafficAware:true,
+        options:[{minutes:36,distanceMeters:52000,steps:[],transfers:0,walkingMeters:0}]})});
+    const subway=p.transitTravelModes==="subway_only";
+    const steps=subway?[
+      {kind:"walk",distanceMeters:500},
+      {kind:"transit",vehicle:"SUBWAY",line:"B",from:"Černý Most",to:"Florenc"},
+      {kind:"transit",vehicle:"SUBWAY",line:"C",from:"Florenc",to:"Hlavní nádraží"},
+      {kind:"walk",distanceMeters:750},
+    ]:[
+      {kind:"walk",distanceMeters:535},
+      {kind:"transit",vehicle:"SUBWAY",line:"B",from:"Černý Most",to:"Florenc"},
+      {kind:"transit",vehicle:"TRAM",line:"26",from:"Florenc",to:"Viktoria Žižkov"},
+      {kind:"walk",distanceMeters:268},
+    ];
+    return route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({minutes:subway?47:43,distanceMeters:13600,trafficAware:false,
+        options:[{minutes:subway?47:43,distanceMeters:13600,
+          transfers:1,walkingMeters:subway?1250:803,steps}]})});
+  });
+  const title="Metro přes Florenc";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.084,14.442,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.3,14.9,"Domov");
+  await dialog.getByRole("button",{name:"Kombinovaná cesta"}).click();
+  await dialog.getByRole("button",{name:"Zastávka 1"}).click();
+  await setMapPoint(dialog,50.1102028,14.5794097,"P+R Černý Most");
+  await dialog.getByRole("combobox",{name:"Doprava úsek 2"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  const results=dialog.locator(".df2-google-route-results");
+  await expect(results).toContainText("84 min");
+  const onlyMetro=dialog.getByLabel("Alternativa pouze metrem");
+  await expect(onlyMetro).toContainText("Raději jen metrem?");
+  expect(calls).toHaveLength(2);
+  await onlyMetro.getByRole("button",{name:/Prověřit cestu pouze metrem/}).click();
+  await expect(onlyMetro).toContainText("Metro B → Metro C");
+  expect(calls).toHaveLength(3);
+  expect(calls.map(c=>c.mode)).toEqual(["driving","transit","transit"]);
+  expect(calls[2].transitTravelModes).toBe("subway_only");
+  expect(calls[2].from).toEqual(calls[1].from);
+  expect(calls[2].to).toEqual(calls[1].to);
+  expect(calls[2].departureTime).toBe(calls[1].departureTime);
+  await onlyMetro.getByRole("button",{name:"Vybrat pouze metro"}).click();
+  await expect(results).toContainText("88 min");
+  await expect(results).toContainText("Metro B → Metro C");
+  await onlyMetro.getByRole("button",{name:"Ponechat původní spoj"}).click();
+  await expect(results).toContainText("84 min");
+  expect(calls).toHaveLength(3);
+});
+
+test("subway-only request cannot pretend metro plus tram is subway-only",async({page})=>{
+  const calls=[];
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    const p=route.request().postDataJSON();calls.push(p);
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      minutes:42,distanceMeters:11500,trafficAware:false,
+      options:[{minutes:42,distanceMeters:11500,transfers:1,walkingMeters:400,
+        steps:[{kind:"walk",distanceMeters:180},
+          {kind:"transit",vehicle:"SUBWAY",line:"B"},
+          {kind:"transit",vehicle:"TRAM",line:"26"},
+          {kind:"walk",distanceMeters:220}]}]})});
+  });
+  const title="Žádné čisté metro";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.084,14.442,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.1102028,14.5794097,"Černý Most");
+  await dialog.getByRole("combobox",{name:"Způsob dopravy"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  const onlyMetro=dialog.getByLabel("Alternativa pouze metrem");
+  await onlyMetro.getByRole("button",{name:/Prověřit cestu pouze metrem/}).click();
+  await expect(onlyMetro).toContainText("nevrátil ověřenou trasu bez tramvaje");
+  await expect(onlyMetro.getByRole("button",{name:"Vybrat pouze metro"})).toHaveCount(0);
+  expect(calls).toHaveLength(2);
+});
+
+test("already-returned transit alternatives can be chosen for free and update total and itinerary",async({page})=>{
+  let paid=0;
+  await page.route("**/api/google-travel",route=>{
+    if(route.request().method()==="GET")
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({available:true})});
+    paid++;
+    const r=(minutes,transit)=>({
+      minutes,distanceMeters:12300,transfers:1,walkingMeters:500,steps:[
+        {kind:"walk",distanceMeters:220},
+        {kind:"transit",vehicle:"SUBWAY",line:"B",from:"Černý Most",to:"Florenc"},
+        {kind:"transit",vehicle:transit?"TRAM":"SUBWAY",line:transit?"26":"C",
+          from:"Florenc",to:transit?"Viktoria Žižkov":"Hlavní nádraží"},
+        {kind:"walk",distanceMeters:280}]
+    });
+    return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+      minutes:40,distanceMeters:12300,
+      options:[r(40,true),r(44,false)]})});
+  });
+  const title="Dvě varianty Google";
+  await makeTask(page,title);await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.084,14.442,"VŠE");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.1102028,14.5794097,"P+R");
+  await dialog.getByRole("combobox",{name:"Způsob dopravy"}).selectOption("transit");
+  await dialog.getByLabel("Přístupový kód k výpočtu tras").fill("x".repeat(28));
+  await dialog.getByRole("button",{name:"Spočítat trasu"}).click();
+  const results=dialog.locator(".df2-google-route-results");
+  await expect(results).toContainText("40 min");
+  await results.getByText("Zobrazit stanice, spoje a alternativy").click();
+  await results.getByText(/Porovnat 1 další dostupné varianty/).click();
+  await results.getByRole("button",{name:"Vybrat variantu 2 (bez API)"}).click();
+  await expect(results).toContainText("44 min");
+  await expect(results).toContainText("Metro B → Metro C");
+  expect(paid).toBe(1);
+});
+
 test("one-click P+R preset prepares drive plus MHD without paid requests or invented minutes",async({page})=>{
   let paidCalls=0;
   await page.route("**/api/google-travel",route=>{
