@@ -632,7 +632,9 @@ test("manual round trip is marked as estimate and changing a task updates projec
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const windows=page.locator(".df2-week-day").last().locator("[data-week-travel]");
   await expect(windows).toHaveCount(2);
-  await expect(windows.last()).toContainText("odhad");
+  await expect(windows.last()).not.toContainText("odhad");
+  await expect(windows.last()).toHaveClass(/is-estimate/);
+  await expect(windows.last()).toHaveAttribute("title",/orientační odhad/);
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
   expect(Object.values(stored.blocks)[0].returnVerified).toBe(false);
   await page.reload({waitUntil:"networkidle"});
