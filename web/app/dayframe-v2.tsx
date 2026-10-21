@@ -1037,7 +1037,6 @@ export function DayframeV2() {
                               })}>
                               <span>{range}</span>
                               <strong>{reservation.direction==="outbound"?"→ Cesta tam":"← Cesta domů"}</strong>
-                              <small>{reservation.title}{reservation.estimated?" · odhad":""}</small>
                             </button>;
                           })}
                           {timedGym.map(({occ,time})=>{
