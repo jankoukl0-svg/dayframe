@@ -335,6 +335,13 @@ for(const mode of ["driving","walking","cycling","transit"]){
     await expect(reservations).toHaveCount(2);
     await expect(reservations.first()).toContainText("09:21–10:00");
     await expect(reservations.last()).toContainText("10:45–11:09");
+    // Compact travel slots show only timing and direction; details stay accessible.
+    for(const reservation of await reservations.all()){
+      await expect(reservation.locator("small")).toHaveCount(0);
+      await expect(reservation).not.toContainText(title);
+      await expect(reservation).not.toContainText("odhad");
+      await expect(reservation).toHaveAttribute("aria-label",new RegExp(title));
+    }
     const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
     const trip=Object.values(saved.blocks)[0];
     expect(trip.mode).toBe(mode);
@@ -440,6 +447,10 @@ for(const mode of ["driving","walking","cycling","transit"]){
     await expect(reservations).toHaveCount(1);
     await expect(reservations).toContainText("Cesta domů");
     await expect(reservations).toContainText("10:45–11:17");
+    await expect(reservations.locator("small")).toHaveCount(0);
+    await expect(reservations).not.toContainText(title);
+    await expect(reservations).not.toContainText("odhad");
+    await expect(reservations).toHaveAttribute("aria-label",new RegExp(title));
     await expect(page.locator("[data-week-travel$='outbound']")).toHaveCount(0);
     const stored=await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem("dayframe-travel-v1")).blocks)[0]);
     expect(stored).toMatchObject({outboundEnabled:false,returnHome:true,returnMinutes:32,mode});
@@ -621,7 +632,9 @@ test("manual round trip is marked as estimate and changing a task updates projec
   await dialog.getByRole("button",{name:"Uložit místo"}).click();
   const windows=page.locator(".df2-week-day").last().locator("[data-week-travel]");
   await expect(windows).toHaveCount(2);
-  await expect(windows.last()).toContainText("odhad");
+  await expect(windows.last()).not.toContainText("odhad");
+  await expect(windows.last()).toHaveClass(/is-estimate/);
+  await expect(windows.last()).toHaveAttribute("title",/orientační odhad/);
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dayframe-travel-v1")));
   expect(Object.values(stored.blocks)[0].returnVerified).toBe(false);
   await page.reload({waitUntil:"networkidle"});
