@@ -1000,7 +1000,6 @@
   border-radius:5px;padding:3px 6px;background:#e8f1f8;color:#204968;cursor:pointer}
 .df2-week-travel>span{font:9px/1.15 "Cascadia Mono",monospace;color:#466b85}
 .df2-week-travel>strong{font-size:11px;line-height:1.15}
-.df2-week-travel>small{font-size:9px;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .df2-week-travel.is-estimate{border-style:dashed;background:#eff4f7}
 .df2-week-travel:hover{filter:brightness(.97);z-index:5}
 .df2-week-travel:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
