@@ -158,6 +158,16 @@ test("successive sessions use latest progress and reject invalid final pages", a
 
   await end.fill("250");
   await expect(dialog).toContainText("Zapíše se 18 stran");
+  // Another tab can advance the book while the modal remains open.
+  await page.evaluate(() => {
+    const library = JSON.parse(localStorage.getItem("dayframe-reading-library-v1"));
+    library.current.currentPage = 239;
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify(library));
+    window.dispatchEvent(new StorageEvent("storage", { key: "dayframe-reading-library-v1" }));
+  });
+  await expect(dialog).toContainText("Teď jsi na straně 239 z 384");
+  await expect(dialog).toContainText("Zapíše se 11 stran");
+  await expect(end).toHaveAttribute("min", "240");
   await dialog.getByRole("button", { name: "Uložit záznam" }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Teď jsi na straně 250 z 384");
@@ -172,7 +182,7 @@ test("successive sessions use latest progress and reject invalid final pages", a
     sessions: JSON.parse(localStorage.getItem("dayframe-reading-sessions-v1")),
   }));
   expect(saved.library.current.currentPage).toBe(259);
-  expect(saved.sessions.entries.map((entry) => entry.pages)).toEqual([18, 9]);
+  expect(saved.sessions.entries.map((entry) => entry.pages)).toEqual([11, 9]);
   await page.reload({ waitUntil: "networkidle" });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")).current.currentPage)).toBe(259);
 });
