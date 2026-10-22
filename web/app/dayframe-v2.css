@@ -1038,5 +1038,14 @@
 
 .df2-week-travel-outside > button.is-completed {
   opacity: .58;
-  color: #777a76;
+  color: #707670;
+  background: #f0f0ed;
+  border-left-color: #89938c;
+}
+.df2-week-travel-outside > button.is-completed > strong,
+.df2-week-travel-outside > button.is-completed > span {
+  color: #707670;
+}
+.df2-week-travel-outside > button.is-completed:hover {
+  background: #ededeb;
 }
