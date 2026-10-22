@@ -25,6 +25,8 @@ type BookMetadata = {
   genre?: string;
   coverUrl?: string;
   openLibraryKey?: string;
+  matchedTitle?: string;
+  pageCount?: number;
   fetchedAt: string;
   notFound?: boolean;
 };
@@ -39,6 +41,7 @@ type OpenLibraryDoc = {
   cover_i?: number;
   publisher?: string[];
   subject?: string[];
+  number_of_pages_median?: number;
 };
 
 type OpenLibraryResponse = { docs?: OpenLibraryDoc[] };
@@ -46,6 +49,7 @@ type OpenLibraryResponse = { docs?: OpenLibraryDoc[] };
 const LIBRARY_KEY = "dayframe-reading-library-v1";
 const METADATA_KEY = "dayframe-reading-book-metadata-v1";
 const METADATA_SYNC_EVENT = "dayframe-reading-book-metadata-sync";
+const BOOK_SELECTED_EVENT = "dayframe-reading-book-selected";
 const EMPTY_LIBRARY: ReadingLibrary = { current: null, reading: [], completed: [] };
 const lookupCache = new Map<string, Promise<BookMetadata>>();
 
@@ -104,6 +108,8 @@ function sanitizeMetadata(value: unknown): BookMetadata | null {
     genre: typeof raw.genre === "string" ? raw.genre : undefined,
     coverUrl: typeof raw.coverUrl === "string" ? raw.coverUrl : undefined,
     openLibraryKey: typeof raw.openLibraryKey === "string" ? raw.openLibraryKey : undefined,
+    matchedTitle: typeof raw.matchedTitle === "string" ? raw.matchedTitle : undefined,
+    pageCount: typeof raw.pageCount === "number" && Number.isSafeInteger(raw.pageCount) && raw.pageCount > 0 ? raw.pageCount : undefined,
     notFound: raw.notFound === true,
   };
 }
@@ -159,7 +165,7 @@ async function fetchBookMetadata(title: string): Promise<BookMetadata> {
 
   const params = new URLSearchParams({
     title: title.trim(),
-    fields: "key,title,author_name,cover_i,publisher,subject",
+    fields: "key,title,author_name,cover_i,publisher,subject,number_of_pages_median",
     limit: "8",
   });
   const response = await fetch(`https://openlibrary.org/search.json?${params.toString()}`, {
@@ -184,6 +190,10 @@ async function fetchBookMetadata(title: string): Promise<BookMetadata> {
       ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`
       : undefined,
     openLibraryKey: best.key,
+    matchedTitle: best.title?.trim(),
+    pageCount: typeof best.number_of_pages_median === "number"
+      && Number.isSafeInteger(best.number_of_pages_median) && best.number_of_pages_median > 0
+        ? best.number_of_pages_median : undefined,
   };
 }
 
@@ -238,6 +248,7 @@ export function ReadingMetadataController() {
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewMetadata, setPreviewMetadata] = useState<BookMetadata | null>(null);
   const [previewStatus, setPreviewStatus] = useState<LookupStatus>("idle");
+  const [selectedMatch, setSelectedMatch] = useState("");
   const [retryNonce, setRetryNonce] = useState(0);
   const enrichingRef = useRef(new Set<string>());
 
@@ -339,7 +350,14 @@ export function ReadingMetadataController() {
     enrichingRef.current.add(missing.id);
     lookupBook(missing.title)
       .then((result) => {
-        const nextStore = { ...readMetadata(), [missing.id]: result };
+        // A user may explicitly select another edition while the old lookup runs.
+        const latestBook = [readLibrary().current, ...readLibrary().reading, ...readLibrary().completed]
+          .find((book) => book?.id === missing.id);
+        if (!latestBook || normalize(latestBook.title) !== normalize(missing.title)) return;
+        const latestMetadata = readMetadata();
+        if (latestMetadata[missing.id]?.titleKey === normalize(missing.title)
+          && !latestMetadata[missing.id]?.notFound) return;
+        const nextStore = { ...latestMetadata, [missing.id]: result };
         writeMetadata(nextStore);
         setMetadata(nextStore);
       })
@@ -447,23 +465,42 @@ export function ReadingMetadataController() {
     historyHost,
   ) : null;
 
+  const matchedTitle = previewMetadata?.matchedTitle?.trim() || previewTitle.trim();
+  const matchIdentity = `${normalize(matchedTitle)}:${previewMetadata?.openLibraryKey ?? ""}`;
+  const isSelected = Boolean(previewMetadata && selectedMatch === matchIdentity);
+  const selectPreviewBook = () => {
+    if (!previewMetadata || previewStatus !== "found" || !matchedTitle) return;
+    const chosenMetadata = { ...previewMetadata, titleKey: normalize(matchedTitle) };
+    window.dispatchEvent(new CustomEvent(BOOK_SELECTED_EVENT, {
+      detail: { title: matchedTitle, pages: previewMetadata.pageCount, metadata: chosenMetadata },
+    }));
+    setSelectedMatch(matchIdentity);
+  };
+
   const previewPortal = previewHost ? createPortal(
     <div className={`df2-reading-lookup-preview ${previewStatus}`} aria-live="polite">
       {previewStatus === "loading" && <span>Hledám obálku a údaje…</span>}
       {previewStatus === "found" && previewMetadata && (
-        <>
-          <div className="df2-reading-lookup-cover">
+        <button
+          type="button"
+          className="df2-reading-lookup-select"
+          aria-label={`Vybrat nalezenou knihu ${matchedTitle}`}
+          aria-pressed={isSelected}
+          onClick={selectPreviewBook}
+        >
+          <span className="df2-reading-lookup-cover">
             {previewMetadata.coverUrl
-              ? <img src={previewMetadata.coverUrl} alt="Nalezená obálka knihy" />
+              ? <img src={previewMetadata.coverUrl} alt="" />
               : <i aria-hidden="true" />}
-          </div>
-          <div>
-            <strong>Údaje nalezeny</strong>
+          </span>
+          <span className="df2-reading-lookup-details">
+            <strong>{isSelected ? "✓ Kniha vybrána" : "Vybrat tuto knihu"}</strong>
+            <span className="df2-reading-lookup-title">{matchedTitle}</span>
             {previewMetadata.author && <span>{previewMetadata.author}</span>}
             {previewMetadata.publisher && <span>Vydavatel: {previewMetadata.publisher}</span>}
             {previewMetadata.genre && <span>Žánr: {previewMetadata.genre}</span>}
-          </div>
-        </>
+          </span>
+        </button>
       )}
       {previewStatus === "not-found" && <span>Obálku ani metadata se nepodařilo najít. Knihu můžeš uložit i tak.</span>}
       {previewStatus === "error" && <span>Metadata jsou teď nedostupná. Knihu můžeš uložit normálně.</span>}
