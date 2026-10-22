@@ -83,6 +83,13 @@ test("overview tracks completed reading separately across period modes", async (
     window.localStorage.removeItem("dayframe-reading-pending-v1");
   });
   await page.reload({ waitUntil: "networkidle" });
+  // A completion prompt may hydrate after a short delay when all suites run.
+  // This test measures Overview, not the separate session-entry workflow.
+  const pendingReading = page.getByRole("dialog", { name: "Zapsat čtení" });
+  await page.waitForTimeout(500);
+  if (await pendingReading.isVisible()) {
+    await pendingReading.getByRole("button", { name: "Nezapisovat" }).click();
+  }
 
   await page.getByRole("button", { name: /Přehled/ }).click();
   const history = page.locator(".df2-history-view");
