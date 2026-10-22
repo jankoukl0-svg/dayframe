@@ -200,26 +200,61 @@
   font-weight: 540;
 }
 
+/* The matched book is one clickable card, not two grid children. */
 .df2-reading-lookup-preview.found {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  align-items: center;
-  gap: 11px;
+  display: block;
+  min-height: 0;
+  padding: 6px;
 }
 
-.df2-reading-lookup-cover {
-  width: 36px;
-  height: 50px;
+.df2-reading-lookup-preview.found > .df2-reading-lookup-select {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  min-height: 82px;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #494943;
+  text-align: left;
+  cursor: pointer;
+}
+
+.df2-reading-lookup-preview.found > .df2-reading-lookup-select:hover {
+  border-color: #d5cbbd;
+  background: #fffdfa;
+}
+
+.df2-reading-lookup-preview.found > .df2-reading-lookup-select:focus-visible {
+  outline: 2px solid #a8704b;
+  outline-offset: 1px;
+}
+
+.df2-reading-lookup-preview.found > .df2-reading-lookup-select[aria-pressed="true"] {
+  border-color: #a9c7b0;
+  background: #eef5ef;
+}
+
+.df2-reading-lookup-preview.found .df2-reading-lookup-cover {
+  display: block;
+  width: 44px;
+  height: 62px;
+  margin: 0;
   overflow: hidden;
-  border-radius: 4px 6px 6px 4px;
+  border-radius: 5px 7px 7px 5px;
   background: #d9d2c8;
 }
 
 .df2-reading-lookup-cover img,
 .df2-reading-lookup-cover i {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
 }
 
 .df2-reading-lookup-cover img {
@@ -230,30 +265,56 @@
   background: linear-gradient(145deg, #d7c9bc, #c9b8a9);
 }
 
-.df2-reading-lookup-preview > div:last-child {
+.df2-reading-lookup-preview.found .df2-reading-lookup-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
+  overflow: visible;
+  white-space: normal;
 }
 
-.df2-reading-lookup-preview strong,
-.df2-reading-lookup-preview.found span {
+.df2-reading-lookup-preview.found .df2-reading-lookup-details > strong,
+.df2-reading-lookup-preview.found .df2-reading-lookup-details > span {
   display: block;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.df2-reading-lookup-preview.found .df2-reading-lookup-details > strong {
+  color: #91563b;
+  font-size: 11px;
+  font-weight: 680;
+  line-height: 1.35;
   white-space: nowrap;
 }
 
-.df2-reading-lookup-preview strong {
-  margin-bottom: 3px;
-  color: #555650;
-  font-size: 10px;
-  font-weight: 680;
+.df2-reading-lookup-preview.found .df2-reading-lookup-select[aria-pressed="true"] .df2-reading-lookup-details > strong {
+  color: #38744c;
 }
 
-.df2-reading-lookup-preview.found span {
-  margin-top: 2px;
-  color: #8b8982;
-  font-size: 9px;
-  font-weight: 540;
+.df2-reading-lookup-preview.found .df2-reading-lookup-details > .df2-reading-lookup-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #292a27;
+  font-size: 12px;
+  font-weight: 660;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.df2-reading-lookup-preview.found .df2-reading-lookup-details > span:not(.df2-reading-lookup-title) {
+  color: #77746d;
+  font-size: 10px;
+  font-weight: 530;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
