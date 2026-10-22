@@ -233,16 +233,9 @@ function pageLabel(pages: number) {
   return `${pages} stran`;
 }
 
-function metadataLine(metadata: BookMetadata | null) {
-  if (!metadata || metadata.notFound) return [];
-  return [metadata.author, metadata.publisher, metadata.genre].filter((value): value is string => Boolean(value));
-}
-
 export function ReadingMetadataController() {
   const [library, setLibrary] = useState<ReadingLibrary>(EMPTY_LIBRARY);
   const [metadata, setMetadata] = useState<MetadataStore>({});
-  const [coverHost, setCoverHost] = useState<HTMLElement | null>(null);
-  const [currentMetaHost, setCurrentMetaHost] = useState<HTMLElement | null>(null);
   const [historyHost, setHistoryHost] = useState<HTMLElement | null>(null);
   const [previewHost, setPreviewHost] = useState<HTMLElement | null>(null);
   const [previewTitle, setPreviewTitle] = useState("");
@@ -261,41 +254,10 @@ export function ReadingMetadataController() {
 
       const card = document.querySelector<HTMLElement>(".df2-reading-card");
       if (!card) {
-        setCoverHost(null);
-        setCurrentMetaHost(null);
         setHistoryHost(null);
         setPreviewHost(null);
         setPreviewTitle("");
         return;
-      }
-
-      const cover = card.querySelector<HTMLElement>(".df2-reading-book-cover");
-      if (cover) {
-        let host = cover.querySelector<HTMLElement>("[data-reading-real-cover-host]");
-        if (!host) {
-          host = document.createElement("span");
-          host.dataset.readingRealCoverHost = "true";
-          host.className = "df2-reading-real-cover-host";
-          cover.appendChild(host);
-        }
-        setCoverHost((current) => current === host ? current : host);
-      } else {
-        setCoverHost(null);
-      }
-
-      const bookCopy = card.querySelector<HTMLElement>(".df2-reading-current-book > div");
-      const title = bookCopy?.querySelector<HTMLElement>(":scope > strong") ?? null;
-      if (bookCopy && title && nextLibrary.current) {
-        let host = bookCopy.querySelector<HTMLElement>("[data-reading-current-meta-host]");
-        if (!host) {
-          host = document.createElement("div");
-          host.dataset.readingCurrentMetaHost = "true";
-          host.className = "df2-reading-current-meta-host";
-          title.insertAdjacentElement("afterend", host);
-        }
-        setCurrentMetaHost((current) => current === host ? current : host);
-      } else {
-        setCurrentMetaHost(null);
       }
 
       let history = card.querySelector<HTMLElement>("[data-reading-book-history-host]");
@@ -407,32 +369,10 @@ export function ReadingMetadataController() {
     };
   }, [previewHost, previewTitle, library, metadata]);
 
-  const currentMetadata = metadataForBook(library.current, metadata);
-  const currentMetaParts = metadataLine(currentMetadata);
   const completedBooks = useMemo(
     () => [...library.completed].sort((left, right) => (right.finishedAt || "").localeCompare(left.finishedAt || "")),
     [library.completed],
   );
-
-  useEffect(() => {
-    const cover = coverHost?.parentElement;
-    if (!cover) return;
-    const hasCover = Boolean(library.current && currentMetadata?.coverUrl);
-    cover.classList.toggle("has-real-cover", hasCover);
-    return () => cover.classList.remove("has-real-cover");
-  }, [coverHost, library.current, currentMetadata?.coverUrl]);
-
-  const coverPortal = coverHost && library.current && currentMetadata?.coverUrl ? createPortal(
-    <img src={currentMetadata.coverUrl} alt={`Obálka knihy ${library.current.title}`} />,
-    coverHost,
-  ) : null;
-
-  const currentMetaPortal = currentMetaHost && currentMetaParts.length ? createPortal(
-    <div className="df2-reading-current-meta">
-      {currentMetaParts.map((part) => <span key={part}>{part}</span>)}
-    </div>,
-    currentMetaHost,
-  ) : null;
 
   const historyPortal = historyHost && completedBooks.length ? createPortal(
     <section className="df2-reading-book-history" aria-label="Historie knih">
@@ -508,5 +448,5 @@ export function ReadingMetadataController() {
     previewHost,
   ) : null;
 
-  return <>{coverPortal}{currentMetaPortal}{historyPortal}{previewPortal}</>;
+  return <>{historyPortal}{previewPortal}</>;
 }
