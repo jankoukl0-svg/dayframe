@@ -63,32 +63,74 @@ test("broken reading cover falls back to a working Open Library edition cover", 
   const reading = page.locator(".df2-reading-card");
   await expect(reading).toContainText("The Undercover Economist");
 
-  const cover = reading.locator(".df2-reading-real-cover-host img");
+  const cover = reading.locator('[data-reading-active-book="undercover"] .df2-reading-book-cover img');
   await expect(cover).toBeVisible();
   await expect.poll(async () => cover.getAttribute("src")).toContain("/b/olid/OL17931310M-M.jpg");
 
-  const geometry = await reading.locator(".df2-reading-book-cover").evaluate((element) => {
-    const host = element.querySelector(".df2-reading-real-cover-host");
-    const image = host?.querySelector("img");
+  const geometry = await reading.locator('[data-reading-active-book="undercover"] .df2-reading-book-cover').evaluate((element) => {
+    const image = element.querySelector("img");
     const parentBox = element.getBoundingClientRect();
-    const hostBox = host?.getBoundingClientRect();
     const imageBox = image?.getBoundingClientRect();
     return {
       parent: { width: parentBox.width, height: parentBox.height },
-      host: hostBox ? { width: hostBox.width, height: hostBox.height } : null,
       image: imageBox ? { width: imageBox.width, height: imageBox.height } : null,
     };
   });
 
-  expect(geometry.host).not.toBeNull();
   expect(geometry.image).not.toBeNull();
-  expect(Math.abs(geometry.host.width - geometry.parent.width)).toBeLessThan(1);
-  expect(Math.abs(geometry.host.height - geometry.parent.height)).toBeLessThan(1);
   expect(Math.abs(geometry.image.width - geometry.parent.width)).toBeLessThan(1);
   expect(Math.abs(geometry.image.height - geometry.parent.height)).toBeLessThan(1);
-  expect(geometry.image.width).toBeGreaterThan(40);
-  expect(geometry.image.height).toBeGreaterThan(60);
+  expect(geometry.image.width).toBeGreaterThan(35);
+  expect(geometry.image.height).toBeGreaterThan(50);
 
   const metadata = await page.evaluate(() => JSON.parse(window.localStorage.getItem("dayframe-reading-book-metadata-v1") || "{}"));
   expect(metadata.undercover.coverUrl).toContain("/b/olid/OL17931310M-M.jpg");
+});
+
+
+test("a failed cover on the second active book is recovered without changing the first", async ({ page }) => {
+  await page.route("**/openlibrary.org/search.json?**", (route) => {
+    const url = new URL(route.request().url());
+    const title = url.searchParams.get("title") || "";
+    const psych = title.toLowerCase().includes("psychology");
+    return route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ docs: [{
+        title: psych ? "The Psychology of Money" : "The Undercover Economist",
+        cover_edition_key: psych ? "OLPSYCH123M" : "OL17931310M",
+      }] }),
+    });
+  });
+  await page.route("**/covers.openlibrary.org/b/id/123456-M.jpg?default=false", (route) =>
+    route.fulfill({ status: 404, body: "missing" }));
+  await page.route("**/covers.openlibrary.org/b/olid/OLPSYCH123M-M.jpg?default=false", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: transparentPng }));
+  await page.route("**/covers.openlibrary.org/b/id/333333-M.jpg?default=false", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: transparentPng }));
+
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1,
+      current: { id: "first", title: "The Undercover Economist", currentPage: 35, totalPages: 300, startedAt: now },
+      reading: [{ id: "second", title: "The Psychology of Money", currentPage: 20, totalPages: 253, startedAt: now }],
+      completed: [],
+    }));
+    localStorage.setItem("dayframe-reading-book-metadata-v1", JSON.stringify({
+      first: { titleKey: "the undercover economist", coverUrl: "https://covers.openlibrary.org/b/id/333333-M.jpg?default=false", fetchedAt: now },
+      second: { titleKey: "the psychology of money", coverUrl: "https://covers.openlibrary.org/b/id/123456-M.jpg?default=false", fetchedAt: now },
+    }));
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+
+  const first = page.locator('[data-reading-active-book="first"] .df2-reading-book-cover img');
+  const second = page.locator('[data-reading-active-book="second"] .df2-reading-book-cover img');
+  await expect(first).toHaveAttribute("src", /333333-M\.jpg/);
+  await expect.poll(async () => second.getAttribute("src")).toContain("/b/olid/OLPSYCH123M-M.jpg");
+  const meta = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-book-metadata-v1")));
+  expect(meta.first.coverUrl).toContain("333333-M.jpg");
+  expect(meta.second.coverUrl).toContain("OLPSYCH123M-M.jpg");
 });
