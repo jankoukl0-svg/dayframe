@@ -1357,7 +1357,6 @@ test("outbound and return journeys dim with their completed task and restore on 
   await expect(journeys).toHaveCount(2);
   await expect(journeys.first()).toContainText("Cesta tam");
   await expect(journeys.last()).toContainText("Cesta domů");
-  await expect(journeys.filter({has:page.locator(".never-match")})).toHaveCount(0);
   for(const journey of await journeys.all()){
     await expect(journey).not.toHaveClass(/is-completed/);
   }
