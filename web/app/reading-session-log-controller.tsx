@@ -470,6 +470,25 @@ export function ReadingSessionLogController() {
 
   useEffect(() => {
     if (!active) return;
+    // Keep the preview and numeric bounds aligned with changes saved by another tab.
+    // Submission also re-reads the latest progress to preserve the source of truth.
+    const syncLibrary = () => {
+      const latest = readLibrary();
+      setModalLibrary((current) => sameJson(current, latest) ? current : latest);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === LIBRARY_KEY || event.key === null) syncLibrary();
+    };
+    window.addEventListener(LIBRARY_SYNC_EVENT, syncLibrary);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(LIBRARY_SYNC_EVENT, syncLibrary);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [activeKey]);
+
+  useEffect(() => {
+    if (!active) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
