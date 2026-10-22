@@ -953,6 +953,16 @@ export function DayframeV2() {
                         start:time.start!,end:minutesToTime(timeToMinutes(time.start!)+time.duration),title:occ.name})),
                     ];
                     const travelReservations=travelReservationsForDay(travelStore,key,travelEvents);
+                    // Travel slots reflect their parent's completion, without becoming
+                    // independently completable tasks or modifying the travel store.
+                    const completedTravelOwners=new Set([
+                      ...scheduled.filter(task=>task.completed)
+                        .map(task=>travelBlockKey("task",task.id)),
+                      ...timedCare.filter(item=>item.completed)
+                        .map(item=>travelBlockKey("care",item.id,key)),
+                      ...timedGym.filter(({occ})=>occ.completed)
+                        .map(({occ})=>travelBlockKey("gym",occ.key)),
+                    ]);
                     const lanePositions=placeWeekGymCollisions([
                       ...travelReservations.map(item=>({id:"travel:"+item.id,
                         start:Math.max(calendarBounds.dayStart,item.start),
@@ -983,6 +993,7 @@ export function DayframeV2() {
                           <strong>Část cesty mimo zobrazené hodiny</strong>
                           {travelReservations.filter(res=>res.outsideCalendar).map(res=><button
                             key={res.id} type="button"
+                            className={completedTravelOwners.has(res.key)?"is-completed":undefined}
                             onClick={()=>{const src=travelEvents.find(e=>e.key===res.key);
                               setTripTarget({key:res.key,date:key,title:res.title,
                                 start:src?.start??"",end:src?.end});}}>
@@ -1023,7 +1034,7 @@ export function DayframeV2() {
                             const range=travelClock(reservation.start)+"–"+travelClock(reservation.end);
                             return <button key={"travel:"+reservation.id} type="button"
                               data-week-travel={reservation.id}
-                              className={"df2-week-travel"+(reservation.estimated?" is-estimate":"")}
+                              className={"df2-week-travel"+(reservation.estimated?" is-estimate":"")+(completedTravelOwners.has(reservation.key)?" is-completed":"")}
                               style={{
                                 top:(from-calendarBounds.dayStart)*MINUTE_HEIGHT+"px",
                                 height:Math.max(18,(to-from)*MINUTE_HEIGHT)+"px",
