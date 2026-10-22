@@ -127,7 +127,9 @@ function usesLateLane(body: HTMLElement, clientY: number, drag: DragInfo) {
   // clamps to the late lane, which would otherwise capture every reading drag,
   // including drops in the morning or afternoon.
   const proposedStart = Math.round(rawTargetStart(body, clientY, drag) / SNAP) * SNAP;
-  return proposedStart + drag.duration > NORMAL_DAY_END;
+  // Keep the 5-minute precision for reading that finishes exactly at 23:00;
+  // the ordinary Week planner snaps to 15 minutes instead.
+  return proposedStart + drag.duration >= NORMAL_DAY_END;
 }
 
 function canPlace(state: StoredState, date: string, taskId: string, start: number, duration: number) {
