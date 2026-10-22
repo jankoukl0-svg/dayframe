@@ -14,6 +14,7 @@ type ReadingBook = {
 
 type ReadingLibrary = {
   current: ReadingBook | null;
+  reading: ReadingBook[];
   completed: ReadingBook[];
 };
 
@@ -45,7 +46,7 @@ type OpenLibraryResponse = { docs?: OpenLibraryDoc[] };
 const LIBRARY_KEY = "dayframe-reading-library-v1";
 const METADATA_KEY = "dayframe-reading-book-metadata-v1";
 const METADATA_SYNC_EVENT = "dayframe-reading-book-metadata-sync";
-const EMPTY_LIBRARY: ReadingLibrary = { current: null, completed: [] };
+const EMPTY_LIBRARY: ReadingLibrary = { current: null, reading: [], completed: [] };
 const lookupCache = new Map<string, Promise<BookMetadata>>();
 
 function normalize(value: string) {
@@ -80,7 +81,10 @@ function readLibrary(): ReadingLibrary {
     const completed = Array.isArray(source.completed)
       ? source.completed.map(sanitizeBook).filter((book): book is ReadingBook => Boolean(book))
       : [];
-    return { current, completed };
+    const reading = Array.isArray(source.reading)
+      ? source.reading.map(sanitizeBook).filter((book): book is ReadingBook => Boolean(book))
+      : [];
+    return { current, reading, completed };
   } catch {
     return EMPTY_LIBRARY;
   }
@@ -325,7 +329,7 @@ export function ReadingMetadataController() {
   }, []);
 
   useEffect(() => {
-    const books = [library.current, ...library.completed].filter((book): book is ReadingBook => Boolean(book));
+    const books = [library.current, ...library.reading, ...library.completed].filter((book): book is ReadingBook => Boolean(book));
     const missing = books.find((book) => {
       const entry = metadata[book.id];
       return !entry || entry.titleKey !== normalize(book.title);
@@ -353,7 +357,7 @@ export function ReadingMetadataController() {
       return;
     }
 
-    const saved = [library.current, ...library.completed]
+    const saved = [library.current, ...library.reading, ...library.completed]
       .filter((book): book is ReadingBook => Boolean(book))
       .find((book) => normalize(book.title) === normalize(title));
     const savedMetadata = saved ? metadataForBook(saved, metadata) : null;
