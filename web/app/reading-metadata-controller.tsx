@@ -350,7 +350,14 @@ export function ReadingMetadataController() {
     enrichingRef.current.add(missing.id);
     lookupBook(missing.title)
       .then((result) => {
-        const nextStore = { ...readMetadata(), [missing.id]: result };
+        // A user may explicitly select another edition while the old lookup runs.
+        const latestBook = [readLibrary().current, ...readLibrary().reading, ...readLibrary().completed]
+          .find((book) => book?.id === missing.id);
+        if (!latestBook || normalize(latestBook.title) !== normalize(missing.title)) return;
+        const latestMetadata = readMetadata();
+        if (latestMetadata[missing.id]?.titleKey === normalize(missing.title)
+          && !latestMetadata[missing.id]?.notFound) return;
+        const nextStore = { ...latestMetadata, [missing.id]: result };
         writeMetadata(nextStore);
         setMetadata(nextStore);
       })
