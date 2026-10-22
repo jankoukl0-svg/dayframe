@@ -366,6 +366,13 @@ export function ReadingSessionLogController() {
 
   const active = queue[0] ?? null;
   const activeKey = active?.key ?? "";
+  const selectedCurrentBook = modalLibrary.current?.id === bookChoice ? modalLibrary.current : null;
+  const enteredEndPage = /^\d+$/.test(pages.trim()) ? Number(pages) : null;
+  const previewPages = selectedCurrentBook && enteredEndPage !== null
+    && Number.isSafeInteger(enteredEndPage)
+    && enteredEndPage > selectedCurrentBook.currentPage
+    && enteredEndPage <= selectedCurrentBook.totalPages
+    ? enteredEndPage - selectedCurrentBook.currentPage : null;
 
   useEffect(() => {
     const refresh = () => {
@@ -477,9 +484,11 @@ export function ReadingSessionLogController() {
   const saveSession = (event: FormEvent) => {
     event.preventDefault();
     if (!active) return;
-    const pageCount = Math.round(Number(pages));
-    if (!Number.isFinite(pageCount) || pageCount < 1) {
-      setFormError("Zadej počet přečtených stran.");
+    const entered = /^\d+$/.test(pages.trim()) ? Number(pages) : NaN;
+    if (!Number.isSafeInteger(entered) || entered < 1) {
+      setFormError(modalLibrary.current?.id === bookChoice
+        ? "Zadej platné číslo strany, na které jsi skončil."
+        : "Zadej počet přečtených stran.");
       return;
     }
 
@@ -496,16 +505,23 @@ export function ReadingSessionLogController() {
       return;
     }
 
+    let pageCount = entered;
     if (currentBook && selected?.id === currentBook.id) {
-      const remaining = Math.max(0, currentBook.totalPages - currentBook.currentPage);
-      if (pageCount > remaining) {
-        setFormError(`V knize zbývá ${formatPageCount(remaining)}. Zkontroluj počet stran.`);
+      // The number entered for the current book is the absolute last page read.
+      // Recompute against the latest saved progress to avoid double-counting.
+      if (entered <= currentBook.currentPage) {
+        setFormError(`Už jsi na straně ${currentBook.currentPage}. Zadej vyšší číslo strany.`);
         return;
       }
+      if (entered > currentBook.totalPages) {
+        setFormError(`Kniha má jen ${currentBook.totalPages} stran. Zkontroluj konečnou stranu.`);
+        return;
+      }
+      pageCount = entered - currentBook.currentPage;
       writeLibrary({
         ...library,
         version: 1,
-        current: { ...currentBook, currentPage: currentBook.currentPage + pageCount },
+        current: { ...currentBook, currentPage: entered },
         completed: completedBooks,
       });
     }
@@ -597,7 +613,11 @@ export function ReadingSessionLogController() {
         <form onSubmit={saveSession}>
           <label>
             <span>Kniha</span>
-            <select value={bookChoice} onChange={(event) => setBookChoice(event.target.value)}>
+            <select value={bookChoice} onChange={(event) => {
+              setBookChoice(event.target.value);
+              setPages("");
+              setFormError("");
+            }}>
               {modalLibrary.current && <option value={modalLibrary.current.id}>{modalLibrary.current.title} · aktuálně čtu</option>}
               {completedOptions.map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}
               <option value="__manual__">Jiná kniha…</option>
@@ -615,20 +635,25 @@ export function ReadingSessionLogController() {
             </label>
           )}
           <label>
-            <span>Kolik stran jsi přečetl?</span>
+            <span>{selectedCurrentBook ? "Na které straně jsi skončil?" : "Kolik stran jsi přečetl?"}</span>
             <input
               autoFocus={bookChoice !== "__manual__"}
               type="number"
-              min="1"
+              min={selectedCurrentBook ? selectedCurrentBook.currentPage + 1 : 1}
+              max={selectedCurrentBook?.totalPages}
+              step="1"
               inputMode="numeric"
               value={pages}
-              onChange={(event) => setPages(event.target.value)}
-              placeholder="Např. 18"
+              onChange={(event) => { setPages(event.target.value); setFormError(""); }}
+              placeholder={selectedCurrentBook ? `Např. ${Math.min(selectedCurrentBook.totalPages, selectedCurrentBook.currentPage + 18)}` : "Např. 18"}
             />
           </label>
-          {modalLibrary.current?.id === bookChoice && (
+          {selectedCurrentBook && (
             <small className="df2-reading-session-progress-note">
-              Teď jsi na straně {modalLibrary.current.currentPage} z {modalLibrary.current.totalPages}. Po uložení se postup v knize posune automaticky.
+              Teď jsi na straně {selectedCurrentBook.currentPage} z {selectedCurrentBook.totalPages}.
+              {previewPages !== null
+                ? ` Zapíše se ${formatPageCount(previewPages)} a postup se posune na stranu ${enteredEndPage}.`
+                : " Zadej poslední přečtenou stranu; počet přečtených stran se spočítá automaticky."}
             </small>
           )}
           {formError && <p className="df2-reading-session-error" role="alert">{formError}</p>}
