@@ -123,7 +123,11 @@ function targetStart(body: HTMLElement, clientY: number, drag: DragInfo) {
 }
 
 function usesLateLane(body: HTMLElement, clientY: number, drag: DragInfo) {
-  return targetStart(body, clientY, drag) + drag.duration >= NORMAL_DAY_END;
+  // Decide who handles the drop from the *actual pointer position*. targetStart()
+  // clamps to the late lane, which would otherwise capture every reading drag,
+  // including drops in the morning or afternoon.
+  const proposedStart = Math.round(rawTargetStart(body, clientY, drag) / SNAP) * SNAP;
+  return proposedStart + drag.duration > NORMAL_DAY_END;
 }
 
 function canPlace(state: StoredState, date: string, taskId: string, start: number, duration: number) {
