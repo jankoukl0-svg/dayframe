@@ -18,6 +18,16 @@
 .df2-week-day {
   border-right: 1px solid var(--line);
   background: var(--surface);
+  /* Align the actual clock grid across all seven days. Extra unscheduled
+     tasks or off-hours departure reminders must not shift this day's 23:00,
+     midnight or other hour lines relative to its neighboring columns. */
+  display: flex;
+  flex-direction: column;
+}
+
+.df2-week-day > .df2-time-body {
+  flex: 0 0 auto;
+  margin-top: auto;
 }
 
 .df2-week-day.today {
