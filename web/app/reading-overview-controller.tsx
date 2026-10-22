@@ -54,6 +54,10 @@ type BookDraft = {
 const STORAGE_KEY = "dayframe-v1";
 const READING_LIBRARY_KEY = "dayframe-reading-library-v1";
 const READING_LIBRARY_SYNC_EVENT = "dayframe-reading-library-sync";
+const READING_BOOK_SELECTED_EVENT = "dayframe-reading-book-selected";
+const READING_METADATA_KEY = "dayframe-reading-book-metadata-v1";
+const READING_METADATA_SYNC_EVENT = "dayframe-reading-book-metadata-sync";
+type SelectedBook = { title: string; pages?: number; metadata: { titleKey: string; fetchedAt: string; [key: string]: unknown } };
 const EMPTY_SUMMARY: ReadingSummary = { minutes: 0, days: 0, blocks: 0, averageMinutes: 0, longestStreak: 0 };
 const EMPTY_LIBRARY: ReadingLibrary = { version: 1, current: null, reading: [], completed: [] };
 const EMPTY_DRAFT: BookDraft = { title: "", currentPage: "0", totalPages: "" };
@@ -344,6 +348,7 @@ export function ReadingOverviewController() {
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [draft, setDraft] = useState<BookDraft>(EMPTY_DRAFT);
   const [formError, setFormError] = useState("");
+  const [selectedBook, setSelectedBook] = useState<SelectedBook | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -407,11 +412,32 @@ export function ReadingOverviewController() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [managerOpen]);
 
+  useEffect(() => {
+    const onSelected = (event: Event) => {
+      const chosen = (event as CustomEvent<SelectedBook>).detail;
+      if (!chosen?.title?.trim() || !chosen.metadata?.fetchedAt) return;
+      setSelectedBook(chosen);
+      setDraft((current) => ({
+        ...current,
+        title: chosen.title.trim(),
+        // Preserve the user's page count for a specific edition; only fill an empty field.
+        totalPages: current.totalPages.trim() || (
+          typeof chosen.pages === "number" && Number.isSafeInteger(chosen.pages) && chosen.pages > 0
+            ? String(chosen.pages) : ""
+        ),
+      }));
+      setFormError("");
+    };
+    window.addEventListener(READING_BOOK_SELECTED_EVENT, onSelected);
+    return () => window.removeEventListener(READING_BOOK_SELECTED_EVENT, onSelected);
+  }, []);
+
   const openManager = (id: string | null = null) => {
     const latest = readLibrary();
     const book = [latest.current, ...latest.reading].find((item) => item?.id === id) ?? null;
     setEditingBookId(book?.id ?? null);
     setDraft(bookDraft(book));
+    setSelectedBook(null);
     setFormError("");
     setManagerOpen(true);
   };
@@ -440,6 +466,20 @@ export function ReadingOverviewController() {
       : latest.current
         ? { ...latest, reading: [...latest.reading, nextBook] }
         : { ...latest, current: nextBook };
+    if (selectedBook && normalize(selectedBook.title) === normalize(valid.title)) {
+      // Store the explicitly selected edition before notifying the library listeners.
+      // Background metadata lookup will not replace a deliberate selection.
+      try {
+        const raw = JSON.parse(window.localStorage.getItem(READING_METADATA_KEY) || "{}") as unknown;
+        const current = raw && typeof raw === "object" && !Array.isArray(raw)
+          ? raw as Record<string, unknown> : {};
+        window.localStorage.setItem(READING_METADATA_KEY, JSON.stringify({
+          ...current,
+          [nextBook.id]: selectedBook.metadata,
+        }));
+        window.dispatchEvent(new Event(READING_METADATA_SYNC_EVENT));
+      } catch { /* An unavailable metadata cache must not prevent saving the book. */ }
+    }
     writeLibrary(nextLibrary);
     setLibrary(nextLibrary);
     setManagerOpen(false);
@@ -605,7 +645,10 @@ export function ReadingOverviewController() {
             <input
               autoFocus
               value={draft.title}
-              onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, title: event.target.value }));
+                setSelectedBook(null);
+              }}
               placeholder="Např. The Intelligent Investor"
             />
           </label>
