@@ -41,6 +41,8 @@ type CompletedReadingBook = ReadingBook & {
 type ReadingLibrary = {
   version: 1;
   current: ReadingBook | null;
+  /** Additional in-progress books; current remains the legacy primary book. */
+  reading: ReadingBook[];
   completed: CompletedReadingBook[];
 };
 type BookDraft = {
@@ -53,7 +55,7 @@ const STORAGE_KEY = "dayframe-v1";
 const READING_LIBRARY_KEY = "dayframe-reading-library-v1";
 const READING_LIBRARY_SYNC_EVENT = "dayframe-reading-library-sync";
 const EMPTY_SUMMARY: ReadingSummary = { minutes: 0, days: 0, blocks: 0, averageMinutes: 0, longestStreak: 0 };
-const EMPTY_LIBRARY: ReadingLibrary = { version: 1, current: null, completed: [] };
+const EMPTY_LIBRARY: ReadingLibrary = { version: 1, current: null, reading: [], completed: [] };
 const EMPTY_DRAFT: BookDraft = { title: "", currentPage: "0", totalPages: "" };
 
 function atNoon(date: Date) {
@@ -129,7 +131,16 @@ function readLibrary(): ReadingLibrary {
     const completed = Array.isArray(source.completed)
       ? source.completed.map(sanitizeCompletedBook).filter((book): book is CompletedReadingBook => Boolean(book))
       : [];
-    return { version: 1, current, completed };
+    const seen = new Set([current?.id, ...completed.map((book) => book.id)]);
+    const reading = Array.isArray(source.reading)
+      ? source.reading.map(sanitizeBook).filter((book): book is ReadingBook => {
+          if (!book || seen.has(book.id)) return false;
+          seen.add(book.id);
+          return true;
+        })
+      : [];
+    // Older consumers still use current. If it disappears, promote the next book.
+    return { version: 1, current: current ?? reading.shift() ?? null, reading, completed };
   } catch {
     return EMPTY_LIBRARY;
   }
@@ -330,6 +341,7 @@ export function ReadingOverviewController() {
   const [snapshot, setSnapshot] = useState<ReadingSnapshot | null>(null);
   const [library, setLibrary] = useState<ReadingLibrary>(EMPTY_LIBRARY);
   const [managerOpen, setManagerOpen] = useState(false);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [draft, setDraft] = useState<BookDraft>(EMPTY_DRAFT);
   const [formError, setFormError] = useState("");
 
@@ -395,8 +407,11 @@ export function ReadingOverviewController() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [managerOpen]);
 
-  const openManager = () => {
-    setDraft(bookDraft(library.current));
+  const openManager = (id: string | null = null) => {
+    const latest = readLibrary();
+    const book = [latest.current, ...latest.reading].find((item) => item?.id === id) ?? null;
+    setEditingBookId(book?.id ?? null);
+    setDraft(bookDraft(book));
     setFormError("");
     setManagerOpen(true);
   };
@@ -404,18 +419,27 @@ export function ReadingOverviewController() {
   const saveBook = (event: FormEvent) => {
     event.preventDefault();
     const valid = validateDraft(draft);
-    if (valid.error) {
-      setFormError(valid.error);
+    if (valid.error) { setFormError(valid.error); return; }
+    const latest = readLibrary();
+    const existing = [latest.current, ...latest.reading].find((book) => book?.id === editingBookId) ?? null;
+    if (editingBookId && !existing) {
+      setFormError("Kniha už není v rozečtených. Zavři formulář a otevři ho znovu.");
       return;
     }
-    const nextCurrent: ReadingBook = {
-      id: library.current?.id ?? newBookId(),
+    const nextBook: ReadingBook = {
+      id: existing?.id ?? newBookId(),
       title: valid.title,
       currentPage: valid.currentPage,
       totalPages: valid.totalPages,
-      startedAt: library.current?.startedAt ?? new Date().toISOString(),
+      startedAt: existing?.startedAt ?? new Date().toISOString(),
     };
-    const nextLibrary = { ...library, current: nextCurrent };
+    const nextLibrary: ReadingLibrary = existing
+      ? { ...latest,
+          current: latest.current?.id === existing.id ? nextBook : latest.current,
+          reading: latest.reading.map((book) => book.id === existing.id ? nextBook : book) }
+      : latest.current
+        ? { ...latest, reading: [...latest.reading, nextBook] }
+        : { ...latest, current: nextBook };
     writeLibrary(nextLibrary);
     setLibrary(nextLibrary);
     setManagerOpen(false);
@@ -423,27 +447,34 @@ export function ReadingOverviewController() {
 
   const finishBook = () => {
     const valid = validateDraft(draft);
-    if (valid.error) {
-      setFormError(valid.error);
+    if (valid.error) { setFormError(valid.error); return; }
+    const latest = readLibrary();
+    const existing = [latest.current, ...latest.reading].find((book) => book?.id === editingBookId) ?? null;
+    if (!existing) {
+      setFormError("Kniha už není v rozečtených. Zavři formulář a otevři ho znovu.");
       return;
     }
     const now = new Date().toISOString();
     const finished: CompletedReadingBook = {
-      id: library.current?.id ?? newBookId(),
+      id: existing.id,
       title: valid.title,
       currentPage: valid.totalPages,
       totalPages: valid.totalPages,
-      startedAt: library.current?.startedAt ?? now,
+      startedAt: existing.startedAt,
       finishedAt: now,
     };
+    const remaining = latest.reading.filter((book) => book.id !== existing.id);
+    const removingPrimary = latest.current?.id === existing.id;
     const nextLibrary: ReadingLibrary = {
-      version: 1,
-      current: null,
-      completed: [...library.completed, finished],
+      ...latest,
+      current: removingPrimary ? (remaining[0] ?? null) : latest.current,
+      reading: removingPrimary ? remaining.slice(1) : remaining,
+      completed: [...latest.completed, finished],
     };
     writeLibrary(nextLibrary);
     setLibrary(nextLibrary);
     setDraft(EMPTY_DRAFT);
+    setEditingBookId(null);
     setManagerOpen(false);
   };
 
@@ -459,6 +490,7 @@ export function ReadingOverviewController() {
   if (!host || !snapshot) return null;
 
   const currentBook = library.current;
+  const selectedEditingBook = [currentBook, ...library.reading].find((book) => book?.id === editingBookId) ?? null;
   const progress = currentBook ? Math.round((currentBook.currentPage / currentBook.totalPages) * 100) : 0;
   const yearSummary = readingYearSummary(library, snapshot.year);
   const completedBooks = [...library.completed].sort((left, right) => right.finishedAt.localeCompare(left.finishedAt));
@@ -467,9 +499,12 @@ export function ReadingOverviewController() {
     <section className="df2-reading-card" aria-label="Čtení">
       <div className="df2-overview-section-head df2-reading-head">
         <h2>Čtení</h2>
-        <button type="button" className="df2-reading-manage" onClick={openManager}>
-          {currentBook ? "Upravit knihu" : "Přidat knihu"}
-        </button>
+        <div className="df2-reading-manage-actions">
+          {currentBook && <button type="button" className="df2-reading-manage" onClick={() => openManager(currentBook.id)}>Upravit knihu</button>}
+          <button type="button" className="df2-reading-manage" onClick={() => openManager()}>
+            {currentBook ? "Přidat další knihu" : "Přidat knihu"}
+          </button>
+        </div>
       </div>
 
       <div className="df2-reading-library-grid">
@@ -491,7 +526,7 @@ export function ReadingOverviewController() {
             ) : (
               <>
                 <strong>Žádná rozečtená kniha</strong>
-                <button type="button" onClick={openManager}>Začít novou knihu</button>
+                <button type="button" onClick={() => openManager()}>Začít novou knihu</button>
               </>
             )}
           </div>
@@ -503,6 +538,27 @@ export function ReadingOverviewController() {
           <small>{formatPageCount(yearSummary.pages)}</small>
         </div>
       </div>
+
+      {library.reading.length > 0 && (
+        <section className="df2-reading-other-books" aria-label="Další rozečtené knihy">
+          <h3>Další rozečtené knihy</h3>
+          <div className="df2-reading-other-grid">
+            {library.reading.map((book) => {
+              const percent = Math.round(book.currentPage / book.totalPages * 100);
+              return <article key={book.id} data-reading-active-book={book.id}>
+                <div className="df2-reading-other-info">
+                  <strong>{book.title}</strong>
+                  <span>Strana {book.currentPage} z {book.totalPages} · {percent} %</span>
+                  <div className="df2-reading-progress" aria-label={`${percent} % knihy přečteno`}>
+                    <i style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+                <button type="button" onClick={() => openManager(book.id)} aria-label={`Upravit ${book.title}`}>Upravit</button>
+              </article>;
+            })}
+          </div>
+        </section>
+      )}
 
       <div className="df2-reading-card-grid">
         <div className="df2-reading-primary">
@@ -537,8 +593,8 @@ export function ReadingOverviewController() {
       <div className="df2-reading-modal" role="dialog" aria-modal="true" aria-labelledby="df2-reading-modal-title">
         <div className="df2-reading-modal-head">
           <div>
-            <span>{currentBook ? "Aktuální kniha" : "Nová kniha"}</span>
-            <h2 id="df2-reading-modal-title">{currentBook ? "Upravit čtení" : "Co právě čteš?"}</h2>
+            <span>{selectedEditingBook ? "Rozečtená kniha" : "Nová kniha"}</span>
+            <h2 id="df2-reading-modal-title">{selectedEditingBook ? "Upravit čtení" : "Co právě čteš?"}</h2>
           </div>
           <button type="button" aria-label="Zavřít správu knih" onClick={() => setManagerOpen(false)}>×</button>
         </div>
@@ -577,8 +633,8 @@ export function ReadingOverviewController() {
           </div>
           {formError && <p className="df2-reading-form-error" role="alert">{formError}</p>}
           <div className="df2-reading-modal-actions">
-            {currentBook && <button type="button" className="df2-reading-finish" onClick={finishBook}>Dočteno</button>}
-            <button type="submit" className="df2-reading-save">{currentBook ? "Uložit" : "Začít číst"}</button>
+            {selectedEditingBook && <button type="button" className="df2-reading-finish" onClick={finishBook}>Dočteno</button>}
+            <button type="submit" className="df2-reading-save">{selectedEditingBook ? "Uložit" : "Začít číst"}</button>
           </div>
         </form>
 

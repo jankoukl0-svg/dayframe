@@ -273,3 +273,60 @@ test("week overview aggregates page history by day and keeps book names", async 
   await expect(tuesday).toContainText("25");
   await expect(tuesday).toContainText("Book B");
 });
+
+
+test("logging another active book advances only that book and keeps its page history", async ({ page }) => {
+  await openFresh(page);
+  const date = await page.evaluate(localDateKeyInBrowser);
+  await page.evaluate((date) => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.plans = { [date]: [
+      { id: "multi-reading", title: "Čtení knihy", date, duration: 35, start: "18:00", end: "18:35",
+        priority: "normal", category: "Čtení", mode: "flexible",
+        completed: false, source: "routine", routineId: "read",
+        dateLocked: true, autoScheduled: false, createdAt: new Date().toISOString() },
+    ]};
+    localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1,
+      current: { id: "primary", title: "Primary", currentPage: 10, totalPages: 100, startedAt: new Date().toISOString() },
+      reading: [
+        { id: "secondary", title: "Secondary", currentPage: 75, totalPages: 200, startedAt: new Date().toISOString() },
+        { id: "tertiary", title: "Tertiary", currentPage: 2, totalPages: 90, startedAt: new Date().toISOString() },
+      ],
+      completed: [],
+    }));
+    localStorage.removeItem("dayframe-reading-sessions-v1");
+    localStorage.removeItem("dayframe-reading-pending-v1");
+  }, date);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.evaluate((date) => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1"));
+    state.plans[date][0].completed = true;
+    localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  }, date);
+  const dialog = page.getByRole("dialog", { name: "Zapsat čtení" });
+  await expect(dialog).toBeVisible();
+  const options = dialog.getByLabel("Kniha");
+  await expect(options.locator("option")).toHaveCount(4);
+  await options.selectOption("secondary");
+  await expect(dialog.getByLabel("Na které straně jsi skončil?")).toHaveAttribute("min", "76");
+  await dialog.getByLabel("Na které straně jsi skončil?").fill("100");
+  await expect(dialog).toContainText("Zapíše se 25 stran");
+  await dialog.getByRole("button", { name: "Uložit záznam" }).click();
+  await expect(dialog).toHaveCount(0);
+  const saved = await page.evaluate(() => ({
+    library: JSON.parse(localStorage.getItem("dayframe-reading-library-v1")),
+    sessions: JSON.parse(localStorage.getItem("dayframe-reading-sessions-v1")),
+  }));
+  expect(saved.library.current.currentPage).toBe(10);
+  expect(saved.library.reading.map((book) => book.currentPage)).toEqual([100, 2]);
+  expect(saved.sessions.entries[0]).toMatchObject({ bookId: "secondary", pages: 25 });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  await expect(page.locator(".df2-reading-page-history")).toContainText("25 stran");
+  await expect(page.locator(".df2-reading-current-book")).toContainText("Primary");
+  await expect(page.locator('[data-reading-active-book="secondary"]')).toContainText("Secondary");
+});

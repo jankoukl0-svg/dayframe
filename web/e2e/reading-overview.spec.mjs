@@ -83,6 +83,13 @@ test("overview tracks completed reading separately across period modes", async (
     window.localStorage.removeItem("dayframe-reading-pending-v1");
   });
   await page.reload({ waitUntil: "networkidle" });
+  // A completion prompt may hydrate after a short delay when all suites run.
+  // This test measures Overview, not the separate session-entry workflow.
+  const pendingReading = page.getByRole("dialog", { name: "Zapsat čtení" });
+  await page.waitForTimeout(500);
+  if (await pendingReading.isVisible()) {
+    await pendingReading.getByRole("button", { name: "Nezapisovat" }).click();
+  }
 
   await page.getByRole("button", { name: /Přehled/ }).click();
   const history = page.locator(".df2-history-view");
@@ -221,4 +228,67 @@ test("reading tracker enriches a title with cover metadata and keeps it in dated
   expect(stored.publisher).toBe("McGraw-Hill");
   expect(stored.genre).toBe("Finance");
   expect(stored.coverUrl).toContain("12345-M.jpg");
+});
+
+
+test("multiple books can be started, edited, finished independently and survive reload", async ({ page }) => {
+  await page.route("https://openlibrary.org/search.json**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ docs: [] }) }));
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    localStorage.removeItem("dayframe-reading-library-v1");
+    localStorage.removeItem("dayframe-reading-book-metadata-v1");
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  const reading = page.locator(".df2-reading-card");
+  await expect(reading).toBeVisible();
+  const addBook = async (title, currentPage, totalPages, button) => {
+    await reading.getByRole("button", { name: button, exact: true }).click();
+    const modal = page.getByRole("dialog", { name: "Co právě čteš?" });
+    await modal.getByLabel("Název knihy").fill(title);
+    await modal.getByLabel("Aktuální strana").fill(String(currentPage));
+    await modal.getByLabel("Počet stran").fill(String(totalPages));
+    await modal.getByRole("button", { name: "Začít číst" }).click();
+    await expect(modal).toHaveCount(0);
+  };
+
+  await addBook("Book Alpha", 30, 100, "Přidat knihu");
+  await addBook("Book Beta", 150, 300, "Přidat další knihu");
+  await expect(reading.locator(".df2-reading-current-book")).toContainText("Book Alpha");
+  await expect(reading.locator('[data-reading-active-book]')).toHaveCount(1);
+  await expect(reading.locator('[data-reading-active-book]')).toContainText("Book Beta");
+  await expect(reading.locator('[data-reading-active-book]')).toContainText("Strana 150 z 300");
+
+  await reading.getByRole("button", { name: "Upravit Book Beta" }).click();
+  let modal = page.getByRole("dialog", { name: "Upravit čtení" });
+  await expect(modal.getByLabel("Aktuální strana")).toHaveValue("150");
+  await modal.getByLabel("Aktuální strana").fill("185");
+  await modal.getByRole("button", { name: "Uložit", exact: true }).click();
+  await expect(reading.locator('[data-reading-active-book]')).toContainText("Strana 185 z 300");
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  await expect(reading.locator('[data-reading-active-book]')).toContainText("Strana 185 z 300");
+  await reading.getByRole("button", { name: "Upravit Book Beta" }).click();
+  modal = page.getByRole("dialog", { name: "Upravit čtení" });
+  await modal.getByRole("button", { name: "Dočteno" }).click();
+  await expect(reading.locator('[data-reading-active-book]')).toHaveCount(0);
+  await expect(reading.locator(".df2-reading-current-book")).toContainText("Book Alpha");
+  await expect(reading.locator(".df2-reading-year-summary")).toContainText("1 kniha");
+
+  await addBook("Book Gamma", 20, 200, "Přidat další knihu");
+  await reading.getByRole("button", { name: "Upravit knihu", exact: true }).click();
+  modal = page.getByRole("dialog", { name: "Upravit čtení" });
+  await expect(modal.getByLabel("Název knihy")).toHaveValue("Book Alpha");
+  await modal.getByRole("button", { name: "Dočteno" }).click();
+  await expect(reading.locator(".df2-reading-current-book")).toContainText("Book Gamma");
+  await expect(reading.locator(".df2-reading-current-book")).toContainText("Strana 20 z 200");
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")));
+  expect(saved.version).toBe(1);
+  expect(saved.current.title).toBe("Book Gamma");
+  expect(saved.reading).toHaveLength(0);
+  expect(saved.completed.map((book) => book.title)).toEqual(["Book Beta", "Book Alpha"]);
 });

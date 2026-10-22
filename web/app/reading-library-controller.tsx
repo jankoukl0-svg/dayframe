@@ -15,6 +15,7 @@ type ReadingBook = {
 type ReadingLibrary = {
   version?: number;
   current?: ReadingBook | null;
+  reading?: ReadingBook[];
   completed?: ReadingBook[];
 };
 
@@ -271,6 +272,7 @@ export function ReadingLibraryController() {
     const nextLibrary: ReadingLibrary = {
       version: 1,
       current: library.current ?? null,
+      reading: Array.isArray(library.reading) ? library.reading : [],
       completed: [...completed, nextBook],
     };
     window.localStorage.setItem(LIBRARY_KEY, JSON.stringify(nextLibrary));
