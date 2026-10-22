@@ -194,3 +194,61 @@ test("ordinary tasks can use the late lane through 02:00", async ({ page }) => {
   }, seeded);
   expect(`${stored.start}-${stored.end}`).toBe("23:00-23:20");
 });
+
+
+test("the evening reading routine can move into the afternoon and back without being locked", async ({ page }) => {
+  const seeded = await initialize(page, "Čtení knihy", "reading-routine-daytime");
+  await page.evaluate(({ date }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = state.plans[date][0];
+    task.source = "routine";
+    task.routineId = "read";
+    state.routineSkips = [];
+    state.routines = [{
+      id: "read", title: "Čtení knihy", start: "22:40", duration: 20,
+      category: "Rutina", priority: "normal", frequency: "daily", active: true,
+      createdAt: "2026-09-17T00:00:00.000Z",
+    }];
+    window.localStorage.setItem("dayframe-v1", JSON.stringify(state));
+  }, seeded);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  await page.evaluate(() => { window.__dayframeNoReloadSentinel = "alive"; });
+
+  await startDrag(page, "Čtení knihy");
+  await dispatchAtStart(page, "dragover", 15 * 60 + 30);
+  // The regular Week planner, rather than the special late-night handler,
+  // must own every drop whose resulting block ends before 23:00.
+  await expect(page.locator(".df2-reading-late-preview")).toHaveCount(0);
+  await expect(page.locator(".df2-drop-preview")).toContainText("15:30");
+  await dispatchAtStart(page, "drop", 15 * 60 + 30);
+  await assertNoReload(page);
+  await expect(page.locator(".df2-week-day.today .df2-week-task")
+    .filter({ hasText: "Čtení knihy" })).toContainText("15:30–15:50");
+
+  const stored = await page.evaluate(({ date }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    return { tasks: state.plans[date].filter((task) => task.title === "Čtení knihy"),
+      skips: state.routineSkips };
+  }, seeded);
+  expect(stored.tasks).toHaveLength(1);
+  expect(stored.tasks[0].start + "-" + stored.tasks[0].end).toBe("15:30-15:50");
+  expect(stored.tasks[0].source).toBe("user");
+  expect(stored.skips).toContain("read:" + seeded.date);
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Týden/ }).click();
+  await expect(page.locator(".df2-week-day.today .df2-week-task")
+    .filter({ hasText: "Čtení knihy" })).toHaveCount(1);
+
+  // The existing option to read late at night must continue working.
+  await startDrag(page, "Čtení knihy");
+  await dispatchAtStart(page, "dragover", 23 * 60 + 15);
+  await expect(page.locator(".df2-reading-late-preview")).toContainText("23:15–23:35");
+  await dispatchAtStart(page, "drop", 23 * 60 + 15);
+  await expect.poll(() => page.evaluate(({ date }) => {
+    const state = JSON.parse(window.localStorage.getItem("dayframe-v1") || "{}");
+    const task = state.plans[date].find((item) => item.title === "Čtení knihy");
+    return task ? task.start + "-" + task.end : "missing";
+  }, seeded)).toBe("23:15-23:35");
+});
