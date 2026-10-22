@@ -1439,6 +1439,21 @@ test("out-of-hours travel shows exact departure instead of generic warning",asyn
   await expect(afterMidnight).toContainText("následující den");
   await expect(afterMidnight).not.toContainText("Část cesty mimo zobrazené hodiny");
   await expect(afterMidnight.getByRole("button",{name:"Vyjeď domů v 00:15 · "+title})).toBeVisible();
-  await afterMidnight.getByRole("button",{name:"Vyjeď domů v 00:15 · "+title}).click();
+
+  // The departure reminder inherits the finished activity's muted gray styling.
+  await page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const task=Object.values(state.plans).flat().find(item=>item.title==="Základy marketingu");
+    task.completed=true;
+    localStorage.setItem("dayframe-v1",JSON.stringify(state));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  const completedReminder=page.getByRole("note",{name:"Odjezdy mimo zobrazené hodiny"})
+    .getByRole("button",{name:"Vyjeď domů v 00:15 · "+title});
+  await expect(completedReminder).toHaveClass(/is-completed/);
+  await expect(completedReminder).toHaveCSS("background-color","rgb(240, 240, 237)");
+  await expect(completedReminder.locator("strong")).toHaveCSS("color","rgb(112, 118, 112)");
+  await completedReminder.click();
   await expect(page.getByRole("dialog",{name:"Místo konání: "+title})).toBeVisible();
 });
