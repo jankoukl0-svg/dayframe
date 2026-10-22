@@ -1012,3 +1012,29 @@
 
 /* Older location-only records have no duration and therefore cannot reserve a slot. */
 .df2-week-location-btn.needs-travel-duration{background:var(--paper);color:#aa5c34;border-color:#cba38d}
+
+/* Trips follow the visual completion state of their linked task, Gym or Care block.
+   They remain normal travel reservations and can still be opened or edited. */
+.df2-week-travel.is-completed,
+.df2-week-travel.is-completed.is-estimate {
+  opacity: .58;
+  background: #f0f0ed;
+  border-color: #bfc2bf;
+  border-left-color: #89938c;
+  color: #707670;
+}
+
+.df2-week-travel.is-completed > span,
+.df2-week-travel.is-completed > strong {
+  color: #707670;
+}
+
+.df2-week-travel.is-completed:hover {
+  filter: none;
+  background: #ededeb;
+}
+
+.df2-week-travel-outside > button.is-completed {
+  opacity: .58;
+  color: #777a76;
+}
