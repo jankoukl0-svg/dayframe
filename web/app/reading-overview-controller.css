@@ -566,3 +566,28 @@
 .df2-reading-other-grid article>button{flex-shrink:0;border:0;border-radius:8px;padding:7px 9px;background:#eeebe5;color:#655e56;font:600 11px "Segoe UI Variable","Segoe UI",system-ui,sans-serif;cursor:pointer}
 .df2-reading-other-grid article>button:hover{background:#e4ded5;color:#272824}
 @media(max-width:560px){.df2-reading-manage-actions{justify-content:flex-start}}
+
+/* The metadata lookup inside the active-book manager is a selectable result. */
+.df2-reading-modal .df2-reading-lookup-select{
+  width:100%;min-width:0;display:flex;align-items:center;gap:12px;text-align:left;
+  border:1px solid transparent;border-radius:10px;padding:7px;
+  background:transparent;color:inherit;cursor:pointer;
+}
+.df2-reading-modal .df2-reading-lookup-select:hover,
+.df2-reading-modal .df2-reading-lookup-select:focus-visible{
+  background:rgba(255,255,255,.7);border-color:#cfc6b9;outline:none;
+}
+.df2-reading-modal .df2-reading-lookup-select[aria-pressed="true"]{
+  border-color:#9dbaa6;background:#f0f7f1;
+}
+.df2-reading-modal .df2-reading-lookup-select .df2-reading-lookup-cover{
+  display:block;flex:0 0 36px;min-width:36px;
+}
+.df2-reading-modal .df2-reading-lookup-details{display:flex;flex-direction:column;gap:3px;min-width:0}
+.df2-reading-modal .df2-reading-lookup-details>strong{
+  color:#815338;font-size:11px;
+}
+.df2-reading-modal .df2-reading-lookup-select[aria-pressed="true"] .df2-reading-lookup-details>strong{color:#33714a}
+.df2-reading-modal .df2-reading-lookup-details .df2-reading-lookup-title{
+  color:#2b2d2a;font-size:12px;font-weight:650;
+}
