@@ -181,21 +181,21 @@ test("reading tracker enriches a title with cover metadata and keeps it in dated
   await expect(reading.locator(".df2-reading-current-meta-host")).toContainText("Finance");
   await expect(reading.locator(".df2-reading-book-cover img")).toHaveAttribute("src", /12345-M\.jpg/);
 
-  await reading.getByRole("button", { name: "Upravit knihu" }).click();
+  await reading.locator("[data-reading-active-book]").first().getByRole("button", { name: /Upravit/ }).click();
   dialog = page.getByRole("dialog", { name: "Upravit čtení" });
   await dialog.getByLabel("Aktuální strana").fill("200");
   await dialog.getByRole("button", { name: "Uložit" }).click();
   await expect(reading).toContainText("Strana 200 z 400");
   await expect(reading).toContainText("50 %");
 
-  await reading.getByRole("button", { name: "Upravit knihu" }).click();
+  await reading.locator("[data-reading-active-book]").first().getByRole("button", { name: /Upravit/ }).click();
   dialog = page.getByRole("dialog", { name: "Upravit čtení" });
   await dialog.getByRole("button", { name: "Dočteno" }).focus();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(history).toBeVisible();
 
-  await reading.getByRole("button", { name: "Upravit knihu" }).click();
+  await reading.locator("[data-reading-active-book]").first().getByRole("button", { name: /Upravit/ }).click();
   dialog = page.getByRole("dialog", { name: "Upravit čtení" });
   await dialog.getByRole("button", { name: "Dočteno" }).click();
 
@@ -258,35 +258,75 @@ test("multiple books can be started, edited, finished independently and survive 
 
   await addBook("Book Alpha", 30, 100, "Přidat knihu");
   await addBook("Book Beta", 150, 300, "Přidat další knihu");
-  await expect(reading.locator(".df2-reading-current-book")).toContainText("Book Alpha");
-  await expect(reading.locator('[data-reading-active-book]')).toHaveCount(1);
-  await expect(reading.locator('[data-reading-active-book]')).toContainText("Book Beta");
-  await expect(reading.locator('[data-reading-active-book]')).toContainText("Strana 150 z 300");
+  await expect(reading.locator("[data-reading-active-book]").first()).toContainText("Book Alpha");
+  await expect(reading.locator('[data-reading-active-book]')).toHaveCount(2);
+  await expect(reading.locator('[data-reading-active-book]').last()).toContainText("Book Beta");
+  await expect(reading.locator('[data-reading-active-book]').last()).toContainText("Strana 150 z 300");
+  // Every active book has equivalent presentation: width, height, cover and edit.
+  await expect(reading).not.toContainText("Aktuálně čtu");
+  await expect(reading).not.toContainText("Další rozečtené knihy");
+  await expect(reading.locator(".df2-reading-active-book")).toHaveCount(2);
+  const layouts = await reading.locator(".df2-reading-active-book").evaluateAll((cards) =>
+    cards.map((card) => ({
+      width: card.getBoundingClientRect().width,
+      height: card.getBoundingClientRect().height,
+      background: getComputedStyle(card).backgroundColor,
+      cover: Boolean(card.querySelector(".df2-reading-book-cover")),
+      progress: Boolean(card.querySelector(".df2-reading-progress")),
+      edit: Boolean(card.querySelector("button[aria-label^='Upravit']")),
+    })));
+  expect(layouts).toHaveLength(2);
+  expect(Math.abs(layouts[0].width - layouts[1].width)).toBeLessThan(2);
+  expect(Math.abs(layouts[0].height - layouts[1].height)).toBeLessThan(2);
+  expect(layouts[0].background).toBe(layouts[1].background);
+  expect(layouts.every((card) => card.cover && card.progress && card.edit)).toBe(true);
+
+  await page.evaluate(() => {
+    const library = JSON.parse(localStorage.getItem("dayframe-reading-library-v1"));
+    const now = new Date().toISOString();
+    localStorage.setItem("dayframe-reading-book-metadata-v1", JSON.stringify({
+      [library.current.id]: {
+        titleKey: "book alpha", author: "Alpha Author", publisher: "Alpha Press",
+        coverUrl: "https://covers.openlibrary.org/b/id/10001-M.jpg", fetchedAt: now,
+      },
+      [library.reading[0].id]: {
+        titleKey: "book beta", author: "Beta Author", publisher: "Beta Press",
+        coverUrl: "https://covers.openlibrary.org/b/id/10002-M.jpg", fetchedAt: now,
+      },
+    }));
+    window.dispatchEvent(new Event("dayframe-reading-book-metadata-sync"));
+  });
+  await expect(reading.locator("[data-reading-active-book]").first().locator(".df2-reading-current-meta")).toContainText("Alpha Author");
+  await expect(reading.locator("[data-reading-active-book]").last().locator(".df2-reading-current-meta")).toContainText("Beta Author");
+  await expect(reading.locator("[data-reading-active-book]").first().locator(".df2-reading-book-cover img"))
+    .toHaveAttribute("src", /10001-M\\.jpg/);
+  await expect(reading.locator("[data-reading-active-book]").last().locator(".df2-reading-book-cover img"))
+    .toHaveAttribute("src", /10002-M\\.jpg/);
 
   await reading.getByRole("button", { name: "Upravit Book Beta" }).click();
   let modal = page.getByRole("dialog", { name: "Upravit čtení" });
   await expect(modal.getByLabel("Aktuální strana")).toHaveValue("150");
   await modal.getByLabel("Aktuální strana").fill("185");
   await modal.getByRole("button", { name: "Uložit", exact: true }).click();
-  await expect(reading.locator('[data-reading-active-book]')).toContainText("Strana 185 z 300");
+  await expect(reading.locator('[data-reading-active-book]').last()).toContainText("Strana 185 z 300");
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Přehled/ }).click();
-  await expect(reading.locator('[data-reading-active-book]')).toContainText("Strana 185 z 300");
+  await expect(reading.locator('[data-reading-active-book]').last()).toContainText("Strana 185 z 300");
   await reading.getByRole("button", { name: "Upravit Book Beta" }).click();
   modal = page.getByRole("dialog", { name: "Upravit čtení" });
   await modal.getByRole("button", { name: "Dočteno" }).click();
-  await expect(reading.locator('[data-reading-active-book]')).toHaveCount(0);
-  await expect(reading.locator(".df2-reading-current-book")).toContainText("Book Alpha");
+  await expect(reading.locator('[data-reading-active-book]')).toHaveCount(1);
+  await expect(reading.locator("[data-reading-active-book]").first()).toContainText("Book Alpha");
   await expect(reading.locator(".df2-reading-year-summary")).toContainText("1 kniha");
 
   await addBook("Book Gamma", 20, 200, "Přidat další knihu");
-  await reading.getByRole("button", { name: "Upravit knihu", exact: true }).click();
+  await reading.locator("[data-reading-active-book]").first().getByRole("button", { name: /Upravit/ }).click();
   modal = page.getByRole("dialog", { name: "Upravit čtení" });
   await expect(modal.getByLabel("Název knihy")).toHaveValue("Book Alpha");
   await modal.getByRole("button", { name: "Dočteno" }).click();
-  await expect(reading.locator(".df2-reading-current-book")).toContainText("Book Gamma");
-  await expect(reading.locator(".df2-reading-current-book")).toContainText("Strana 20 z 200");
+  await expect(reading.locator("[data-reading-active-book]").first()).toContainText("Book Gamma");
+  await expect(reading.locator("[data-reading-active-book]").first()).toContainText("Strana 20 z 200");
 
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")));
   expect(saved.version).toBe(1);
@@ -327,7 +367,7 @@ test("found Psychology of Money is selectable in edit mode without replacing exi
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Přehled/ }).click();
   const reading = page.locator(".df2-reading-card");
-  await reading.getByRole("button", { name: "Upravit knihu" }).click();
+  await reading.locator("[data-reading-active-book]").first().getByRole("button", { name: /Upravit/ }).click();
   const dialog = page.getByRole("dialog", { name: "Upravit čtení" });
   const lookup = dialog.locator(".df2-reading-lookup-preview");
   const choose = lookup.getByRole("button", { name: "Vybrat nalezenou knihu The Psychology of Money" });
