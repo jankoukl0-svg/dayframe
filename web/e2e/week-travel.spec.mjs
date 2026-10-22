@@ -1386,3 +1386,59 @@ test("outbound and return journeys dim with their completed task and restore on 
   await expect(page.locator("[data-week-travel].is-completed")).toHaveCount(0);
   expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBe(travelBefore);
 });
+
+
+test("out-of-hours travel shows exact departure instead of generic warning",async({page})=>{
+  const title="Základy marketingu";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const modal=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await modal.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(modal,50.085,14.431,"Škola");
+  await modal.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(modal,50.41,14.7,"Doma");
+  // The scheduled event begins at 10:00. 106 minutes + 15-minute buffer
+  // results in an exact 07:59 departure, just before the visible 08:00 start.
+  await modal.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("106");
+  await modal.getByRole("spinbutton",{name:"Časová rezerva"}).fill("15");
+  await modal.getByRole("button",{name:"Uložit místo",exact:true}).click();
+
+  const reminder=page.getByRole("note",{name:"Odjezdy mimo zobrazené hodiny"});
+  await expect(reminder).toBeVisible();
+  await expect(reminder.getByRole("button",{name:"Vyjeď v 07:59 · "+title})).toBeVisible();
+  await expect(reminder).toContainText(title);
+  await expect(reminder).not.toContainText("Část cesty mimo zobrazené hodiny");
+  await expect(page.locator("[data-week-travel]")).toContainText("Cesta tam");
+
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await expect(page.getByRole("note",{name:"Odjezdy mimo zobrazené hodiny"}))
+    .toContainText("Vyjeď v 07:59");
+
+  // A late return beyond the 02:00 calendar boundary has its own departure,
+  // not the arrival time or a misleading "leave home" instruction.
+  await page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const task=Object.values(state.plans).flat().find(item=>item.title==="Základy marketingu");
+    if(!task)throw new Error("Test task not found");
+    task.start="23:30";
+    task.end="00:15";
+    task.duration=45;
+    localStorage.setItem("dayframe-v1",JSON.stringify(state));
+    const stored=JSON.parse(localStorage.getItem("dayframe-travel-v1"));
+    const trip=Object.values(stored.blocks)[0];
+    trip.returnHome=true;
+    trip.returnMinutes=120;
+    trip.returnVerified=true;
+    localStorage.setItem("dayframe-travel-v1",JSON.stringify(stored));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  const afterMidnight=page.getByRole("note",{name:"Odjezdy mimo zobrazené hodiny"});
+  await expect(afterMidnight).toContainText("Vyjeď domů v 00:15");
+  await expect(afterMidnight).toContainText("následující den");
+  await expect(afterMidnight).not.toContainText("Část cesty mimo zobrazené hodiny");
+  await expect(afterMidnight.getByRole("button",{name:"Vyjeď domů v 00:15 · "+title})).toBeVisible();
+  await afterMidnight.getByRole("button",{name:"Vyjeď domů v 00:15 · "+title}).click();
+  await expect(page.getByRole("dialog",{name:"Místo konání: "+title})).toBeVisible();
+});
