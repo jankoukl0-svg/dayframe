@@ -35,6 +35,7 @@ type ReadingBook = {
 type ReadingLibrary = {
   version?: number;
   current?: ReadingBook | null;
+  reading?: ReadingBook[];
   completed?: ReadingBook[];
 };
 
@@ -366,7 +367,9 @@ export function ReadingSessionLogController() {
 
   const active = queue[0] ?? null;
   const activeKey = active?.key ?? "";
-  const selectedCurrentBook = modalLibrary.current?.id === bookChoice ? modalLibrary.current : null;
+  const inProgressBooks = [modalLibrary.current, ...(Array.isArray(modalLibrary.reading) ? modalLibrary.reading : [])]
+    .filter((book): book is ReadingBook => Boolean(book));
+  const selectedCurrentBook = inProgressBooks.find((book) => book.id === bookChoice) ?? null;
   const enteredEndPage = /^\d+$/.test(pages.trim()) ? Number(pages) : null;
   const previewPages = selectedCurrentBook && enteredEndPage !== null
     && Number.isSafeInteger(enteredEndPage)
@@ -462,7 +465,7 @@ export function ReadingSessionLogController() {
     const library = readLibrary();
     setModalLibrary(library);
     const completed = Array.isArray(library.completed) ? library.completed : [];
-    setBookChoice(library.current?.id ?? completed[completed.length - 1]?.id ?? "__manual__");
+    setBookChoice(library.current?.id ?? library.reading?.[0]?.id ?? completed[completed.length - 1]?.id ?? "__manual__");
     setManualTitle("");
     setPages("");
     setFormError("");
@@ -505,7 +508,7 @@ export function ReadingSessionLogController() {
     if (!active) return;
     const entered = /^\d+$/.test(pages.trim()) ? Number(pages) : NaN;
     if (!Number.isSafeInteger(entered) || entered < 1) {
-      setFormError(modalLibrary.current?.id === bookChoice
+      setFormError([modalLibrary.current, ...(modalLibrary.reading ?? [])].some((book) => book?.id === bookChoice)
         ? "Zadej platné číslo strany, na které jsi skončil."
         : "Zadej počet přečtených stran.");
       return;
@@ -513,10 +516,10 @@ export function ReadingSessionLogController() {
 
     const library = readLibrary();
     const completedBooks = Array.isArray(library.completed) ? library.completed : [];
-    const currentBook = library.current ?? null;
-    const selected = bookChoice === currentBook?.id
-      ? currentBook
-      : completedBooks.find((book) => book.id === bookChoice) ?? null;
+    const inProgress = [library.current, ...(Array.isArray(library.reading) ? library.reading : [])]
+      .filter((book): book is ReadingBook => Boolean(book));
+    const currentBook = inProgress.find((book) => book.id === bookChoice) ?? null;
+    const selected = currentBook ?? completedBooks.find((book) => book.id === bookChoice) ?? null;
     const title = bookChoice === "__manual__" ? manualTitle.trim() : selected?.title?.trim() || "";
 
     if (!title) {
@@ -525,7 +528,7 @@ export function ReadingSessionLogController() {
     }
 
     let pageCount = entered;
-    if (currentBook && selected?.id === currentBook.id) {
+    if (currentBook) {
       // The number entered for the current book is the absolute last page read.
       // Recompute against the latest saved progress to avoid double-counting.
       if (entered <= currentBook.currentPage) {
@@ -540,7 +543,10 @@ export function ReadingSessionLogController() {
       writeLibrary({
         ...library,
         version: 1,
-        current: { ...currentBook, currentPage: entered },
+        current: library.current?.id === currentBook.id
+          ? { ...currentBook, currentPage: entered } : library.current,
+        reading: (Array.isArray(library.reading) ? library.reading : []).map((book) =>
+          book.id === currentBook.id ? { ...currentBook, currentPage: entered } : book),
         completed: completedBooks,
       });
     }
@@ -637,7 +643,7 @@ export function ReadingSessionLogController() {
               setPages("");
               setFormError("");
             }}>
-              {modalLibrary.current && <option value={modalLibrary.current.id}>{modalLibrary.current.title} · aktuálně čtu</option>}
+              {inProgressBooks.map((book) => <option key={book.id} value={book.id}>{book.title} · rozečtená</option>)}
               {completedOptions.map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}
               <option value="__manual__">Jiná kniha…</option>
             </select>
