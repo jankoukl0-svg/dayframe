@@ -109,7 +109,7 @@ function sanitizeMetadata(value: unknown): BookMetadata | null {
     coverUrl: typeof raw.coverUrl === "string" ? raw.coverUrl : undefined,
     openLibraryKey: typeof raw.openLibraryKey === "string" ? raw.openLibraryKey : undefined,
     matchedTitle: typeof raw.matchedTitle === "string" ? raw.matchedTitle : undefined,
-    pageCount: Number.isSafeInteger(raw.pageCount) && Number(raw.pageCount) > 0 ? Number(raw.pageCount) : undefined,
+    pageCount: typeof raw.pageCount === "number" && Number.isSafeInteger(raw.pageCount) && raw.pageCount > 0 ? raw.pageCount : undefined,
     notFound: raw.notFound === true,
   };
 }
@@ -191,8 +191,9 @@ async function fetchBookMetadata(title: string): Promise<BookMetadata> {
       : undefined,
     openLibraryKey: best.key,
     matchedTitle: best.title?.trim(),
-    pageCount: Number.isSafeInteger(best.number_of_pages_median) && Number(best.number_of_pages_median) > 0
-      ? Number(best.number_of_pages_median) : undefined,
+    pageCount: typeof best.number_of_pages_median === "number"
+      && Number.isSafeInteger(best.number_of_pages_median) && best.number_of_pages_median > 0
+        ? best.number_of_pages_median : undefined,
   };
 }
 
