@@ -328,5 +328,5 @@ test("logging another active book advances only that book and keeps its page his
   await page.getByRole("button", { name: /Přehled/ }).click();
   await expect(page.locator(".df2-reading-page-history")).toContainText("25 stran");
   await expect(page.locator(".df2-reading-current-book")).toContainText("Primary");
-  await expect(page.locator('[data-reading-active-book]')).toContainText("Secondary");
+  await expect(page.locator('[data-reading-active-book="secondary"]')).toContainText("Secondary");
 });
