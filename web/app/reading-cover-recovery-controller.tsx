@@ -10,6 +10,7 @@ type ReadingBook = {
 
 type ReadingLibrary = {
   current?: ReadingBook | null;
+  reading?: ReadingBook[];
   completed?: ReadingBook[];
 };
 
@@ -149,7 +150,13 @@ async function recoverBookCover(book: ReadingBook, failedUrl: string | undefined
 }
 
 function findBookForImage(image: HTMLImageElement, library: ReadingLibrary) {
-  if (image.closest(".df2-reading-real-cover-host")) return library.current ?? null;
+  // Every active book now has its own card and its own cover image.
+  const activeCard = image.closest<HTMLElement>("[data-reading-active-book]");
+  if (activeCard) {
+    const bookId = activeCard.dataset.readingActiveBook;
+    return [library.current, ...(Array.isArray(library.reading) ? library.reading : [])]
+      .find((book) => book?.id === bookId) ?? null;
+  }
 
   const article = image.closest<HTMLElement>(".df2-reading-book-history-list article");
   const list = article?.parentElement;
@@ -192,7 +199,7 @@ export function ReadingCoverRecoveryController() {
 
     const scan = () => {
       document
-        .querySelectorAll<HTMLImageElement>(".df2-reading-real-cover-host img, .df2-reading-book-history-cover img")
+        .querySelectorAll<HTMLImageElement>("[data-reading-active-book] .df2-reading-book-cover img, .df2-reading-book-history-cover img")
         .forEach(attach);
     };
 

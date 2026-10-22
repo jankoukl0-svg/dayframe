@@ -33,17 +33,98 @@
 .df2-reading-library-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(190px, .7fr);
+  align-items: stretch;
   gap: 14px;
 }
 
-.df2-reading-current-book,
+.df2-reading-active-books {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: stretch;
+  gap: 14px;
+  min-width: 0;
+}
+
+.df2-reading-active-book {
+  position: relative;
+}
+
+.df2-reading-active-content {
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.df2-reading-active-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.df2-reading-active-head > button {
+  flex: none;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: #eae7df;
+  color: #68645c;
+  font: 630 11px "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.df2-reading-active-head > button:hover,
+.df2-reading-active-head > button:focus-visible {
+  background: #e0d9cf;
+  color: #33332f;
+}
+
+.df2-reading-active-book > .df2-reading-active-content > .df2-reading-active-title {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.df2-reading-active-book .df2-reading-current-meta-host {
+  min-height: 14px;
+}
+
+.df2-reading-active-book .df2-reading-current-meta {
+  row-gap: 2px;
+}
+
+.df2-reading-active-book .df2-reading-progress-copy {
+  margin-top: auto;
+  padding-top: 17px;
+}
+
+.df2-reading-book-cover.has-real-cover > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.df2-reading-active-book.empty .df2-reading-start {
+  margin-top: 12px;
+  align-self: flex-start;
+}
+
+
+.df2-reading-active-book,
 .df2-reading-year-summary {
   min-width: 0;
   border-radius: 17px;
   background: #f5f3ee;
 }
 
-.df2-reading-current-book {
+.df2-reading-active-book {
   min-height: 142px;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
@@ -52,7 +133,7 @@
   padding: 21px 22px;
 }
 
-.df2-reading-current-book > div {
+.df2-reading-active-book > div {
   min-width: 0;
 }
 
@@ -88,7 +169,7 @@
   background: rgba(255, 255, 255, .62);
 }
 
-.df2-reading-current-book > div > span,
+.df2-reading-active-head > span,
 .df2-reading-year-summary > span,
 .df2-reading-primary > span {
   display: block;
@@ -99,7 +180,7 @@
   letter-spacing: .01em;
 }
 
-.df2-reading-current-book > div > strong {
+.df2-reading-active-book > div > strong {
   display: block;
   max-width: 100%;
   margin-top: 5px;
@@ -151,12 +232,12 @@
   transition: width .18s ease;
 }
 
-.df2-reading-current-book.empty > div > strong {
+.df2-reading-active-book.empty > div > strong {
   color: #5f605b;
   font-size: 16px;
 }
 
-.df2-reading-current-book.empty button {
+.df2-reading-active-book.empty button {
   margin-top: 14px;
   padding: 0;
   border: 0;
@@ -503,7 +584,7 @@
     border-radius: 20px;
   }
 
-  .df2-reading-current-book {
+  .df2-reading-active-book {
     grid-template-columns: 40px minmax(0, 1fr);
     gap: 14px;
     padding: 18px;
@@ -514,7 +595,7 @@
     height: 54px;
   }
 
-  .df2-reading-current-book > div > strong {
+  .df2-reading-active-book > div > strong {
     font-size: 17px;
   }
 
@@ -553,16 +634,15 @@
   }
 }
 
-/* Additional in-progress books retain independent page totals and edit controls. */
-.df2-reading-manage-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.df2-reading-other-books{margin-top:16px}
-.df2-reading-other-books h3{margin:0 0 9px;color:#77746e;font:650 11px "Segoe UI Variable","Segoe UI",system-ui,sans-serif}
-.df2-reading-other-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,225px),1fr));gap:10px}
-.df2-reading-other-grid article{display:flex;align-items:center;gap:14px;min-width:0;padding:14px 16px;border:1px solid #ebe6de;border-radius:13px;background:#fbfaf7}
-.df2-reading-other-info{flex:1;min-width:0}
-.df2-reading-other-info>strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:650 13px "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:#292925}
-.df2-reading-other-info>span{display:block;margin-top:5px;color:#74716b;font:500 11px "Segoe UI Variable","Segoe UI",system-ui,sans-serif}
-.df2-reading-other-info .df2-reading-progress{margin-top:9px}
-.df2-reading-other-grid article>button{flex-shrink:0;border:0;border-radius:8px;padding:7px 9px;background:#eeebe5;color:#655e56;font:600 11px "Segoe UI Variable","Segoe UI",system-ui,sans-serif;cursor:pointer}
-.df2-reading-other-grid article>button:hover{background:#e4ded5;color:#272824}
-@media(max-width:560px){.df2-reading-manage-actions{justify-content:flex-start}}
+.df2-reading-manage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 560px) {
+  .df2-reading-manage-actions { justify-content: flex-start; }
+  .df2-reading-active-books { grid-template-columns: 1fr; }
+}

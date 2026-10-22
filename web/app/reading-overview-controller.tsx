@@ -58,6 +58,25 @@ const READING_BOOK_SELECTED_EVENT = "dayframe-reading-book-selected";
 const READING_METADATA_KEY = "dayframe-reading-book-metadata-v1";
 const READING_METADATA_SYNC_EVENT = "dayframe-reading-book-metadata-sync";
 type SelectedBook = { title: string; pages?: number; metadata: { titleKey: string; fetchedAt: string; [key: string]: unknown } };
+type DisplayBookMetadata = { titleKey: string; author?: string; publisher?: string; genre?: string; coverUrl?: string; notFound?: boolean };
+type DisplayBookMetadataStore = Record<string, DisplayBookMetadata>;
+
+function readDisplayBookMetadata(): DisplayBookMetadataStore {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(READING_METADATA_KEY) || "{}");
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, DisplayBookMetadata] => {
+      const meta = entry[1] as DisplayBookMetadata | null;
+      return Boolean(meta && typeof meta === "object" && typeof meta.titleKey === "string");
+    }));
+  } catch { return {}; }
+}
+
+function matchedBookMetadata(book: ReadingBook, metadata: DisplayBookMetadataStore): DisplayBookMetadata | null {
+  const found = metadata[book.id];
+  const key = book.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return found && !found.notFound && found.titleKey === key ? found : null;
+}
 const EMPTY_SUMMARY: ReadingSummary = { minutes: 0, days: 0, blocks: 0, averageMinutes: 0, longestStreak: 0 };
 const EMPTY_LIBRARY: ReadingLibrary = { version: 1, current: null, reading: [], completed: [] };
 const EMPTY_DRAFT: BookDraft = { title: "", currentPage: "0", totalPages: "" };
@@ -349,6 +368,7 @@ export function ReadingOverviewController() {
   const [draft, setDraft] = useState<BookDraft>(EMPTY_DRAFT);
   const [formError, setFormError] = useState("");
   const [selectedBook, setSelectedBook] = useState<SelectedBook | null>(null);
+  const [bookMetadata, setBookMetadata] = useState<DisplayBookMetadataStore>({});
 
   useEffect(() => {
     const sync = () => {
@@ -385,17 +405,21 @@ export function ReadingOverviewController() {
 
       const nextLibrary = readLibrary();
       setLibrary((existing) => sameLibrary(existing, nextLibrary) ? existing : nextLibrary);
+      const nextMetadata = readDisplayBookMetadata();
+      setBookMetadata((existing) => JSON.stringify(existing) === JSON.stringify(nextMetadata) ? existing : nextMetadata);
     };
 
     sync();
     const timer = window.setInterval(sync, 350);
     window.addEventListener("dayframe-state-sync", sync);
     window.addEventListener(READING_LIBRARY_SYNC_EVENT, sync);
+    window.addEventListener(READING_METADATA_SYNC_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("dayframe-state-sync", sync);
       window.removeEventListener(READING_LIBRARY_SYNC_EVENT, sync);
+      window.removeEventListener(READING_METADATA_SYNC_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
   }, []);
@@ -529,9 +553,10 @@ export function ReadingOverviewController() {
 
   if (!host || !snapshot) return null;
 
-  const currentBook = library.current;
-  const selectedEditingBook = [currentBook, ...library.reading].find((book) => book?.id === editingBookId) ?? null;
-  const progress = currentBook ? Math.round((currentBook.currentPage / currentBook.totalPages) * 100) : 0;
+  // In-progress books are peers in the UI. The legacy "current" storage slot
+  // remains only to keep existing reading sessions and persisted data compatible.
+  const activeBooks = [library.current, ...library.reading].filter((book): book is ReadingBook => Boolean(book));
+  const selectedEditingBook = activeBooks.find((book) => book.id === editingBookId) ?? null;
   const yearSummary = readingYearSummary(library, snapshot.year);
   const completedBooks = [...library.completed].sort((left, right) => right.finishedAt.localeCompare(left.finishedAt));
 
@@ -540,65 +565,62 @@ export function ReadingOverviewController() {
       <div className="df2-overview-section-head df2-reading-head">
         <h2>Čtení</h2>
         <div className="df2-reading-manage-actions">
-          {currentBook && <button type="button" className="df2-reading-manage" onClick={() => openManager(currentBook.id)}>Upravit knihu</button>}
           <button type="button" className="df2-reading-manage" onClick={() => openManager()}>
-            {currentBook ? "Přidat další knihu" : "Přidat knihu"}
+            {activeBooks.length ? "Přidat další knihu" : "Přidat knihu"}
           </button>
         </div>
       </div>
 
       <div className="df2-reading-library-grid">
-        <div className={`df2-reading-current-book${currentBook ? "" : " empty"}`}>
-          <i className="df2-reading-book-cover" aria-hidden="true"><span /></i>
-          <div>
-            <span>Aktuálně čtu</span>
-            {currentBook ? (
-              <>
-                <strong>{currentBook.title}</strong>
-                <div className="df2-reading-progress-copy">
-                  <span>Strana {currentBook.currentPage} z {currentBook.totalPages}</span>
-                  <strong>{progress} %</strong>
+        <section className="df2-reading-active-books" aria-label="Rozečtené knihy">
+          {activeBooks.length ? activeBooks.map((book) => {
+            const progress = Math.round(book.currentPage / book.totalPages * 100);
+            const meta = matchedBookMetadata(book, bookMetadata);
+            const parts = [meta?.author, meta?.publisher, meta?.genre].filter((part): part is string => Boolean(part));
+            return (
+              <article key={book.id} className="df2-reading-active-book" data-reading-active-book={book.id}>
+                <i className={`df2-reading-book-cover${meta?.coverUrl ? " has-real-cover" : ""}`} aria-hidden="true">
+                  {meta?.coverUrl ? <img src={meta.coverUrl} alt="" loading="lazy" /> : <span />}
+                </i>
+                <div className="df2-reading-active-content">
+                  <div className="df2-reading-active-head">
+                    <span>Rozečtená kniha</span>
+                    <button type="button" onClick={() => openManager(book.id)} aria-label={`Upravit ${book.title}`}>Upravit</button>
+                  </div>
+                  <strong className="df2-reading-active-title">{book.title}</strong>
+                  {parts.length > 0 && (
+                    <div className="df2-reading-current-meta-host">
+                      <div className="df2-reading-current-meta">
+                        {parts.map((part) => <span key={part}>{part}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  <div className="df2-reading-progress-copy">
+                    <span>Strana {book.currentPage} z {book.totalPages}</span>
+                    <strong>{progress} %</strong>
+                  </div>
+                  <div className="df2-reading-progress" aria-label={`${progress} % knihy přečteno`}>
+                    <i style={{ width: `${progress}%` }} />
+                  </div>
                 </div>
-                <div className="df2-reading-progress" aria-label={`${progress} % knihy přečteno`}>
-                  <i style={{ width: `${progress}%` }} />
-                </div>
-              </>
-            ) : (
-              <>
-                <strong>Žádná rozečtená kniha</strong>
-                <button type="button" onClick={() => openManager()}>Začít novou knihu</button>
-              </>
-            )}
-          </div>
-        </div>
-
+              </article>
+            );
+          }) : (
+            <div className="df2-reading-active-book empty">
+              <i className="df2-reading-book-cover" aria-hidden="true"><span /></i>
+              <div className="df2-reading-active-content">
+                <strong className="df2-reading-active-title">Žádná rozečtená kniha</strong>
+                <button type="button" className="df2-reading-start" onClick={() => openManager()}>Začít novou knihu</button>
+              </div>
+            </div>
+          )}
+        </section>
         <div className="df2-reading-year-summary">
           <span>Přečteno · {snapshot.year}</span>
           <strong>{formatBookCount(yearSummary.books)}</strong>
           <small>{formatPageCount(yearSummary.pages)}</small>
         </div>
       </div>
-
-      {library.reading.length > 0 && (
-        <section className="df2-reading-other-books" aria-label="Další rozečtené knihy">
-          <h3>Další rozečtené knihy</h3>
-          <div className="df2-reading-other-grid">
-            {library.reading.map((book) => {
-              const percent = Math.round(book.currentPage / book.totalPages * 100);
-              return <article key={book.id} data-reading-active-book={book.id}>
-                <div className="df2-reading-other-info">
-                  <strong>{book.title}</strong>
-                  <span>Strana {book.currentPage} z {book.totalPages} · {percent} %</span>
-                  <div className="df2-reading-progress" aria-label={`${percent} % knihy přečteno`}>
-                    <i style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-                <button type="button" onClick={() => openManager(book.id)} aria-label={`Upravit ${book.title}`}>Upravit</button>
-              </article>;
-            })}
-          </div>
-        </section>
-      )}
 
       <div className="df2-reading-card-grid">
         <div className="df2-reading-primary">
