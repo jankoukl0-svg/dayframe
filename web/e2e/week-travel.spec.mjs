@@ -1337,3 +1337,51 @@ test("Google calculates car to transit in sequence and shows alternative lines w
   expect(JSON.stringify(saved)).not.toContain("x".repeat(28));
   expect(Object.values(saved.blocks)[0].typicalMinutes).toBe(57);
 });
+
+
+test("outbound and return journeys dim with their completed task and restore on undo",async({page})=>{
+  const title="Úkol s oběma cestami";
+  await makeTask(page,title);
+  await openTaskPlace(page,title);
+  const dialog=page.getByRole("dialog",{name:"Místo konání: "+title});
+  await dialog.getByRole("checkbox",{name:/Blok se odehrává mimo domov/}).check();
+  await setMapPoint(dialog,50.08,14.43,"Místo konání");
+  await dialog.getByRole("button",{name:"Odkud vyrážím"}).click();
+  await setMapPoint(dialog,50.4,14.7,"Doma");
+  await dialog.getByRole("spinbutton",{name:"Obvyklá doba cesty"}).fill("24");
+  await dialog.getByRole("checkbox",{name:"Přidat cestu domů po skončení bloku"}).check();
+  await dialog.getByRole("button",{name:"Uložit místo",exact:true}).click();
+
+  const task=page.locator(".df2-week-task").filter({hasText:title});
+  const journeys=page.locator("[data-week-travel]");
+  await expect(journeys).toHaveCount(2);
+  await expect(journeys.first()).toContainText("Cesta tam");
+  await expect(journeys.last()).toContainText("Cesta domů");
+  await expect(journeys.filter({has:page.locator(".never-match")})).toHaveCount(0);
+  for(const journey of await journeys.all()){
+    await expect(journey).not.toHaveClass(/is-completed/);
+  }
+  const travelBefore=await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"));
+
+  await task.click();
+  await page.locator(".df2-modal").getByRole("button",{name:"Označit hotovo"}).click();
+  await expect(task).toHaveClass(/done/);
+  for(const journey of await journeys.all()){
+    await expect(journey).toHaveClass(/is-completed/);
+    await expect(journey).toHaveCSS("background-color","rgb(240, 240, 237)");
+  }
+  expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBe(travelBefore);
+
+  // Parent completion survives refresh, but a journey must not be a separate task.
+  await page.reload({waitUntil:"networkidle"});
+  await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
+  await expect(page.locator(".df2-week-task").filter({hasText:title})).toHaveClass(/done/);
+  await expect(page.locator("[data-week-travel].is-completed")).toHaveCount(2);
+
+  await page.locator(".df2-week-task").filter({hasText:title}).click();
+  await page.locator(".df2-modal").getByRole("button",{name:"Vrátit jako nesplněné"}).click();
+  await expect(page.locator(".df2-week-task").filter({hasText:title})).not.toHaveClass(/done/);
+  await expect(page.locator("[data-week-travel]")).toHaveCount(2);
+  await expect(page.locator("[data-week-travel].is-completed")).toHaveCount(0);
+  expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBe(travelBefore);
+});
