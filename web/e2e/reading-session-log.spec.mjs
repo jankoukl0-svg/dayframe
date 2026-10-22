@@ -16,7 +16,7 @@ async function openFresh(page) {
   });
 }
 
-test("completed reading block asks for pages and advances the current book", async ({ page }) => {
+test("completed reading block accepts last page and automatically counts new pages", async ({ page }) => {
   await openFresh(page);
   const date = await page.evaluate(localDateKeyInBrowser);
 
@@ -76,7 +76,11 @@ test("completed reading block asks for pages and advances the current book", asy
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Kniha")).toHaveValue("undercover-economist");
   await expect(dialog).toContainText("Teď jsi na straně 103 z 384");
-  await dialog.getByLabel("Kolik stran jsi přečetl?").fill("18");
+  const endingPage = dialog.getByLabel("Na které straně jsi skončil?");
+  await expect(endingPage).toHaveAttribute("min", "104");
+  await expect(endingPage).toHaveAttribute("max", "384");
+  await endingPage.fill("121");
+  await expect(dialog).toContainText("Zapíše se 18 stran a postup se posune na stranu 121");
   await dialog.getByRole("button", { name: "Uložit záznam" }).click();
   await expect(dialog).toHaveCount(0);
 
@@ -99,6 +103,119 @@ test("completed reading block asks for pages and advances the current book", asy
   const today = pageHistory.locator(`[data-reading-page-date="${date}"]`);
   await expect(today).toContainText("18");
   await expect(today).toContainText("The Undercover Economist");
+});
+
+
+// A new reading session must use the updated page as its baseline, not the old one.
+test("successive sessions use latest progress and reject invalid final pages", async ({ page }) => {
+  await openFresh(page);
+  const date = await page.evaluate(localDateKeyInBrowser);
+  await page.evaluate((date) => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.plans = {
+      [date]: ["morning", "evening"].map((id, index) => ({
+        id: "reading-" + id, title: "Čtení knihy", date, duration: 30,
+        start: index ? "20:00" : "10:00", end: index ? "20:30" : "10:30",
+        priority: "normal", category: "Čtení", mode: "flexible",
+        completed: false, source: "routine", routineId: "read",
+        dateLocked: true, autoScheduled: false, createdAt: new Date().toISOString(),
+      })),
+    };
+    localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1, current: {
+        id: "book-a", title: "Book A", currentPage: 232, totalPages: 384,
+        startedAt: new Date().toISOString(),
+      },
+      completed: [],
+    }));
+    localStorage.removeItem("dayframe-reading-sessions-v1");
+    localStorage.removeItem("dayframe-reading-pending-v1");
+  }, date);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.evaluate((date) => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1"));
+    state.plans[date].forEach((task) => { task.completed = true; });
+    localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  }, date);
+
+  const dialog = page.getByRole("dialog", { name: "Zapsat čtení" });
+  await expect(dialog).toBeVisible();
+  let end = dialog.getByLabel("Na které straně jsi skončil?");
+  await expect(dialog).toContainText("Teď jsi na straně 232 z 384");
+
+  // HTML numeric bounds and application validation both protect the stored progress.
+  await dialog.locator("form").evaluate((form) => { form.noValidate = true; });
+  await end.fill("232");
+  await dialog.getByRole("button", { name: "Uložit záznam" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Zadej vyšší číslo strany");
+  await end.fill("385");
+  await dialog.getByRole("button", { name: "Uložit záznam" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Kniha má jen 384 stran");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")).current.currentPage)).toBe(232);
+
+  await end.fill("250");
+  await expect(dialog).toContainText("Zapíše se 18 stran");
+  await dialog.getByRole("button", { name: "Uložit záznam" }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Teď jsi na straně 250 z 384");
+  end = dialog.getByLabel("Na které straně jsi skončil?");
+  await end.fill("259");
+  await expect(dialog).toContainText("Zapíše se 9 stran");
+  await dialog.getByRole("button", { name: "Uložit záznam" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const saved = await page.evaluate(() => ({
+    library: JSON.parse(localStorage.getItem("dayframe-reading-library-v1")),
+    sessions: JSON.parse(localStorage.getItem("dayframe-reading-sessions-v1")),
+  }));
+  expect(saved.library.current.currentPage).toBe(259);
+  expect(saved.sessions.entries.map((entry) => entry.pages)).toEqual([18, 9]);
+  await page.reload({ waitUntil: "networkidle" });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")).current.currentPage)).toBe(259);
+});
+
+test("other books retain a page-count entry because no starting page is tracked", async ({ page }) => {
+  await openFresh(page);
+  const date = await page.evaluate(localDateKeyInBrowser);
+  await page.evaluate((date) => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1") || "{}");
+    state.routines = [];
+    state.plans = { [date]: [{
+      id: "reading-other-book", title: "Čtení knihy", date,
+      duration: 20, start: "18:00", end: "18:20",
+      priority: "normal", category: "Čtení", mode: "flexible",
+      completed: false, source: "routine", routineId: "read",
+      dateLocked: true, autoScheduled: false, createdAt: new Date().toISOString(),
+    }] };
+    localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1, current: { id: "book-a", title: "Book A", currentPage: 30, totalPages: 100, startedAt: new Date().toISOString() },
+      completed: [{ id: "book-b", title: "Book B", currentPage: 120, totalPages: 120, finishedAt: new Date().toISOString(), startedAt: new Date().toISOString() }],
+    }));
+  }, date);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.evaluate((date) => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1"));
+    state.plans[date][0].completed = true;
+    localStorage.setItem("dayframe-v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("dayframe-state-sync"));
+  }, date);
+  const dialog = page.getByRole("dialog", { name: "Zapsat čtení" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Kniha").selectOption("book-b");
+  await expect(dialog.getByLabel("Kolik stran jsi přečetl?")).toBeVisible();
+  await dialog.getByLabel("Kolik stran jsi přečetl?").fill("12");
+  await dialog.getByRole("button", { name: "Uložit záznam" }).click();
+  await expect(dialog).toHaveCount(0);
+  const saved = await page.evaluate(() => ({
+    library: JSON.parse(localStorage.getItem("dayframe-reading-library-v1")),
+    sessions: JSON.parse(localStorage.getItem("dayframe-reading-sessions-v1")),
+  }));
+  expect(saved.library.current.currentPage).toBe(30);
+  expect(saved.sessions.entries[0]).toMatchObject({ bookId: "book-b", pages: 12 });
 });
 
 test("week overview aggregates page history by day and keeps book names", async ({ page }) => {
