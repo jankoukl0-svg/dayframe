@@ -332,6 +332,32 @@ test("found Psychology of Money is selectable in edit mode without replacing exi
   const lookup = dialog.locator(".df2-reading-lookup-preview");
   const choose = lookup.getByRole("button", { name: "Vybrat nalezenou knihu The Psychology of Money" });
   await expect(choose).toBeVisible();
+  // The whole result must occupy the modal width, with its metadata visible
+  // beside the cover rather than clipped into the old 36px preview column.
+  const dimensions = await lookup.evaluate((root) => {
+    const button = root.querySelector(".df2-reading-lookup-select");
+    const cover = root.querySelector(".df2-reading-lookup-cover");
+    const details = root.querySelector(".df2-reading-lookup-details");
+    const title = root.querySelector(".df2-reading-lookup-title");
+    return {
+      previewWidth: root.getBoundingClientRect().width,
+      buttonWidth: button.getBoundingClientRect().width,
+      coverWidth: cover.getBoundingClientRect().width,
+      detailsWidth: details.getBoundingClientRect().width,
+      detailsDisplay: getComputedStyle(details).display,
+      titleWidth: title.getBoundingClientRect().width,
+      titleHeight: title.getBoundingClientRect().height,
+    };
+  });
+  expect(dimensions.previewWidth).toBeGreaterThan(250);
+  expect(dimensions.buttonWidth).toBeGreaterThan(250);
+  expect(dimensions.detailsWidth).toBeGreaterThan(180);
+  expect(dimensions.detailsDisplay).toBe("flex");
+  expect(dimensions.titleWidth).toBeGreaterThan(180);
+  expect(dimensions.titleHeight).toBeGreaterThan(10);
+  expect(dimensions.coverWidth).toBeGreaterThan(40);
+  await expect(lookup).toContainText("The Psychology of Money");
+  await expect(lookup).toContainText("Morgan Housel");
   await expect(dialog.getByLabel("Název knihy")).toHaveValue("psychology of money");
   await expect(dialog.getByLabel("Počet stran")).toHaveValue("253");
 
