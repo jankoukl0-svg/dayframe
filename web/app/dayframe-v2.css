@@ -1004,11 +1004,13 @@
 .df2-week-travel:hover{filter:brightness(.97);z-index:5}
 .df2-week-travel:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
 
-/* One visible notice per day even when an off-hours trip is fully clipped. */
-.df2-week-travel-outside{display:grid;gap:4px;padding:6px;background:#f3ede2;border-bottom:1px solid #dacbb3;color:#69543a}
-.df2-week-travel-outside>strong{font-size:9px;line-height:1.3}
-.df2-week-travel-outside>button{padding:2px 0;text-align:left;border:0;background:transparent;color:inherit;font-size:9px;line-height:1.35;cursor:pointer;overflow-wrap:anywhere}
-.df2-week-travel-outside>button:hover{text-decoration:underline}
+/* Off-hours journeys show an actionable departure time, never a generic overflow warning. */
+.df2-week-travel-outside{display:grid;gap:4px;padding:5px 6px;background:#f0f5f8;border-bottom:1px solid #c7d7e2}
+.df2-week-travel-outside>button{display:grid;gap:3px;min-width:0;padding:5px 7px;text-align:left;border:0;border-left:2px solid #4683b3;border-radius:4px;background:#e8f1f8;color:#204968;cursor:pointer}
+.df2-week-travel-outside>button>strong{font-size:11px;line-height:1.25}
+.df2-week-travel-outside>button>span{font-size:9px;line-height:1.25;overflow-wrap:anywhere;color:#51718a}
+.df2-week-travel-outside>button:hover{background:#dceaf4}
+.df2-week-travel-outside>button:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
 
 /* Older location-only records have no duration and therefore cannot reserve a slot. */
 .df2-week-location-btn.needs-travel-duration{background:var(--paper);color:#aa5c34;border-color:#cba38d}
@@ -1036,5 +1038,14 @@
 
 .df2-week-travel-outside > button.is-completed {
   opacity: .58;
-  color: #777a76;
+  color: #707670;
+  background: #f0f0ed;
+  border-left-color: #89938c;
+}
+.df2-week-travel-outside > button.is-completed > strong,
+.df2-week-travel-outside > button.is-completed > span {
+  color: #707670;
+}
+.df2-week-travel-outside > button.is-completed:hover {
+  background: #ededeb;
 }

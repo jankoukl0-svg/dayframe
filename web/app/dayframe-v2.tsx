@@ -989,16 +989,18 @@ export function DayframeV2() {
                                We never fabricate an hour or float them above the week grid. */}
                         </div>
                         {travelReservations.some(res=>res.outsideCalendar)&&<div className="df2-week-travel-outside"
-                          role="note" aria-label="Cesta mimo zobrazené hodiny">
-                          <strong>Část cesty mimo zobrazené hodiny</strong>
-                          {travelReservations.filter(res=>res.outsideCalendar).map(res=><button
+                          role="note" aria-label="Odjezdy mimo zobrazené hodiny">
+                          {travelReservations.filter(res=>res.outsideCalendar)
+                            .sort((a,b)=>a.start-b.start).map(res=><button
                             key={res.id} type="button"
                             className={completedTravelOwners.has(res.key)?"is-completed":undefined}
+                            aria-label={(res.direction==="outbound"?"Vyjeď v ":"Vyjeď domů v ")+travelClock(res.start)+" · "+res.title}
+                            title={res.title+" · "+travelClock(res.start)+"–"+travelClock(res.end)}
                             onClick={()=>{const src=travelEvents.find(e=>e.key===res.key);
                               setTripTarget({key:res.key,date:key,title:res.title,
                                 start:src?.start??"",end:src?.end});}}>
-                            {res.direction==="outbound"?"Cesta tam":"Cesta domů"} · {res.title} ·
-                            {travelClock(res.start)}–{travelClock(res.end)}
+                            <strong>{res.direction==="outbound"?"Vyjeď v ":"Vyjeď domů v "}{travelClock(res.start)}</strong>
+                            <span>{res.title}{res.start<0?" · předchozí den":res.start>=1440?" · následující den":""}</span>
                           </button>)}
                         </div>}
                         <div
