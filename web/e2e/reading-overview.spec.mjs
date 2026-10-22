@@ -299,9 +299,9 @@ test("multiple books can be started, edited, finished independently and survive 
   await expect(reading.locator("[data-reading-active-book]").first().locator(".df2-reading-current-meta")).toContainText("Alpha Author");
   await expect(reading.locator("[data-reading-active-book]").last().locator(".df2-reading-current-meta")).toContainText("Beta Author");
   await expect(reading.locator("[data-reading-active-book]").first().locator(".df2-reading-book-cover img"))
-    .toHaveAttribute("src", /10001-M\\.jpg/);
+    .toHaveAttribute("src", /10001-M\.jpg/);
   await expect(reading.locator("[data-reading-active-book]").last().locator(".df2-reading-book-cover img"))
-    .toHaveAttribute("src", /10002-M\\.jpg/);
+    .toHaveAttribute("src", /10002-M\.jpg/);
 
   await reading.getByRole("button", { name: "Upravit Book Beta" }).click();
   let modal = page.getByRole("dialog", { name: "Upravit čtení" });
