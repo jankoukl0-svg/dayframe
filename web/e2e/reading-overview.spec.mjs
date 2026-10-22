@@ -161,7 +161,9 @@ test("reading tracker enriches a title with cover metadata and keeps it in dated
   await dialog.getByLabel("Název knihy").fill("Security Analysis");
 
   const lookup = dialog.locator(".df2-reading-lookup-preview");
-  await expect(lookup).toContainText("Údaje nalezeny");
+  await expect(lookup).toContainText("Vybrat tuto knihu");
+  await lookup.getByRole("button", { name: "Vybrat nalezenou knihu Security Analysis" }).click();
+  await expect(lookup.getByRole("button")).toHaveAttribute("aria-pressed", "true");
   await expect(lookup).toContainText("Benjamin Graham");
   await expect(lookup).toContainText("Vydavatel: McGraw-Hill");
   await expect(lookup).toContainText("Žánr: Finance");
@@ -291,4 +293,76 @@ test("multiple books can be started, edited, finished independently and survive 
   expect(saved.current.title).toBe("Book Gamma");
   expect(saved.reading).toHaveLength(0);
   expect(saved.completed.map((book) => book.title)).toEqual(["Book Beta", "Book Alpha"]);
+});
+
+
+test("found Psychology of Money is selectable in edit mode without replacing existing pages", async ({ page }) => {
+  await page.route("https://openlibrary.org/search.json**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ docs: [{
+        key: "/works/OLPSYCH123W", title: "The Psychology of Money",
+        author_name: ["Morgan Housel"], cover_i: 21212,
+        publisher: ["Harriman House"], subject: ["Consumption (Economics)"],
+        number_of_pages_median: 200,
+      }] }),
+    });
+  });
+  await page.route("https://covers.openlibrary.org/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120"/>' });
+  });
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1, current: {
+        id: "psych-book", title: "psychology of money", currentPage: 0,
+        totalPages: 253, startedAt: new Date().toISOString(),
+      }, reading: [], completed: [],
+    }));
+    localStorage.removeItem("dayframe-reading-book-metadata-v1");
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  const reading = page.locator(".df2-reading-card");
+  await reading.getByRole("button", { name: "Upravit knihu" }).click();
+  const dialog = page.getByRole("dialog", { name: "Upravit čtení" });
+  const lookup = dialog.locator(".df2-reading-lookup-preview");
+  const choose = lookup.getByRole("button", { name: "Vybrat nalezenou knihu The Psychology of Money" });
+  await expect(choose).toBeVisible();
+  await expect(dialog.getByLabel("Název knihy")).toHaveValue("psychology of money");
+  await expect(dialog.getByLabel("Počet stran")).toHaveValue("253");
+
+  await choose.click();
+  await expect(choose).toHaveAttribute("aria-pressed", "true");
+  await expect(lookup).toContainText("Kniha vybrána");
+  await expect(dialog.getByLabel("Název knihy")).toHaveValue("The Psychology of Money");
+  await expect(dialog.getByLabel("Počet stran")).toHaveValue("253");
+  await dialog.getByRole("button", { name: "Uložit", exact: true }).click();
+  const saved = await page.evaluate(() => ({
+    library: JSON.parse(localStorage.getItem("dayframe-reading-library-v1")),
+    metadata: JSON.parse(localStorage.getItem("dayframe-reading-book-metadata-v1")),
+  }));
+  expect(saved.library.current).toMatchObject({
+    id: "psych-book", title: "The Psychology of Money", currentPage: 0, totalPages: 253,
+  });
+  expect(saved.metadata["psych-book"]).toMatchObject({
+    titleKey: "the psychology of money", author: "Morgan Housel",
+    publisher: "Harriman House", openLibraryKey: "/works/OLPSYCH123W",
+  });
+  await expect(reading.locator(".df2-reading-current-meta")).toContainText("Morgan Housel");
+
+  // Selecting the known book in add mode should fill only a genuinely blank page count.
+  await reading.getByRole("button", { name: "Přidat další knihu" }).click();
+  const add = page.getByRole("dialog", { name: "Co právě čteš?" });
+  await add.getByLabel("Název knihy").fill("psychology of money");
+  await expect(add.getByLabel("Počet stran")).toHaveValue("");
+  await add.getByRole("button", { name: "Vybrat nalezenou knihu The Psychology of Money" }).click();
+  await expect(add.getByLabel("Počet stran")).toHaveValue("200");
+  await add.getByRole("button", { name: "Začít číst" }).click();
+  const added = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")).reading);
+  expect(added).toHaveLength(1);
+  expect(added[0]).toMatchObject({ title: "The Psychology of Money", totalPages: 200 });
 });
