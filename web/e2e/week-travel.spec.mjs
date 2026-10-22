@@ -1371,16 +1371,18 @@ test("outbound and return journeys dim with their completed task and restore on 
   }
   expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBe(travelBefore);
 
-  // Parent completion survives refresh, but a journey must not be a separate task.
+  // Undo through the actual completion toast; completed cards in read-only days
+  // intentionally cannot be reopened by clicking them.
+  await page.locator(".df2-completion-toast").getByRole("button",{name:"Vrátit"}).click();
+  await expect(task).not.toHaveClass(/done/);
+  await expect(page.locator("[data-week-travel]")).toHaveCount(2);
+  await expect(page.locator("[data-week-travel].is-completed")).toHaveCount(0);
+  expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBe(travelBefore);
+
+  // Persist both completion states without changing travel reservations.
   await page.reload({waitUntil:"networkidle"});
   await page.locator(".df2-sidebar nav button").filter({hasText:"Týden"}).click();
-  await expect(page.locator(".df2-week-task").filter({hasText:title})).toHaveClass(/done/);
-  await expect(page.locator("[data-week-travel].is-completed")).toHaveCount(2);
-
-  await page.locator(".df2-week-task").filter({hasText:title}).click();
-  await page.locator(".df2-modal").getByRole("button",{name:"Vrátit jako nesplněné"}).click();
   await expect(page.locator(".df2-week-task").filter({hasText:title})).not.toHaveClass(/done/);
-  await expect(page.locator("[data-week-travel]")).toHaveCount(2);
   await expect(page.locator("[data-week-travel].is-completed")).toHaveCount(0);
   expect(await page.evaluate(()=>localStorage.getItem("dayframe-travel-v1"))).toBe(travelBefore);
 });
