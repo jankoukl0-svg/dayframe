@@ -8,7 +8,8 @@ export type GymPlan = { id: string; name: string; days: GymPlanDay[]; createdOn?
 export type GymSet = { id: string; kind: "work" | "warmup"; reps: number | null; weightKg: number | null; rpe: number | null; rir: number | null; done: boolean; note: string };
 export type GymSessionExercise = { id: string; exerciseId: string; name: string; sets: GymSet[]; note: string };
 export type GymSession = { id: string; occurrenceKey: string; planId: string; dayId: string; date: string; title: string; startedAt: string; completedAt: string | null; restUntil: number | null; scheduledTime?:GymTime; exercises: GymSessionExercise[] };
-export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string>; occurrenceTimes?: Record<string,GymTime>; deletedOccurrences?:string[] };
+export type GymOneOff = { id:string; planId:string; dayId:string; date:string; start:string; duration:number };
+export type GymStore = { version: 1; exercises: GymExercise[]; plans: GymPlan[]; activePlanId: string | null; activations?: Array<{planId:string|null;effectiveFrom:string}>; sessions: GymSession[]; moves: Record<string, string>; occurrenceTimes?: Record<string,GymTime>; deletedOccurrences?:string[]; oneOffWorkouts?:GymOneOff[] };
 export type GymOccurrence = { key: string; planId: string; dayId: string; name: string; date: string; originalDate: string; completed: boolean; session: GymSession | null };
 export type GymTime = {start:string|null;duration:number};
 
@@ -113,7 +114,7 @@ export function extendGymExerciseCatalog(store: GymStore): GymStore {
 }
 
 export function emptyGymStore(): GymStore {
-  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [],  sessions: [], moves: {}, occurrenceTimes: {}, deletedOccurrences: [] };
+  return { version: 1, exercises: EXERCISE_LIBRARY.map(x=>({...x})), plans: [], activePlanId: null, activations: [],  sessions: [], moves: {}, occurrenceTimes: {}, deletedOccurrences: [], oneOffWorkouts: [] };
 }
 const str = (value: unknown, max=300) => typeof value === "string" && value.length <= max;
 const num = (value: unknown, min: number, max: number) => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
@@ -166,6 +167,19 @@ export function parseGymStore(raw: string | null): { store: GymStore; blocked: b
       }
     }
     if(s.activePlanId && !s.plans.some(x=>x.id===s.activePlanId)) throw Error("active plan");
+    // Date-specific, non-recurring workouts use templates from existing plans.
+    // Older Gym stores have no oneOffWorkouts and remain fully compatible.
+    if(s.oneOffWorkouts!==undefined){
+      if(!Array.isArray(s.oneOffWorkouts) || s.oneOffWorkouts.length>20000
+        || !distinct(s.oneOffWorkouts) || s.oneOffWorkouts.some(item=>
+          !item || !str(item.id,100) || !item.id.startsWith("manual-")
+          || !str(item.planId,100) || !str(item.dayId,100) || !dateValid(item.date)
+          || !gymTimeValid(item.start) || item.start===null
+          || !gymDurationValid(item.duration)
+          || gymClockMinutes(item.start)+item.duration>26*60
+          || !s.plans.some(p=>p.id===item.planId&&p.days.some(day=>day.id===item.dayId&&!day.templateDayId))
+        ))throw Error("one-off workouts");
+    }
     if(s.activations!==undefined && (!Array.isArray(s.activations)
       || !distinct(s.activations.map(x=>({id:x.effectiveFrom})))
       || s.activations.some(x=>!x||!dateValid(x.effectiveFrom)||!(x.planId===null || str(x.planId,100))))) throw Error("activations");
@@ -241,6 +255,8 @@ export function gymDayTimeOnDate(day:GymPlanDay,date:string):GymTime {
 export function gymOccurrenceTime(store:GymStore,occ:GymOccurrence):GymTime {
   // A started session is factual history even after deleting/editing its plan.
   if(occ.session?.scheduledTime)return occ.session.scheduledTime;
+  const oneOff=store.oneOffWorkouts?.find(item=>item.id===occ.key);
+  if(oneOff)return {start:oneOff.start,duration:oneOff.duration};
   const override=store.occurrenceTimes?.[occ.key];
   if(override)return override;
   const day=store.plans.find(p=>p.id===occ.planId)?.days.find(d=>d.id===occ.dayId);
@@ -338,6 +354,17 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
     const plan=store.plans.find(p=>p.id===planId), day=plan?.days.find(x=>x.id===dayId);
     if(plan&&day)append(plan,day,origin);
   }
+  // A one-off is a real occurrence, independently dated and never repeated.
+  // It can use the same template as other one-offs on this date.
+  for(const item of store.oneOffWorkouts??[]){
+    if(item.date!==date || store.deletedOccurrences?.includes(item.id))continue;
+    const plan=store.plans.find(p=>p.id===item.planId);
+    const day=plan?.days.find(d=>d.id===item.dayId);
+    if(!plan||!day||result.some(x=>x.key===item.id))continue;
+    const session=store.sessions.find(s=>s.occurrenceKey===item.id)??null;
+    result.push({key:item.id,planId:item.planId,dayId:item.dayId,name:session?.title??day.name,
+      date,originalDate:item.date,completed:!!session?.completedAt,session});
+  }
   // Sessions are factual history even when the plan was later deactivated,
   // removed or assigned a new weekday. Never hide a recorded completion.
   for(const session of store.sessions.filter(s=>s.date===date
@@ -356,6 +383,11 @@ export function assignmentsOnDate(store:GymStore,date:string):GymOccurrence[] {
 export function deleteGymOccurrence(store:GymStore,key:string,date:string):GymStore{
   if(!dateValid(date)||store.deletedOccurrences?.includes(key)
     ||!assignmentsOnDate(store,date).some(o=>o.key===key))return store;
+  const oneOff=store.oneOffWorkouts?.find(item=>item.id===key);
+  if(oneOff){
+    return {...store,oneOffWorkouts:(store.oneOffWorkouts??[]).filter(item=>item.id!==key),
+      sessions:store.sessions.filter(session=>session.occurrenceKey!==key)};
+  }
   const moves={...store.moves};
   delete moves[key];
   const occurrenceTimes={...(store.occurrenceTimes??{})};
@@ -365,6 +397,20 @@ export function deleteGymOccurrence(store:GymStore,key:string,date:string):GymSt
     moves,occurrenceTimes,
     deletedOccurrences:[...(store.deletedOccurrences??[]),key],
   };
+}
+/** Add a single future workout without changing any recurring weekday. */
+export function addGymOneOff(store:GymStore,planId:string,dayId:string,date:string,
+  start:string,duration:number,id:string):GymStore {
+  const plan=store.plans.find(p=>p.id===planId);
+  const day=plan?.days.find(d=>d.id===dayId&&!d.templateDayId);
+  if(!plan||!day||!dateValid(date)||(plan.createdOn!==undefined&&date<plan.createdOn)
+    ||!gymTimeValid(start)||start===null||!gymDurationValid(duration)
+    ||gymClockMinutes(start)+duration>26*60
+    ||!str(id,100)||!id.startsWith("manual-")
+    ||(store.oneOffWorkouts??[]).some(item=>item.id===id)
+    ||store.sessions.some(session=>session.occurrenceKey===id))return store;
+  return {...store,oneOffWorkouts:[...(store.oneOffWorkouts??[]),
+    {id,planId,dayId,date,start,duration}]};
 }
 export function moveOccurrence(store:GymStore,key:string,target:string):GymStore {
   const [planId,dayId,origin,...rest]=key.split("|");
@@ -390,6 +436,14 @@ export function moveOccurrence(store:GymStore,key:string,target:string):GymStore
 export function rescheduleGymOccurrence(store:GymStore,key:string,fromDate:string,targetDate:string,start:string,today:string):GymStore {
   if(!dateValid(today)||!dateValid(fromDate)||!dateValid(targetDate)
     ||fromDate<today||targetDate<today||!gymTimeValid(start)||start===null)return store;
+  const oneOff=store.oneOffWorkouts?.find(item=>item.id===key);
+  if(oneOff){
+    if(oneOff.date!==fromDate || store.sessions.some(s=>s.occurrenceKey===key)
+      || gymClockMinutes(start)+oneOff.duration>26*60)return store;
+    if(oneOff.date===targetDate && oneOff.start===start)return store;
+    return {...store,oneOffWorkouts:(store.oneOffWorkouts??[]).map(item=>
+      item.id===key?{...item,date:targetDate,start}:item)};
+  }
   const occurrence=assignmentsOnDate(store,fromDate).find(item=>item.key===key);
   if(!occurrence||occurrence.session)return store;
   const time=gymOccurrenceTime(store,occurrence);
