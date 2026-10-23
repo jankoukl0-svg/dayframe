@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, rescheduleGymOccurrence, setGymWeekdayAssignment, setGymWeekdayTime, gymOccurrenceTime,
-  occurrenceKey, startSession, deleteGymOccurrence, addGymOneOff, setGymOccurrenceTime, gymMetrics, lastExercisePerformance,
+  occurrenceKey, startSession, deleteGymOccurrence, addGymOneOff, setGymOccurrenceTime, setGymOccurrenceSchedule, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
 
@@ -515,4 +515,30 @@ test("one-off workout resizes independently and survives storage reload; logged 
   assert.equal(setGymOccurrenceTime(started,"manual-resize","2026-11-04","17:00",90,"2026-10-23"),started,
     "a started session is immutable");
   assert.equal(started.sessions[0].scheduledTime?.duration,75);
+});
+
+test("atomic date + time + duration edits do not validate an obsolete 180-minute schedule",()=>{
+  let s=active(),plan=s.plans[0],day=plan.days[0];
+  s=addGymOneOff(s,plan.id,day.id,"2026-11-04","23:00",180,"manual-atomic");
+  s=setGymOccurrenceSchedule(s,"manual-atomic","2026-11-04","2026-11-05","01:00",30,"2026-10-23");
+  assert.equal(assignmentsOnDate(s,"2026-11-04").some(o=>o.key==="manual-atomic"),false);
+  const moved=assignmentsOnDate(s,"2026-11-05").find(o=>o.key==="manual-atomic");
+  assert.deepEqual(gymOccurrenceTime(s,moved),{start:"01:00",duration:30});
+  assert.equal(parseGymStore(JSON.stringify(s)).blocked,false);
+
+  let repeating=active();
+  const monday=repeating.plans[0].days[0],planId=repeating.plans[0].id;
+  repeating=setGymWeekdayTime(repeating,planId,1,"23:00",180,"2026-10-12");
+  const occurrence=assignmentsOnDate(repeating,"2026-10-19").find(o=>o.dayId===monday.id);
+  assert.ok(occurrence);
+  repeating=setGymOccurrenceSchedule(repeating,occurrence.key,"2026-10-19","2026-10-20","01:00",30,"2026-10-12");
+  const actual=assignmentsOnDate(repeating,"2026-10-20").find(o=>o.key===occurrence.key);
+  assert.ok(actual);
+  assert.deepEqual(gymOccurrenceTime(repeating,actual),{start:"01:00",duration:30});
+  assert.deepEqual(gymOccurrenceTime(repeating,assignmentsOnDate(repeating,"2026-10-26").find(o=>o.dayId===monday.id)),
+    {start:"23:00",duration:180},"later recurring weeks remain unchanged");
+  const snapshot=JSON.stringify(repeating);
+  assert.equal(setGymOccurrenceSchedule(repeating,occurrence.key,"2026-10-20","2026-10-21","01:00",180,"2026-10-12"),repeating,
+    "requested duration crossing 02:00 must still be rejected");
+  assert.equal(JSON.stringify(repeating),snapshot);
 });
