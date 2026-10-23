@@ -220,9 +220,12 @@ export function ReadingCoverRecoveryController() {
     };
 
     const attach = (image: HTMLImageElement) => {
-      if (image.dataset.readingCoverRecoveryAttached === "true") return;
-      image.dataset.readingCoverRecoveryAttached = "true";
-      image.addEventListener("error", () => attempt(image), { once: true });
+      if (image.dataset.readingCoverRecoveryAttached !== "true") {
+        image.dataset.readingCoverRecoveryAttached = "true";
+        image.addEventListener("error", () => attempt(image), { once: true });
+      }
+      // A failed <img> survives temporary HTTP/network errors. Keep checking it
+      // after the backoff; its one-shot error listener cannot fire a second time.
       if (image.complete && image.naturalWidth === 0) attempt(image);
     };
 
