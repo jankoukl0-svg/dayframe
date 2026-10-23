@@ -1106,8 +1106,13 @@ test("short 30-minute Gym blocks keep the location pin separate from resize, edi
   for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").nth(2).click();
   const workout=page.locator('[data-week-gym^="manual-"]').filter({hasText:"Upper"});
   await expect(workout).toBeVisible();
-  await workout.hover();
   const pin=page.getByRole("button",{name:"Místo konání: Upper"});
+  // Unlike long blocks, a short card's location pin must remain clickable
+  // even between mouse hover transitions (no click-through to the Gym card).
+  await page.locator(".df2-week-day-head").first().hover();
+  await expect(pin).toHaveCSS("pointer-events","auto");
+  await expect(pin).not.toHaveCSS("opacity","0");
+  await workout.hover();
   const edit=page.getByRole("button",{name:"Upravit čas tréninku Upper"});
   const remove=page.getByRole("button",{name:"Smazat trénink Upper ze dne 2026-11-04"});
   const grips=page.locator('[data-gym-resize-key^="manual-"]');
