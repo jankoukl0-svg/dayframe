@@ -433,6 +433,34 @@ export function moveOccurrence(store:GymStore,key:string,target:string):GymStore
  * recurring template and all other weeks. A date move keeps the occurrence key,
  * and its new clock time is stored independently of weekday timeHistory.
  */
+/**
+ * Adjust the start/end of one scheduled Gym occurrence only. Recurring days use
+ * the existing per-occurrence override; manual blocks retain their own record.
+ * Sessions already started are factual history and stay immutable here.
+ */
+export function setGymOccurrenceTime(
+  store:GymStore,key:string,date:string,start:string,duration:number,today:string,
+):GymStore {
+  if(!dateValid(date)||!dateValid(today)||date<today||!gymTimeValid(start)
+    ||start===null||!gymDurationValid(duration)||gymClockMinutes(start)+duration>26*60)return store;
+  const occurrence=assignmentsOnDate(store,date).find(item=>item.key===key);
+  if(!occurrence||occurrence.session)return store;
+  const previous=gymOccurrenceTime(store,occurrence);
+  if(previous.start===start&&previous.duration===duration)return store;
+  const manual=store.oneOffWorkouts?.find(item=>item.id===key);
+  if(manual) {
+    return {...store,oneOffWorkouts:(store.oneOffWorkouts??[]).map(item=>
+      item.id===key?{...item,start,duration}:item)};
+  }
+  const day=store.plans.find(plan=>plan.id===occurrence.planId)
+    ?.days.find(item=>item.id===occurrence.dayId);
+  if(!day)return store;
+  const expected=gymDayTimeOnDate(day,occurrence.originalDate);
+  const occurrenceTimes={...(store.occurrenceTimes??{})};
+  if(expected.start===start&&expected.duration===duration)delete occurrenceTimes[key];
+  else occurrenceTimes[key]={start,duration};
+  return {...store,occurrenceTimes};
+}
 export function rescheduleGymOccurrence(store:GymStore,key:string,fromDate:string,targetDate:string,start:string,today:string):GymStore {
   if(!dateValid(today)||!dateValid(fromDate)||!dateValid(targetDate)
     ||fromDate<today||targetDate<today||!gymTimeValid(start)||start===null)return store;
