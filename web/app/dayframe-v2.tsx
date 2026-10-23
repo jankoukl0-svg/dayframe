@@ -1262,8 +1262,19 @@ export function DayframeV2() {
                             // Leave room on both sides for independent Gym controls.
                             // Particularly important for 30/45-minute cards: editing and
                             // resize grips may not cover the right-side location pin.
-                            const controlsLeft=lane?"calc("+lane.left+" + 48px)":"55px";
-                            const controlsWidth=lane?"max(0px, calc("+lane.width+" - 77px))":"max(0px, calc(100% - 90px))";
+                            // Collision lanes can be just ~68px wide. Keep a usable
+                            // 14px resize grip centered in those lanes, instead of
+                            // subtracting fixed action widths until the grip vanishes.
+                            const lanePercent=lane?Number(lane.width.match(/calc\\(([\\d.]+)%/)?.[1]??100):100;
+                            const narrowLane=lanePercent<=50;
+                            const controlsLeft=lane
+                              ?narrowLane
+                                ?"calc("+lane.left+" + "+(lanePercent/2).toFixed(5)+"% - 13px)"
+                                :"calc("+lane.left+" + 48px)"
+                              :"55px";
+                            const controlsWidth=lane
+                              ?narrowLane?"14px":"max(14px, calc("+lane.width+" - 77px))"
+                              :"max(14px, calc(100% - 90px))";
                             return <Fragment key={occ.key}><button type="button" data-week-gym={occ.key}
                               className={`df2-week-task df2-week-gym ${occ.completed?"done":""}${blockDuration<=45?" is-short":""}${preview&&!preview.valid?" is-resize-invalid":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
