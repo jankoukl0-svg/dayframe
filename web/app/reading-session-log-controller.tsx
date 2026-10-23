@@ -130,7 +130,18 @@ function readState(): StoredState {
 function readLibrary(): ReadingLibrary {
   try {
     const value = JSON.parse(window.localStorage.getItem(LIBRARY_KEY) || "{}") as unknown;
-    return value && typeof value === "object" && !Array.isArray(value) ? value as ReadingLibrary : {};
+    const library = value && typeof value === "object" && !Array.isArray(value)
+      ? value as ReadingLibrary : {};
+    // This controller is mounted even when the user has not opened Přehled.
+    // Reconcile old 300/300 books before offering choices in the session modal.
+    const reconciled = completeFullyReadBooks(library, new Date().toISOString());
+    if (reconciled !== library) {
+      try {
+        window.localStorage.setItem(LIBRARY_KEY, JSON.stringify(reconciled));
+        window.dispatchEvent(new Event(LIBRARY_SYNC_EVENT));
+      } catch { /* Keep data readable if persistence is temporarily unavailable. */ }
+    }
+    return reconciled;
   } catch {
     return {};
   }
