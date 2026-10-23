@@ -24,7 +24,7 @@ This integration is **disabled until all required server-only Vercel secrets AND
    - The alternative names `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are also supported if supplied together. Never copy, disclose, or mix secrets from two databases.
    - `DAYFRAME_ROUTES_ACCESS_TOKEN`: a different random ASCII/Base64URL token, minimum 20 characters, for accessing the private endpoint from your browser. Do **not** paste the Google API key here.
 4. Redeploy `main` on Vercel so the new variables are picked up.
-5. In Dayframe, go to **Týden → Místo konání** and enter the private access token in the route section. It stays only in browser sessionStorage, not in the schedule. Choose origin, destination and transport, then press **Spočítat trasu** once to request the Google estimate. Changing inputs does not automatically trigger billable requests, and provider results are never persisted.
+5. In Dayframe, go to **Týden → Místo konání** and enter the private access token in the route section. It stays only in browser sessionStorage, not in the schedule. Choose origin, destination and transport, then press **Spočítat trasu** once to request the Google estimate. Changing inputs does not automatically trigger billable requests. Detailed provider itinerary/alternatives are not stored, but clicking **Uložit místo** after calculation saves the chosen total duration into `dayframe-travel-v1` (`typicalMinutes`, `calendarMinutes`, and `calendarVerified` when derived from Google).
 6. Confirm the Vercel Upstash resource is on **Free**, with **Auto Upgrade disabled**. The presence of credentials does not confirm its tariff; review the database in Upstash before accepting a billing upgrade.
 7. Test by selecting one simple route and a multi-leg route; verify the route ETA appears and the corresponding count is recorded in Upstash. For a low-cost test, use a mock Google response in CI (already covered in unit/browser tests). Never reveal tokens in support screenshots or GitHub.
 8. Review the [published privacy notice](../public/privacy.html), [terms](../public/terms.html), [Google Routes requirements](https://developers.google.com/maps/documentation/routes/policies), and [Google Maps Platform EEA terms](https://cloud.google.com/terms/maps-platform/eea) before enabling the integration.
@@ -32,18 +32,18 @@ This integration is **disabled until all required server-only Vercel secrets AND
 
 ## Quick route planner UI
 
-The Week location editor is organized as four short sections: (1) **Odkud a kam?** to select the origin, destination, and optional transit points, (2) **Jak pojedeš?** for direct vs combined transport, (3) **Kdy vyrazit?** for a single explicit Google calculation, and (4) **Uložit plán pro Jarvise** for manually entered customary travel time and reserve.
+The Week location editor is organized as four short sections: (1) **Odkud a kam?** to select the origin, destination, and optional transit points, (2) **Jak pojedeš?** for direct vs combined transport, (3) **Kdy vyrazit?** for a single explicit Google calculation, and (4) **Uložit plán pro Jarvise** for the selected Google or manually entered planning duration and reserve.
 
 - The map and geocoding picker appear when selecting/changing a location; saved trips reopen with compact location cards and the picker collapsed. Exact coordinates remain available.
 - The session-scoped personal access code is collapsed after valid-format entry and can be edited via **Změnit kód**. This is a UI convenience, not confirmation of provider authorization.
 - Advanced transit priorities and transfer buffer are optional; the result first shows time, distance and a short breakdown; stations and alternatives expand on demand.
-- On a failed Google connection, the manual trip planner continues to work. Any route estimate is deliberately **read-only and ephemeral**, so the user must enter their own planning minutes for Jarvis.
+- On a failed Google connection, the manual trip planner continues to work. Google itinerary details remain **ephemeral**; a calculated total duration can become the saved planning time only after the user explicitly saves the place. Without a successful provider calculation, a manual duration can be entered instead.
 
 ## Transient provider errors and conservative retries
 
 Google may return a transient HTTP 503 when Compute Routes is unavailable, even if Dayframe's credentials and Upstash limits are healthy. Dayframe now identifies the affected segment and retains earlier successfully calculated segments in component memory only. The user can explicitly request **Zkusit znovu bez alternativ**; this reuses the completed segments when the origin/destination, route settings and 10-minute validity window are unchanged. Failed and remaining segments are recomputed sequentially, with `computeAlternativeRoutes: false` to reduce provider work. The initial failure and any retry each consume a separate atomically reserved Upstash unit per actual Google call. **No automatic retries** and no uncapped provider calls. Failure to recover must allow manual entry as before.
 
-Detailed Google error body text is never forwarded; only provider status, retryability and a fixed Czech error message are exposed. Removing unused turn-by-turn walking instructions from the field mask keeps routing payloads smaller. Neither partial results nor the Google response are persisted.
+Detailed Google error body text is never forwarded; only provider status, retryability and a fixed Czech error message are exposed. Removing unused turn-by-turn walking instructions from the field mask keeps routing payloads smaller. Neither partial response details nor the raw Google response are persisted; on explicit Save, the selected duration and its verification flag can be persisted.
 
 ## Connected transit journeys and alternatives
 
@@ -54,7 +54,7 @@ Detailed Google error body text is never forwarded; only provider status, retrya
 - The displayed trip itinerary now groups consecutive fine-grained WALK turns into one **Pěšky** segment while retaining every train, metro, bus and tram boarding. Vehicle labels use the provider's specific type and a conservative S/R train-line fallback. Stop names and local times are prominent; turn-by-turn pedestrian navigation remains available in Google Maps. Grouping does not change Route API calls, Redis limits, data persistence or Jarvis estimates.
 - A stage's transit schedule is computed against that stage's estimated arrival at its starting waypoint, **not** the simultaneous time used by another stage. Actual realtime delays and timetable changes can affect transfers; the user should confirm Google Maps before departure.
 - Every segment still calls the same server endpoint, which atomically reserves **one** Upstash unit before contacting Google; requesting alternatives inside that call does **not** multiply the number of Dayframe requests. 50/day, 1,000/month, fail-closed Redis, server-only Google credentials, the access token and the manual planner are unchanged.
-- Both route alternatives and transit timetable details are only held in component state during editing. They are **not persisted** into the Dayframe travel store or silently copied into Jarvis' planning duration.
+- Route alternatives and transit timetable details are held in component state during editing. Their detailed provider data are **not persisted** into the Dayframe travel store; the selected aggregate duration is saved for Week/Jarvis only on an explicit save action.
 - Google Maps Platform prices and SKU conditions can change; extra route fields and routing options need pricing review. No absolute guarantee of zero fees. Avoid enabling additional services or increasing existing limits.
 
 ## Guard technical notes
@@ -62,7 +62,7 @@ Detailed Google error body text is never forwarded; only provider status, retrya
 - The server uses REST `POST /api/google-travel` with a secret access token, validating same-origin browser requests, selected transport and geographical coordinates.
 - It issues an atomic Upstash `EVAL` with the day and month keys using one Redis hash-slot tag. If either limit is exhausted the endpoint returns HTTP **429** with `Retry-After`; on database failure it returns **503** and **never forwards** a request to Google.
 - Redis is required even if the Google Maps API key and access token exist. In their absence `GET /api/google-travel` reports `available:false`.
-- No in-memory counters, non-atomic transactions, client-local counters, fail-open paths, caching of raw Google Routes responses, or Google-derived persistent travel minutes.
+- No in-memory counters, non-atomic transactions, client-local counters, fail-open paths or caching/persistence of raw Google Routes responses. **Exception to raw-detail non-persistence:** the explicitly saved selected duration may be Google-derived and is persisted as planning minutes with its verification status.
 - Leave the old `DAYFRAME_ROUTES_CLOUD_DAILY_QUOTA_CONFIRMED` unset. It is no longer used; Google Cloud's Compute Routes daily quota is not adjustable for this project.
 - Upstash's current free tier provides 500,000 monthly commands and one free database; usage in this design is substantially below that. It must stay on the **Free** plan.
 
@@ -102,7 +102,7 @@ For a final TRANSIT stage whose start is within 3 km of the official P+R Černý
 
 1. If the *existing* Google options already contain a subway segment, compare that option for **zero new calls**.
 2. Otherwise offer one **user-triggered** `POST /api/google-travel` on the *TRANSIT stage only*, keeping the same exact stage endpoints and departure time, preserving the applied routing preference, and adding `transitTravelModes: "metro"`. If the original stage departure is already more than two minutes old, Dayframe prompts for a fresh full calculation instead of spending a request on a stale comparison. Google gets `transitPreferences.allowedTravelModes: ["SUBWAY","BUS","LIGHT_RAIL"]` plus its normal routing preference. **Google documents this as a preference, not a guarantee of an actual metro route.** Do not claim a metro route if no step is classified as `SUBWAY` or `METRO_RAIL`.
-3. If Google returns a verified subway, render old and metro alternatives side by side with total minutes, transfer count, and walking metres. Switching locally between these calculated results uses **no further Google calls**, updates the displayed trip time and never persists the provider estimate as Jarvis's normal journey duration.
+3. If Google returns a verified subway, render old and metro alternatives side by side with total minutes, transfer count, and walking metres. Switching locally between these calculated results uses **no further Google calls** and updates the displayed trip time; this selection alone does not save it. On a subsequent explicit **Uložit místo**, the selected total duration can become the persisted Jarvis/Week planning duration.
 4. If Google does not provide a subway, display that limitation clearly instead of inventing an itinerary; allow the user to choose the official P+R garage near the station as a separate change to draft route geometry.
 5. Every provider request, including the metro comparison, still uses the atomic Redis reservation (50/day and 1000/month). No auto background scans, additional keys, or route storage. Metro comparison does not rerun the driving stage.
 
