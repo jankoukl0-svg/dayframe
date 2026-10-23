@@ -542,9 +542,10 @@ export function DayframeV2() {
         return next;
       });
       if(!saved||!added){setError("Trénink se nepodařilo uložit. Zkus to znovu.");return;}
+      const shouldOpenLocation=offsiteOnCreate;
       setNotice(day.name+" · "+dayLabel(date,todayKey)+" · "+start+"–"+minutesToTime(minute+duration));
       closeAdd();
-      if(offsiteOnCreate)openTrip("gym",id,date,day.name,start,true,minutesToTime(minute+duration));
+      if(shouldOpenLocation)openTrip("gym",id,date,day.name,start,true,minutesToTime(minute+duration));
       return;
     }
     if (!draft.title.trim()) return;
