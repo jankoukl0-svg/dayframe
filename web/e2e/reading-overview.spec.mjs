@@ -432,3 +432,88 @@ test("found Psychology of Money is selectable in edit mode without replacing exi
   expect(added).toHaveLength(1);
   expect(added[0]).toMatchObject({ title: "The Psychology of Money", totalPages: 200 });
 });
+
+
+test("legacy 300/300 progress is migrated to completed without losing other active books", async ({ page }) => {
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    const startedAt = new Date(Date.now() - 86400000).toISOString();
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1,
+      current: { id: "legacy-finished", title: "The Undercover Economist",
+        currentPage: 300, totalPages: 300, startedAt },
+      reading: [{ id: "next-active", title: "The Psychology of Money",
+        currentPage: 22, totalPages: 253, startedAt }],
+      completed: [],
+    }));
+    localStorage.setItem("dayframe-reading-book-metadata-v1", JSON.stringify({
+      "legacy-finished": { titleKey: "the undercover economist", author: "Tim Harford",
+        coverUrl: "https://covers.openlibrary.org/b/id/4321-M.jpg", fetchedAt: new Date().toISOString() },
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+
+  const reading = page.locator(".df2-reading-card");
+  await expect(reading.locator("[data-reading-active-book]")).toHaveCount(1);
+  await expect(reading.locator("[data-reading-active-book]")).toContainText("The Psychology of Money");
+  await expect(reading.locator("[data-reading-active-book]")).not.toContainText("The Undercover Economist");
+  await expect(reading.locator(".df2-reading-year-summary")).toContainText("1 kniha");
+  await expect(reading.locator(".df2-reading-year-summary")).toContainText("300 stran");
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")));
+  expect(stored.current.id).toBe("next-active");
+  expect(stored.reading).toEqual([]);
+  expect(stored.completed).toHaveLength(1);
+  expect(stored.completed[0]).toMatchObject({
+    id: "legacy-finished", currentPage: 300, totalPages: 300, title: "The Undercover Economist",
+  });
+  expect(new Date(stored.completed[0].finishedAt).getTime()).not.toBeNaN();
+  expect(stored.completed[0].startedAt).toBeTruthy();
+  await page.reload({ waitUntil: "networkidle" });
+  const storedAgain = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")));
+  expect(storedAgain.completed).toEqual(stored.completed);
+  const metadata = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-book-metadata-v1")));
+  expect(metadata["legacy-finished"].author).toBe("Tim Harford");
+});
+
+test("saving the last page or reducing total pages immediately completes just that book", async ({ page }) => {
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1,
+      current: { id: "first-book", title: "First Book",
+        currentPage: 80, totalPages: 100, startedAt: new Date().toISOString() },
+      reading: [{ id: "second-book", title: "Second Book",
+        currentPage: 90, totalPages: 150, startedAt: new Date().toISOString() }],
+      completed: [],
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  const reading = page.locator(".df2-reading-card");
+  await reading.getByRole("button", { name: "Upravit First Book" }).click();
+  let dialog = page.getByRole("dialog", { name: "Upravit čtení" });
+  await dialog.getByLabel("Aktuální strana").fill("100");
+  await dialog.getByRole("button", { name: "Uložit", exact: true }).click();
+
+  await expect(reading.locator("[data-reading-active-book]")).toHaveCount(1);
+  await expect(reading.locator("[data-reading-active-book]")).toContainText("Second Book");
+  await expect(reading.locator(".df2-reading-year-summary")).toContainText("1 kniha");
+  let stored = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")));
+  expect(stored.current.id).toBe("second-book");
+  expect(stored.completed[0]).toMatchObject({ id: "first-book", currentPage: 100, totalPages: 100 });
+
+  // Editing an edition's total pages can also reach the last page.
+  await reading.getByRole("button", { name: "Upravit Second Book" }).click();
+  dialog = page.getByRole("dialog", { name: "Upravit čtení" });
+  await dialog.getByLabel("Počet stran").fill("90");
+  await dialog.getByRole("button", { name: "Uložit", exact: true }).click();
+  await expect(reading).toContainText("Žádná rozečtená kniha");
+  await expect(reading.locator(".df2-reading-year-summary")).toContainText("2 knihy");
+  stored = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-library-v1")));
+  expect(stored.current).toBeNull();
+  expect(stored.completed.map((book) => book.id)).toEqual(["first-book", "second-book"]);
+});

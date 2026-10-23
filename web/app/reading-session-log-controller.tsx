@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-calendar";
+import { completeFullyReadBooks } from "../lib/dayframe-reading-completion";
 
 type PeriodMode = "week" | "month" | "year";
 type PeriodRange = { start: Date; end: Date };
@@ -129,7 +130,18 @@ function readState(): StoredState {
 function readLibrary(): ReadingLibrary {
   try {
     const value = JSON.parse(window.localStorage.getItem(LIBRARY_KEY) || "{}") as unknown;
-    return value && typeof value === "object" && !Array.isArray(value) ? value as ReadingLibrary : {};
+    const library = value && typeof value === "object" && !Array.isArray(value)
+      ? value as ReadingLibrary : {};
+    // This controller is mounted even when the user has not opened Přehled.
+    // Reconcile old 300/300 books before offering choices in the session modal.
+    const reconciled = completeFullyReadBooks(library, new Date().toISOString());
+    if (reconciled !== library) {
+      try {
+        window.localStorage.setItem(LIBRARY_KEY, JSON.stringify(reconciled));
+        window.dispatchEvent(new Event(LIBRARY_SYNC_EVENT));
+      } catch { /* Keep data readable if persistence is temporarily unavailable. */ }
+    }
+    return reconciled;
   } catch {
     return {};
   }
@@ -540,7 +552,7 @@ export function ReadingSessionLogController() {
         return;
       }
       pageCount = entered - currentBook.currentPage;
-      writeLibrary({
+      writeLibrary(completeFullyReadBooks({
         ...library,
         version: 1,
         current: library.current?.id === currentBook.id
@@ -548,7 +560,7 @@ export function ReadingSessionLogController() {
         reading: (Array.isArray(library.reading) ? library.reading : []).map((book) =>
           book.id === currentBook.id ? { ...currentBook, currentPage: entered } : book),
         completed: completedBooks,
-      });
+      }, new Date().toISOString()));
     }
 
     const store = readSessionStore();
