@@ -1,3 +1,16 @@
+# Dayframe — developer entry point
+
+This `web/` directory contains the actively deployed Dayframe application. To resume development in a **new conversation or workspace**, begin with the current repository state, not an old chat transcript:
+
+1. Read [AGENTS.md](../AGENTS.md), [HANDOFF.md](../HANDOFF.md) and [Development Protocol](../docs/DEVELOPMENT_PROTOCOL.md).
+2. Verify the current `main` SHA, recent merged/open PRs and the production alias at https://dayframe2.vercel.app.
+3. Use a fresh feature branch; preserve user data and existing UX; run targeted checks, full E2E regression, review and production verification before calling a change complete.
+4. Update the **current** section of `HANDOFF.md` after meaningful verified releases. Earlier dated entries are historical context, not the current codebase.
+
+The legacy scaffold notes below describe the original starter environment and should not supersede the Dayframe project files above.
+
+---
+
 # vinext-starter
 
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
