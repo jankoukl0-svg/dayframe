@@ -11,6 +11,7 @@ type HistoryTask = {
   start?: string;
   end?: string;
   category?: string;
+  routineId?: string;
   completed: boolean;
   actualMinutes?: number;
   [key: string]: unknown;
@@ -22,7 +23,40 @@ type StoredState = {
 };
 
 const STORAGE_KEY = "dayframe-v1";
+const READING_SESSIONS_KEY = "dayframe-reading-sessions-v1";
 const STATE_SYNC_EVENT = "dayframe-state-sync";
+
+type RecordedReading = { bookTitle: string; pages: number };
+
+function isReadingTask(task: HistoryTask) {
+  if (task.routineId === "read") return true;
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const category = normalize(task.category ?? "");
+  const title = normalize(task.title);
+  return category === "cteni" || category === "reading"
+    || title === "cteni" || title === "cteni knihy" || title.startsWith("cteni ")
+    || title === "reading" || title.startsWith("reading ");
+}
+
+function readRecordedReading(task: HistoryTask): RecordedReading | null {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(READING_SESSIONS_KEY) || "null") as unknown;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const entries = (raw as { entries?: unknown }).entries;
+    if (!Array.isArray(entries)) return null;
+    const matching = entries.filter((entry): entry is Record<string, unknown> =>
+      Boolean(entry && typeof entry === "object" && !Array.isArray(entry)
+        && (entry as Record<string, unknown>).taskId === task.id));
+    // Prefer the exact block/date. Task IDs are stable when the date of a
+    // completed block is corrected in history; retain its original reading log.
+    const entry = matching.find((item) => item.date === task.date) ?? matching[0];
+    if (!entry || typeof entry.bookTitle !== "string" || !entry.bookTitle.trim()
+      || !Number.isSafeInteger(entry.pages) || (entry.pages as number) < 1) return null;
+    return { bookTitle: entry.bookTitle.trim(), pages: entry.pages as number };
+  } catch {
+    return null;
+  }
+}
 
 function readState(): StoredState {
   try {
@@ -89,6 +123,13 @@ export function HistoryEditController() {
       .df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-task.done:hover,
       .df2-week-day:has(.df2-week-day-head > button:disabled) .df2-week-task.done:focus-visible { border-color: #8f9389; background: #fffdfa; }
       .df2-history-edit-note { margin: -2px 0 2px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+      .df2-history-reading-detail { padding: 12px 14px; background: #f4f2ee; border: 1px solid #e9e5dd; border-radius: 10px; }
+      .df2-history-reading-detail > strong { display: block; margin-bottom: 8px; font-size: 12px; }
+      .df2-history-reading-values { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+      .df2-history-reading-values > div { min-width: 0; }
+      .df2-history-reading-values small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+      .df2-history-reading-values span { display: block; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+      .df2-history-reading-detail p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
     `;
     document.head.appendChild(style);
 
@@ -112,6 +153,7 @@ export function HistoryEditController() {
 
   const originalDate = editing?.date ?? "";
   const actualMinutes = useMemo(() => editing ? actualDefault(editing) : 1, [editing]);
+  const recordedReading = useMemo(() => editing && isReadingTask(editing) ? readRecordedReading(editing) : null, [editing]);
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -214,6 +256,17 @@ export function HistoryEditController() {
       <form className="df2-modal df2-history-edit-modal" onSubmit={save}>
         <header><div><h2>Opravit záznam</h2></div><button type="button" onClick={() => setEditing(null)}>×</button></header>
         <p className="df2-history-edit-note">Dokončený blok zůstane v historii jako hotový. Můžeš opravit jeho čas i skutečně odpracovanou dobu.</p>
+        {isReadingTask(editing) && (
+          <section className="df2-history-reading-detail" aria-label="Záznam čtení">
+            <strong>Záznam čtení</strong>
+            {recordedReading ? (
+              <div className="df2-history-reading-values">
+                <div><small>Kniha</small><span>{recordedReading.bookTitle}</span></div>
+                <div><small>Přečteno</small><span>{recordedReading.pages} {recordedReading.pages === 1 ? "strana" : recordedReading.pages >= 2 && recordedReading.pages <= 4 ? "strany" : "stran"}</span></div>
+              </div>
+            ) : <p>U tohoto bloku není uložen název knihy ani počet přečtených stran.</p>}
+          </section>
+        )}
         <label>Název<input name="title" defaultValue={editing.title} /></label>
         <div className="df2-form-grid">
           <label>Datum<input name="date" type="date" defaultValue={editing.date} /></label>
