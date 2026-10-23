@@ -197,5 +197,17 @@ test("completed reading block with no page log explains that historical details 
   await page.locator(".df2-week-controls button").first().click();
   await page.locator(".df2-week-task.done").filter({ hasText: "Čtení knihy" }).click();
   const details = page.getByRole("region", { name: "Záznam čtení" });
+  if (await details.count() === 0) {
+    const snapshot = await page.evaluate(() => ({
+      modals: [...document.querySelectorAll(".df2-modal, [role=dialog]")].map((modal) => ({
+        className: modal.className, text: modal.textContent?.slice(0, 450),
+      })),
+      calendar: [...document.querySelectorAll(".df2-week-task.done")].filter((button) =>
+        button.textContent?.includes("Čtení knihy")).map((button) => button.outerHTML.slice(0, 450)),
+      sessionStore: localStorage.getItem("dayframe-reading-sessions-v1"),
+      day: document.querySelector(".df2-week-view .df2-page-head p")?.textContent,
+    }));
+    console.log("HISTORICAL_READING_NO_LOG_DIAGNOSTIC", JSON.stringify(snapshot));
+  }
   await expect(details).toContainText("U tohoto bloku není uložen název knihy ani počet přečtených stran");
 });
