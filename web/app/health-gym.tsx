@@ -454,6 +454,10 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
               setPlanNameDraft(null);
             }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/></label>
           <button type="button" onClick={()=>{
+            if((store.oneOffWorkouts??[]).some(item=>item.planId===plan.id)){
+              setMessage("Tento plán obsahuje jednorázové tréninky v Týdnu. Nejdřív je jednotlivě odeber, aby se nepoškodila uložená data.");
+              return;
+            }
             if(!window.confirm("Smazat plán? Historické tréninky zůstanou zachované."))return;
             const removedPlanId=plan.id;
             const saved=persist(s=>{
@@ -478,7 +482,13 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                 setDayNameDrafts(d=>{const next={...d};delete next[day.id];return next;});
               }} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/>
             <small>Týdenní rozvrh nastavíš v záložce Tréninky</small>
-            <button type="button" onClick={()=>savePlan(plan.id,p=>({...p,days:p.days.filter(d=>d.id!==day.id&&d.templateDayId!==day.id)}))}>Odebrat den</button>
+            <button type="button" onClick={()=>{
+              if((store.oneOffWorkouts??[]).some(item=>item.planId===plan.id&&item.dayId===day.id)){
+                setMessage("Tento trénink má jednorázové termíny v Týdnu. Nejdřív je jednotlivě odeber.");
+                return;
+              }
+              savePlan(plan.id,p=>({...p,days:p.days.filter(d=>d.id!==day.id&&d.templateDayId!==day.id)}));
+            }}>Odebrat den</button>
           </div>
           {day.exercises.map((item,idx)=><div className="df2-gym-plan-exercise" key={item.id}>
             <strong>{store.exercises.find(e=>e.id===item.exerciseId)?.name??"Neznámý cvik"}</strong>
