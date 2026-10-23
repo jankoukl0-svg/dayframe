@@ -1007,3 +1007,87 @@ test("Week Gym form does not create conflicting workouts or block legacy task cr
   await page.getByRole("dialog",{name:"Přidat úkol"}).getByRole("button",{name:"Naplánovat"}).click();
   await expect(page.getByRole("dialog",{name:"Přidat úkol"})).toHaveCount(0);
 });
+
+test("Week Gym block can be extended and shortened by dragging its edges, persisted independently",async({page})=>{
+  await fresh(page);
+  await createPlan(page,"Změna délky");
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  await page.getByRole("button",{name:"+ Trénink",exact:true}).click();
+  const add=page.getByRole("dialog",{name:"Naplánovat trénink"});
+  await add.locator('input[type="date"]').first().fill("2026-11-04");
+  await add.getByRole("combobox",{name:"Vyber trénink"}).selectOption({label:"Upper"});
+  await add.locator('input[type="time"]').first().fill("17:00");
+  await add.getByRole("button",{name:"Naplánovat"}).click();
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").nth(2).click();
+  const block=page.locator("[data-week-gym^='manual-']").filter({hasText:"Upper"});
+  await expect(block).toContainText("17:00–18:30");
+  const id=await block.getAttribute("data-week-gym");
+
+  async function dragEdge(edge,delta){
+    const handle=page.locator('[data-week-gym-resize="'+edge+'"][data-gym-resize-key="'+id+'"]');
+    const rect=await handle.boundingBox();
+    expect(rect).not.toBeNull();
+    await page.mouse.move(rect.x+12,rect.y+rect.height/2);
+    await page.mouse.down();
+    await page.mouse.move(rect.x+12,rect.y+rect.height/2+delta,{steps:6});
+    await page.mouse.up();
+  }
+  await dragEdge("end",22);
+  await expect(block).toContainText("17:00–19:00");
+  let stored=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(stored.oneOffWorkouts).toMatchObject([{id,start:"17:00",duration:120}]);
+  await dragEdge("start",11);
+  await expect(block).toContainText("17:15–19:00");
+  stored=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(stored.oneOffWorkouts[0].duration).toBe(105);
+  await dragEdge("end",-22);
+  await expect(block).toContainText("17:15–18:30");
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").nth(2).click();
+  await expect(page.locator('[data-week-gym="'+id+'"]')).toContainText("17:15–18:30");
+  stored=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(stored.oneOffWorkouts).toMatchObject([{id,start:"17:15",duration:75}]);
+  expect(stored.plans[0].days.some(d=>d.timeHistory?.some(x=>x.duration===75))).toBe(false);
+});
+
+test("Week Gym editor changes selected occurrence only and rejects overlap with other Gym blocks",async({page})=>{
+  await fresh(page);
+  const root=await createPlan(page,"Jednotlivé výskyty");
+  await root.locator("[data-gym-week]").getByLabel("Pondělí – čas tréninku").fill("17:00");
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  await page.locator(".df2-week-controls button").nth(2).click();
+  const future=page.locator('[data-week-gym]').filter({hasText:"Upper"}).first();
+  await expect(future).toContainText("17:00–");
+  const key=await future.getAttribute("data-week-gym");
+  await page.getByRole("button",{name:"Upravit čas tréninku Upper"}).click();
+  const dialog=page.getByRole("dialog",{name:"Upravit trénink"});
+  await expect(dialog).toContainText("pouze tento termín");
+  await dialog.locator('input[name="start"]').fill("16:30");
+  await dialog.locator('select[name="duration"]').selectOption("120");
+  await dialog.getByRole("button",{name:"Uložit změny"}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('[data-week-gym="'+key+'"]')).toContainText("16:30–18:30");
+  let saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.occurrenceTimes[key]).toEqual({start:"16:30",duration:120});
+  // Recurrence remains the original time in a later week.
+  await page.locator(".df2-week-controls button").nth(2).click();
+  await expect(page.locator('[data-week-gym]').filter({hasText:"Upper"})).toContainText("17:00–");
+  await page.locator(".df2-week-controls button").first().click();
+  await page.getByRole("button",{name:"+ Trénink",exact:true}).click();
+  const add=page.getByRole("dialog",{name:"Naplánovat trénink"});
+  await add.locator('input[type="date"]').first().fill("2026-10-19");
+  await add.getByRole("combobox",{name:"Vyber trénink"}).selectOption({label:"Lower"});
+  await add.locator('input[type="time"]').first().fill("19:00");
+  await add.getByRole("button",{name:"Naplánovat"}).click();
+  await page.getByRole("button",{name:"Upravit čas tréninku Upper"}).click();
+  await dialog.locator('input[name="start"]').fill("18:15");
+  await dialog.locator('select[name="duration"]').selectOption("120");
+  await dialog.getByRole("button",{name:"Uložit změny"}).click();
+  await expect(dialog.getByRole("alert")).toContainText("Vyber budoucí čas bez kolizí");
+  saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(saved.occurrenceTimes[key]).toEqual({start:"16:30",duration:120});
+  await dialog.getByRole("button",{name:"Zrušit"}).click();
+});
