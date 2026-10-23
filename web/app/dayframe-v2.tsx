@@ -43,7 +43,7 @@ import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
 import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
-import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, setGymOccurrenceTime, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, setGymOccurrenceTime, setGymOccurrenceSchedule, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
@@ -774,18 +774,14 @@ export function DayframeV2() {
     const start=String(form.get("start")||"");
     const duration=Number(form.get("duration"));
     const from=editingGym.date;
-    const same=date===from;
     if(!gymChangeAllowed(date,start,duration,editingGym.id)){
       setGymEditError("Vyber budoucí čas bez kolizí, v délce 30–180 minut po 15 minutách.");
       return;
     }
     let changed=false;
     const saved=gym.persist(current=>{
-      const moved=same?current:rescheduleGymOccurrence(
-        current,editingGym.id,from,date,start,planningDateKey(new Date()));
-      if(!same&&moved===current)return current;
-      const next=setGymOccurrenceTime(moved,editingGym.id,date,start,duration,
-        planningDateKey(new Date()));
+      const next=setGymOccurrenceSchedule(
+        current,editingGym.id,from,date,start,duration,planningDateKey(new Date()));
       changed=next!==current;
       return next;
     });
