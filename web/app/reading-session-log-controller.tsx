@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { planningDateKey, planningMinute, timeToMinutes } from "../lib/dayframe-calendar";
+import { completeFullyReadBooks } from "../lib/dayframe-reading-completion";
 
 type PeriodMode = "week" | "month" | "year";
 type PeriodRange = { start: Date; end: Date };
@@ -540,7 +541,7 @@ export function ReadingSessionLogController() {
         return;
       }
       pageCount = entered - currentBook.currentPage;
-      writeLibrary({
+      writeLibrary(completeFullyReadBooks({
         ...library,
         version: 1,
         current: library.current?.id === currentBook.id
@@ -548,7 +549,7 @@ export function ReadingSessionLogController() {
         reading: (Array.isArray(library.reading) ? library.reading : []).map((book) =>
           book.id === currentBook.id ? { ...currentBook, currentPage: entered } : book),
         completed: completedBooks,
-      });
+      }, new Date().toISOString()));
     }
 
     const store = readSessionStore();
