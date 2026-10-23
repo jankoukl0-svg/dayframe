@@ -1142,7 +1142,7 @@ export function DayframeV2() {
                             </button>
                               {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key],end)}
                               {(key<todayKey||occ.session||occ.key.startsWith("manual-"))&&gym.hydrated&&!gym.blocked&&<button
-                                type="button" className="df2-week-gym-delete"
+                                type="button" className={"df2-week-gym-delete"+(occ.key.startsWith("manual-")?" is-manual":"")}
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
                                 title="Smazat tento trénink z historie (ostatní týdny zůstanou)"
                                 style={{top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
