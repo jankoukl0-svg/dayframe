@@ -977,8 +977,8 @@ test("Week adds two independently dated Gym blocks without changing recurring pl
   await page.getByRole("button",{name:"Týden",exact:true}).click();
   await expect(page.locator("[data-week-gym^='manual-']")).toHaveCount(2);
   // A one-off deletion removes only this booking; no recurrence template is touched.
-  await page.locator("[data-week-gym^='manual-']").filter({hasText:"Lower"})
-    .locator("..").getByRole("button",{name:/Smazat trénink Lower/}).click();
+  page.on("dialog",dialog=>dialog.accept());
+  await page.getByRole("button",{name:"Smazat trénink Lower ze dne 2026-11-04"}).click();
   await expect(page.locator("[data-week-gym^='manual-']")).toHaveCount(1);
   data=await page.evaluate(()=>JSON.parse(localStorage.getItem(KEY)));
   expect(data.oneOffWorkouts).toHaveLength(1);
