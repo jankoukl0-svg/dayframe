@@ -1265,7 +1265,7 @@ export function DayframeV2() {
                             const controlsLeft=lane?"calc("+lane.left+" + 48px)":"55px";
                             const controlsWidth=lane?"max(0px, calc("+lane.width+" - 77px))":"max(0px, calc(100% - 90px))";
                             return <Fragment key={occ.key}><button type="button" data-week-gym={occ.key}
-                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}${preview&&!preview.valid?" is-resize-invalid":""}`}
+                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}${blockDuration<=45?" is-short":""}${preview&&!preview.valid?" is-resize-invalid":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
                               draggable={key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked}
                               onDragStart={event=>{
