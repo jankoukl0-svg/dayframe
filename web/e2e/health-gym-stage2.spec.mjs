@@ -1139,3 +1139,46 @@ test("short 30-minute Gym blocks keep the location pin separate from resize, edi
   await edit.click();
   await expect(page.getByRole("dialog",{name:"Upravit trénink"})).toBeVisible();
 });
+
+test("Gym resize grips stay usable in narrow overlap lanes and can shorten an overlapping workout",async({page})=>{
+  await fresh(page);
+  await createPlan(page,"Kolizní bloky");
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  await page.getByRole("button",{name:"+ Trénink",exact:true}).click();
+  const add=page.getByRole("dialog",{name:"Naplánovat trénink"});
+  await add.locator('input[type="date"]').first().fill("2026-11-04");
+  await add.getByRole("combobox",{name:"Vyber trénink"}).selectOption({label:"Upper"});
+  await add.locator('input[type="time"]').first().fill("17:00");
+  await add.getByLabel("Délka").selectOption("60");
+  await add.getByRole("button",{name:"Naplánovat"}).click();
+  // Simulate an older imported fixed task that overlaps the existing Gym
+  // booking. The calendar intentionally renders each event in a narrow lane.
+  await page.evaluate(()=>{
+    const key="dayframe-v1",s=JSON.parse(localStorage.getItem(key));
+    s.plans["2026-11-04"]=[...(s.plans["2026-11-04"]??[]),{
+      id:"fixed-appointment",title:"Pracovní schůzka",date:"2026-11-04",
+      start:"17:45",end:"18:30",duration:45,priority:"normal",category:"Práce",
+      mode:"fixed",completed:false,source:"user",dateLocked:true,autoScheduled:false,
+      createdAt:"2026-10-12T12:00:00.000Z",
+    }];
+    localStorage.setItem(key,JSON.stringify(s));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").nth(2).click();
+  const card=page.locator('[data-week-gym^="manual-"]').filter({hasText:"Upper"});
+  await expect(card).toContainText("17:00–18:00");
+  const id=await card.getAttribute("data-week-gym");
+  const edge=page.locator('[data-week-gym-resize="end"][data-gym-resize-key="'+id+'"]');
+  const bounds=await edge.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds.width).toBeGreaterThanOrEqual(13);
+  await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2-11,{steps:6});
+  await page.mouse.up();
+  await expect(card).toContainText("17:00–17:45");
+  const store=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+  expect(store.oneOffWorkouts).toMatchObject([{id,duration:45}]);
+  await expect(page.locator(".df2-week-task").filter({hasText:"Pracovní schůzka"})).toBeVisible();
+});
