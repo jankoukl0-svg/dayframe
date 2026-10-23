@@ -43,7 +43,7 @@ import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
 import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
-import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGymOccurrence } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
@@ -152,6 +152,8 @@ export function DayframeV2() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const [addingTask, setAddingTask] = useState(false);
+  const [addKind, setAddKind] = useState<"task"|"gym">("task");
+  const [gymDayId, setGymDayId] = useState("");
   const [editing, setEditing] = useState<CalendarTask | null>(null);
   const [tripTarget,setTripTarget] = useState<TripTarget|null>(null);
   const [travelStore,setTravelStore] = useState(()=>readTravelStore().store);
@@ -396,6 +398,18 @@ export function DayframeV2() {
 
   function openAdd(date = "", start = "") {
     setDraft({ ...emptyDraft(), date, start });
+    setAddKind("task");
+    setGymDayId("");
+    setError("");
+    setNotice("");
+    setAddingTask(true);
+  }
+
+  function openAddGym(date = todayKey, start = "") {
+    const plan = activeGymPlanOnDate(gym.store,date);
+    setDraft({ ...emptyDraft(), date, start, duration:90 });
+    setAddKind("gym");
+    setGymDayId(plan?.days.find(d=>!d.templateDayId)?.id??"");
     setError("");
     setNotice("");
     setAddingTask(true);
@@ -403,6 +417,8 @@ export function DayframeV2() {
 
   function closeAdd() {
     setAddingTask(false);
+    setAddKind("task");
+    setGymDayId("");
     setOffsiteOnCreate(false);
     setDraft(emptyDraft());
     setError("");
@@ -499,6 +515,39 @@ export function DayframeV2() {
   function submitDraft(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    if (addKind==="gym") {
+      const date=draft.date||todayKey, start=draft.start, duration=draft.duration;
+      const plan=activeGymPlanOnDate(gym.store,date);
+      const day=plan?.days.find(item=>item.id===gymDayId&&!item.templateDayId);
+      const minute=timeToMinutes(start);
+      if(!gym.hydrated||gym.blocked||!plan||!day){
+        setError("Vyber existující trénink ze svého Gym plánu.");return;
+      }
+      if(date<todayKey || (date===todayKey&&minute<=planningMinute(now))){
+        setError("Trénink lze naplánovat pouze do budoucna.");return;
+      }
+      if(!start || minute<calendarBounds.dayStart || minute%15!==0
+        || !Number.isInteger(duration)||duration<30||duration>180||duration%15!==0
+        || minute+duration>calendarBounds.dayEnd){
+        setError("Vyber začátek po 15 minutách od 08:00 a délku 30–180 minut do 02:00.");return;
+      }
+      if(!gymSlotOpen(date,start,duration)){
+        setError("Tento čas se překrývá s jiným blokem nebo cestou. Vyber volný čas.");return;
+      }
+      const id=uid("manual");
+      let added=false;
+      const saved=gym.persist(current=>{
+        const next=addGymOneOff(current,plan.id,day.id,date,start,duration,id);
+        added=next!==current;
+        return next;
+      });
+      if(!saved||!added){setError("Trénink se nepodařilo uložit. Zkus to znovu.");return;}
+      const shouldOpenLocation=offsiteOnCreate;
+      setNotice(day.name+" · "+dayLabel(date,todayKey)+" · "+start+"–"+minutesToTime(minute+duration));
+      closeAdd();
+      if(shouldOpenLocation)openTrip("gym",id,date,day.name,start,true,minutesToTime(minute+duration));
+      return;
+    }
     if (!draft.title.trim()) return;
     const parsed = parseSmartTaskInput(draft.title);
     const parsedDate = parsed.day === "today" ? todayKey : parsed.day === "tomorrow" ? addDaysKey(todayKey, 1) : "";
@@ -599,6 +648,19 @@ export function DayframeV2() {
   }
   function intersectsTravel(date:string,start:number,end:number,ignoreKey?:string):boolean{
     return reservedTravel(date).some(r=>r.key!==ignoreKey&&start<r.end&&end>r.start);
+  }
+  function gymSlotOpen(date:string,start:string,duration:number):boolean {
+    const minute=timeToMinutes(start);
+    const tasks=getTasksForDate(data,date);
+    const occupiedGym=assignmentsOnDate(gym.store,date)
+      .map(occ=>gymOccurrenceTime(gym.store,occ))
+      .filter(t=>t.start!==null)
+      .map(t=>({start:timeToMinutes(t.start??undefined),end:timeToMinutes(t.start??undefined)+t.duration}));
+    const occupiedCare=weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
+      .map(t=>({start:timeToMinutes(t.start),end:timeToMinutes(t.start)+t.duration}));
+    return canPlaceAt(tasks,minute,duration)
+      && !intersectsTravel(date,minute,minute+duration)
+      && ![...occupiedGym,...occupiedCare].some(t=>minute<t.end&&minute+duration>t.start);
   }
   function careHasRecordedProgress(date: string, routineId: string): boolean {
     return Object.keys(care.store?.records[date]?.[routineId]?.states ?? {}).length > 0;
@@ -927,6 +989,7 @@ export function DayframeV2() {
                   <button onClick={() => setWeekOffset((value) => value - 1)}>←</button>
                   <button onClick={() => setWeekOffset(0)}>Tento týden</button>
                   <button onClick={() => setWeekOffset((value) => value + 1)}>→</button>
+                  <button type="button" onClick={() => openAddGym(days.map(d=>localDateKey(d)).find(key=>key>=todayKey)??todayKey)}>+ Trénink</button>
                   <button className="df2-accent-button" onClick={() => setData((current) => replanWeek(current, monday, now,
                     travelBusyBetween(weekKeys(monday)[0],weekKeys(monday)[6])))}>Přepočítat týden</button>
                 </div>
@@ -1078,8 +1141,8 @@ export function DayframeV2() {
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>
                               {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key],end)}
-                              {(key<todayKey||occ.session)&&gym.hydrated&&!gym.blocked&&<button
-                                type="button" className="df2-week-gym-delete"
+                              {(key<todayKey||occ.session||occ.key.startsWith("manual-"))&&gym.hydrated&&!gym.blocked&&<button
+                                type="button" className={"df2-week-gym-delete"+(occ.key.startsWith("manual-")?" is-manual":"")}
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
                                 title="Smazat tento trénink z historie (ostatní týdny zůstanou)"
                                 style={{top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
@@ -1228,15 +1291,35 @@ export function DayframeV2() {
       {addingTask && (
         <div className="df2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAdd(); }}>
           <form className="df2-modal df2-add-modal df2-add-form" role="dialog" aria-modal="true" aria-labelledby="df2-add-task-title" onSubmit={submitDraft}>
-            <header><div><h2 id="df2-add-task-title">Přidat úkol</h2></div><button type="button" aria-label="Zavřít" onClick={closeAdd}>×</button></header>
-            <label className="df2-title-input"><span>Úkol</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>
+            <header><div><h2 id="df2-add-task-title">{addKind==="gym"?"Naplánovat trénink":"Přidat úkol"}</h2></div><button type="button" aria-label="Zavřít" onClick={closeAdd}>×</button></header>
+            <label className="df2-title-input"><span>Typ bloku</span><select aria-label="Typ bloku" value={addKind} onChange={event=>{
+              const kind=event.target.value as "task"|"gym";
+              setAddKind(kind);setError("");
+              if(kind==="gym"){
+                setDraft(current=>({...current,duration:90,repeat:"none"}));
+                setGymDayId(activeGymPlanOnDate(gym.store,draft.date||todayKey)?.days.find(d=>!d.templateDayId)?.id??"");
+              }
+            }}><option value="task">Úkol</option><option value="gym">Gym · trénink</option></select></label>
+            {addKind==="gym" ? <label className="df2-title-input"><span>Trénink</span><select aria-label="Vyber trénink" value={gymDayId} onChange={event=>setGymDayId(event.target.value)}>
+              <option value="">Vyber trénink</option>
+              {(activeGymPlanOnDate(gym.store,draft.date||todayKey)?.days??[]).filter(day=>!day.templateDayId).map(day=>
+                <option key={day.id} value={day.id}>{day.name}</option>)}
+            </select>{!activeGymPlanOnDate(gym.store,draft.date||todayKey)&&
+              <small>Nejdřív si vytvoř nebo aktivuj plán v Gym & Tréninky.</small>}</label>
+            : <label className="df2-title-input"><span>Úkol</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Např. zeměpis 20 min" /></label>}
             <div className="df2-chips" aria-label="Rychlá nastavení">
-              <label><span>Den</span><input type="date" value={draft.date} min={todayKey} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
-              <label><span>Délka</span><select value={draft.duration} onChange={(event) => setDraft({ ...draft, duration: Number(event.target.value) })}><option value={20}>20 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option><option value={90}>90 min</option><option value={120}>120 min</option></select></label>
-              <label><span>Začít v</span><input type="time" value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label>
-              <label><span>Priorita</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="normal">Běžná</option><option value="high">Vysoká</option><option value="low">Nízká</option></select></label>
+              <label><span>Den</span><input type="date" value={draft.date} min={todayKey} onChange={(event) => {
+                const date=event.target.value;
+                setDraft({ ...draft, date });
+                if(addKind==="gym")setGymDayId(activeGymPlanOnDate(gym.store,date)?.days.find(d=>!d.templateDayId)?.id??"");
+              }} /></label>
+              <label><span>Délka</span><select value={draft.duration} onChange={(event) => setDraft({ ...draft, duration: Number(event.target.value) })}>
+                {(addKind==="gym"?[30,45,60,75,90,105,120,135,150,165,180]:[20,30,45,60,90,120]).map(n=><option key={n} value={n}>{n} min</option>)}
+              </select></label>
+              <label><span>Začít v</span><input type="time" step={addKind==="gym"?900:undefined} value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label>
+              {addKind==="task"&&<label><span>Priorita</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="normal">Běžná</option><option value="high">Vysoká</option><option value="low">Nízká</option></select></label>}
             </div>
-            <details className="df2-details">
+            {addKind==="task" && <details className="df2-details">
               <summary>Podrobnosti</summary>
               <div className="df2-details-grid">
                 <label>Dokončit do<input type="date" value={draft.dueDate} min={todayKey} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} /></label>
@@ -1245,14 +1328,16 @@ export function DayframeV2() {
                 <label>Opakování<select value={draft.repeat} onChange={(event) => setDraft({ ...draft, repeat: event.target.value as RepeatRule })}><option value="none">Neopakovat</option><option value="daily">Každý den</option><option value="weekly">Každý týden</option></select></label>
                 {draft.repeat!=="none"&&<small>Opakování se plánuje pouze do budoucna. Minulá data zůstanou beze změny.</small>}
               </div>
-            </details>
-            {draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
+            </details>}
+            {addKind==="gym" && <div className="df2-understood"><strong>{activeGymPlanOnDate(gym.store,draft.date||todayKey)?.days.find(day=>day.id===gymDayId)?.name??"Vyber trénink"}</strong>
+              <small>{draft.date?shortDate(draft.date):"Vyber datum"} · {draft.duration} min{draft.start?" · "+draft.start:" · zvol čas"}</small></div>}
+            {addKind==="task"&&draft.title.trim() && <div className="df2-understood"><strong>{cleanSmartTitle(draft.title)}</strong><small>{draft.date ? shortDate(draft.date) : "Tento týden"} · {draft.duration} min{draft.start ? ` · ${draft.start}` : " · automaticky"}</small></div>}
             <label className="df2-travel-offsite"><input type="checkbox" checked={offsiteOnCreate}
               onChange={e=>setOffsiteOnCreate(e.target.checked)}/>
               Odehrává se mimo domov · následně vyber místo na mapě
             </label>
             {error && <p className="df2-error">{error}</p>}
-            <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || !draft.title.trim()}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
+            <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || (addKind==="gym"?(!gym.hydrated||gym.blocked||!gymDayId||!draft.start):!draft.title.trim())}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
           </form>
         </div>
       )}
