@@ -1091,3 +1091,46 @@ test("Week Gym editor changes selected occurrence only and rejects overlap with 
   expect(saved.occurrenceTimes[key]).toEqual({start:"16:30",duration:120});
   await dialog.getByRole("button",{name:"Zrušit"}).click();
 });
+
+test("short 30-minute Gym blocks keep the location pin separate from resize, edit and delete controls",async({page})=>{
+  await fresh(page);
+  await createPlan(page,"Krátký trénink");
+  await page.getByRole("button",{name:"Týden",exact:true}).click();
+  await page.getByRole("button",{name:"+ Trénink",exact:true}).click();
+  const add=page.getByRole("dialog",{name:"Naplánovat trénink"});
+  await add.locator('input[type="date"]').first().fill("2026-11-04");
+  await add.getByRole("combobox",{name:"Vyber trénink"}).selectOption({label:"Upper"});
+  await add.locator('input[type="time"]').first().fill("17:00");
+  await add.getByLabel("Délka").selectOption("30");
+  await add.getByRole("button",{name:"Naplánovat"}).click();
+  for(let i=0;i<3;i++)await page.locator(".df2-week-controls button").nth(2).click();
+  const workout=page.locator('[data-week-gym^="manual-"]').filter({hasText:"Upper"});
+  await expect(workout).toBeVisible();
+  await workout.hover();
+  const pin=page.getByRole("button",{name:"Místo konání: Upper"});
+  const edit=page.getByRole("button",{name:"Upravit čas tréninku Upper"});
+  const remove=page.getByRole("button",{name:"Smazat trénink Upper ze dne 2026-11-04"});
+  const grips=page.locator('[data-gym-resize-key^="manual-"]');
+  const pinBox=await pin.boundingBox(),editBox=await edit.boundingBox(),
+    removeBox=await remove.boundingBox();
+  expect(pinBox).toBeTruthy();
+  expect(editBox).toBeTruthy();
+  expect(removeBox).toBeTruthy();
+  function collide(a,b){
+    return a.x<b.x+b.width && a.x+a.width>b.x
+      && a.y<b.y+b.height && a.y+a.height>b.y;
+  }
+  expect(collide(pinBox,editBox)).toBe(false);
+  expect(collide(pinBox,removeBox)).toBe(false);
+  expect(collide(editBox,removeBox)).toBe(false);
+  for(const handle of await grips.all()){
+    const box=await handle.boundingBox();
+    if(box&&box.width>0)expect(collide(box,pinBox)).toBe(false);
+  }
+  await pin.click();
+  await expect(page.getByRole("dialog",{name:"Místo konání: Upper"})).toBeVisible();
+  await page.getByRole("dialog",{name:"Místo konání: Upper"})
+    .getByRole("button",{name:"Zavřít"}).click();
+  await edit.click();
+  await expect(page.getByRole("dialog",{name:"Upravit trénink"})).toBeVisible();
+});
