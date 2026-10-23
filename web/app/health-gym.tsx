@@ -366,7 +366,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
           </section>
           {activePlan&&<section className="df2-gym-week-strip df2-gym-week-planner" data-gym-week>
             <div className="df2-gym-week-heading"><div>
-              <h3>Tvůj týdenní plán</h3>
+              <h3>Opakovaný týdenní rozpis</h3>
             </div><strong>{activePlan.days.filter(d=>gymDayWeekdayOnDate(d,today)!==null).length} tréninků týdně</strong></div>
             <div className="df2-gym-week-planner-grid">{weekDates.map((date,index)=>{
               const dayOfWeek=weekday(date);
@@ -411,7 +411,7 @@ export function GymPage({today,focusKey,focusDate,onFocusHandled}:{today:string;
                   :isPast?<small className="df2-gym-week-status">Změna se projeví v dalších týdnech</small>:null}
               </div>;
             })}</div>
-            <p className="df2-gym-week-note">Bez nastaveného času se trénink v kalendáři nezobrazí.</p>
+            <p className="df2-gym-week-note">Tento rozpis je volitelný a opakuje se každý týden. Jednorázové tréninky přidávej přímo v Týdnu přes „+ Trénink“. Bez nastaveného času se opakovaný trénink v kalendáři nezobrazí.</p>
           </section>}
         </>}
         {!!history.length&&<details className="df2-gym-history" data-gym-history>
