@@ -461,6 +461,37 @@ export function setGymOccurrenceTime(
   else occurrenceTimes[key]={start,duration};
   return {...store,occurrenceTimes};
 }
+/**
+ * Atomic time/date/duration edit for one unstarted workout. Do not validate the
+ * target date using the OLD duration: shortening and moving can be valid even
+ * when the intermediate schedule would extend beyond 02:00.
+ */
+export function setGymOccurrenceSchedule(
+  store:GymStore,key:string,fromDate:string,targetDate:string,start:string,duration:number,today:string,
+):GymStore {
+  if(!dateValid(today)||!dateValid(fromDate)||!dateValid(targetDate)
+    ||fromDate<today||targetDate<today||!gymTimeValid(start)||start===null
+    ||!gymDurationValid(duration)||gymClockMinutes(start)+duration>26*60)return store;
+  const source=assignmentsOnDate(store,fromDate).find(item=>item.key===key);
+  if(!source||source.session)return store;
+  if(fromDate===targetDate)return setGymOccurrenceTime(store,key,fromDate,start,duration,today);
+  const manual=store.oneOffWorkouts?.find(item=>item.id===key);
+  if(manual){
+    if(manual.date!==fromDate)return store;
+    return {...store,oneOffWorkouts:(store.oneOffWorkouts??[]).map(item=>
+      item.id===key?{...item,date:targetDate,start,duration}:item)};
+  }
+  const moved=moveOccurrence(store,key,targetDate);
+  if(moved===store||!assignmentsOnDate(moved,targetDate).some(item=>item.key===key))return store;
+  const day=store.plans.find(plan=>plan.id===source.planId)
+    ?.days.find(item=>item.id===source.dayId);
+  if(!day)return store;
+  const template=gymDayTimeOnDate(day,source.originalDate);
+  const occurrenceTimes={...(moved.occurrenceTimes??{})};
+  if(template.start===start&&template.duration===duration)delete occurrenceTimes[key];
+  else occurrenceTimes[key]={start,duration};
+  return {...moved,occurrenceTimes};
+}
 export function rescheduleGymOccurrence(store:GymStore,key:string,fromDate:string,targetDate:string,start:string,today:string):GymStore {
   if(!dateValid(today)||!dateValid(fromDate)||!dateValid(targetDate)
     ||fromDate<today||targetDate<today||!gymTimeValid(start)||start===null)return store;
