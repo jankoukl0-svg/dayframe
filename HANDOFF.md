@@ -1,16 +1,25 @@
 # Dayframe — aktuální předání pro nové chaty
 
-**Snapshot ověřen 23. 10. 2026.** Tento dokument slouží jako předávací kontext, **nikoli jako neměnný důkaz aktuálního stavu**. Na začátku každého nového vývojového úkolu znovu ověř GitHub `main`, poslední commity, otevřené PR a produkční deployment. Nezastavuj se u níže uvedeného historického SHA.
+**Snapshot ověřen 23. 10. 2026 po PR #270.** Tento dokument slouží jako předávací kontext, **nikoli jako neměnný důkaz aktuálního stavu**. Na začátku každého nového vývojového úkolu znovu ověř GitHub `main`, poslední commity, otevřené PR a produkční deployment. Nezastavuj se u níže uvedeného historického SHA.
 
 - Repo: https://github.com/jankoukl0-svg/dayframe
 - Produkce: https://dayframe2.vercel.app
 - Zdroj pravdy: větev `main`; aktivní produkt v `web/`.
 - Povinná pravidla: [AGENTS.md](AGENTS.md) a [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md).
-- Poslední potvrzený produktový merge **před vytvořením tohoto dokumentačního PR**: `c80757ef8a53a14686988fef62e7c18f8df6ced2`, [PR #265](https://github.com/jankoukl0-svg/dayframe/pull/265), 22. 10. 2026.
-- Produkční Vercel `dayframe2.vercel.app` byl při kontrole 23. 10. navázán na READY deployment `dpl_BrQuVgE5tbDZRW5nuY8mh9SZdamK` se stejným SHA. Toto je **snapshot, ne záruka budoucího stavu**. Po dalším mergi znovu ověř alias, deployment a živý smoke.
+- Poslední produktový merge ověřený v `main`: `43ced839131be5233388d10b2e0633cffbf08f35`, [PR #270](https://github.com/jankoukl0-svg/dayframe/pull/270), 23. 10. 2026. Výchozí produktový SHA byl `763d8a1300387e1eeb92b8c03a0b02ee46e93cb8` (PR #269).
+- [PR #270](https://github.com/jankoukl0-svg/dayframe/pull/270) prošlo typovou kontrolou, jednotkovými testy, sestavením, cílenou Playwright sadou **196/196** a plnou browser regresí **4/4**, včetně závěrečného regression gate (GitHub Actions run `40021112779`). Code review P1/P2 opraveno a vlákna uzavřena.
+- Produkční Vercel alias `dayframe2.vercel.app` při poslední kontrole ukazoval na deployment `dpl_8S2DHkze3jhX8uQfV61G7ABr3Yia`, stav **READY**, GitHub SHA `43ced839131be5233388d10b2e0633cffbf08f35`. Toto je **snapshot, ne trvalá záruka**. Přímý produkční browser smoke z tohoto prostředí nebyl ověřitelný: Vercel konektor odmítl chráněný přístup 403, web fetch byl zakázán. Uživatelské vizuální ověření UI ještě zbývá; READY a alias nejsou jeho náhradou.
 - Při aktualizaci tohoto souboru změň datum, přesné SHA, nasazení, změny a otevřená rizika; nepřepisuj ověřenou historii jako současnost.
 
 ## Co je naposledy implementováno
+
+### Gym: přidávání tréninků přímo do Týdne (PR #270)
+
+- V Týdnu je `+ Trénink` a přidávací modal dovoluje přepnout běžný blok na `Gym · trénink`. Uživatel vybere jednu ze šablon aktivního Gym plánu (Push/Pull/Lower apod.), **libovolné budoucí datum**, začátek po 15 minutách a délku 30–180 minut. Kontrolují se kolize s úkoly, jinými Gym/Hygiena bloky a cestovními rezervacemi; minulost a čas mimo osobní den jsou odmítnuté.
+- Jednorázové Gym výskyty jsou **nezávislé na opakovaném týdenním rozpisu**. Mohou být vícekrát během dne i týdne, vykreslují se jako skutečné Gym bloky s drag/drop, kliknutím otevřou skutečný Gym tréninkový deník a po odstranění se nemažou šablony nebo jiné týdny. Volitelné napojení na cestu mimo domov zachováno.
+- Perzistence: `web/lib/dayframe-gym.ts`, lokální klíč `dayframe-gym-v1`, verze 1, pouze nové **volitelné pole `oneOffWorkouts`** (id, planId, dayId, date, start, duration). Starší data bez pole jsou platná; robustní validace blokuje poškozené záznamy. Mazání Gym plánu nebo dne je bezpečně zablokováno, pokud na něm závisí jednorázové termíny; tím je chráněna historie a uložené session.
+- UI: `web/app/dayframe-v2.tsx`, `dayframe-v2.css` (samostatné klikatelné tlačítko odstranění nad Gym blokem), `web/app/health-gym.tsx` (opakovaný rozpis označen jako volitelný). Testy: `web/lib/dayframe-gym.test.mjs`, `web/e2e/health-gym-stage2.spec.mjs`. **Nepřepisovat Gym výskyty na obyčejné úkoly**, nezavádět duplicitní completion checklist ani nepřetvářet již zaznamenané série.
+- Zbývající krok: otevřít produkci v autentizovaném uživatelském prohlížeči, vytvořit a zobrazit budoucí jednorázový Gym blok a potvrdit reálné vizuální chování. Neověřený live smoke neoznačovat za úspěšný.
 
 ### Týden, cestování a Jarvis
 
@@ -30,6 +39,9 @@
 - [PR #259](https://github.com/jankoukl0-svg/dayframe/pull/259): přesouvání čtení také do běžného dne, nejen večer.
 - [PR #260–261](https://github.com/jankoukl0-svg/dayframe/pull/261): funkční výběr nalezené knihy a čitelný náhled.
 - [PR #262](https://github.com/jankoukl0-svg/dayframe/pull/262): všechny rozečtené knihy jako rovnocenné plnohodnotné karty, žádná vizuální priorita.
+- [PR #267](https://github.com/jankoukl0-svg/dayframe/pull/267): dosažení poslední stránky automaticky dokončí knihu, i pro starší perzistovaná data a přímý zápis z Dnes; `The Undercover Economist` na 300/300 není dál rozečtená.
+- [PR #268](https://github.com/jankoukl0-svg/dayframe/pull/268): obnovení chybějících obálek knih z odpovídajících Open Library vydání, zachování metadat a zotavení po dočasné chybě API.
+- [PR #269](https://github.com/jankoukl0-svg/dayframe/pull/269): u dokončeného bloku čtení v Týdnu lze v `Opravit záznam` zpětně vidět historicky zaznamenanou knihu a přečtené strany (`dayframe-reading-sessions-v1`, dle taskId a data); nezaměňovat s aktuálním book progress.
 
 ### Další existující sekce
 
@@ -51,7 +63,8 @@ Při kontrole 23. 10. zůstávají otevřené historické PR, např. [#185](http
 
 ## Otevřená omezení a další krok
 
-- Nejsou doloženy nové uživatelské požadavky po PR #265. **Další úpravu produktu určí uživatel**; bez požadavku nepřidávat funkce ani neslučovat staré otevřené PR.
+- Poslední schválený požadavek: plánování jednorázových budoucích Gym tréninků přímo z Týdne (PR #270), implementováno a nasazeno; zbývá autentizované vizuální ověření kvůli omezení přístupu Vercel konektoru 403.
+- **Další produktovou úpravu určí uživatel**; bez zadání nepřidávat funkce, neodstraňovat opakovaný rozpis a neslučovat historická otevřená PR.
 - Google Routes nevrací všechny možné MHD trasy, a proto nejsou alternativy vyčerpávající. Výpočty spojení a parkování nesmějí být vydávány za jistotu.
 - Dříve popsané nedodělky z 18. 9. jsou pouze historická pozorování a vyžadují novou verifikaci.
 - Změna tohoto dokumentu sama o sobě **nemění žádnou funkcionalitu ani data Dayframe**.
