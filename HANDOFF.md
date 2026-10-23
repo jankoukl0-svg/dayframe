@@ -21,7 +21,7 @@
 - [PR #263](https://github.com/jankoukl0-svg/dayframe/pull/263): navázané cestovní bloky po dokončení aktivity vizuálně zešednou.
 - [PR #264](https://github.com/jankoukl0-svg/dayframe/pull/264): při cestě mimo viditelný časový rozsah zobrazit konkrétně „Vyjeď v HH:MM“ místo obecného upozornění.
 - [PR #265](https://github.com/jankoukl0-svg/dayframe/pull/265): shodná geometrie časové osy všech sedmi dnů i při odlišných úkolech bez času nebo oznámeních odjezdu; E2E desktop/mobil.
-- Google Routes je chráněn atomickými Upstash limity **50 požadavků / UTC den a 1 000 / UTC měsíc**. Neodstraňovat limiter, nepřidávat automatická placená volání. Podrobnosti: [web/docs/google-routes.md](web/docs/google-routes.md). Uložení manuálního času pro plánování zůstává oddělené od dočasného Google odhadu.
+- Google Routes je chráněn atomickými Upstash limity **50 požadavků / UTC den a 1 000 / UTC měsíc**. Neodstraňovat limiter, nepřidávat automatická placená volání. Podrobnosti: [web/docs/google-routes.md](web/docs/google-routes.md). Detailní Google itineráře, kroky a nabídka alternativ zůstávají dočasné v editoru. **Po výslovném uložení místa však zvolená délka cesty (včetně Google odhadu) přechází do uloženého `dayframe-travel-v1`**: `typicalMinutes`, `calendarMinutes` a příznak `calendarVerified` určující ověření Googlem. Uložené minuty se následně používají pro rezervace v Týdnu. Viz aktuální `submit()` ve `web/app/week-trip-location.tsx`; nerozšiřovat tvrzení o dočasnosti na uložené plánovací minuty.
 
 ### Čtení
 
