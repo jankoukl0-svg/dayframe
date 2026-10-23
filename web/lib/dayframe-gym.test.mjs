@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, rescheduleGymOccurrence, setGymWeekdayAssignment, setGymWeekdayTime, gymOccurrenceTime,
-  occurrenceKey, startSession, deleteGymOccurrence, gymMetrics, lastExercisePerformance,
+  occurrenceKey, startSession, deleteGymOccurrence, addGymOneOff, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
 
@@ -431,4 +431,47 @@ test("Week drag rejects past source and target dates but keeps existing history 
   assert.equal(gymOccurrenceTime(store,past).start,"17:00");
   store=rescheduleGymOccurrence(store,upcoming.key,"2026-10-19","2026-10-20","18:00","2026-10-14");
   assert.equal(store.moves[upcoming.key],"2026-10-20");
+});
+
+test("one-off workouts are date-specific, repeatable and preserve the recurring schedule",()=>{
+  let store=active();
+  const plan=store.plans[0],day=plan.days[0];
+  const planSnapshot=JSON.stringify(store.plans);
+  const id1="manual-a",id2="manual-b";
+  store=addGymOneOff(store,plan.id,day.id,"2026-11-04","17:00",90,id1);
+  store=addGymOneOff(store,plan.id,day.id,"2026-11-04","19:00",75,id2);
+  assert.equal(JSON.stringify(store.plans),planSnapshot);
+  assert.equal(assignmentsOnDate(store,"2026-11-04").length,2);
+  assert.deepEqual(assignmentsOnDate(store,"2026-11-11"),[]);
+  assert.equal(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-11-04")[0]).start,"17:00");
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+  assert.equal(addGymOneOff(store,plan.id,day.id,"2026-11-04","17:00",90,id1),store,"duplicate key is rejected");
+  store=rescheduleGymOccurrence(store,id1,"2026-11-04","2026-11-05","18:15","2026-10-23");
+  assert.equal(assignmentsOnDate(store,"2026-11-04").length,1);
+  assert.equal(assignmentsOnDate(store,"2026-11-05")[0].key,id1);
+  assert.equal(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-11-05")[0]).start,"18:15");
+  store=startSession(store,id1,"2026-11-05","2026-11-05T18:15:00Z");
+  assert.equal(store.sessions.length,1);
+  assert.equal(store.sessions[0].exercises.length,day.exercises.length);
+  assert.equal(rescheduleGymOccurrence(store,id1,"2026-11-05","2026-11-06","18:15","2026-10-23"),store,
+    "started workout cannot silently move");
+  store=deleteGymOccurrence(store,id1,"2026-11-05");
+  assert.equal(store.sessions.length,0);
+  assert.equal(store.oneOffWorkouts?.length,1);
+  assert.equal(assignmentsOnDate(store,"2026-11-05").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-11-04").length,1);
+  assert.equal(assignmentsOnDate(store,"2026-11-09").length,1,"original recurring gym schedule remains");
+  assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
+});
+
+test("legacy stores load and invalid date-specific workouts never overwrite Gym data",()=>{
+  const store=active(),plan=store.plans[0],day=plan.days[0];
+  assert.equal(parseGymStore(JSON.stringify({...store,oneOffWorkouts:undefined})).blocked,false);
+  for(const candidate of [
+    {id:"manual-bad",planId:plan.id,dayId:day.id,date:"2026-10-99",start:"17:00",duration:90},
+    {id:"manual-bad",planId:plan.id,dayId:"unknown",date:"2026-11-04",start:"17:00",duration:90},
+    {id:"manual-bad",planId:plan.id,dayId:day.id,date:"2026-11-04",start:"17:05",duration:90},
+    {id:"manual-bad",planId:plan.id,dayId:day.id,date:"2026-11-04",start:"23:45",duration:180},
+  ])assert.equal(parseGymStore(JSON.stringify({...store,oneOffWorkouts:[candidate]})).blocked,true);
+  assert.equal(addGymOneOff(store,plan.id,day.id,"2026-11-04","23:45",180,"manual-invalid"),store);
 });
