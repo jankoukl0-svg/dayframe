@@ -17,6 +17,7 @@ type ReadingLibrary = {
 type BookMetadata = {
   titleKey?: string;
   coverUrl?: string;
+  author?: string;
   fetchedAt?: string;
   [key: string]: unknown;
 };
@@ -25,6 +26,7 @@ type MetadataStore = Record<string, BookMetadata>;
 
 type OpenLibraryDoc = {
   title?: string;
+  author_name?: string[];
   cover_i?: number;
   cover_edition_key?: string;
   isbn?: string[];
@@ -64,12 +66,23 @@ function readMetadata(): MetadataStore {
   }
 }
 
-function writeCover(book: ReadingBook, coverUrl?: string) {
+function writeCover(book: ReadingBook, coverUrl: string | undefined, failedUrl?: string) {
+  const library = readLibrary();
+  const stillPresent = [library.current, ...(library.reading ?? []), ...(library.completed ?? [])]
+    .some((item) => item?.id === book.id && normalize(item.title) === normalize(book.title));
+  if (!stillPresent) return;
   const store = readMetadata();
   const existing = store[book.id] ?? {};
+  if (existing.coverUrl && existing.coverUrl !== failedUrl) return;
+  if (!coverUrl && !existing.coverUrl) return;
   const next = { ...existing, titleKey: normalize(book.title) } as BookMetadata;
-  if (coverUrl) next.coverUrl = coverUrl;
-  else delete next.coverUrl;
+  if (coverUrl) {
+    next.coverUrl = coverUrl;
+    next.notFound = false;
+    next.fetchedAt ??= new Date().toISOString();
+  } else {
+    delete next.coverUrl;
+  }
   store[book.id] = next;
   window.localStorage.setItem(METADATA_KEY, JSON.stringify(store));
   window.dispatchEvent(new Event(METADATA_SYNC_EVENT));
@@ -88,11 +101,11 @@ function scoreDoc(doc: OpenLibraryDoc, title: string) {
   return score - Math.abs(candidate.length - query.length) * 0.15;
 }
 
-async function lookupCoverCandidates(title: string) {
+async function lookupCoverCandidates(title: string, author?: string) {
   const params = new URLSearchParams({
     title: title.trim(),
-    fields: "title,cover_i,cover_edition_key,isbn",
-    limit: "10",
+    fields: "title,author_name,cover_i,cover_edition_key,isbn",
+    limit: "20",
   });
   const response = await fetch(`https://openlibrary.org/search.json?${params.toString()}`, {
     headers: { Accept: "application/json" },
@@ -100,21 +113,32 @@ async function lookupCoverCandidates(title: string) {
   if (!response.ok) throw new Error(`Open Library ${response.status}`);
   const payload = await response.json() as OpenLibraryResponse;
   const docs = Array.isArray(payload.docs) ? payload.docs : [];
-  const best = [...docs].sort((left, right) => scoreDoc(right, title) - scoreDoc(left, title))[0];
-  if (!best || scoreDoc(best, title) < 1) return [];
+  const authorKey = normalize(author || "");
+  const matching = docs
+    .filter((doc) => scoreDoc(doc, title) >= 100)
+    .sort((left, right) => {
+      const rank = (doc: OpenLibraryDoc) => {
+        const authorMatch = authorKey && doc.author_name?.some((name) => normalize(name) === authorKey);
+        return scoreDoc(doc, title) + (authorMatch ? 500 : 0);
+      };
+      return rank(right) - rank(left);
+    });
 
+  // An exact-title result can lack a cover even when a different edition has one.
   const urls: string[] = [];
-  if (best.cover_edition_key) {
-    urls.push(`https://covers.openlibrary.org/b/olid/${encodeURIComponent(best.cover_edition_key)}-M.jpg?default=false`);
+  for (const doc of matching) {
+    if (doc.cover_edition_key) {
+      urls.push(`https://covers.openlibrary.org/b/olid/${encodeURIComponent(doc.cover_edition_key)}-M.jpg?default=false`);
+    }
+    const coverId = Number(doc.cover_i);
+    if (Number.isFinite(coverId) && coverId > 0) {
+      urls.push(`https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`);
+    }
+    for (const isbn of doc.isbn?.slice(0, 2) ?? []) {
+      if (isbn) urls.push(`https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg?default=false`);
+    }
   }
-  for (const isbn of best.isbn?.slice(0, 4) ?? []) {
-    if (isbn) urls.push(`https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg?default=false`);
-  }
-  const coverId = Number(best.cover_i);
-  if (Number.isFinite(coverId) && coverId > 0) {
-    urls.push(`https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`);
-  }
-  return [...new Set(urls)];
+  return [...new Set(urls)].slice(0, 12);
 }
 
 function imageLoads(url: string) {
@@ -137,15 +161,17 @@ function imageLoads(url: string) {
 }
 
 async function recoverBookCover(book: ReadingBook, failedUrl: string | undefined) {
-  const candidates = await lookupCoverCandidates(book.title);
+  const metadata = readMetadata()[book.id];
+  const candidates = await lookupCoverCandidates(book.title, metadata?.author);
   for (const candidate of candidates) {
     if (candidate === failedUrl) continue;
     if (await imageLoads(candidate)) {
-      writeCover(book, candidate);
+      writeCover(book, candidate, failedUrl);
       return true;
     }
   }
-  writeCover(book, undefined);
+  // Only remove a demonstrably broken existing URL, never other book metadata.
+  if (failedUrl) writeCover(book, undefined, failedUrl);
   return false;
 }
 
@@ -171,29 +197,35 @@ function findBookForImage(image: HTMLImageElement, library: ReadingLibrary) {
 
 export function ReadingCoverRecoveryController() {
   const recovering = useRef(new Set<string>());
+  const retryAfter = useRef(new Map<string, number>());
 
   useEffect(() => {
-    const attempt = (image: HTMLImageElement) => {
-      const library = readLibrary();
-      const book = findBookForImage(image, library);
-      if (!book || recovering.current.has(book.id)) return;
+    const attemptBook = (book: ReadingBook, failedUrl?: string) => {
+      const now = Date.now();
+      if (recovering.current.has(book.id) || (retryAfter.current.get(book.id) ?? 0) > now) return;
+      // Avoid repeated Open Library requests on every 350 ms UI scan.
+      retryAfter.current.set(book.id, now + 15 * 60_000);
       recovering.current.add(book.id);
-      const failedUrl = image.currentSrc || image.src;
       recoverBookCover(book, failedUrl)
         .catch(() => {
-          // A temporary API/network failure should not permanently consume recovery.
-          window.setTimeout(() => {
-            if (!image.isConnected) return;
-            delete image.dataset.readingCoverRecoveryAttached;
-          }, 30_000);
+          // A temporary network/API failure can be retried without a page reload.
+          retryAfter.current.set(book.id, Date.now() + 60_000);
         })
         .finally(() => recovering.current.delete(book.id));
     };
 
+    const attempt = (image: HTMLImageElement) => {
+      const book = findBookForImage(image, readLibrary());
+      if (book) attemptBook(book, image.currentSrc || image.src);
+    };
+
     const attach = (image: HTMLImageElement) => {
-      if (image.dataset.readingCoverRecoveryAttached === "true") return;
-      image.dataset.readingCoverRecoveryAttached = "true";
-      image.addEventListener("error", () => attempt(image), { once: true });
+      if (image.dataset.readingCoverRecoveryAttached !== "true") {
+        image.dataset.readingCoverRecoveryAttached = "true";
+        image.addEventListener("error", () => attempt(image), { once: true });
+      }
+      // A failed <img> survives temporary HTTP/network errors. Keep checking it
+      // after the backoff; its one-shot error listener cannot fire a second time.
       if (image.complete && image.naturalWidth === 0) attempt(image);
     };
 
@@ -201,6 +233,21 @@ export function ReadingCoverRecoveryController() {
       document
         .querySelectorAll<HTMLImageElement>("[data-reading-active-book] .df2-reading-book-cover img, .df2-reading-book-history-cover img")
         .forEach(attach);
+
+      // Previously, recovery only listened to <img> errors. Once a failed cover
+      // had been removed (or Open Library returned metadata without a cover),
+      // no <img> existed, so the placeholder could never recover.
+      const library = readLibrary();
+      const metadata = readMetadata();
+      document.querySelectorAll<HTMLElement>("[data-reading-active-book]").forEach((card) => {
+        if (card.querySelector(".df2-reading-book-cover img")) return;
+        const book = [library.current, ...(library.reading ?? [])]
+          .find((item) => item?.id === card.dataset.readingActiveBook);
+        if (!book) return;
+        const entry = metadata[book.id];
+        if (!entry || entry.titleKey !== normalize(book.title) || entry.coverUrl) return;
+        attemptBook(book);
+      });
     };
 
     scan();
