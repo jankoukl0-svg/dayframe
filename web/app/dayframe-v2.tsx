@@ -1253,11 +1253,20 @@ export function DayframeV2() {
                           })}
                           {timedGym.map(({occ,time})=>{
                             if(!time.start)return null;
-                            const top=(timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT;
-                            const height=time.duration*MINUTE_HEIGHT;
-                            const end=minutesToTime(timeToMinutes(time.start)+time.duration);
+                            const preview=gymResizePreview?.id===occ.key&&gymResizePreview.date===key?gymResizePreview:null;
+                            const fromMinute=preview?.start??timeToMinutes(time.start);
+                            const blockDuration=preview?.duration??time.duration;
+                            const top=(fromMinute-calendarBounds.dayStart)*MINUTE_HEIGHT;
+                            const height=blockDuration*MINUTE_HEIGHT;
+                            const start=minutesToTime(fromMinute);
+                            const end=minutesToTime(fromMinute+blockDuration);
+                            const adjustable=key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked
+                              &&(key!==todayKey||timeToMinutes(time.start)>planningMinute(now));
+                            const lane=lanePositions["gym:"+occ.key];
+                            const controlsLeft=lane?lane.left:"7px";
+                            const controlsWidth=lane?lane.width:"calc(100% - 14px)";
                             return <Fragment key={occ.key}><button type="button" data-week-gym={occ.key}
-                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
+                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}${preview&&!preview.valid?" is-resize-invalid":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
                               draggable={key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked}
                               onDragStart={event=>{
@@ -1271,12 +1280,44 @@ export function DayframeV2() {
                                 setDropPreview({date:key,start:time.start!,duration:time.duration,valid:true});
                               }}
                               onDragEnd={()=>{setDragging(null);setDropPreview(null);}}
-                              title={occ.session?"Otevřít zahájený trénink v Gymu":"Přetáhni trénink na jiný čas nebo den; kliknutím otevřeš Gym"}
+                              title={occ.session?"Otevřít zahájený trénink v Gymu":"Přetáhni trénink na jiný čas nebo den; okrajem změň délku; kliknutím otevřeš Gym"}
                               onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}> 
-                              <span>{time.start}–{end}</span><strong>{occ.name}</strong>
+                              <span>{start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>
-                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key],end)}
+                              {travelPin("gym",occ.key,key,occ.name,start,top,lanePositions["gym:"+occ.key],end)}
+                              {adjustable && <>
+                                {(["start","end"] as const).map(edge=><button key={edge} type="button"
+                                  data-week-gym-resize={edge} data-gym-resize-key={occ.key}
+                                  className={"df2-week-gym-resize is-"+edge+(preview&&!preview.valid?" is-invalid":"")}
+                                  aria-label={(edge==="start"?"Změnit začátek":"Změnit konec")+" tréninku "+occ.name}
+                                  title={(edge==="start"?"Tažením horního okraje změň začátek.":"Tažením spodního okraje prodluž nebo zkrať trénink.")+" Šipkami lze měnit po 15 minutách."}
+                                  style={{top:top+(edge==="start"?0:height-7),left:controlsLeft,width:controlsWidth}}
+                                  onPointerDown={event=>onGymResizeStart(event,occ.key,key,edge,timeToMinutes(time.start!),time.duration)}
+                                  onPointerMove={onGymResizeMove}
+                                  onPointerUp={onGymResizeEnd}
+                                  onPointerCancel={()=>{gymResizeRef.current=null;setGymResizePreview(null);}}
+                                  onKeyDown={event=>{
+                                    if(event.key!=="ArrowUp"&&event.key!=="ArrowDown")return;
+                                    event.preventDefault();event.stopPropagation();
+                                    const difference=event.key==="ArrowUp"?-15:15;
+                                    const minute=timeToMinutes(time.start!)+(edge==="start"?difference:0);
+                                    const duration=time.duration+(edge==="start"?-difference:difference);
+                                    if(!gymChangeAllowed(key,minutesToTime(minute),duration,occ.key)
+                                      ||!commitGymTiming(occ.key,key,minutesToTime(minute),duration))
+                                      setNotice("Trénink nelze upravit: čas je obsazený nebo mimo povolený rozsah.");
+                                  }} />)}
+                                <button type="button" className="df2-week-gym-edit"
+                                  aria-label={"Upravit čas tréninku "+occ.name}
+                                  title="Upravit datum, začátek a délku tohoto tréninku"
+                                  style={{top:top+Math.max(8,Math.floor(height/2)-8),
+                                    ...(lane?{left:"calc("+lane.left+" + "+lane.width+" - 22px)",right:"auto"}:{})}}
+                                  onClick={event=>{
+                                    event.stopPropagation();
+                                    setEditingGym({id:occ.key,date:key,title:occ.name,start:time.start!,duration:time.duration});
+                                    setGymEditError("");
+                                  }}>✎</button>
+                              </>}
                               {(key<todayKey||occ.session||occ.key.startsWith("manual-"))&&gym.hydrated&&!gym.blocked&&<button
                                 type="button" className={"df2-week-gym-delete"+(occ.key.startsWith("manual-")?" is-manual":"")}
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
@@ -1474,6 +1515,36 @@ export function DayframeV2() {
             </label>
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || (addKind==="gym"?(!gym.hydrated||gym.blocked||!gymDayId||!draft.start):!draft.title.trim())}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
+          </form>
+        </div>
+      )}
+
+      {editingGym && (
+        <div className="df2-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setEditingGym(null);}}>
+          <form className="df2-modal df2-week-gym-time-modal" role="dialog" aria-modal="true"
+            aria-labelledby="df2-week-gym-time-title" onSubmit={saveEditedGym}>
+            <header><div><h2 id="df2-week-gym-time-title">Upravit trénink</h2>
+              <small>{editingGym.title} · pouze tento termín</small></div>
+              <button type="button" aria-label="Zavřít" onClick={()=>setEditingGym(null)}>×</button>
+            </header>
+            <div className="df2-form-grid">
+              <label>Datum<input type="date" name="date" min={todayKey} defaultValue={editingGym.date}/></label>
+              <label>Začátek<input type="time" name="start" step={900} required defaultValue={editingGym.start}/></label>
+            </div>
+            <label>Délka<select name="duration" defaultValue={editingGym.duration}>
+              {Array.from({length:11},(_,i)=>30+i*15).map(minutes=>
+                <option key={minutes} value={minutes}>{minutes} min</option>)}
+            </select></label>
+            <p className="df2-week-gym-time-note">Tažením horního nebo spodního okraje bloku v Týdnu upravíš jeho délku po 15 minutách. Změna se týká jen tohoto výskytu, ne celého opakovaného rozpisu.</p>
+            {gymEditError&&<p className="df2-error" role="alert">{gymEditError}</p>}
+            <div className="df2-modal-actions">
+              <button className="df2-primary" type="submit">Uložit změny</button>
+              <button type="button" onClick={()=>{
+                setGymFocus({key:editingGym.id,date:editingGym.date});
+                setEditingGym(null);setView("health");
+              }}>Otevřít Gym</button>
+              <button type="button" onClick={()=>setEditingGym(null)}>Zrušit</button>
+            </div>
           </form>
         </div>
       )}
