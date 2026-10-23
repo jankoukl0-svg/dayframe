@@ -1130,7 +1130,7 @@ test("short 30-minute Gym blocks keep the location pin separate from resize, edi
   await pin.click();
   await expect(page.getByRole("dialog",{name:"Místo konání: Upper"})).toBeVisible();
   await page.getByRole("dialog",{name:"Místo konání: Upper"})
-    .getByRole("button",{name:"Zavřít"}).click();
+    .getByRole("button",{name:"Zavřít místo konání"}).click();
   await edit.click();
   await expect(page.getByRole("dialog",{name:"Upravit trénink"})).toBeVisible();
 });
