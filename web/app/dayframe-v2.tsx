@@ -1265,7 +1265,7 @@ export function DayframeV2() {
                             // Collision lanes can be just ~68px wide. Keep a usable
                             // 14px resize grip centered in those lanes, instead of
                             // subtracting fixed action widths until the grip vanishes.
-                            const lanePercent=lane?Number(lane.width.match(/calc\\(([\\d.]+)%/)?.[1]??100):100;
+                            const lanePercent=lane?Number(lane.width.split("%")[0].replace("calc(","")):100;
                             const narrowLane=lanePercent<=50;
                             const controlsLeft=lane
                               ?narrowLane
