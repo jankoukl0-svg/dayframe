@@ -235,3 +235,49 @@ test("missing cover recovery never replaces selected metadata on an unsuccessful
   await page.waitForTimeout(800);
   expect(searches).toBeLessThan(5);
 });
+
+
+test("an existing broken cover retries after a temporary Open Library outage", async ({ page }) => {
+  await page.clock.install();
+  let searches = 0;
+  await page.route("**/openlibrary.org/search.json?**", (route) => {
+    searches++;
+    if (searches === 1) {
+      return route.fulfill({ status: 503, contentType: "text/plain", body: "temporarily unavailable" });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ docs: [{ title: "The Psychology of Money",
+        author_name: ["Morgan Housel"], cover_edition_key: "OLPSYCHRECOVERM" }] }) });
+  });
+  await page.route("**/covers.openlibrary.org/b/id/123456-M.jpg?default=false", (route) =>
+    route.fulfill({ status: 404, body: "missing cover" }));
+  await page.route("**/covers.openlibrary.org/b/olid/OLPSYCHRECOVERM-M.jpg?default=false", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: transparentPng }));
+
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem("dayframe-reading-library-v1", JSON.stringify({
+      version: 1, current: { id: "psych", title: "The Psychology of Money",
+        currentPage: 22, totalPages: 253, startedAt: now }, reading: [], completed: [],
+    }));
+    localStorage.setItem("dayframe-reading-book-metadata-v1", JSON.stringify({
+      psych: { titleKey: "the psychology of money", author: "Morgan Housel",
+        coverUrl: "https://covers.openlibrary.org/b/id/123456-M.jpg?default=false",
+        fetchedAt: now },
+    }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  await expect.poll(() => searches).toBe(1);
+
+  // No reload or user action: the already-failed <img> must be tried again.
+  await page.clock.fastForward(61_000);
+  await expect.poll(() => searches).toBe(2);
+  const cover = page.locator('[data-reading-active-book="psych"] .df2-reading-book-cover img');
+  await expect(cover).toHaveAttribute("src", /OLPSYCHRECOVERM-M\\.jpg/);
+  const meta = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-book-metadata-v1")));
+  expect(meta.psych.coverUrl).toContain("OLPSYCHRECOVERM-M.jpg");
+  expect(meta.psych.author).toBe("Morgan Housel");
+});
