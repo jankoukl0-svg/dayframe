@@ -43,7 +43,7 @@ import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
 import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
-import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, setGymOccurrenceTime, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
@@ -85,6 +85,12 @@ type DropPreview = {
   duration: number;
   valid: boolean;
 };
+type GymResize = {
+  id:string; date:string; edge:"start"|"end";
+  originY:number; originalStart:number; originalDuration:number;
+  start:number; duration:number; valid:boolean;
+};
+type GymTimeEdit = {id:string; date:string; title:string; start:string; duration:number};
 
 type TaskCompletionToast = {
   id: string;
@@ -240,6 +246,10 @@ export function DayframeV2() {
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
+  const [gymResizePreview,setGymResizePreview]=useState<GymResize|null>(null);
+  const gymResizeRef=useRef<GymResize|null>(null);
+  const [editingGym,setEditingGym]=useState<GymTimeEdit|null>(null);
+  const [gymEditError,setGymEditError]=useState("");
   const [focusTask, setFocusTask] = useState<CalendarTask | null>(null);
   const [focusSeconds, setFocusSeconds] = useState(50 * 60);
   const [focusRunning, setFocusRunning] = useState(false);
@@ -662,6 +672,132 @@ export function DayframeV2() {
       && !intersectsTravel(date,minute,minute+duration)
       && ![...occupiedGym,...occupiedCare].some(t=>minute<t.end&&minute+duration>t.start);
   }
+  function gymOccurrenceSlotOpen(date:string,id:string,start:string,duration:number):boolean {
+    const minute=timeToMinutes(start),end=minute+duration;
+    const tasks=getTasksForDate(data,date);
+    const otherGym=assignmentsOnDate(gym.store,date)
+      .filter(item=>item.key!==id)
+      .map(item=>gymOccurrenceTime(gym.store,item))
+      .filter(t=>t.start!==null)
+      .map(t=>({start:timeToMinutes(t.start??undefined),end:timeToMinutes(t.start??undefined)+t.duration}));
+    const otherCare=weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
+      .map(t=>({start:timeToMinutes(t.start),end:timeToMinutes(t.start)+t.duration}));
+    const owner=travelBlockKey("gym",id,date);
+    const otherJourneys=reservedTravel(date).filter(item=>item.key!==owner);
+    if(!canPlaceAt(tasks,minute,duration)||intersectsTravel(date,minute,end,owner)
+      ||[...otherGym,...otherCare].some(block=>minute<block.end&&end>block.start))return false;
+    if(travelStore.blocks[owner]){
+      const projected=travelReservationsForDay(travelStore,date,[{
+        key:owner,date,start,end:minutesToTime(end),title:"",
+      }]);
+      const busy=[
+        ...tasks.filter(t=>t.start&&t.end).map(t=>({start:timeToMinutes(t.start),end:timeToMinutes(t.end)})),
+        ...otherGym,...otherCare,...otherJourneys.map(t=>({start:t.start,end:t.end})),
+      ];
+      if(projected.some(trip=>busy.some(other=>trip.start<other.end&&trip.end>other.start)))return false;
+    }
+    return true;
+  }
+
+  function gymChangeAllowed(date:string,start:string,duration:number,id:string):boolean {
+    const minute=timeToMinutes(start);
+    return Boolean(gym.hydrated&&!gym.blocked&&date>=todayKey
+      && (date!==todayKey||minute>planningMinute(now))
+      && Number.isFinite(minute)&&minute>=calendarBounds.dayStart
+      && minute%15===0&&Number.isInteger(duration)&&duration>=30&&duration<=180
+      && duration%15===0&&minute+duration<=calendarBounds.dayEnd
+      && gymOccurrenceSlotOpen(date,id,start,duration));
+  }
+
+  function commitGymTiming(id:string,date:string,start:string,duration:number):boolean {
+    let changed=false;
+    const saved=gym.persist(current=>{
+      const next=setGymOccurrenceTime(current,id,date,start,duration,planningDateKey(new Date()));
+      changed=next!==current;
+      return next;
+    });
+    if(!saved||!changed)return false;
+    moveSavedTrip("gym",id,date,date,start);
+    return true;
+  }
+
+  function gymResizeCandidate(draft:GymResize,clientY:number):GymResize {
+    const delta=Math.round((clientY-draft.originY)/(MINUTE_HEIGHT*15))*15;
+    const start=draft.edge==="start"?draft.originalStart+delta:draft.originalStart;
+    const duration=draft.edge==="start"?draft.originalDuration-delta:draft.originalDuration+delta;
+    const valid=Number.isInteger(start)&&start>=calendarBounds.dayStart
+      && start+duration<=calendarBounds.dayEnd&&duration>=30&&duration<=180
+      && gymChangeAllowed(draft.date,minutesToTime(start),duration,draft.id);
+    return {...draft,start,duration,valid};
+  }
+
+  function onGymResizeStart(event:React.PointerEvent<HTMLButtonElement>,
+    id:string,date:string,edge:"start"|"end",start:number,duration:number) {
+    if(event.button!==0||!gym.hydrated||gym.blocked)return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const draft:GymResize={id,date,edge,originY:event.clientY,originalStart:start,
+      originalDuration:duration,start,duration,valid:true};
+    gymResizeRef.current=draft;
+    setGymResizePreview(draft);
+    setDragging(null);
+    setDropPreview(null);
+  }
+
+  function onGymResizeMove(event:React.PointerEvent<HTMLButtonElement>) {
+    if(!gymResizeRef.current)return;
+    const candidate=gymResizeCandidate(gymResizeRef.current,event.clientY);
+    setGymResizePreview(candidate);
+  }
+
+  function onGymResizeEnd(event:React.PointerEvent<HTMLButtonElement>) {
+    const initial=gymResizeRef.current;
+    if(!initial)return;
+    const value=gymResizeCandidate(initial,event.clientY);
+    gymResizeRef.current=null;
+    setGymResizePreview(null);
+    if(value.start===initial.originalStart&&value.duration===initial.originalDuration)return;
+    if(!value.valid){
+      setNotice("Pro změnu délky není volný prostor nebo nový čas není povolen. Trénink zůstal beze změny.");
+      return;
+    }
+    if(!commitGymTiming(value.id,value.date,minutesToTime(value.start),value.duration))
+      setNotice("Čas tréninku se nepodařilo uložit.");
+  }
+
+  function saveEditedGym(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!editingGym)return;
+    const form=new FormData(event.currentTarget);
+    const date=String(form.get("date")||"");
+    const start=String(form.get("start")||"");
+    const duration=Number(form.get("duration"));
+    const from=editingGym.date;
+    const same=date===from;
+    if(!gymChangeAllowed(date,start,duration,editingGym.id)){
+      setGymEditError("Vyber budoucí čas bez kolizí, v délce 30–180 minut po 15 minutách.");
+      return;
+    }
+    let changed=false;
+    const saved=gym.persist(current=>{
+      const moved=same?current:rescheduleGymOccurrence(
+        current,editingGym.id,from,date,start,planningDateKey(new Date()));
+      if(!same&&moved===current)return current;
+      const next=setGymOccurrenceTime(moved,editingGym.id,date,start,duration,
+        planningDateKey(new Date()));
+      changed=next!==current;
+      return next;
+    });
+    if(!saved||!changed){
+      setGymEditError("Úpravu tréninku se nepodařilo uložit. Rozpracované nebo dokončené tréninky nelze přesouvat.");
+      return;
+    }
+    moveSavedTrip("gym",editingGym.id,from,date,start);
+    setEditingGym(null);
+    setGymEditError("");
+  }
+
   function careHasRecordedProgress(date: string, routineId: string): boolean {
     return Object.keys(care.store?.records[date]?.[routineId]?.states ?? {}).length > 0;
   }
