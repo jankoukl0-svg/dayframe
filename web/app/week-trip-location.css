@@ -45,6 +45,14 @@
     opacity: 1;
     pointer-events: auto;
   }
+  /* On a 30–45 minute Gym card the 21px pin almost fills its vertical
+     footprint. Hovering the card and then moving into the pin can otherwise
+     disable pointer events before the pin becomes hovered, handing clicks to
+     the draggable card. Keep that pin reachable independently of hover. */
+  .df2-week-gym.is-short + .df2-week-location-btn {
+    opacity: .88;
+    pointer-events: auto;
+  }
 }
 /* Hybrid laptops may report mouse hover as primary while still supporting touch.
    Never make location controls untappable on any touch-capable device. */
