@@ -1259,8 +1259,11 @@ export function DayframeV2() {
                             const adjustable=key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked
                               &&(key!==todayKey||timeToMinutes(time.start)>planningMinute(now));
                             const lane=lanePositions["gym:"+occ.key];
-                            const controlsLeft=lane?lane.left:"7px";
-                            const controlsWidth=lane?lane.width:"calc(100% - 14px)";
+                            // Leave room on both sides for independent Gym controls.
+                            // Particularly important for 30/45-minute cards: editing and
+                            // resize grips may not cover the right-side location pin.
+                            const controlsLeft=lane?"calc("+lane.left+" + 48px)":"55px";
+                            const controlsWidth=lane?"max(0px, calc("+lane.width+" - 77px))":"max(0px, calc(100% - 90px))";
                             return <Fragment key={occ.key}><button type="button" data-week-gym={occ.key}
                               className={`df2-week-task df2-week-gym ${occ.completed?"done":""}${preview&&!preview.valid?" is-resize-invalid":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
@@ -1306,8 +1309,8 @@ export function DayframeV2() {
                                 <button type="button" className="df2-week-gym-edit"
                                   aria-label={"Upravit čas tréninku "+occ.name}
                                   title="Upravit datum, začátek a délku tohoto tréninku"
-                                  style={{top:top+Math.max(8,Math.floor(height/2)-8),
-                                    ...(lane?{left:"calc("+lane.left+" + "+lane.width+" - 22px)",right:"auto"}:{})}}
+                                  style={{top:top+Math.max(2,Math.floor((height-18)/2)),
+                                    ...(lane?{left:"calc("+lane.left+" + 3px)",right:"auto"}:{left:"10px",right:"auto"})}}
                                   onClick={event=>{
                                     event.stopPropagation();
                                     setEditingGym({id:occ.key,date:key,title:occ.name,start:time.start!,duration:time.duration});
@@ -1318,9 +1321,14 @@ export function DayframeV2() {
                                 type="button" className={"df2-week-gym-delete"+(occ.key.startsWith("manual-")?" is-manual":"")}
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
                                 title="Smazat tento trénink z historie (ostatní týdny zůstanou)"
-                                style={{top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
-                                  ?{left:"calc("+lanePositions["gym:"+occ.key].left+" + "+
-                                     lanePositions["gym:"+occ.key].width+" - 23px)",right:"auto"}:{})}}
+                                style={occ.key.startsWith("manual-")&&height<40?{
+                                  top:top+Math.max(2,Math.floor((height-18)/2)),
+                                  ...(lane?{left:"calc("+lane.left+" + 25px)",right:"auto"}:{left:"32px",right:"auto"}),
+                                }:{
+                                  top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
+                                    ?{left:"calc("+lanePositions["gym:"+occ.key].left+" + "+
+                                       lanePositions["gym:"+occ.key].width+" - 23px)",right:"auto"}:{}),
+                                }}
                                 onClick={event=>{
                                   event.stopPropagation();
                                   if(!window.confirm("Smazat trénink „"+occ.name+"“ ze dne "+key+
