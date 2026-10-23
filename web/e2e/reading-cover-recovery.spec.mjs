@@ -276,7 +276,7 @@ test("an existing broken cover retries after a temporary Open Library outage", a
   await page.clock.fastForward(61_000);
   await expect.poll(() => searches).toBe(2);
   const cover = page.locator('[data-reading-active-book="psych"] .df2-reading-book-cover img');
-  await expect(cover).toHaveAttribute("src", /OLPSYCHRECOVERM-M\\.jpg/);
+  await expect.poll(async () => cover.getAttribute("src")).toContain("OLPSYCHRECOVERM-M.jpg");
   const meta = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-reading-book-metadata-v1")));
   expect(meta.psych.coverUrl).toContain("OLPSYCHRECOVERM-M.jpg");
   expect(meta.psych.author).toBe("Morgan Housel");
