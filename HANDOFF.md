@@ -1,3 +1,67 @@
+# Dayframe — aktuální předání pro nové chaty
+
+**Snapshot ověřen 23. 10. 2026.** Tento dokument slouží jako předávací kontext, **nikoli jako neměnný důkaz aktuálního stavu**. Na začátku každého nového vývojového úkolu znovu ověř GitHub `main`, poslední commity, otevřené PR a produkční deployment. Nezastavuj se u níže uvedeného historického SHA.
+
+- Repo: https://github.com/jankoukl0-svg/dayframe
+- Produkce: https://dayframe2.vercel.app
+- Zdroj pravdy: větev `main`; aktivní produkt v `web/`.
+- Povinná pravidla: [AGENTS.md](AGENTS.md) a [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md).
+- Poslední potvrzený produktový merge **před vytvořením tohoto dokumentačního PR**: `c80757ef8a53a14686988fef62e7c18f8df6ced2`, [PR #265](https://github.com/jankoukl0-svg/dayframe/pull/265), 22. 10. 2026.
+- Produkční Vercel `dayframe2.vercel.app` byl při kontrole 23. 10. navázán na READY deployment `dpl_BrQuVgE5tbDZRW5nuY8mh9SZdamK` se stejným SHA. Toto je **snapshot, ne záruka budoucího stavu**. Po dalším mergi znovu ověř alias, deployment a živý smoke.
+- Při aktualizaci tohoto souboru změň datum, přesné SHA, nasazení, změny a otevřená rizika; nepřepisuj ověřenou historii jako současnost.
+
+## Co je naposledy implementováno
+
+### Týden, cestování a Jarvis
+
+- [PR #251](https://github.com/jankoukl0-svg/dayframe/pull/251): zvolitelné skutečné alternativy Google MHD; upřednostnění jednodušší kombinace linek a volitelná samostatná kontrola pouze metra. Výsledky závisí na tom, co skutečně vrátí Google; nevymýšlet spojení, které provider nepotvrdil.
+- [PR #250](https://github.com/jankoukl0-svg/dayframe/pull/250): hledání parkovišť přes OpenStreetMap/Overpass, orientační srovnání podle dostupných dat; nevymýšlet aktuální obsazenost ani cenu.
+- [PR #253–255](https://github.com/jankoukl0-svg/dayframe/pull/255): rezervování cestovních bloků před aktivitami a volitelné zpáteční cesty, včetně varianty „pouze cesta domů“, a přímých tras bez přestupů. Cestovní blok je časově svázán s aktivitou.
+- [PR #256](https://github.com/jankoukl0-svg/dayframe/pull/256): kompaktnější text cestovních bloků v Týdnu.
+- [PR #263](https://github.com/jankoukl0-svg/dayframe/pull/263): navázané cestovní bloky po dokončení aktivity vizuálně zešednou.
+- [PR #264](https://github.com/jankoukl0-svg/dayframe/pull/264): při cestě mimo viditelný časový rozsah zobrazit konkrétně „Vyjeď v HH:MM“ místo obecného upozornění.
+- [PR #265](https://github.com/jankoukl0-svg/dayframe/pull/265): shodná geometrie časové osy všech sedmi dnů i při odlišných úkolech bez času nebo oznámeních odjezdu; E2E desktop/mobil.
+- Google Routes je chráněn atomickými Upstash limity **50 požadavků / UTC den a 1 000 / UTC měsíc**. Neodstraňovat limiter, nepřidávat automatická placená volání. Podrobnosti: [web/docs/google-routes.md](web/docs/google-routes.md). Detailní Google itineráře, kroky a nabídka alternativ zůstávají dočasné v editoru. **Po výslovném uložení místa však zvolená délka cesty (včetně Google odhadu) přechází do uloženého `dayframe-travel-v1`**: `typicalMinutes`, `calendarMinutes` a příznak `calendarVerified` určující ověření Googlem. Uložené minuty se následně používají pro rezervace v Týdnu. Viz aktuální `submit()` ve `web/app/week-trip-location.tsx`; nerozšiřovat tvrzení o dočasnosti na uložené plánovací minuty.
+
+### Čtení
+
+- [PR #257](https://github.com/jankoukl0-svg/dayframe/pull/257): zapisování poslední přečtené stránky, výpočet nového přírůstku.
+- [PR #258](https://github.com/jankoukl0-svg/dayframe/pull/258): několik současně rozečtených knih s vlastními stránkami a se zachováním historie.
+- [PR #259](https://github.com/jankoukl0-svg/dayframe/pull/259): přesouvání čtení také do běžného dne, nejen večer.
+- [PR #260–261](https://github.com/jankoukl0-svg/dayframe/pull/261): funkční výběr nalezené knihy a čitelný náhled.
+- [PR #262](https://github.com/jankoukl0-svg/dayframe/pull/262): všechny rozečtené knihy jako rovnocenné plnohodnotné karty, žádná vizuální priorita.
+
+### Další existující sekce
+
+- Hygiena, úklid, zdraví a suplementy; Gym a tréninková historie; Dnes, Týden, Jarvis, cestování, Čtení a Focus. Před úpravou konkrétní sekce prozkoumat **aktuální** kód, testy a relevantní merged PR. Nepředpokládat, že popis z 18. září odpovídá jejich dnešní podobě.
+- Neodstraňovat uživatelská data ani měnit existující storage key/schema bez explicitně navržené zpětně kompatibilní migrace.
+- Neměnit UX, rutiny, motivační odpočty ani kalendářové invarianty nad rámec schváleného zadání.
+
+## Otevřené PR nejsou automaticky backlog k mergi
+
+Při kontrole 23. 10. zůstávají otevřené historické PR, např. [#185](https://github.com/jankoukl0-svg/dayframe/pull/185) (Gym týdenní plán), [#171](https://github.com/jankoukl0-svg/dayframe/pull/171) (suplementy) a [#165](https://github.com/jankoukl0-svg/dayframe/pull/165) (ověření značky u produktových fotografií), plus starší PR. Mohou být překonané pozdějšími změnami. **Neslučovat automaticky**; před rozhodnutím porovnat s `main`, relevantními novějšími PR a aktuálním požadavkem.
+
+## Standard pro pokračování v novém chatu
+
+1. Načíst aktuální GitHub `main`, `AGENTS.md`, tento soubor a `docs/DEVELOPMENT_PROTOCOL.md`, ověřit poslední relevantní PR/commity a stav produkce.
+2. Pokud uživatel zadá změnu: sepsat akceptační chování, co se nemění, edge cases a důsledky pro data. Pracovat na **nové větvi** z aktuálního `main`.
+3. Dodržet `SPEC → IMPLEMENT → TARGETED TEST → SELF-FIX → FULL REGRESSION → REVIEW → SELF-FIX → MERGE → DEPLOY → SMOKE VERIFY`. Po změně head SHA předchozí CI/review neplatí. Review a merge až po aktuálních kontrolách.
+4. Po merge ověřit, že `main` ukazuje na výsledný commit, produkční deployment je READY, alias `dayframe2.vercel.app` míří právě na něj a produkční smoke uspěl. Teprve tehdy mluvit o dokončené změně.
+5. Po významné úspěšné změně aktualizovat tento **horní, aktuální** oddíl: datum, výchozí/výsledné SHA, PR, testy, deployment, otevřená rizika a doporučený další krok. Historické pasáže pod oddělovačem nenahrazují aktuální kontrolu.
+
+## Otevřená omezení a další krok
+
+- Nejsou doloženy nové uživatelské požadavky po PR #265. **Další úpravu produktu určí uživatel**; bez požadavku nepřidávat funkce ani neslučovat staré otevřené PR.
+- Google Routes nevrací všechny možné MHD trasy, a proto nejsou alternativy vyčerpávající. Výpočty spojení a parkování nesmějí být vydávány za jistotu.
+- Dříve popsané nedodělky z 18. 9. jsou pouze historická pozorování a vyžadují novou verifikaci.
+- Změna tohoto dokumentu sama o sobě **nemění žádnou funkcionalitu ani data Dayframe**.
+
+---
+
+## Archivní handoff z 18. 9. 2026 — pouze historický kontext
+
+Následující původní text je ponechán pro kontinuitu, ale obsahuje zastaralé SHA, staré návrhy a dřívější stav produktu. V případě rozporu rozhoduje aktuální `main`, nejnovější sloučené PR a ověřené nasazení.
+
 # Dayframe — začni tady
 
 > Vývojový a release standard: [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md). Instrukce pro coding agenty: [AGENTS.md](AGENTS.md).
