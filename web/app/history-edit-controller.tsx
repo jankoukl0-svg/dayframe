@@ -30,7 +30,7 @@ type RecordedReading = { bookTitle: string; pages: number };
 
 function isReadingTask(task: HistoryTask) {
   if (task.routineId === "read") return true;
-  const normalize = (value: string) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLowerCase();
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
   const category = normalize(task.category ?? "");
   const title = normalize(task.title);
   return category === "cteni" || category === "reading"
