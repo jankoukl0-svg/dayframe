@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { completeFullyReadBooks } from "../lib/dayframe-reading-completion";
 
 type PeriodMode = "week" | "month" | "year";
 type PeriodRange = { start: Date; end: Date };
@@ -163,7 +164,16 @@ function readLibrary(): ReadingLibrary {
         })
       : [];
     // Older consumers still use current. If it disappears, promote the next book.
-    return { version: 1, current: current ?? reading.shift() ?? null, reading, completed };
+    const normalized: ReadingLibrary = { version: 1, current: current ?? reading.shift() ?? null, reading, completed };
+    // Upgrade legacy 100%-read books (including 300/300) without a schema change.
+    const reconciled = completeFullyReadBooks(normalized, new Date().toISOString());
+    if (reconciled !== normalized) {
+      try {
+        window.localStorage.setItem(READING_LIBRARY_KEY, JSON.stringify(reconciled));
+        window.dispatchEvent(new Event(READING_LIBRARY_SYNC_EVENT));
+      } catch { /* Preserve readable book data in memory if storage is unavailable. */ }
+    }
+    return reconciled;
   } catch {
     return EMPTY_LIBRARY;
   }
@@ -504,8 +514,10 @@ export function ReadingOverviewController() {
         window.dispatchEvent(new Event(READING_METADATA_SYNC_EVENT));
       } catch { /* An unavailable metadata cache must not prevent saving the book. */ }
     }
-    writeLibrary(nextLibrary);
-    setLibrary(nextLibrary);
+    // Saving the last page completes the book; no second Dočteno click is needed.
+    const reconciled = completeFullyReadBooks(nextLibrary, new Date().toISOString());
+    writeLibrary(reconciled);
+    setLibrary(reconciled);
     setManagerOpen(false);
   };
 
