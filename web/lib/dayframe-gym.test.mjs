@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyGymStore, parseGymStore, makeGymPlan, assignmentsOnDate, moveOccurrence, rescheduleGymOccurrence, setGymWeekdayAssignment, setGymWeekdayTime, gymOccurrenceTime,
-  occurrenceKey, startSession, deleteGymOccurrence, addGymOneOff, gymMetrics, lastExercisePerformance,
+  occurrenceKey, startSession, deleteGymOccurrence, addGymOneOff, setGymOccurrenceTime, gymMetrics, lastExercisePerformance,
   setActiveGymPlan, setGymDayWeekday, EXERCISE_LIBRARY, extendGymExerciseCatalog
 } from "./dayframe-gym.ts";
 
@@ -475,4 +475,44 @@ test("legacy stores load and invalid date-specific workouts never overwrite Gym 
     {id:"manual-bad",planId:plan.id,dayId:day.id,date:"2026-11-04",start:"23:45",duration:180},
   ])assert.equal(parseGymStore(JSON.stringify({...store,oneOffWorkouts:[candidate]})).blocked,true);
   assert.equal(addGymOneOff(store,plan.id,day.id,"2026-11-04","23:45",180,"manual-invalid"),store);
+});
+
+test("resizing a recurring Gym occurrence affects only the chosen date, not adjacent weeks",()=>{
+  let s=active(),plan=s.plans[0];
+  s=setGymWeekdayTime(s,plan.id,1,"17:00",90,"2026-10-12");
+  const original=assignmentsOnDate(s,"2026-10-19")[0];
+  const next=assignmentsOnDate(s,"2026-10-26")[0];
+  assert.deepEqual(gymOccurrenceTime(s,original),{start:"17:00",duration:90});
+  const plans=JSON.stringify(s.plans);
+  s=setGymOccurrenceTime(s,original.key,"2026-10-19","16:45",105,"2026-10-12");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-19")[0]),{start:"16:45",duration:105});
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-26")[0]),{start:"17:00",duration:90});
+  assert.equal(JSON.stringify(s.plans),plans);
+  assert.equal(parseGymStore(JSON.stringify(s)).blocked,false);
+  s=setGymOccurrenceTime(s,original.key,"2026-10-19","17:00",90,"2026-10-12");
+  assert.equal(s.occurrenceTimes?.[original.key],undefined,"restoring source schedule removes local override");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-10-26")[0]),{start:"17:00",duration:90});
+});
+
+test("one-off workout resizes independently and survives storage reload; logged or historical records remain immutable",()=>{
+  let s=active(),plan=s.plans[0],day=plan.days[0];
+  s=addGymOneOff(s,plan.id,day.id,"2026-11-04","17:00",90,"manual-resize");
+  s=setGymOccurrenceTime(s,"manual-resize","2026-11-04","16:45",105,"2026-10-23");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-11-04")[0]),{start:"16:45",duration:105});
+  s=setGymOccurrenceTime(s,"manual-resize","2026-11-04","16:45",75,"2026-10-23");
+  assert.deepEqual(gymOccurrenceTime(s,assignmentsOnDate(s,"2026-11-04")[0]),{start:"16:45",duration:75});
+  assert.equal(parseGymStore(JSON.stringify(s)).blocked,false);
+  assert.equal(setGymOccurrenceTime(s,"manual-resize","2026-11-04","23:45",180,"2026-10-23"),s,
+    "invalid end beyond 02:00 must be rejected");
+  assert.equal(setGymOccurrenceTime(s,"manual-resize","2026-11-04","16:45",15,"2026-10-23"),s,
+    "duration below 30 minutes must be rejected");
+  assert.equal(setGymOccurrenceTime(s,"manual-resize","2026-11-04","16:45",75,"2026-11-05"),s,
+    "past date must stay unchanged");
+  const loaded=parseGymStore(JSON.stringify(s)).store;
+  assert.deepEqual(gymOccurrenceTime(loaded,assignmentsOnDate(loaded,"2026-11-04")[0]),{start:"16:45",duration:75});
+  const started=startSession(s,"manual-resize","2026-11-04","2026-11-04T16:45:00Z");
+  assert.notEqual(started,s);
+  assert.equal(setGymOccurrenceTime(started,"manual-resize","2026-11-04","17:00",90,"2026-10-23"),started,
+    "a started session is immutable");
+  assert.equal(started.sessions[0].scheduledTime?.duration,75);
 });
