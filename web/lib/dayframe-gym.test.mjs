@@ -448,8 +448,8 @@ test("one-off workouts are date-specific, repeatable and preserve the recurring 
   assert.equal(addGymOneOff(store,plan.id,day.id,"2026-11-04","17:00",90,id1),store,"duplicate key is rejected");
   store=rescheduleGymOccurrence(store,id1,"2026-11-04","2026-11-05","18:15","2026-10-23");
   assert.equal(assignmentsOnDate(store,"2026-11-04").length,1);
-  assert.equal(assignmentsOnDate(store,"2026-11-05")[0].key,id1);
-  assert.equal(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-11-05")[0]).start,"18:15");
+  assert.equal(assignmentsOnDate(store,"2026-11-05").filter(o=>o.key===id1).length,1);
+  assert.equal(gymOccurrenceTime(store,assignmentsOnDate(store,"2026-11-05").find(o=>o.key===id1)).start,"18:15");
   store=startSession(store,id1,"2026-11-05","2026-11-05T18:15:00Z");
   assert.equal(store.sessions.length,1);
   assert.equal(store.sessions[0].exercises.length,day.exercises.length);
@@ -458,7 +458,8 @@ test("one-off workouts are date-specific, repeatable and preserve the recurring 
   store=deleteGymOccurrence(store,id1,"2026-11-05");
   assert.equal(store.sessions.length,0);
   assert.equal(store.oneOffWorkouts?.length,1);
-  assert.equal(assignmentsOnDate(store,"2026-11-05").length,0);
+  assert.equal(assignmentsOnDate(store,"2026-11-05").filter(o=>o.key===id1).length,0);
+  assert.equal(assignmentsOnDate(store,"2026-11-05").length,1,"recurring Thursday workout stays");
   assert.equal(assignmentsOnDate(store,"2026-11-04").length,1);
   assert.equal(assignmentsOnDate(store,"2026-11-09").length,1,"original recurring gym schedule remains");
   assert.equal(parseGymStore(JSON.stringify(store)).blocked,false);
