@@ -186,7 +186,11 @@ test("completed reading block with no page log explains that historical details 
       category: "Čtení", source: "user", priority: "normal",
     }];
     localStorage.setItem("dayframe-v1", JSON.stringify(state));
-    localStorage.removeItem("dayframe-reading-sessions-v1");
+    // This is a genuinely unlogged historical session: the user chose not
+    // to record pages, so the new-session prompt must not cover Week history.
+    localStorage.setItem("dayframe-reading-sessions-v1", JSON.stringify({
+      version: 1, entries: [], skippedTaskIds: [`${date}:unlogged-book`],
+    }));
   });
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Týden", exact: true }).click();
