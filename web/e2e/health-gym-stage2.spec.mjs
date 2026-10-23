@@ -930,7 +930,7 @@ test("forearm and grip exercises are searchable from Pull, can be saved into a p
 test("Week adds two independently dated Gym blocks without changing recurring plan or Gym journal",async({page})=>{
   await fresh(page);
   await createPlan(page,"Budoucí tréninky");
-  const base=await page.evaluate(()=>JSON.parse(localStorage.getItem(KEY)));
+  const base=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   const originalDays=JSON.stringify(base.plans[0].days);
   await page.getByRole("button",{name:"Týden",exact:true}).click();
   await page.getByRole("button",{name:"+ Trénink",exact:true}).click();
@@ -949,7 +949,7 @@ test("Week adds two independently dated Gym blocks without changing recurring pl
   await form.locator('input[type="time"]').first().fill("19:00");
   await form.getByLabel("Délka").selectOption("75");
   await form.getByRole("button",{name:"Naplánovat"}).click();
-  let data=await page.evaluate(()=>JSON.parse(localStorage.getItem(KEY)));
+  let data=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(data.oneOffWorkouts).toHaveLength(2);
   expect(data.oneOffWorkouts.map(x=>x.date)).toEqual(["2026-11-04","2026-11-04"]);
   expect(data.oneOffWorkouts.map(x=>x.duration)).toEqual([90,75]);
@@ -969,7 +969,7 @@ test("Week adds two independently dated Gym blocks without changing recurring pl
   await expect(gymRoot.locator("[data-gym-workout-preview]")).toBeVisible();
   await gymRoot.locator("[data-gym-workout-preview]").getByRole("button",{name:"Zahájit trénink"}).click();
   await expect(gymRoot.getByRole("region",{name:"Tréninkový deník"})).toBeVisible();
-  data=await page.evaluate(()=>JSON.parse(localStorage.getItem(KEY)));
+  data=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(data.sessions).toHaveLength(1);
   expect(data.sessions[0].occurrenceKey).toBe(data.oneOffWorkouts[0].id);
   expect(data.sessions[0].date).toBe("2026-11-04");
@@ -980,7 +980,7 @@ test("Week adds two independently dated Gym blocks without changing recurring pl
   page.on("dialog",dialog=>dialog.accept());
   await page.getByRole("button",{name:"Smazat trénink Lower ze dne 2026-11-04"}).click();
   await expect(page.locator("[data-week-gym^='manual-']")).toHaveCount(1);
-  data=await page.evaluate(()=>JSON.parse(localStorage.getItem(KEY)));
+  data=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(data.oneOffWorkouts).toHaveLength(1);
   expect(JSON.stringify(data.plans[0].days)).toBe(originalDays);
 });
@@ -999,7 +999,7 @@ test("Week Gym form does not create conflicting workouts or block legacy task cr
   await form.locator('input[type="time"]').first().fill("17:30");
   await form.getByRole("button",{name:"Naplánovat"}).click();
   await expect(form.getByText("Tento čas se překrývá s jiným blokem nebo cestou.")).toBeVisible();
-  let store=await page.evaluate(()=>JSON.parse(localStorage.getItem(KEY)));
+  let store=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(store.oneOffWorkouts).toHaveLength(1);
   await form.getByRole("combobox",{name:"Typ bloku"}).selectOption("task");
   await expect(page.getByRole("dialog",{name:"Přidat úkol"})).toBeVisible();
