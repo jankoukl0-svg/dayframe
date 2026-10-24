@@ -43,7 +43,7 @@ import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
 import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
-import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
+import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, setGymOccurrenceTime, setGymOccurrenceSchedule, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
 import {WeekTripLocationModal,type TripTarget} from "./week-trip-location";
@@ -85,6 +85,12 @@ type DropPreview = {
   duration: number;
   valid: boolean;
 };
+type GymResize = {
+  id:string; date:string; edge:"start"|"end";
+  originY:number; originalStart:number; originalDuration:number;
+  start:number; duration:number; valid:boolean;
+};
+type GymTimeEdit = {id:string; date:string; title:string; start:string; duration:number};
 
 type TaskCompletionToast = {
   id: string;
@@ -240,6 +246,10 @@ export function DayframeV2() {
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
+  const [gymResizePreview,setGymResizePreview]=useState<GymResize|null>(null);
+  const gymResizeRef=useRef<GymResize|null>(null);
+  const [editingGym,setEditingGym]=useState<GymTimeEdit|null>(null);
+  const [gymEditError,setGymEditError]=useState("");
   const [focusTask, setFocusTask] = useState<CalendarTask | null>(null);
   const [focusSeconds, setFocusSeconds] = useState(50 * 60);
   const [focusRunning, setFocusRunning] = useState(false);
@@ -662,6 +672,128 @@ export function DayframeV2() {
       && !intersectsTravel(date,minute,minute+duration)
       && ![...occupiedGym,...occupiedCare].some(t=>minute<t.end&&minute+duration>t.start);
   }
+  function gymOccurrenceSlotOpen(date:string,id:string,start:string,duration:number):boolean {
+    const minute=timeToMinutes(start),end=minute+duration;
+    const tasks=getTasksForDate(data,date);
+    const otherGym=assignmentsOnDate(gym.store,date)
+      .filter(item=>item.key!==id)
+      .map(item=>gymOccurrenceTime(gym.store,item))
+      .filter(t=>t.start!==null)
+      .map(t=>({start:timeToMinutes(t.start??undefined),end:timeToMinutes(t.start??undefined)+t.duration}));
+    const otherCare=weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
+      .map(t=>({start:timeToMinutes(t.start),end:timeToMinutes(t.start)+t.duration}));
+    const owner=travelBlockKey("gym",id,date);
+    const otherJourneys=reservedTravel(date).filter(item=>item.key!==owner);
+    if(!canPlaceAt(tasks,minute,duration)||intersectsTravel(date,minute,end,owner)
+      ||[...otherGym,...otherCare].some(block=>minute<block.end&&end>block.start))return false;
+    if(travelStore.blocks[owner]){
+      const projected=travelReservationsForDay(travelStore,date,[{
+        key:owner,date,start,end:minutesToTime(end),title:"",
+      }]);
+      const busy=[
+        ...tasks.filter(t=>t.start&&t.end).map(t=>({start:timeToMinutes(t.start),end:timeToMinutes(t.end)})),
+        ...otherGym,...otherCare,...otherJourneys.map(t=>({start:t.start,end:t.end})),
+      ];
+      if(projected.some(trip=>busy.some(other=>trip.start<other.end&&trip.end>other.start)))return false;
+    }
+    return true;
+  }
+
+  function gymChangeAllowed(date:string,start:string,duration:number,id:string):boolean {
+    const minute=timeToMinutes(start);
+    return Boolean(gym.hydrated&&!gym.blocked&&date>=todayKey
+      && (date!==todayKey||minute>planningMinute(now))
+      && Number.isFinite(minute)&&minute>=calendarBounds.dayStart
+      && minute%15===0&&Number.isInteger(duration)&&duration>=30&&duration<=180
+      && duration%15===0&&minute+duration<=calendarBounds.dayEnd
+      && gymOccurrenceSlotOpen(date,id,start,duration));
+  }
+
+  function commitGymTiming(id:string,date:string,start:string,duration:number):boolean {
+    let changed=false;
+    const saved=gym.persist(current=>{
+      const next=setGymOccurrenceTime(current,id,date,start,duration,planningDateKey(new Date()));
+      changed=next!==current;
+      return next;
+    });
+    if(!saved||!changed)return false;
+    moveSavedTrip("gym",id,date,date,start);
+    return true;
+  }
+
+  function gymResizeCandidate(draft:GymResize,clientY:number):GymResize {
+    const delta=Math.round((clientY-draft.originY)/(MINUTE_HEIGHT*15))*15;
+    const start=draft.edge==="start"?draft.originalStart+delta:draft.originalStart;
+    const duration=draft.edge==="start"?draft.originalDuration-delta:draft.originalDuration+delta;
+    const valid=Number.isInteger(start)&&start>=calendarBounds.dayStart
+      && start+duration<=calendarBounds.dayEnd&&duration>=30&&duration<=180
+      && gymChangeAllowed(draft.date,minutesToTime(start),duration,draft.id);
+    return {...draft,start,duration,valid};
+  }
+
+  function onGymResizeStart(event:React.PointerEvent<HTMLButtonElement>,
+    id:string,date:string,edge:"start"|"end",start:number,duration:number) {
+    if(event.button!==0||!gym.hydrated||gym.blocked)return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const draft:GymResize={id,date,edge,originY:event.clientY,originalStart:start,
+      originalDuration:duration,start,duration,valid:true};
+    gymResizeRef.current=draft;
+    setGymResizePreview(draft);
+    setDragging(null);
+    setDropPreview(null);
+  }
+
+  function onGymResizeMove(event:React.PointerEvent<HTMLButtonElement>) {
+    if(!gymResizeRef.current)return;
+    const candidate=gymResizeCandidate(gymResizeRef.current,event.clientY);
+    setGymResizePreview(candidate);
+  }
+
+  function onGymResizeEnd(event:React.PointerEvent<HTMLButtonElement>) {
+    const initial=gymResizeRef.current;
+    if(!initial)return;
+    const value=gymResizeCandidate(initial,event.clientY);
+    gymResizeRef.current=null;
+    setGymResizePreview(null);
+    if(value.start===initial.originalStart&&value.duration===initial.originalDuration)return;
+    if(!value.valid){
+      setNotice("Pro změnu délky není volný prostor nebo nový čas není povolen. Trénink zůstal beze změny.");
+      return;
+    }
+    if(!commitGymTiming(value.id,value.date,minutesToTime(value.start),value.duration))
+      setNotice("Čas tréninku se nepodařilo uložit.");
+  }
+
+  function saveEditedGym(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!editingGym)return;
+    const form=new FormData(event.currentTarget);
+    const date=String(form.get("date")||"");
+    const start=String(form.get("start")||"");
+    const duration=Number(form.get("duration"));
+    const from=editingGym.date;
+    if(!gymChangeAllowed(date,start,duration,editingGym.id)){
+      setGymEditError("Vyber budoucí čas bez kolizí, v délce 30–180 minut po 15 minutách.");
+      return;
+    }
+    let changed=false;
+    const saved=gym.persist(current=>{
+      const next=setGymOccurrenceSchedule(
+        current,editingGym.id,from,date,start,duration,planningDateKey(new Date()));
+      changed=next!==current;
+      return next;
+    });
+    if(!saved||!changed){
+      setGymEditError("Úpravu tréninku se nepodařilo uložit. Rozpracované nebo dokončené tréninky nelze přesouvat.");
+      return;
+    }
+    moveSavedTrip("gym",editingGym.id,from,date,start);
+    setEditingGym(null);
+    setGymEditError("");
+  }
+
   function careHasRecordedProgress(date: string, routineId: string): boolean {
     return Object.keys(care.store?.records[date]?.[routineId]?.states ?? {}).length > 0;
   }
@@ -1117,11 +1249,34 @@ export function DayframeV2() {
                           })}
                           {timedGym.map(({occ,time})=>{
                             if(!time.start)return null;
-                            const top=(timeToMinutes(time.start)-calendarBounds.dayStart)*MINUTE_HEIGHT;
-                            const height=time.duration*MINUTE_HEIGHT;
-                            const end=minutesToTime(timeToMinutes(time.start)+time.duration);
+                            const preview=gymResizePreview?.id===occ.key&&gymResizePreview.date===key?gymResizePreview:null;
+                            const fromMinute=preview?.start??timeToMinutes(time.start);
+                            const blockDuration=preview?.duration??time.duration;
+                            const top=(fromMinute-calendarBounds.dayStart)*MINUTE_HEIGHT;
+                            const height=blockDuration*MINUTE_HEIGHT;
+                            const start=minutesToTime(fromMinute);
+                            const end=minutesToTime(fromMinute+blockDuration);
+                            const adjustable=key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked
+                              &&(key!==todayKey||timeToMinutes(time.start)>planningMinute(now));
+                            const lane=lanePositions["gym:"+occ.key];
+                            // Leave room on both sides for independent Gym controls.
+                            // Particularly important for 30/45-minute cards: editing and
+                            // resize grips may not cover the right-side location pin.
+                            // Collision lanes can be just ~68px wide. Keep a usable
+                            // 14px resize grip centered in those lanes, instead of
+                            // subtracting fixed action widths until the grip vanishes.
+                            const lanePercent=lane?Number(lane.width.split("%")[0].replace("calc(","")):100;
+                            const narrowLane=lanePercent<=50;
+                            const controlsLeft=lane
+                              ?narrowLane
+                                ?"calc("+lane.left+" + "+(lanePercent/2).toFixed(5)+"% - 13px)"
+                                :"calc("+lane.left+" + 48px)"
+                              :"55px";
+                            const controlsWidth=lane
+                              ?narrowLane?"14px":"max(14px, calc("+lane.width+" - 77px))"
+                              :"max(14px, calc(100% - 90px))";
                             return <Fragment key={occ.key}><button type="button" data-week-gym={occ.key}
-                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}`}
+                              className={`df2-week-task df2-week-gym ${occ.completed?"done":""}${blockDuration<=45?" is-short":""}${preview&&!preview.valid?" is-resize-invalid":""}`}
                               style={{top:`${top}px`,height:`${height}px`,...(lanePositions["gym:"+occ.key]??{})}}
                               draggable={key>=todayKey&&!occ.session&&gym.hydrated&&!gym.blocked}
                               onDragStart={event=>{
@@ -1135,19 +1290,56 @@ export function DayframeV2() {
                                 setDropPreview({date:key,start:time.start!,duration:time.duration,valid:true});
                               }}
                               onDragEnd={()=>{setDragging(null);setDropPreview(null);}}
-                              title={occ.session?"Otevřít zahájený trénink v Gymu":"Přetáhni trénink na jiný čas nebo den; kliknutím otevřeš Gym"}
+                              title={occ.session?"Otevřít zahájený trénink v Gymu":"Přetáhni trénink na jiný čas nebo den; okrajem změň délku; kliknutím otevřeš Gym"}
                               onClick={()=>{setGymFocus({key:occ.key,date:key});setView("health");}}> 
-                              <span>{time.start}–{end}</span><strong>{occ.name}</strong>
+                              <span>{start}–{end}</span><strong>{occ.name}</strong>
                               <small>{occ.completed?"✓ Hotovo":occ.session?"Rozpracováno":"Gym & Tréninky"}</small>
                             </button>
-                              {travelPin("gym",occ.key,key,occ.name,time.start,top,lanePositions["gym:"+occ.key],end)}
+                              {travelPin("gym",occ.key,key,occ.name,start,top,lanePositions["gym:"+occ.key],end)}
+                              {adjustable && <>
+                                {(["start","end"] as const).map(edge=><button key={edge} type="button"
+                                  data-week-gym-resize={edge} data-gym-resize-key={occ.key}
+                                  className={"df2-week-gym-resize is-"+edge+(preview&&!preview.valid?" is-invalid":"")}
+                                  aria-label={(edge==="start"?"Změnit začátek":"Změnit konec")+" tréninku "+occ.name}
+                                  title={(edge==="start"?"Tažením horního okraje změň začátek.":"Tažením spodního okraje prodluž nebo zkrať trénink.")+" Šipkami lze měnit po 15 minutách."}
+                                  style={{top:top+(edge==="start"?0:height-7),left:controlsLeft,width:controlsWidth}}
+                                  onPointerDown={event=>onGymResizeStart(event,occ.key,key,edge,timeToMinutes(time.start!),time.duration)}
+                                  onPointerMove={onGymResizeMove}
+                                  onPointerUp={onGymResizeEnd}
+                                  onPointerCancel={()=>{gymResizeRef.current=null;setGymResizePreview(null);}}
+                                  onKeyDown={event=>{
+                                    if(event.key!=="ArrowUp"&&event.key!=="ArrowDown")return;
+                                    event.preventDefault();event.stopPropagation();
+                                    const difference=event.key==="ArrowUp"?-15:15;
+                                    const minute=timeToMinutes(time.start!)+(edge==="start"?difference:0);
+                                    const duration=time.duration+(edge==="start"?-difference:difference);
+                                    if(!gymChangeAllowed(key,minutesToTime(minute),duration,occ.key)
+                                      ||!commitGymTiming(occ.key,key,minutesToTime(minute),duration))
+                                      setNotice("Trénink nelze upravit: čas je obsazený nebo mimo povolený rozsah.");
+                                  }} />)}
+                                <button type="button" className="df2-week-gym-edit"
+                                  aria-label={"Upravit čas tréninku "+occ.name}
+                                  title="Upravit datum, začátek a délku tohoto tréninku"
+                                  style={{top:top+Math.max(2,Math.floor((height-18)/2)),
+                                    ...(lane?{left:"calc("+lane.left+" + 3px)",right:"auto"}:{left:"10px",right:"auto"})}}
+                                  onClick={event=>{
+                                    event.stopPropagation();
+                                    setEditingGym({id:occ.key,date:key,title:occ.name,start:time.start!,duration:time.duration});
+                                    setGymEditError("");
+                                  }}>✎</button>
+                              </>}
                               {(key<todayKey||occ.session||occ.key.startsWith("manual-"))&&gym.hydrated&&!gym.blocked&&<button
                                 type="button" className={"df2-week-gym-delete"+(occ.key.startsWith("manual-")?" is-manual":"")}
                                 aria-label={"Smazat trénink "+occ.name+" ze dne "+key}
                                 title="Smazat tento trénink z historie (ostatní týdny zůstanou)"
-                                style={{top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
-                                  ?{left:"calc("+lanePositions["gym:"+occ.key].left+" + "+
-                                     lanePositions["gym:"+occ.key].width+" - 23px)",right:"auto"}:{})}}
+                                style={occ.key.startsWith("manual-")&&height<40?{
+                                  top:top+Math.max(2,Math.floor((height-18)/2)),
+                                  ...(lane?{left:"calc("+lane.left+" + 25px)",right:"auto"}:{left:"32px",right:"auto"}),
+                                }:{
+                                  top:top+Math.max(15,height-19),...(lanePositions["gym:"+occ.key]
+                                    ?{left:"calc("+lanePositions["gym:"+occ.key].left+" + "+
+                                       lanePositions["gym:"+occ.key].width+" - 23px)",right:"auto"}:{}),
+                                }}
                                 onClick={event=>{
                                   event.stopPropagation();
                                   if(!window.confirm("Smazat trénink „"+occ.name+"“ ze dne "+key+
@@ -1338,6 +1530,36 @@ export function DayframeV2() {
             </label>
             {error && <p className="df2-error">{error}</p>}
             <div className="df2-modal-actions"><button className="df2-primary" type="submit" disabled={!hydrated || (addKind==="gym"?(!gym.hydrated||gym.blocked||!gymDayId||!draft.start):!draft.title.trim())}>Naplánovat</button><button type="button" onClick={closeAdd}>Zrušit</button></div>
+          </form>
+        </div>
+      )}
+
+      {editingGym && (
+        <div className="df2-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setEditingGym(null);}}>
+          <form className="df2-modal df2-week-gym-time-modal" role="dialog" aria-modal="true"
+            aria-labelledby="df2-week-gym-time-title" onSubmit={saveEditedGym}>
+            <header><div><h2 id="df2-week-gym-time-title">Upravit trénink</h2>
+              <small>{editingGym.title} · pouze tento termín</small></div>
+              <button type="button" aria-label="Zavřít" onClick={()=>setEditingGym(null)}>×</button>
+            </header>
+            <div className="df2-form-grid">
+              <label>Datum<input type="date" name="date" min={todayKey} defaultValue={editingGym.date}/></label>
+              <label>Začátek<input type="time" name="start" step={900} required defaultValue={editingGym.start}/></label>
+            </div>
+            <label>Délka<select name="duration" defaultValue={editingGym.duration}>
+              {Array.from({length:11},(_,i)=>30+i*15).map(minutes=>
+                <option key={minutes} value={minutes}>{minutes} min</option>)}
+            </select></label>
+            <p className="df2-week-gym-time-note">Tažením horního nebo spodního okraje bloku v Týdnu upravíš jeho délku po 15 minutách. Změna se týká jen tohoto výskytu, ne celého opakovaného rozpisu.</p>
+            {gymEditError&&<p className="df2-error" role="alert">{gymEditError}</p>}
+            <div className="df2-modal-actions">
+              <button className="df2-primary" type="submit">Uložit změny</button>
+              <button type="button" onClick={()=>{
+                setGymFocus({key:editingGym.id,date:editingGym.date});
+                setEditingGym(null);setView("health");
+              }}>Otevřít Gym</button>
+              <button type="button" onClick={()=>setEditingGym(null)}>Zrušit</button>
+            </div>
           </form>
         </div>
       )}
