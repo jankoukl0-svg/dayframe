@@ -1,17 +1,24 @@
 # Dayframe — aktuální předání pro nové chaty
 
-**Snapshot ověřen 23. 10. 2026 po PR #270.** Tento dokument slouží jako předávací kontext, **nikoli jako neměnný důkaz aktuálního stavu**. Na začátku každého nového vývojového úkolu znovu ověř GitHub `main`, poslední commity, otevřené PR a produkční deployment. Nezastavuj se u níže uvedeného historického SHA.
+**Snapshot ověřen 24. 10. 2026 po PR #272.** Tento dokument slouží jako předávací kontext, **nikoli jako neměnný důkaz aktuálního stavu**. Na začátku každého nového vývojového úkolu znovu ověř GitHub `main`, poslední commity, otevřené PR a produkční deployment. Nezastavuj se u níže uvedeného historického SHA.
 
 - Repo: https://github.com/jankoukl0-svg/dayframe
 - Produkce: https://dayframe2.vercel.app
 - Zdroj pravdy: větev `main`; aktivní produkt v `web/`.
 - Povinná pravidla: [AGENTS.md](AGENTS.md) a [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md).
-- Poslední produktový merge ověřený v `main`: `43ced839131be5233388d10b2e0633cffbf08f35`, [PR #270](https://github.com/jankoukl0-svg/dayframe/pull/270), 23. 10. 2026. Výchozí produktový SHA byl `763d8a1300387e1eeb92b8c03a0b02ee46e93cb8` (PR #269).
-- [PR #270](https://github.com/jankoukl0-svg/dayframe/pull/270) prošlo typovou kontrolou, jednotkovými testy, sestavením, cílenou Playwright sadou **196/196** a plnou browser regresí **4/4**, včetně závěrečného regression gate (GitHub Actions run `40021112779`). Code review P1/P2 opraveno a vlákna uzavřena.
-- Produkční Vercel alias `dayframe2.vercel.app` při poslední kontrole ukazoval na deployment `dpl_8S2DHkze3jhX8uQfV61G7ABr3Yia`, stav **READY**, GitHub SHA `43ced839131be5233388d10b2e0633cffbf08f35`. Toto je **snapshot, ne trvalá záruka**. Přímý produkční browser smoke z tohoto prostředí nebyl ověřitelný: Vercel konektor odmítl chráněný přístup 403, web fetch byl zakázán. Uživatelské vizuální ověření UI ještě zbývá; READY a alias nejsou jeho náhradou.
+- Poslední produktový merge ověřený v `main`: `ca9973112a52c100b7635df58f60f2f7d4289069`, [PR #272](https://github.com/jankoukl0-svg/dayframe/pull/272), 24. 10. 2026. Výchozí SHA byl `c0efb18ad9d6c1f56e037c538081e040e8d1f002` (dokumentační PR #271, po produktovém PR #270).
+- [PR #272](https://github.com/jankoukl0-svg/dayframe/pull/272) prošlo TypeScriptem, jednotkovými testy, sestavením, cílenou Playwright sadou a plnou regresí **4/4**, včetně závěrečného regression gate (GitHub Actions run `40033263387`, head `a8b4ee69e5bb7e8fd1616259c0f769d63b586dd9`). Předchozí neúspěšný běh odhalil proklikávání přes skrytou ikonu místa na 30min Gym bloku; opraveno a prokázáno E2E. Všechny P2 připomínky review (atomická změna datum+čas+délka, ovládací prvky krátkých bloků, úchyty v úzkých kolizních sloupcích) byly opraveny a uzavřeny. Historické PR #270 má také zelenou CI (`40021112779`).
+- Produkční Vercel alias `dayframe2.vercel.app` při poslední kontrole ukazoval na deployment `dpl_3uLYSWRp4EmXMAV8K3CLBAQSS86M`, stav **READY**, GitHub SHA `ca9973112a52c100b7635df58f60f2f7d4289069`. Toto je snapshot, ne trvalá záruka. **Přímý smoke test stále nepotvrzen:** `web_fetch_vercel_url` vrací 403 `read_protection_bypass` (nepovolená autorizace projektu/týmu). Konektor tedy ověřil nasazení/alias, nikoli uživatelské vykreslení; ověřit v přihlášeném prohlížeči.
 - Při aktualizaci tohoto souboru změň datum, přesné SHA, nasazení, změny a otevřená rizika; nepřepisuj ověřenou historii jako současnost.
 
 ## Co je naposledy implementováno
+
+### Gym: změna délky a času bloku v Týdnu (PR #272)
+
+- U budoucího nezahájeného Gym bloku lze horní/spodní hranou po **15 minutách** měnit začátek a konec, tj. zkracovat i prodlužovat. Klávesové šipky fungují na úchytech; samostatná ikona otevře dialog pro přesné datum, začátek a délku 30–180 minut. Kliknutí na hlavní kartu nadále otevírá skutečný Gym deník.
+- **Jednorázové** tréninky mění vlastní `oneOffWorkouts`; **opakovaný** výskyt mění jen výjimku `occurrenceTimes` pro daný termín, nikoliv rozpis všech týdnů. Kombinovaná změna data+začátku+délky je **atomická** (`setGymOccurrenceSchedule`) a neověřuje nový termín proti zastaralé délce. Již zahájené/completed sessions a historie zůstávají nedotčené. Kolize s jinými Gym/hygiena/úkoly/cestami i osobní časový rozsah se validují.
+- Opraveny interakce na **krátkých 30–45min Gym blocích**: ikona místa zůstává kliknutelná i bez hoveru; tlačítka editoru/smazání a resize úchyty se nepřekrývají. V úzkých collision lanes se úchyt nesmí zúžit na 0 px. Testy simulují reálné tažení, obnovu stránky, kolize, krátké tréninky, úzké sloupce, přesnou editaci a přechod přes půlnoc.
+- Změny v `web/lib/dayframe-gym.ts`, `web/app/dayframe-v2.tsx`, `web/app/dayframe-v2.css`, `web/app/week-trip-location.css`; regresní testy v `web/lib/dayframe-gym.test.mjs` a `web/e2e/health-gym-stage2.spec.mjs`. Žádná destruktivní migrace či změna storage klíčů. Přímé vizuální ověření produkce zatím blokováno 403 Vercel connectoru.
 
 ### Gym: přidávání tréninků přímo do Týdne (PR #270)
 
@@ -63,7 +70,7 @@ Při kontrole 23. 10. zůstávají otevřené historické PR, např. [#185](http
 
 ## Otevřená omezení a další krok
 
-- Poslední schválený požadavek: plánování jednorázových budoucích Gym tréninků přímo z Týdne (PR #270), implementováno a nasazeno; zbývá autentizované vizuální ověření kvůli omezení přístupu Vercel konektoru 403.
+- Poslední schválený požadavek: prodlužování/zkracování Gym bloků v Týdnu a přesná úprava jejich termínu (PR #272), implementováno a nasazeno. Zbývá autentizované vizuální ověření tažení, editoru a ikony místa na krátkém Gym bloku; Vercel konektor vrací 403.
 - **Další produktovou úpravu určí uživatel**; bez zadání nepřidávat funkce, neodstraňovat opakovaný rozpis a neslučovat historická otevřená PR.
 - Google Routes nevrací všechny možné MHD trasy, a proto nejsou alternativy vyčerpávající. Výpočty spojení a parkování nesmějí být vydávány za jistotu.
 - Dříve popsané nedodělky z 18. 9. jsou pouze historická pozorování a vyžadují novou verifikaci.
