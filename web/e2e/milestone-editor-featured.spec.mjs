@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 test("pins and unpins a milestone directly from its editor", async ({ page }) => {
+  // Frozen fixture date: these default milestones are intentionally upcoming.
+  await page.clock.install({time: new Date("2026-10-24T12:00:00+02:00")});
   await page.addInitScript(() => window.localStorage.clear());
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
 

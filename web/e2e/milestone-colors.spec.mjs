@@ -45,6 +45,8 @@ test("milestone color can be changed and persists after reload", async ({ page }
 });
 
 test("milestone filters use ten presets and keep custom colors separate", async ({ page }) => {
+  // Frozen fixture date: these default milestones are intentionally upcoming.
+  await page.clock.install({time: new Date("2026-10-24T12:00:00+02:00")});
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
