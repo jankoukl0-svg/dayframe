@@ -159,3 +159,86 @@
 .df2-supplements-daypart-picker button[aria-pressed=true]{background:var(--accent-wash);border-color:var(--accent-dark);color:var(--accent-dark)}
 .df2-supplements-daypart-picker p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
 @media(max-width:620px){.df2-supplements-time-group{padding:12px}.df2-supplements-daypart-picker button{flex:1 1 auto}}
+
+
+/* Supplement history: semantic analytics, not an undifferentiated intake log. */
+.df2-supplement-history-dashboard{display:grid;gap:18px;min-width:0}
+.df2-supplement-history-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.df2-supplement-history-toolbar h3{margin:0 0 6px;color:var(--ink);font-size:17px;letter-spacing:-.025em}
+.df2-supplement-history-toolbar p,.df2-supplement-history-footnote,.df2-supplement-history-info{margin:0;font-size:12px;line-height:1.6;color:var(--muted)}
+.df2-supplement-history-filters{display:flex;gap:3px;border:1px solid var(--line);border-radius:11px;padding:4px;background:var(--paper);flex-wrap:wrap}
+.df2-supplement-history-filters button{border:0;border-radius:7px;padding:9px 13px;background:transparent;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer}
+.df2-supplement-history-filters button[aria-pressed=true]{background:var(--accent-wash);color:var(--accent-dark)}
+.df2-supplement-history-custom{display:flex;gap:12px;flex-wrap:wrap}
+.df2-supplement-history-custom label{display:grid;gap:6px;font-size:11px;font-weight:700;color:var(--muted)}
+.df2-supplement-history-custom input{min-height:38px;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--ink);padding:7px 10px}
+.df2-supplement-history-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.df2-supplement-history-metrics article{min-width:0;display:flex;flex-direction:column;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:20px}
+.df2-supplement-history-metrics article.is-primary{background:color-mix(in srgb,var(--paper) 88%,var(--accent-wash))}
+.df2-supplement-history-metrics article>span,.df2-supplement-history-eyebrow{font-size:11px;color:var(--muted);font-weight:650}
+.df2-supplement-history-metrics article strong{font-size:29px;line-height:1.1;color:var(--ink);font-weight:750;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+.df2-supplement-history-metrics article small{font-size:10px;color:var(--muted);line-height:1.4}
+.df2-supplement-history-progress,.df2-supplement-history-product-progress{height:7px;border-radius:999px;overflow:hidden;background:var(--line)}
+.df2-supplement-history-progress>span,.df2-supplement-history-product-progress>span{display:block;height:100%;background:var(--accent-dark);border-radius:inherit}
+.df2-supplement-history-insight{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.df2-supplement-history-insight>div{display:grid;align-content:center;gap:5px;padding:19px 21px;border:1px solid var(--line);border-radius:13px;background:var(--paper)}
+.df2-supplement-history-insight strong{font-size:17px;color:var(--ink);font-weight:750}
+.df2-supplement-history-insight p{font-size:11px;line-height:1.5;color:var(--muted);margin:0}
+.df2-supplement-history-section{display:grid;gap:12px;min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:19px}
+.df2-supplement-history-section-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+.df2-supplement-history-section-head h3{margin:0;font-size:14px;letter-spacing:-.02em;color:var(--ink)}
+.df2-supplement-history-section-head>span{color:var(--muted);font-size:10px;line-height:1.5}
+.df2-supplement-history-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
+.df2-supplement-history-day{min-width:0;min-height:52px;border:1px solid var(--line);border-radius:9px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px;background:var(--paper)}
+.df2-supplement-history-day time{font-size:10px;color:var(--muted)}
+.df2-supplement-history-day strong{font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.df2-supplement-history-day.is-complete{background:#eaf4ed;border-color:#c2d9ca}
+.df2-supplement-history-day.is-partial{background:#fff4e4;border-color:#e9d4b3}
+.df2-supplement-history-day.is-skipped{background:#f6ebe9;border-color:#e6cdc9}
+.df2-supplement-history-day.is-unrecorded{background:var(--accent-wash)}
+.df2-supplement-history-products{display:grid;gap:13px}
+.df2-supplement-history-product{display:grid;grid-template-columns:minmax(0,1fr) minmax(70px,24%) 52px;gap:12px;align-items:center}
+.df2-supplement-history-product>div:first-child{min-width:0;display:grid;gap:4px}
+.df2-supplement-history-product strong{color:var(--ink);font-size:12px;overflow-wrap:anywhere}
+.df2-supplement-history-product small{color:var(--muted);font-size:10px;line-height:1.4}
+.df2-supplement-history-product b{color:var(--ink);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.df2-supplement-history-detail{display:grid;gap:8px}
+.df2-supplement-history-detail details{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--paper)}
+.df2-supplement-history-detail summary{list-style:none;display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;align-items:center;gap:14px;cursor:pointer;padding:13px 15px}
+.df2-supplement-history-detail summary::-webkit-details-marker,.df2-supplement-history-purchases summary::-webkit-details-marker{display:none}
+.df2-supplement-history-chevron{font-size:16px;color:var(--muted);transition:transform .15s}
+.df2-supplement-history-detail details[open] .df2-supplement-history-chevron{transform:rotate(180deg)}
+.df2-supplement-history-date{display:grid;gap:3px;min-width:0}
+.df2-supplement-history-date time{font-size:12px;font-weight:750;color:var(--ink)}
+.df2-supplement-history-date small{font-size:10px;color:var(--muted)}
+.df2-supplement-history-detail summary>strong{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.df2-supplement-history-badge{border-radius:999px;padding:5px 9px;background:var(--accent-wash);font-size:10px;font-weight:700;color:var(--muted);white-space:nowrap}
+.df2-supplement-history-badge.is-complete{background:#eaf4ed;color:#397053}
+.df2-supplement-history-badge.is-partial{background:#fff4e4;color:#8c621d}
+.df2-supplement-history-detail-body{display:grid;gap:14px;padding:15px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--paper) 96%,var(--accent-wash))}
+.df2-supplement-history-daypart{display:grid;gap:6px}
+.df2-supplement-history-daypart h4{font-size:11px;color:var(--muted);letter-spacing:.035em;margin:0 0 2px}
+.df2-supplement-history-dose{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:10px;font-size:11px;padding:6px 0}
+.df2-supplement-history-dose time{color:var(--muted)}
+.df2-supplement-history-dose strong{color:var(--ink);font-size:11px;overflow-wrap:anywhere}
+.df2-supplement-history-dose span{color:var(--muted);white-space:nowrap}
+.df2-supplement-history-dose span.is-taken{color:#397053}
+.df2-supplement-history-dose span.is-skipped{color:#9a5241}
+.df2-supplement-history-footnote button{background:none;border:0;padding:0;color:var(--accent-dark);font:inherit;font-weight:700;cursor:pointer}
+.df2-supplement-history-purchases{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.df2-supplement-history-purchases>summary{padding:16px 19px;cursor:pointer;font-weight:750;color:var(--ink);font-size:12px;display:flex;justify-content:space-between;gap:12px}
+.df2-supplement-history-purchases>summary span{font-size:11px;color:var(--muted);font-weight:500}
+.df2-supplement-history-purchases .df2-supplements-history{border:0;border-top:1px solid var(--line);border-radius:0}
+@media(max-width:900px){.df2-supplement-history-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){
+ .df2-supplement-history-metrics article{padding:15px}
+ .df2-supplement-history-metrics article strong{font-size:24px}
+ .df2-supplement-history-insight{grid-template-columns:1fr}
+ .df2-supplement-history-section{padding:13px}
+ .df2-supplement-history-days{gap:4px}
+ .df2-supplement-history-day{min-height:44px;border-radius:7px}
+ .df2-supplement-history-detail summary{grid-template-columns:12px minmax(0,1fr) auto;gap:8px;padding:11px}
+ .df2-supplement-history-detail summary .df2-supplement-history-badge{grid-column:2/-1;justify-self:start}
+ .df2-supplement-history-product{grid-template-columns:minmax(0,1fr) 52px}
+ .df2-supplement-history-product-progress{grid-column:1/-1;grid-row:2}
+}

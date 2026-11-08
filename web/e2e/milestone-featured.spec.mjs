@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 test("lets the user choose which milestone is shown on Today and remembers it", async ({ page }) => {
+  // Frozen fixture date: these default milestones are intentionally upcoming.
+  await page.clock.install({time: new Date("2026-10-24T12:00:00+02:00")});
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });

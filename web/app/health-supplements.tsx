@@ -6,10 +6,10 @@ import type {SupplementLookupMatch} from "@/lib/dayframe-supplement-lookup";
 import {deleteSupplementPhoto,saveSupplementPhoto,validSupplementPhoto} from "@/lib/dayframe-supplement-photos";
 import {readSupplementStore} from "@/lib/dayframe-supplements";
 import { useSupplementStore } from "./use-supplement-store";
+import { SupplementHistoryDashboard } from "./supplement-history-dashboard";
 import { buySupplement, lowStockSupplements, markSupplementIntake, newSupplement, supplementOccurrences,
-  supplementStats, withSupplementSchedule, markAllSupplementIntakes, supplementDaypartForTime,
+  withSupplementSchedule, markAllSupplementIntakes, supplementDaypartForTime,
   SUPPLEMENT_DAYPARTS, type Supplement, type SupplementDaypart } from "@/lib/dayframe-supplements";
-import { addDaysKey } from "@/lib/dayframe-calendar";
 
 type Tab="today"|"library"|"shopping"|"history";
 const DAYS=["Ne","Po","Út","St","Čt","Pá","So"];
@@ -56,9 +56,6 @@ export function SupplementsPage({today}:{today:string}){
     setDraftTimes(times.sort().join(", "));
   };
   const low=useMemo(()=>lowStockSupplements(store),[store]);
-  const stats=useMemo(()=>supplementStats(store,addDaysKey(today,-29),today),[store,today]);
-  const records=store.intakes.filter(x=>x.date>=addDaysKey(today,-29)&&x.date<=today)
-    .slice().sort((a,b)=>b.date.localeCompare(a.date)||b.time.localeCompare(a.time));
   const showEdit=(item:Supplement)=>{
     setDraft({...item,weekdays:[...item.weekdays],times:[...item.times]});
     setStockAtOpen(item.stock);
@@ -320,21 +317,7 @@ export function SupplementsPage({today}:{today:string}){
         </article>)}
       </div>:<p className="df2-health-empty">Žádný suplement není pod minimální zásobou ani ručně označený k nákupu.</p>}
     </div>}
-    {tab==="history"&&<div className="df2-supplements-main" data-supplements-history>
-      <div className="df2-gym-section-head"><h3>Posledních 30 dní</h3></div>
-      <div className="df2-supplements-stats"><article><small>Plánované dávky</small><strong>{stats.planned}</strong></article>
-        <article><small>Užito</small><strong>{stats.taken}</strong></article>
-        <article><small>Vynecháno</small><strong>{stats.skipped}</strong></article></div>
-      {records.length?<div className="df2-supplements-history">
-        {records.map(r=><div key={r.key}><time dateTime={r.date}>{r.date} · {r.time}</time>
-          <strong>{store.supplements.find(x=>x.id===r.supplementId)?.name||"Dřívější suplement"}</strong>
-          <span>{r.status==="taken"?"✓ Užito":"Vynecháno"}</span></div>)}
-      </div>:<p className="df2-health-empty">Historie zatím neobsahuje žádné záznamy.</p>}
-      {store.purchases.length>0&&<><h3>Historie nákupů</h3><div className="df2-supplements-history">
-        {store.purchases.slice().reverse().map(p=><div key={p.id}><time dateTime={p.date}>{p.date}</time>
-          <strong>{store.supplements.find(x=>x.id===p.supplementId)?.name||"Dřívější suplement"}</strong>
-          <span>+ {czNum(p.servings)}{p.paidCzk===null?"":" · "+czNum(p.paidCzk)+" Kč"}</span></div>)}</div></>}
-    </div>}
+    {tab==="history"&&<div className="df2-supplements-main"><SupplementHistoryDashboard store={store} today={today} onToday={()=>setTab("today")}/></div>}
     {draft&&<div className="df2-modal-backdrop" onMouseDown={e=>{if(!photoBusy&&!autoPhotoBusy&&e.target===e.currentTarget)setDraft(null);}}>
       <section className="df2-modal df2-hygiene-modal df2-supplements-editor" role="dialog" aria-modal="true" aria-label="Editor suplementu">
         <header><div><h2>{store.supplements.some(x=>x.id===draft.id)?"Upravit suplement":"Nový suplement"}</h2></div>
