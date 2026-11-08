@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import {actualActivityMinutes,activityCategory} from "@/lib/dayframe-activity-analytics";
 
 type Task = {
   id: string;
@@ -11,7 +10,6 @@ type Task = {
   duration: number;
   category?: string;
   completed: boolean;
-  actualMinutes?: number;
 };
 
 type StoredState = { plans?: Record<string, Task[]> };
@@ -43,7 +41,7 @@ function readState(): StoredState {
 }
 
 function blockMinutes(task: Task) {
-  return actualActivityMinutes(task);
+  return Math.max(0, task.duration || 0);
 }
 
 function formatMinutes(minutes: number) {
@@ -89,7 +87,7 @@ export function WeeklyReviewController() {
     const dayRows = Array.from({ length: 7 }, (_, index) => {
       const date = addDays(monday, index);
       const key = localDateKey(date);
-      const tasks = key <= today ? (state.plans?.[key] ?? []).filter(task => activityCategory(task.category) !== "Osobní") : [];
+      const tasks = key <= today ? state.plans?.[key] ?? [] : [];
       const completed = tasks.filter((task) => task.completed);
       return {
         key,
@@ -108,7 +106,7 @@ export function WeeklyReviewController() {
     const categories = new Map<string, number>();
     for (const day of dayRows) {
       for (const task of day.tasks) {
-        const category = activityCategory(task.category);
+        const category = task.category || "Ostatní";
         categories.set(category, (categories.get(category) ?? 0) + blockMinutes(task));
       }
     }
