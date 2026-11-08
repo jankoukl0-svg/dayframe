@@ -93,6 +93,7 @@ for (const file of changed) {
     || lower.includes("dayframe-activity-analytics") || lower.includes("history-soft-ui")) {
     add("history-overview.spec.mjs");
     add("overview-reading-order.spec.mjs");
+    add("weekly-review.spec.mjs");
   }
 
   if (lower.includes("reading")) {
