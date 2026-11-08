@@ -260,13 +260,8 @@ export function ReadingMetadataController() {
         return;
       }
 
-      let history = card.querySelector<HTMLElement>("[data-reading-book-history-host]");
-      if (!history) {
-        history = document.createElement("div");
-        history.dataset.readingBookHistoryHost = "true";
-        history.className = "df2-reading-book-history-host";
-        card.appendChild(history);
-      }
+      // Stable React-owned host; never append children into a React card.
+      const history = card.querySelector<HTMLElement>("[data-reading-book-history-host]");
       setHistoryHost((current) => current === history ? current : history);
 
       const modal = document.querySelector<HTMLElement>(".df2-reading-modal");
