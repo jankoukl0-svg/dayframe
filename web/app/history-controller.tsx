@@ -524,6 +524,9 @@ export function HistoryController() {
             </div>
           </section>
         </div>
+        {/* Portal target is React-owned. Imperative reparenting used to crash
+            React when switching historical periods after adding activity charts. */}
+        <div data-reading-overview-host="true" className="df2-reading-overview-host" />
       </section>
     ) : null,
     screenHost,
