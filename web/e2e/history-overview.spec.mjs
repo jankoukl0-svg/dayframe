@@ -199,3 +199,58 @@ test("overview returns to the light theme when opened from focus", async ({ page
   await expect.poll(() => main.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightMainBackground);
   await expect.poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(lightSidebarBackground);
 });
+
+
+test("overview shows exact time by every activity, with searchable log, filters and source labels", async ({page}) => {
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", {waitUntil:"networkidle"});
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("dayframe-v1"));
+    const now = new Date(), date = [now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+    const make = (id,title,category,duration,actualMinutes,start="09:00",completed=true) => ({
+      id,title,category,duration,...(actualMinutes===null?{}:{actualMinutes}),date,start,end:"12:00",
+      requestedStart:start,source:"user",priority:"normal",mode:"fixed",completed,createdAt:now.toISOString(),
+    });
+    state.routines=[]; state.plans={[date]:[
+      make("finance-1","Valuace","Finance",60,95,"09:00"),
+      make("finance-2","Equity Research","Finance",30,30,"10:00"),
+      make("math-1","Logaritmy","Matematika",40,null,"11:00"),
+      make("personal","Večeře","Osobní",120,120,"12:00"),
+      make("pending","Nedokončené","Finance",50,null,"13:00",false),
+    ]};
+    localStorage.setItem("dayframe-v1",JSON.stringify(state));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:/Přehled/}).click();
+  const history=page.locator(".df2-history-view");
+  await expect(history.locator(".df2-overview-summary")).toContainText("2 h 45 min");
+  const chart=history.locator("[data-activity-breakdown]");
+  await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(3);
+  await expect(chart.locator("[data-activity-chart-row]").first()).toContainText("Valuace");
+  await expect(chart.locator("[data-activity-chart-row]").first()).toContainText("1 h 35 min");
+  await expect(history.locator('.df2-overview-list-row[data-category="Finance"]')).toContainText("2 h 5 min");
+  await expect(history.locator('.df2-overview-list-row[data-category="Matematika"]')).toContainText("40 min");
+  const day=history.locator("[data-activity-ledger] [data-activity-day]");
+  await expect(day).toHaveCount(1);
+  await day.getByRole("button",{name:/3 bloky/}).click();
+  await expect(day.locator("[data-activity-record-source=measured]")).toHaveCount(2);
+  await expect(day.locator("[data-activity-record-source=scheduled]")).toHaveCount(1);
+  await expect(day).not.toContainText("Večeře");
+  await expect(day).not.toContainText("Nedokončené");
+  await chart.getByRole("combobox",{name:"Filtrovat oblast"}).selectOption("Finance");
+  await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(2);
+  await expect(day).not.toContainText("Logaritmy");
+  await chart.getByRole("searchbox",{name:"Hledat činnost"}).fill("valuace");
+  await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(1);
+  await expect(day).toContainText("Valuace");
+  await expect(day).not.toContainText("Equity Research");
+  await chart.getByRole("searchbox",{name:"Hledat činnost"}).fill("");
+  await chart.locator("[data-activity-chart-row]").first().click();
+  await expect(chart.getByRole("button",{name:"Zrušit výběr"})).toBeVisible();
+  await expect(day).not.toContainText("Equity Research");
+  await history.getByRole("button",{name:"Měsíc"}).click();
+  await expect(history.locator(".df2-overview-summary")).toContainText("2 h 45 min");
+  await page.setViewportSize({width:390,height:844});
+  const tooWide=await chart.evaluate(node=>node.scrollWidth>node.clientWidth+3);
+  expect(tooWide).toBe(false);
+});

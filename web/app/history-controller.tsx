@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import {actualActivityMinutes, buildActivityLedger} from "@/lib/dayframe-activity-analytics";
+import {OverviewActivityDetail} from "./overview-activity-detail";
 
 type Task = {
   id: string;
@@ -10,6 +12,7 @@ type Task = {
   duration: number;
   category?: string;
   completed: boolean;
+  actualMinutes?: number;
 };
 
 type StoredState = { plans?: Record<string, Task[]> };
@@ -145,7 +148,7 @@ function formatMinutes(minutes: number) {
 }
 
 function completedBlockDuration(task: Task) {
-  return Math.max(0, task.duration || 0);
+  return actualActivityMinutes(task);
 }
 
 function colorForCategory(category: string, colors: Record<string, string>) {
@@ -358,6 +361,7 @@ export function HistoryController() {
   const previousRange = useMemo(() => comparablePreviousRange(mode, range, now), [mode, range, now]);
   const previousSummary = useMemo(() => summarizeRange(state, previousRange, now), [state, previousRange, now]);
   const buckets = useMemo(() => buildTrendBuckets(mode, state, range, now), [mode, state, range, now]);
+  const ledger = useMemo(() => buildActivityLedger(state.plans, localDateKey(range.start), localDateKey(range.end), localDateKey(now)), [state, range, now]);
   const maxBucketMinutes = Math.max(1, ...buckets.map((bucket) => bucket.minutes));
   const isCurrent = samePeriod(mode, anchor, now);
 
@@ -477,13 +481,15 @@ export function HistoryController() {
           </div>
         </section>
 
+        <OverviewActivityDetail ledger={ledger} colors={labelColors} />
+
         <div className="df2-overview-bottom-grid">
           <section className="df2-history-categories">
             <div className="df2-overview-section-head">
               <h2>Oblasti</h2>
             </div>
             <div className="df2-overview-list">
-              {summary.categories.length ? summary.categories.slice(0, 3).map(([category, minutes]) => (
+              {summary.categories.length ? summary.categories.map(([category, minutes]) => (
                 <div className="df2-overview-list-row" key={category} data-category={category}>
                   <span>
                     <i aria-hidden="true" style={{ backgroundColor: colorForCategory(category, labelColors) }} />
