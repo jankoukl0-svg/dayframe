@@ -58,6 +58,7 @@ test("overview keeps learning history while showing a minimal progress summary",
   const history = page.locator(".df2-history-view");
   await expect(history).toBeVisible();
   await expect(history.locator(".df2-overview-summary")).toContainText("1 h 45 min");
+  await expect(history.locator(".df2-weekly-review")).toContainText("1 h 45 min");
   await expect(history.locator(".df2-overview-summary")).toContainText("3 z 3 bloků");
   await expect(history.locator("[data-activity-chart-row]")).toHaveCount(3);
   await expect(history.locator("[data-activity-ledger]")).toContainText("Matematika");
