@@ -1,17 +1,24 @@
 # Dayframe — aktuální předání pro nové chaty
 
-**Snapshot ověřen 24. 10. 2026 po PR #272.** Tento dokument slouží jako předávací kontext, **nikoli jako neměnný důkaz aktuálního stavu**. Na začátku každého nového vývojového úkolu znovu ověř GitHub `main`, poslední commity, otevřené PR a produkční deployment. Nezastavuj se u níže uvedeného historického SHA.
+**Snapshot ověřen 8. 11. 2026 po PR #274.** Tento handoff není neměnný důkaz stavu: před každým úkolem znovu načti skutečný GitHub `main`, PR a produkční deployment.
 
 - Repo: https://github.com/jankoukl0-svg/dayframe
 - Produkce: https://dayframe2.vercel.app
-- Zdroj pravdy: větev `main`; aktivní produkt v `web/`.
-- Povinná pravidla: [AGENTS.md](AGENTS.md) a [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md).
-- Poslední produktový merge ověřený v `main`: `ca9973112a52c100b7635df58f60f2f7d4289069`, [PR #272](https://github.com/jankoukl0-svg/dayframe/pull/272), 24. 10. 2026. Výchozí SHA byl `c0efb18ad9d6c1f56e037c538081e040e8d1f002` (dokumentační PR #271, po produktovém PR #270).
-- [PR #272](https://github.com/jankoukl0-svg/dayframe/pull/272) prošlo TypeScriptem, jednotkovými testy, sestavením, cílenou Playwright sadou a plnou regresí **4/4**, včetně závěrečného regression gate (GitHub Actions run `40033263387`, head `a8b4ee69e5bb7e8fd1616259c0f769d63b586dd9`). Předchozí neúspěšný běh odhalil proklikávání přes skrytou ikonu místa na 30min Gym bloku; opraveno a prokázáno E2E. Všechny P2 připomínky review (atomická změna datum+čas+délka, ovládací prvky krátkých bloků, úchyty v úzkých kolizních sloupcích) byly opraveny a uzavřeny. Historické PR #270 má také zelenou CI (`40021112779`).
-- Produkční Vercel alias `dayframe2.vercel.app` při poslední kontrole ukazoval na deployment `dpl_3uLYSWRp4EmXMAV8K3CLBAQSS86M`, stav **READY**, GitHub SHA `ca9973112a52c100b7635df58f60f2f7d4289069`. Toto je snapshot, ne trvalá záruka. **Přímý smoke test stále nepotvrzen:** `web_fetch_vercel_url` vrací 403 `read_protection_bypass` (nepovolená autorizace projektu/týmu). Konektor tedy ověřil nasazení/alias, nikoli uživatelské vykreslení; ověřit v přihlášeném prohlížeči.
-- Při aktualizaci tohoto souboru změň datum, přesné SHA, nasazení, změny a otevřená rizika; nepřepisuj ověřenou historii jako současnost.
+- Zdroj pravdy: `main`; aktivní produkt `web/`.
+- Povinná pravidla: [AGENTS.md](AGENTS.md), [docs/DEVELOPMENT_PROTOCOL.md](docs/DEVELOPMENT_PROTOCOL.md).
+- Poslední produktový merge: `960d51c76ba2329fec6cd835e6c11bfd4f5ea080` (PR [#274](https://github.com/jankoukl0-svg/dayframe/pull/274), 8. 11. 2026), výchozí `main` `729649bd724efa4829804d5ecbe1d1b7fe6854ca`. Předchozí produktové PR #272 / Gym resize zůstává součástí produktu.
+- PR #274: poslední kandidát `501ddbefa274753b417deef16d411744adac6d85`, GitHub Actions [run 42478013832](https://github.com/jankoukl0-svg/dayframe/actions/runs/42478013832): typecheck, unit, build, cílené Playwright a **plná regrese 4/4 včetně gate PASS**. Aktuální-head Codex review bez nálezů, žádná otevřená review vlákna. Čtyři nesouvisející historické milníkové testy potřebovaly zmrazení data na 24. 10. 2026 kvůli uplynutí seed termínů 31. 10. a 5. 11.; samotná produktová logika milníků nebyla změněna.
+- Produkce: Vercel deployment `dpl_v2PywZoqoqVQ8s8sTYvgCKmubofC` je **READY**, produkční alias `dayframe2.vercel.app` odpovídá právě `960d51c76ba2329fec6cd835e6c11bfd4f5ea080`. Přímý autentizovaný browser smoke z konektoru **nelze potvrdit**: `web_fetch_vercel_url` vrací 403 `read_protection_bypass` kvůli chybějícím oprávněním týmu. Přihlášené manuální ověření UI a mobilního zobrazení stále zbývá. READY a alias nejsou náhradou smoke.
+- Po dalších změnách vždy aktualizuj datum, produktový commit, přesné CI/review, deployment a otevřené blokace.
 
 ## Co je naposledy implementováno
+
+### Suplementy: přehledná historie a plnění plánu (PR #274)
+
+- Karta Historie již není surovým seznamem dávkování: **7 / 30 / 90 dní, vlastní období (max. 366 dní)**, metriky plnění (skutečně užito / naplánováno), výslovně vynechaných dávek a *bez záznamu*. **Nezaměňovat bez záznamu za vynecháno**; minulá neodkliknutá dávka automaticky neznamená, že nebyla užita. Skutečný procentní podíl vychází z historického rozvrhu a potvrzených dávek, nikdy z budoucnosti.
+- Denní heatmap-like přehled, série plně splněných plánovaných dní, srovnání plnění jednotlivých suplementů, rozklikávací denní historie po Ráno / Odpoledne / Před spaním. Historie nákupů je zachována v samostatném rozbalovacím přehledu. Streak ignoruje dnešní neúplné dávky a dny bez plánu.
+- Jen **read-only odvozená analytika** nad `dayframe-supplements-v1`, `supplementOccurrences`, `scheduleHistory` a `intakes`. Žádná migrace, změna storage schema, zásob, odškrtávání nebo propojení s Dnes/Hygienou. Nová logika `web/lib/dayframe-supplement-history.ts`, nová komponenta `web/app/supplement-history-dashboard.tsx`, existující `web/app/health-supplements.tsx` a `health-supplements.css`; jednotkové testy `web/lib/dayframe-supplement-history.test.mjs` a E2E ve `health-supplements-stage3.spec.mjs`.
+- Před další změnou prověřit hraniční případy podle reálného uživatelského snapshotu a autentizované vizuální chování na desktopu i mobilu. Poslední ověřený Vercel stav READY, ale smoke 403 zůstává otevřený.
 
 ### Gym: změna délky a času bloku v Týdnu (PR #272)
 
@@ -70,7 +77,7 @@ Při kontrole 23. 10. zůstávají otevřené historické PR, např. [#185](http
 
 ## Otevřená omezení a další krok
 
-- Poslední schválený požadavek: prodlužování/zkracování Gym bloků v Týdnu a přesná úprava jejich termínu (PR #272), implementováno a nasazeno. Zbývá autentizované vizuální ověření tažení, editoru a ikony místa na krátkém Gym bloku; Vercel konektor vrací 403.
+- Poslední schválený požadavek: nová smysluplná historie suplementů (PR #274), implementováno a nasazeno. Nezávisle na READY zbývá autentizovaný UI smoke kvůli Vercel 403. Ze staršího PR #272 nadále zbývá uživatelská vizuální kontrola krátkých Gym bloků.
 - **Další produktovou úpravu určí uživatel**; bez zadání nepřidávat funkce, neodstraňovat opakovaný rozpis a neslučovat historická otevřená PR.
 - Google Routes nevrací všechny možné MHD trasy, a proto nejsou alternativy vyčerpávající. Výpočty spojení a parkování nesmějí být vydávány za jistotu.
 - Dříve popsané nedodělky z 18. 9. jsou pouze historická pozorování a vyžadují novou verifikaci.
