@@ -578,6 +578,7 @@ export function ReadingOverviewController() {
             {activeBooks.length ? "Přidat další knihu" : "Přidat knihu"}
           </button>
         </div>
+        <span data-reading-library-button-host="true" className="df2-reading-library-button-host" />
       </div>
 
       <div className="df2-reading-library-grid">
@@ -650,6 +651,7 @@ export function ReadingOverviewController() {
           <span>dní nejdelší série</span>
         </div>
       </div>
+      <div data-reading-book-history-host="true" className="df2-reading-book-history-host" />
     </section>,
     host,
   );
