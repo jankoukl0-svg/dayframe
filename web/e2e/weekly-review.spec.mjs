@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("overview keeps learning history while showing a minimal progress summary", async ({ page }) => {
+  page.on("pageerror", error => console.error("OVERVIEW_PAGEERROR", error.stack || error.message));
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -73,6 +74,12 @@ test("overview keeps learning history while showing a minimal progress summary",
   await expect(history).toHaveAttribute("data-history-mode", "month");
   await expect(history.locator(".df2-history-bars article")).toHaveCount(5);
   await history.locator(".df2-history-period-grid").getByRole("button", { name: new RegExp(fixture.previousMonthLabel, "i") }).click();
+  console.log("OVERVIEW_NAV_DIAGNOSTIC", await page.evaluate(() => ({
+    url:location.href,
+    root:document.querySelector(".df2-root")?.className,
+    history:document.querySelector(".df2-history-view")?.outerHTML.slice(0,350),
+    main:document.querySelector(".df2-main")?.innerText.slice(0,350),
+  })));
   await expect(history.locator(".df2-overview-summary")).toContainText("7 min");
   await expect(history.locator(".df2-history-categories")).toContainText("Matika");
 
