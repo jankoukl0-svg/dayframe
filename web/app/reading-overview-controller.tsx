@@ -389,13 +389,10 @@ export function ReadingOverviewController() {
         return;
       }
 
-      let nextHost = view.querySelector<HTMLElement>("[data-reading-overview-host]");
-      if (!nextHost) {
-        nextHost = document.createElement("div");
-        nextHost.dataset.readingOverviewHost = "true";
-        nextHost.className = "df2-reading-overview-host";
-        trend.insertAdjacentElement("afterend", nextHost);
-      }
+      // HistoryController owns this portal target. Never insert/move React's
+      // children directly: that caused removeChild NotFoundError on navigation.
+      const nextHost = view.querySelector<HTMLElement>("[data-reading-overview-host]");
+      if (!nextHost) return;
       setHost((current) => current === nextHost ? current : nextHost);
 
       const parsed = parseRange(view);
