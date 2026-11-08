@@ -40,7 +40,10 @@ function addPrefix(prefix) {
 
 for (const file of changed) {
   if (file.startsWith("web/e2e/") && file.endsWith(".spec.mjs")) {
+    // Directly modified specs must be selected, while their broad topic suites
+    // remain covered by the mandatory full regression rather than the fast gate.
     add(path.basename(file));
+    continue;
   }
 
   const lower = file.toLowerCase();
