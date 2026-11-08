@@ -728,6 +728,6 @@ test("supplements history shows a meaningful grouped daily breakdown and period 
   await history.getByRole("button",{name:"7 dní"}).click();
   await expect(history.locator("[data-supplement-history-day]")).toHaveCount(1);
   await history.getByRole("button",{name:"Vlastní"}).click();
-  await expect(history.getByRole("textbox",{name:"Od data"})).toBeVisible();
-  await expect(history.getByRole("textbox",{name:"Do data"})).toBeVisible();
+  await expect(history.getByLabel("Od data")).toBeVisible();
+  await expect(history.getByLabel("Do data")).toBeVisible();
 });

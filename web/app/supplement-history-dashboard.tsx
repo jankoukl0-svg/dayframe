@@ -93,7 +93,7 @@ export function SupplementHistoryDashboard({store, today, onToday}: {
       <section className="df2-supplement-history-section" aria-labelledby="supp-history-detail">
         <div className="df2-supplement-history-section-head"><h3 id="supp-history-detail">Denní historie</h3><span>Rozklikni den pro jednotlivé dávky</span></div>
         <div className="df2-supplement-history-detail">
-          {activeDays.length ? activeDays.map((day,index) => <details key={day.date} data-supplement-history-day={day.date} open={undefined} defaultOpen={index === 0}>
+          {activeDays.length ? activeDays.map((day,index) => <details key={day.date} data-supplement-history-day={day.date} open={index === 0}>
             <summary><span className="df2-supplement-history-chevron" aria-hidden="true">⌄</span>
               <span className="df2-supplement-history-date"><time dateTime={day.date}>{dateLabel(day.date)}</time>
                 <small>{DAY_FORMAT.format(new Date(day.date + "T12:00:00"))}</small></span>
