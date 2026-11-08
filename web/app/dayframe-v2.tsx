@@ -109,7 +109,24 @@ const emptyDraft = (): Draft => ({
   repeat: "none",
 });
 
-const categories = ["Studium", "Finance", "Matika", "Angličtina", "VŠE AJ", "Ekonomie", "Opakování", "Plánování", "Rutina", "Osobní"];
+const DEFAULT_TASK_CATEGORIES = ["Studium", "Finance", "Matika", "Angličtina", "VŠE AJ", "Ekonomie", "Opakování", "Plánování", "Rutina", "Osobní", "Flex blok"];
+const LABELS_STORAGE_KEY = "dayframe-labels-v1";
+const LABELS_SYNC_EVENT = "dayframe-labels-sync";
+
+/** React owns every option; never rewrite its children from a DOM controller. */
+function availableTaskCategories(data: DayframeState, draftCategory: string, editCategory?: string): string[] {
+  let stored: unknown = null;
+  try { stored = JSON.parse(window.localStorage.getItem(LABELS_STORAGE_KEY) || "null"); }
+  catch { /* Legacy/corrupt storage retains the defaults. */ }
+  const labels = Array.isArray(stored) ? stored.filter((value): value is string => typeof value === "string") : DEFAULT_TASK_CATEGORIES;
+  const used = [...Object.values(data.plans).flat(), ...data.backlog, ...data.routines].map(task => task.category);
+  const unique = new Map<string, string>();
+  for (const item of [...labels, ...used, draftCategory, editCategory]) {
+    const value = typeof item === "string" ? item.trim().replace(/\\s+/g, " ") : "";
+    if (value && !unique.has(value.toLocaleLowerCase("cs-CZ"))) unique.set(value.toLocaleLowerCase("cs-CZ"), value);
+  }
+  return [...unique.values()];
+}
 
 function formatDay(date: Date) {
   return new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long" }).format(date);
@@ -157,6 +174,7 @@ export function DayframeV2() {
   const [view, setView] = useState<View>("today");
   const [weekOffset, setWeekOffset] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
+  const [labelsRevision, setLabelsRevision] = useState(0);
   const [addingTask, setAddingTask] = useState(false);
   const [addKind, setAddKind] = useState<"task"|"gym">("task");
   const [gymDayId, setGymDayId] = useState("");
@@ -273,6 +291,23 @@ export function DayframeV2() {
   const todayKey = planningDateKey(now);
   const care = useWeekCare(todayKey);
   const sleepTodayKey = sleepCalendarDateKey(now);
+
+  useEffect(() => {
+    const refresh = () => setLabelsRevision(value => value + 1);
+    window.addEventListener(LABELS_SYNC_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(LABELS_SYNC_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const categories = useMemo(
+    () => typeof window === "undefined"
+      ? DEFAULT_TASK_CATEGORIES
+      : availableTaskCategories(data, draft.category, editing?.category),
+    [data, draft.category, editing?.category, labelsRevision],
+  );
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(new Date()), 1000);

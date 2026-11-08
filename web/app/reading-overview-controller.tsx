@@ -389,10 +389,13 @@ export function ReadingOverviewController() {
         return;
       }
 
-      // HistoryController owns this portal target. Never insert/move React's
-      // children directly: that caused removeChild NotFoundError on navigation.
-      const nextHost = view.querySelector<HTMLElement>("[data-reading-overview-host]");
-      if (!nextHost) return;
+      let nextHost = view.querySelector<HTMLElement>("[data-reading-overview-host]");
+      if (!nextHost) {
+        nextHost = document.createElement("div");
+        nextHost.dataset.readingOverviewHost = "true";
+        nextHost.className = "df2-reading-overview-host";
+        trend.insertAdjacentElement("afterend", nextHost);
+      }
       setHost((current) => current === nextHost ? current : nextHost);
 
       const parsed = parseRange(view);
@@ -578,7 +581,6 @@ export function ReadingOverviewController() {
             {activeBooks.length ? "Přidat další knihu" : "Přidat knihu"}
           </button>
         </div>
-        <span data-reading-library-button-host="true" className="df2-reading-library-button-host" />
       </div>
 
       <div className="df2-reading-library-grid">
@@ -651,8 +653,6 @@ export function ReadingOverviewController() {
           <span>dní nejdelší série</span>
         </div>
       </div>
-      <div data-reading-book-history-host="true" className="df2-reading-book-history-host" />
-      <div data-reading-session-history-host="true" className="df2-reading-session-history-host" />
     </section>,
     host,
   );

@@ -429,7 +429,13 @@ export function ReadingSessionLogController() {
         return;
       }
 
-      const host = card.querySelector<HTMLElement>("[data-reading-session-history-host]");
+      let host = card.querySelector<HTMLElement>("[data-reading-session-history-host]");
+      if (!host) {
+        host = document.createElement("div");
+        host.dataset.readingSessionHistoryHost = "true";
+        host.className = "df2-reading-session-history-host";
+        card.appendChild(host);
+      }
       setHistoryHost((current) => current === host ? current : host);
 
       const parsed = parseRange(view);
