@@ -714,3 +714,20 @@ test("daily checklist does not partially mark supplement doses if stock is insuf
   expect(saved.intakes).toHaveLength(0);
   expect(saved.supplements[0].stock).toBe(1);
 });
+
+test("supplements history shows a meaningful grouped daily breakdown and period filters", async ({page}) => {
+  await fresh(page);
+  const root = await addOne(page, {name:"Zinek historie", stock:"10", times:"09:00, 22:00"});
+  await root.locator("[data-supplement-occurrence]").first().getByRole("button",{name:"Užito",exact:true}).click();
+  await root.getByRole("button",{name:"Historie",exact:true}).click();
+  const history = root.locator("[data-supplements-history]");
+  await expect(history).toContainText("Plnění plánu");
+  await expect(history).toContainText("Bez záznamu");
+  await expect(history.locator("[data-supplement-history-day]")).toHaveCount(1);
+  await expect(history.locator("[data-supplement-history-day]").first()).toContainText("Zinek historie");
+  await history.getByRole("button",{name:"7 dní"}).click();
+  await expect(history.locator("[data-supplement-history-day]")).toHaveCount(1);
+  await history.getByRole("button",{name:"Vlastní"}).click();
+  await expect(history.getByRole("textbox",{name:"Od data"})).toBeVisible();
+  await expect(history.getByRole("textbox",{name:"Do data"})).toBeVisible();
+});
