@@ -89,6 +89,12 @@ for (const file of changed) {
     add("completion-ux.spec.mjs");
   }
 
+  if (lower.includes("history-controller") || lower.includes("overview-activity")
+    || lower.includes("dayframe-activity-analytics") || lower.includes("history-soft-ui")) {
+    add("history-overview.spec.mjs");
+    add("overview-reading-order.spec.mjs");
+  }
+
   if (lower.includes("reading")) {
     addPrefix("reading-");
     add("overview-reading-order.spec.mjs");
