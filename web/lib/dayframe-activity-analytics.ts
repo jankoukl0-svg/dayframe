@@ -1,3 +1,4 @@
+import {timeToMinutes} from "./dayframe-calendar.ts";
 /** Read-only totals for completed Dayframe calendar blocks. Never count planned-only time. */
 export type ActivityTask = {
   id?: string; title: string; date?: string; duration: number; category?: string;
@@ -71,7 +72,7 @@ export function buildActivityLedger(
       name, minutes, share: total ? Math.round(100 * minutes / total) : 0,
     })).sort((a,b) => b.minutes - a.minutes || a.name.localeCompare(b.name,"cs")),
     days: [...days.values()].sort((a,b) => b.date.localeCompare(a.date)).map(day => ({
-      ...day, items: day.items.sort((a,b) => (a.start ?? "99:99").localeCompare(b.start ?? "99:99") || a.title.localeCompare(b.title,"cs")),
+      ...day, items: day.items.sort((a,b) => (a.start ? timeToMinutes(a.start) : Infinity) - (b.start ? timeToMinutes(b.start) : Infinity) || a.title.localeCompare(b.title,"cs")),
     })),
   };
 }
