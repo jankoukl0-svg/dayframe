@@ -17,8 +17,8 @@ test("reported duration wins over calendar duration; older completed blocks use 
   assert.equal(ledger.activities.find(x=>x.title==="Matematika")?.count,2);
   assert.equal(ledger.days[0].date,"2026-11-03");
   assert.equal(ledger.days[1].date,"2026-11-02");
-  assert.equal(ledger.days[1].items[0].source,"measured");
-  assert.equal(ledger.days[1].items[1].source,"scheduled");
+  assert.equal(ledger.days[1].items.find(x=>x.title==="Matematika")?.source,"measured");
+  assert.equal(ledger.days[1].items.find(x=>x.title==="Finance")?.source,"scheduled");
 });
 test("future and incomplete blocks do not appear or inflate totals",()=>{
   const plans={
@@ -38,4 +38,15 @@ test("same title in different categories remains distinct and invalid clock data
   assert.equal(actualActivityMinutes(plans["2026-11-03"][0]),0);
   assert.equal(hasMeasuredMinutes(plans["2026-11-03"][2]),false);
   assert.equal(result.activities.find(x=>x.title==="Analýza"&&x.category==="Finance")?.minutes,0);
+});
+
+test("planning-day ordering places after-midnight entries after the previous evening",()=>{
+  const plans={"2026-11-02":[
+    task("Po půlnoci","Práce",20,20,{start:"00:30"}),
+    task("Večer","Práce",30,30,{start:"22:00"}),
+    task("Dříve","Práce",40,40,{start:"18:00"}),
+    task("Bez času","Práce",10,undefined),
+  ]};
+  const result=buildActivityLedger(plans,"2026-11-02","2026-11-02","2026-11-02");
+  assert.deepEqual(result.days[0].items.map(x=>x.title),["Dříve","Večer","Po půlnoci","Bez času"]);
 });
