@@ -652,6 +652,7 @@ export function ReadingOverviewController() {
         </div>
       </div>
       <div data-reading-book-history-host="true" className="df2-reading-book-history-host" />
+      <div data-reading-session-history-host="true" className="df2-reading-session-history-host" />
     </section>,
     host,
   );
