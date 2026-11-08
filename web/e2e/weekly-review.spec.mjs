@@ -72,6 +72,25 @@ test("overview keeps learning history while showing a minimal progress summary",
   await history.getByRole("button", { name: "Měsíc", exact: true }).click();
   await expect(history).toHaveAttribute("data-history-mode", "month");
   await expect(history.locator(".df2-history-bars article")).toHaveCount(5);
+  page.on("console", msg => {
+    if (msg.text().startsWith("DF_OVERVIEW_REMOVAL")) console.log("DF_OVERVIEW_REMOVAL", msg.text());
+  });
+  page.on("pageerror", err => console.log("DF_OVERVIEW_ERROR", err.message));
+  await page.evaluate(() => {
+    const nativeRemove = Node.prototype.removeChild;
+    Node.prototype.removeChild = function(child) {
+      if (child.parentNode !== this) {
+        console.error("DF_OVERVIEW_REMOVAL", JSON.stringify({
+          parent: this.nodeName, className: this instanceof Element ? this.className : "",
+          child: child.nodeName, childClassName: child instanceof Element ? child.className : "",
+          parentText: this instanceof Element ? this.textContent?.slice(0,80) : "",
+          childText: child.textContent?.slice(0,80),
+          stack: new Error().stack?.slice(0,700),
+        }));
+      }
+      return nativeRemove.call(this, child);
+    };
+  });
   await history.locator(".df2-history-period-grid").getByRole("button", { name: new RegExp(fixture.previousMonthLabel, "i") }).click();
   await expect(history.locator("[data-reading-overview-host]")).toBeVisible();
   await expect(history).toBeVisible();
