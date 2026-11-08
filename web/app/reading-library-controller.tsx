@@ -144,13 +144,7 @@ export function ReadingLibraryController() {
       if (!head) {
         setButtonHost(null);
       } else {
-        let host = head.querySelector<HTMLElement>("[data-reading-library-button-host]");
-        if (!host) {
-          host = document.createElement("span");
-          host.dataset.readingLibraryButtonHost = "true";
-          host.className = "df2-reading-library-button-host";
-          head.appendChild(host);
-        }
+        const host = head.querySelector<HTMLElement>("[data-reading-library-button-host]");
         setButtonHost((current) => current === host ? current : host);
       }
 
