@@ -193,28 +193,6 @@ function applyWeekColors(index: ReturnType<typeof buildCategoryIndex>, colors: R
   }
 }
 
-function syncCategorySelectOptions(labels: string[]) {
-  for (const node of document.querySelectorAll("select")) {
-    const select = node as HTMLSelectElement;
-    const wrapper = select.closest("label");
-    const isCategory = select.name === "category" || wrapper?.textContent?.trim().startsWith("Oblast");
-    if (!isCategory) continue;
-
-    const current = select.value.trim();
-    const options = uniqueLabels([...labels, ...(current ? [current] : [])]);
-    const actual = [...select.options].map((option) => option.value);
-    if (actual.length === options.length && actual.every((value, index) => value === options[index])) continue;
-
-    const nodes = options.map((label) => {
-      const option = document.createElement("option");
-      option.value = label;
-      option.textContent = label;
-      return option;
-    });
-    select.replaceChildren(...nodes);
-    if (current && options.includes(current)) select.value = current;
-  }
-}
 
 function syncSettingsHost() {
   const settingsView = [...document.querySelectorAll<HTMLElement>(".df2-simple-view")]
@@ -272,7 +250,6 @@ export function LabelColorsController() {
     rawLabelsRef.current = raw;
     window.localStorage.setItem(LABELS_STORAGE_KEY, raw);
     window.dispatchEvent(new Event(LABELS_SYNC_EVENT));
-    syncCategorySelectOptions(normalized);
   }
 
   function persistState(nextState: StoredState) {
@@ -309,7 +286,6 @@ export function LabelColorsController() {
       }
       const nextHost = syncSettingsHost();
       setHost((current) => current === nextHost ? current : nextHost);
-      syncCategorySelectOptions(labelsRef.current);
       const modal = syncModalHost();
       setModalHost((current) => current === modal.host ? current : modal.host);
       setModalCategory((current) => current === modal.category ? current : modal.category);

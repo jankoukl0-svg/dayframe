@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("overview statistics use completed Week block duration instead of Focus actual minutes", async ({ page }) => {
+test("overview statistics honor actual Focus minutes when they differ from scheduled Week duration", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
 
@@ -42,13 +42,15 @@ test("overview statistics use completed Week block duration instead of Focus act
   await page.getByRole("button", { name: /Přehled/ }).click();
 
   const history = page.locator(".df2-history-view");
-  await expect(history.locator(".df2-overview-summary")).toContainText("2 h");
+  await expect(history.locator(".df2-overview-summary")).toContainText("7 min");
   await expect(history.locator(".df2-overview-summary")).toContainText("1 z 1 bloků");
 
+  await expect(history.locator("[data-activity-chart-row]")).toContainText("7 min");
+
   const financeCategory = history.locator('.df2-overview-list-row[data-category="Finance"]');
-  await expect(financeCategory).toContainText("2 h");
+  await expect(financeCategory).toContainText("7 min");
 
   const todayIndex = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   const todayBucket = history.locator(".df2-history-bars article").nth(todayIndex);
-  await expect(todayBucket).toHaveAttribute("aria-label", /2 h/);
+  await expect(todayBucket).toHaveAttribute("aria-label", /7 min/);
 });

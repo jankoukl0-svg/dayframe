@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+// These fixtures use calendar dates, whereas Dayframe's planning day ends at 02:00.
+// Freeze the browser clock at noon so tests stay valid across midnight UTC.
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-09T12:00:00Z"));
+});
+
 test("label colors can be edited and persist in the week calendar", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);
@@ -124,4 +130,38 @@ test("task edit modal exposes the color picker for its category", async ({ page 
   await page.getByRole("button", { name: /Týden/ }).click();
   await expect(page.locator(".df2-week-task").filter({ hasText: "Matematika modal" }))
     .toHaveCSS("border-left-color", "rgb(124, 58, 237)");
+});
+
+test("new custom labels render as React-owned category options and history period changes do not crash", async ({ page }) => {
+  const browserErrors = [];
+  page.on("pageerror", error => browserErrors.push(error.message));
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+
+  await page.getByRole("button", { name: /Nastavení/ }).click();
+  await page.getByRole("button", { name: "+ Nový štítek" }).click();
+  await page.getByRole("textbox", { name: "Název nového štítku" }).fill("Vlastní výzkum");
+  await page.locator(".df2-label-add").getByRole("button", { name: "Přidat" }).click();
+  await expect(page.locator('[data-label-color-row="Vlastní výzkum"]')).toBeVisible();
+
+  await page.keyboard.press("2");
+  const dialog = page.locator(".df2-add-modal");
+  await expect(dialog).toBeVisible();
+  await dialog.locator("summary").filter({ hasText: "Podrobnosti" }).click();
+  const category = dialog.locator("label").filter({ hasText: "Oblast" }).locator("select");
+  await expect(category.locator("option")).toContainText(["Vlastní výzkum"]);
+  await category.selectOption("Vlastní výzkum");
+  await expect(category).toHaveValue("Vlastní výzkum");
+  await page.waitForTimeout(450); // Previously an interval replaced React's option nodes.
+  await expect(category).toHaveValue("Vlastní výzkum");
+  await dialog.getByRole("button", { name: "Zavřít" }).click();
+
+  await page.getByRole("button", { name: /Přehled/ }).click();
+  const overview = page.locator(".df2-history-view");
+  await expect(overview).toBeVisible();
+  await overview.getByRole("button", { name: "Měsíc", exact: true }).click();
+  await overview.getByRole("button", { name: "Předchozí období" }).click();
+  await expect(overview).toBeVisible();
+  await expect(overview.locator("[data-reading-overview-host]")).toBeVisible();
+  expect(browserErrors.filter(message => message.includes("removeChild"))).toEqual([]);
 });

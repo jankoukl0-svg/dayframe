@@ -40,7 +40,10 @@ function addPrefix(prefix) {
 
 for (const file of changed) {
   if (file.startsWith("web/e2e/") && file.endsWith(".spec.mjs")) {
+    // Directly modified specs must be selected, while their broad topic suites
+    // remain covered by the mandatory full regression rather than the fast gate.
     add(path.basename(file));
+    continue;
   }
 
   const lower = file.toLowerCase();
@@ -87,6 +90,13 @@ for (const file of changed) {
     add("active-completion-safety.spec.mjs");
     add("activity-time-adjustments.spec.mjs");
     add("completion-ux.spec.mjs");
+  }
+
+  if (lower.includes("history-controller") || lower.includes("overview-activity")
+    || lower.includes("dayframe-activity-analytics") || lower.includes("history-soft-ui")) {
+    add("history-overview.spec.mjs");
+    add("overview-reading-order.spec.mjs");
+    add("weekly-review.spec.mjs");
   }
 
   if (lower.includes("reading")) {

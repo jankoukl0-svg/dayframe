@@ -1029,9 +1029,15 @@ test("Week Gym block can be extended and shortened by dragging its edges, persis
     const handle=page.locator('[data-week-gym-resize="'+edge+'"][data-gym-resize-key="'+id+'"]');
     const rect=await handle.boundingBox();
     expect(rect).not.toBeNull();
-    await page.mouse.move(rect.x+12,rect.y+rect.height/2);
+    // Aim inside the actual grip: x+12 can miss a narrow lane and drag the
+    // native draggable workout card instead of resizing its edge.
+    const x=rect.x+rect.width/2, y=rect.y+rect.height/2;
+    const hit=await page.evaluate(({x,y})=>
+      document.elementFromPoint(x,y)?.closest("[data-week-gym-resize]")?.getAttribute("data-week-gym-resize")??null,{x,y});
+    expect(hit).toBe(edge);
+    await page.mouse.move(x,y);
     await page.mouse.down();
-    await page.mouse.move(rect.x+12,rect.y+rect.height/2+delta,{steps:6});
+    await page.mouse.move(x,y+delta,{steps:6});
     await page.mouse.up();
   }
   await dragEdge("end",22);
