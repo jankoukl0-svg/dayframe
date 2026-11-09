@@ -122,7 +122,7 @@ function availableTaskCategories(data: DayframeState, draftCategory: string, edi
   const used = [...Object.values(data.plans).flat(), ...data.backlog, ...data.routines].map(task => task.category);
   const unique = new Map<string, string>();
   for (const item of [...labels, ...used, draftCategory, editCategory]) {
-    const value = typeof item === "string" ? item.trim().replace(/\\s+/g, " ") : "";
+    const value = typeof item === "string" ? item.trim().replace(/\s+/g, " ") : "";
     if (value && !unique.has(value.toLocaleLowerCase("cs-CZ"))) unique.set(value.toLocaleLowerCase("cs-CZ"), value);
   }
   return [...unique.values()];
