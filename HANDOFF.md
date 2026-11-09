@@ -1,3 +1,15 @@
+# Dayframe — vývojový handoff po Přehledu (9. 11. 2026)
+
+- Aktuální produktový merge: **PR #276** (activity breakdown, deník bloků, skutečně měřený čas a filtry) → `805bfc7b338784461575455dc2227c6cc73647eb` na `main`.
+- UI: souhrn, aktivita a všechny oblasti používají dokončené bloky a primárně `actualMinutes`; starší dokončené bloky mají transparentně označený fallback na délku bloku. Nový horizontální žebříček činností, hledání, filtr kategorií a rozklikávací deník po dnech. Žádná migrace `localStorage`.
+- Oprava React DOM pádu při přepnutí historického období: odstraněno `replaceChildren` na React-owned `<select>` v `label-colors-controller`; možnost volby vlastních kategorií spravuje React v `dayframe-v2`. Nesouvisející návrhy na přesun sekce Čtení byly vráceny.
+- Ověření kandidáta: PR head `19ffec315bb5bbde022462602cbcf4fd1a929de7`; Actions run [42609078449](https://github.com/jankoukl0-svg/dayframe/actions/runs/42609078449) **cílené E2E PASS, plná regrese 4/4 + regression gate PASS**, typecheck + jednotkové testy včetně `dayframe-activity-analytics.test.mjs` PASS. Latest-head Codex review bez nálezů, všechna review vlákna uzavřena.
+- Testovací údržba: testy historie a barev štítků používají pevné poledne kvůli plánovacímu dni do 02:00. Test Gym přesouvání hran znovu používá tři pointer drags; hit-test zacílení středu gripu eliminuje chybný drag karty.
+- Nasazení: po merge začaly nové Actions běhy `main` (např. 42611051698). **Stav produkčního deploymentu commitu #276 zatím NEOVĚŘEN.** Vercel konektor při kontrole projektu odpověděl 403 `forbidden` (chybějící přístup k týmu). Veřejný web fetch nepřinesl výsledek. Je nutné ověřit nový production deployment READY, alias `dayframe2.vercel.app` na `805bfc7` a provést manuální UI smoke; nevydávat za hotové bez toho.
+- Další kroky: ověřit výsledky `main` CI, Vercel deployment a produkční alias, autentizovaný smoke (případně povolit team access ve Vercel integraci), doladit případné skutečné provozní chyby. Základní protokol v `AGENTS.md` a `docs/DEVELOPMENT_PROTOCOL.md` platí.
+
+---
+
 # Dayframe — aktuální předání pro nové chaty
 
 **Snapshot ověřen 8. 11. 2026 po PR #274.** Tento handoff není neměnný důkaz stavu: před každým úkolem znovu načti skutečný GitHub `main`, PR a produkční deployment.
