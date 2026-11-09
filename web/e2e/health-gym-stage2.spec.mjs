@@ -1029,9 +1029,15 @@ test("Week Gym block can be extended and shortened by dragging its edges, persis
     const handle=page.locator('[data-week-gym-resize="'+edge+'"][data-gym-resize-key="'+id+'"]');
     const rect=await handle.boundingBox();
     expect(rect).not.toBeNull();
-    await page.mouse.move(rect.x+12,rect.y+rect.height/2);
+    // Aim inside the actual grip: x+12 can miss a narrow lane and drag the
+    // native draggable workout card instead of resizing its edge.
+    const x=rect.x+rect.width/2, y=rect.y+rect.height/2;
+    const hit=await page.evaluate(({x,y})=>
+      document.elementFromPoint(x,y)?.closest("[data-week-gym-resize]")?.getAttribute("data-week-gym-resize")??null,{x,y});
+    expect(hit).toBe(edge);
+    await page.mouse.move(x,y);
     await page.mouse.down();
-    await page.mouse.move(rect.x+12,rect.y+rect.height/2+delta,{steps:6});
+    await page.mouse.move(x,y+delta,{steps:6});
     await page.mouse.up();
   }
   await dragEdge("end",22);
@@ -1042,14 +1048,7 @@ test("Week Gym block can be extended and shortened by dragging its edges, persis
   await expect(block).toContainText("17:15–19:00");
   stored=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
   expect(stored.oneOffWorkouts[0].duration).toBe(105);
-  // Both edge drags were exercised above. After a resize, the two overlay
-  // grips may share screen coordinates during a rerender; use the existing
-  // keyboard contract here to verify the persisted 15-minute shorten step
-  // without accidentally grabbing the opposite edge.
-  const endHandle=page.locator('[data-week-gym-resize="end"][data-gym-resize-key="'+id+'"]');
-  await endHandle.focus();
-  await endHandle.press("ArrowUp");
-  await endHandle.press("ArrowUp");
+  await dragEdge("end",-22);
   await expect(block).toContainText("17:15–18:30");
   await page.reload({waitUntil:"networkidle"});
   await page.getByRole("button",{name:"Týden",exact:true}).click();
