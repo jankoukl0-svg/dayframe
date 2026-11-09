@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+// These fixtures use calendar dates, whereas Dayframe's planning day ends at 02:00.
+// Freeze the browser clock at noon so tests stay valid across midnight UTC.
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-09T12:00:00Z"));
+});
+
 test("label colors can be edited and persist in the week calendar", async ({ page }) => {
   await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await expect.poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("dayframe-v1")))).toBe(true);

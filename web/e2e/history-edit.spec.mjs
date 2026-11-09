@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+// These fixtures use calendar dates, whereas Dayframe's planning day ends at 02:00.
+// Freeze the browser clock at noon so tests stay valid across midnight UTC.
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-09T12:00:00Z"));
+});
+
 const BASE_URL = process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173";
 
 function dateKey(date) {
