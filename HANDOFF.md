@@ -1,3 +1,15 @@
+# Dayframe — převzetí po zpětném odklikávání v Týdnu (12. 11. 2026)
+
+- Produktový merge: **PR [#277](https://github.com/jankoukl0-svg/dayframe/pull/277)** → `ce43f2c136ca4da4fcc468d82015dc67161370de` na `main` (squash merge). Původní základ `5405fd44021db51c5a3f61378381a9cab06ac6b5`.
+- **Zpětná péče přímo v Týdnu:** hygienické, vlastní opakované a úklidové bloky se po uplynutí dne dál promítají do kalendáře. Kliknutím lze označit/odznačit celou rutinu nebo jednotlivé kroky; uložení jde do autoritativních denních záznamů `dayframe-hygiene-v1` a okamžitě aktualizuje Týden. Zpětné úpravy nemění další dny, plánované datum ani týdenní rozpis. Dřívější běžné úkoly stále podporují zpětné doplňování přes `retroactive-week-controller`.
+- Rolling cadence: dokončený výskyt musí zůstat dohledatelný i poté, co se vypočte příští due date, bez nesprávné archivace při refreshi. Již archivované splněné rolling záznamy mohou být zobrazeny a bezpečně obnoveny při explicitním zápisu. Žádná migrace schema ani duplicitní `calendar` task.
+- Ověření před merge: head `73f8bd8f532094dae9b037c509ad042b267f2408`, GitHub Actions [43120305791](https://github.com/jankoukl0-svg/dayframe/actions/runs/43120305791): cílené browser testy **328/328 PASS**, úplná regrese **4/4 PASS** včetně gate; build/typecheck/unit PASS. Latest-head Codex review bez nálezů a původní P2 vlákno vyřešeno. Kvůli rozšíření cílené sady byl v `.github/workflows/preview-build.yml` navýšen timeout `build-preview` na 22 minut, žádné testy nebyly vynechány.
+- Po merge: `main` Actions [43122685784](https://github.com/jankoukl0-svg/dayframe/actions/runs/43122685784) při přípravě tohoto handoffu stále běžely. GitHub commit status `Vercel = success` pro `ce43f2c`, ale **produkční READY, doména/alias a autentizovaný UI smoke nejsou přímo potvrzeny**. Vercel API konektor vrací 403 kvůli chybějícímu přístupu k týmu `honzakoukl1-2501`; požádáno o jednorázovou autorizaci. Nepovažovat release za plně ověřený.
+- Rozsah: PR #277 řeší **Hygienu a Úklid**; nenahrazuje podrobný Gym deník ani per-dose evidenci suplementů. Požadavek uživatele „vše ovládat v Týdnu“ je širší — následně posoudit jednotné zpětné ovládání dalších modulů bez duplicitních dat, UI či destruktivních změn.
+- Další krok: ověřit `main` CI, Vercel production deployment READY, alias `dayframe2.vercel.app` a přihlášený smoke test; poté navazovat na další moduly. Postup dle `AGENTS.md` a `docs/DEVELOPMENT_PROTOCOL.md`.
+
+---
+
 # Dayframe — vývojový handoff po Přehledu (9. 11. 2026)
 
 - Aktuální produktový merge: **PR #276** (activity breakdown, deník bloků, skutečně měřený čas a filtry) → `805bfc7b338784461575455dc2227c6cc73647eb` na `main`.
