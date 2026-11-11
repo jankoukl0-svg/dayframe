@@ -671,7 +671,14 @@ test("Sunday Hygiene and Cleaning appear as two 30-minute Week reservations, wit
   await expect(page.locator("[data-week-care]")).toHaveCount(23);
   await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
   await page.locator(".df2-week-controls button").filter({ hasText: "←" }).click();
-  await expect(page.locator("[data-week-care]")).toHaveCount(0); // No retroactive projections.
+  // Product now retains historical projections; before the Cleaning routine's
+  // startsOn date, only the two daily Hygiene routines and Sunday Hygiene appear.
+  await expect(page.locator("[data-week-care]")).toHaveCount(15);
+  await expect(page.locator(".df2-week-day").first().locator('[data-week-care="morning"]')).toBeVisible();
+  await expect(page.locator("[data-week-care='cleaning-daily']")).toHaveCount(0);
+  const previousCalendar = await page.evaluate(() => JSON.parse(localStorage.getItem("dayframe-v1")));
+  expect(Object.values(previousCalendar.plans).flat().filter(task =>
+    task.routineId === "hygiene-day" || task.routineId === "cleaning-sunday")).toHaveLength(0);
 });
 
 test("clicking each Sunday reservation opens the original Hygiene or Cleaning routine", async ({ page }) => {
