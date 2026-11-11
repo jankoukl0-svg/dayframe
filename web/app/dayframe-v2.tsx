@@ -43,6 +43,7 @@ import { HealthPage } from "./health-page";
 import { useGymStore } from "./use-gym-store";
 import { useWeekCare } from "./use-week-care";
 import { weekCareBlocks, type WeekCareId } from "@/lib/dayframe-week-care";
+import { materializeHygieneDate, routineSummary } from "@/lib/dayframe-hygiene";
 import { assignmentsOnDate, gymOccurrenceTime, rescheduleGymOccurrence, setGymOccurrenceTime, setGymOccurrenceSchedule, deleteGymOccurrence, activeGymPlanOnDate, addGymOneOff, uid } from "@/lib/dayframe-gym";
 import {placeWeekGymCollisions} from "@/lib/dayframe-week-gym-lanes";
 import {sleepCalendarDateKey} from "@/lib/dayframe-sleep";
@@ -1079,6 +1080,26 @@ export function DayframeV2() {
     ? data.milestones.find((milestone) => milestone.id === editingMilestoneId) ?? null
     : null;
 
+  const editingCareRoutineId = editingCare
+    ? editingCare.id.startsWith("rolling:") ? editingCare.id.slice("rolling:".length) : editingCare.id
+    : "";
+  const editingCareRoutine = care.store?.routines.find(item => item.id === editingCareRoutineId);
+  const editingCareRecord = editingCare && care.store
+    ? care.store.records[editingCare.date]?.[editingCareRoutineId]
+      ?? materializeHygieneDate(care.store, editingCare.date).records[editingCare.date]?.[editingCareRoutineId]
+    : undefined;
+  const editingCareStatus = editingCareRoutine && editingCareRecord
+    ? routineSummary(editingCareRoutine, editingCareRecord, todayKey) : null;
+  const careCanCheck = Boolean(editingCare && editingCare.date <= todayKey
+    && care.hydrated && !care.blocked && editingCareRoutine?.active && editingCareRecord && !editingCareRecord.archived);
+  function toggleCareCheck(taskId?: string) {
+    if (!editingCare || !careCanCheck || !care.toggleCompleted(editingCare.date, editingCare.id, taskId)) {
+      setEditingCareError("Záznam se nepodařilo uložit. Původní data zůstala beze změny.");
+      return;
+    }
+    setEditingCareError("");
+  }
+
   return (
     <main className={`df2-root ${view === "focus" ? "df2-focus-mode" : ""}`}>
       <div className="df2-shell">
@@ -1431,7 +1452,7 @@ export function DayframeV2() {
                                   setEditingCareDate(key);
                                   setEditingCareError("");
                                 }}
-                                title={item.start+"–"+end+" · "+item.title+" · Kliknutím upravíš nebo odebereš tento den"}
+                                title={item.start+"–"+end+" · "+item.title+" · Kliknutím otevřeš záznam splnění a čas tohoto dne"}
                                 aria-label={item.title+", "+item.start+"–"+end}
                               >
                                 {item.duration === 30 && <span>{item.start}–{end}</span>}
@@ -1610,9 +1631,30 @@ export function DayframeV2() {
               <label>Den výskytu<input type="date" min={todayKey} value={editingCareDate || editingCare.date}
                 onChange={(event)=>{setEditingCareDate(event.target.value);setEditingCareError("");}} /></label>
             )}
+            {editingCare.date < todayKey && <p className="df2-week-care-help">Zpětný záznam: uprav splnění právě pro {shortDate(editingCare.date)}. Čas a opakovaný plán zůstávají beze změny.</p>}
+            {editingCareRecord && <section className="df2-week-care-checks" data-week-care-history>
+              <div className="df2-week-care-checks-heading"><strong>Splněné kroky</strong>
+                <span>{editingCareStatus?.done ?? 0}/{editingCareRecord.scheduledTasks.filter(task => !task.optional).length} povinných</span>
+              </div>
+              {editingCareRecord.scheduledTasks.map(task =>
+                <button type="button" key={task.id} className={editingCareRecord.states[task.id] === "done" ? "is-done" : ""}
+                  aria-label={(editingCareRecord.states[task.id] === "done" ? "Odškrtnout " : "Označit hotovo ") + task.title}
+                  aria-pressed={editingCareRecord.states[task.id] === "done"}
+                  disabled={!careCanCheck} onClick={() => toggleCareCheck(task.id)}>
+                  <span aria-hidden="true">{editingCareRecord.states[task.id] === "done" ? "✓" : ""}</span>
+                  <span>{task.title}{task.optional ? " · volitelné" : ""}</span>
+                </button>
+              )}
+              <button type="button" className="df2-week-care-bulk" disabled={!careCanCheck}
+                onClick={() => toggleCareCheck()}>
+                {editingCareRecord.scheduledTasks.filter(task => !task.optional).every(task => editingCareRecord.states[task.id] === "done")
+                  ? "Vrátit celou rutinu jako nesplněnou" : "Označit celou rutinu hotovou"}
+              </button>
+            </section>}
             <label>Začátek bloku<input autoFocus type="time" step={900} value={editingCareStart}
+              disabled={editingCare.date < todayKey}
               onChange={(event) => { setEditingCareStart(event.target.value); setEditingCareError(""); }} /></label>
-            <p className="df2-week-care-help">Čas lze změnit přetažením. Opakovanou rutinu lze přesunout i na jiný den mimo neděli; úprava se týká pouze tohoto výskytu.</p>
+            {editingCare.date >= todayKey && <p className="df2-week-care-help">Čas lze změnit přetažením. Opakovanou rutinu lze přesunout i na jiný den mimo neděli; úprava se týká pouze tohoto výskytu.</p>}
             {editingCareError && <p className="df2-error" role="alert">{editingCareError}</p>}
             <button type="button" className="df2-trip-in-edit"
               onClick={()=>openTrip("care",editingCare.id,editingCare.date,editingCare.title,editingCareStart,false,

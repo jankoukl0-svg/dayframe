@@ -1,5 +1,5 @@
 import { calendarBounds, dateFromKey, localDateKey, timeToMinutes } from "./dayframe-calendar";
-import { routineDomain, routineHasScheduledWorkOnDate, routineSummary, type HygieneStore, type HygieneRoutineDefinition } from "./dayframe-hygiene";
+import { materializeHygieneDate, routineDomain, routineHasScheduledWorkOnDate, routineSummary, setHygieneTaskStatus, type HygieneStore, type HygieneRoutineDefinition } from "./dayframe-hygiene";
 
 /** Calendar time reservations only; completion always belongs to Hygiene records. */
 export const WEEK_CARE_STORAGE_KEY = "dayframe-week-care-v1";
@@ -149,7 +149,7 @@ export function saveWeekCareHidden(date: string, id: WeekCareId, hide: boolean):
 
 /** Pure week projection. Never creates tasks, checkmarks or historical routine records. */
 export function weekCareBlocks(store: HygieneStore | null, date: string, today: string, times: WeekCareTimes, hidden: WeekCareHidden = {}): WeekCareBlock[] {
-  if (!store || date < today || !calendarDate(date)) return [];
+  if (!store || !calendarDate(date)) return [];
   const configs = [
     ...DEFAULTS.map(config => ({ ...config, routineId: config.id })),
     ...store.routines.filter(routine => eligibleRollingRoutine(routine)
@@ -163,8 +163,12 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
   return configs.flatMap(config => {
     if (!validCareDate(date, config) || hidden[date]?.includes(config.id)) return [];
     const routine = store.routines.find(item => item.id === config.routineId);
-    if (!routine || !routineHasScheduledWorkOnDate(store, routine, date)) return [];
+    if (!routine) return [];
     const record = store.records[date]?.[config.routineId];
+    // A historical occurrence with an authoritative snapshot must survive
+    // later schedule edits. Missing records can still represent a missed day.
+    if (!routineHasScheduledWorkOnDate(store, routine, date)
+      && !(date < today && record && !record.archived)) return [];
     const completed = record ? routineSummary(routine, record, today).status === "complete" : false;
     return [{
       id: config.id, routineId: config.routineId,
@@ -175,3 +179,41 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
   });
 }
 
+
+/**
+ * Record a past/today occurrence in Hygiene's authoritative per-date history.
+ * Never create a second checklist or change future recurrence dates.
+ * Without a snapshot, materialize only the selected day and only on action.
+ */
+export function toggleWeekCareCompletion(store: HygieneStore, date: string, routineId: string, taskId?: string): HygieneStore {
+  if (!calendarDate(date)) return store;
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!routine) return store;
+  const existing = store.records[date]?.[routineId];
+  if (!existing && !routineHasScheduledWorkOnDate(store, routine, date)) return store;
+  const next = existing ? store : materializeHygieneDate(store, date);
+  const record = next.records[date]?.[routineId];
+  if (!record || record.archived) return store;
+
+  if (taskId !== undefined) {
+    const task = record.scheduledTasks.find(item => item.id === taskId);
+    if (!task) return store;
+    return setHygieneTaskStatus(next, date, routineId, taskId,
+      record.states[taskId] === "done" ? null : "done", date);
+  }
+
+  const required = record.scheduledTasks.filter(item => !item.optional);
+  if (!required.length) return store;
+  const allDone = required.every(item => record.states[item.id] === "done");
+  let updated = next;
+  // Bulk action means "actually performed", not "skipped". Individual
+  // checkboxes remain available for partial routines and corrections.
+  for (const task of required) {
+    const current = updated.records[date]?.[routineId]?.states[task.id];
+    if (allDone ? current === "done" : current !== "done") {
+      updated = setHygieneTaskStatus(updated, date, routineId, task.id,
+        allDone ? null : "done", date);
+    }
+  }
+  return updated;
+}
