@@ -1027,6 +1027,9 @@ test("Week Gym block can be extended and shortened by dragging its edges, persis
 
   async function dragEdge(edge,delta){
     const handle=page.locator('[data-week-gym-resize="'+edge+'"][data-gym-resize-key="'+id+'"]');
+    // Other Week views can leave the time grid scrolled away. Hit-testing an
+    // off-screen grip returns null even though the grip itself is intact.
+    await handle.scrollIntoViewIfNeeded();
     const rect=await handle.boundingBox();
     expect(rect).not.toBeNull();
     // Aim inside the actual grip: x+12 can miss a narrow lane and drag the
