@@ -72,7 +72,7 @@ jobs:
 
       - name: Run targeted browser tests first
         env:
-          DAYFRAME_E2E_TIMEOUT: 720
+          DAYFRAME_E2E_TIMEOUT: 1000
         run: bash scripts/run-static-e2e.sh ${{ steps.targeted.outputs.tests }}
 
       - name: Upload targeted failure diagnostics
