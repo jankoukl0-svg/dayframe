@@ -844,3 +844,43 @@ test("past daily Cleaning can be marked complete from Week without affecting tod
   expect(stored.records["2026-11-11"]["cleaning-daily"].states["cleaning-make-bed"]).toBeUndefined();
   await expect(page.locator(".df2-week-day").nth(2).locator('[data-week-care="cleaning-daily"]')).not.toHaveClass(/done/);
 });
+
+test("completing today's custom rolling Hygiene keeps its Week block visible and schedules next interval", async ({ page }) => {
+  await fresh(page, "2026-10-12T12:00:00");
+  const routineId = "hygiene-routine-custom-rolling";
+  const weekId = "rolling:" + routineId;
+  await page.evaluate(({key,id}) => {
+    const state = JSON.parse(localStorage.getItem(key));
+    state.routines.push({
+      id, title: "Třídenní péče", active: true, order: 37,
+      schedule: {type:"rolling",everyDays:3,unit:"days",anchorDate:"2026-10-12"},
+      tasks: [{id:"rolling-step-e2e",title:"Ošetření pleti",section:"Péče",
+        active:true,optional:false,allowSkip:false}],
+    });
+    localStorage.setItem(key, JSON.stringify(state));
+  }, {key:HYGIENE_KEY,id:routineId});
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+
+  const block = page.locator(".df2-week-day").first().locator('[data-week-care="'+weekId+'"]');
+  await expect(block).toBeVisible();
+  await block.click();
+  const dialog = page.getByRole("dialog",{name:"Třídenní péče"});
+  await dialog.getByRole("button",{name:"Označit celou rutinu hotovou"}).click();
+  await expect(block).toHaveClass(/done/);
+  await expect(dialog.getByRole("button",{name:"Odškrtnout Ošetření pleti"})).toBeEnabled();
+
+  const after=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  const saved=after.records["2026-10-12"][routineId];
+  expect(saved.archived).not.toBe(true);
+  expect(saved.states["rolling-step-e2e"]).toBe("done");
+  expect(saved.completedOn["rolling-step-e2e"]).toBe("2026-10-12");
+
+  await dialog.getByRole("button",{name:"Zavřít"}).click();
+  await page.clock.setFixedTime(new Date("2026-10-13T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").first().locator('[data-week-care="'+weekId+'"]')).toHaveClass(/done/);
+  const retained=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(retained.records["2026-10-12"][routineId].archived).not.toBe(true);
+});

@@ -1105,6 +1105,20 @@ export function materializeHygieneDate(store: HygieneStore, dateKey: string, ref
         continue;
       }
       const hasHandledSnapshot = Object.keys(existing.states).length > 0;
+      // Completing a rolling occurrence advances its NEXT due date. That
+      // must never archive the just-completed occurrence or hide history.
+      const hasHandledRollingStep = existing.scheduledTasks.some(task =>
+        task.scheduleType === "rolling" && Boolean(existing.states[task.id]));
+      const stillActiveRolling = store.routines.some(routine => routine.id === routineId
+        && routine.active && (routine.schedule.type === "rolling"
+          || routine.tasks.some(task => task.schedule?.type === "rolling")));
+      if (hasHandledRollingStep && stillActiveRolling) {
+        if (existing.archived) {
+          dateRecords[routineId] = { ...existing, archived: undefined };
+          changed = true;
+        }
+        continue;
+      }
       if (hasHandledSnapshot) {
         if (!existing.archived || existing.carryToday) {
           dateRecords[routineId] = { ...existing, archived: true, carryToday: undefined };

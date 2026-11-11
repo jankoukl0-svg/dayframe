@@ -167,7 +167,12 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
     const record = store.records[date]?.[config.routineId];
     // A historical occurrence with an authoritative snapshot must survive
     // later schedule edits. Missing records can still represent a missed day.
+    // Rolling cadence may advance immediately after completing a step,
+    // so a handled record is a historical occurrence even on TODAY.
+    // Archived snapshots may still be displayed; they are read-only unless
+    // the original active rolling schedule can be safely restored.
     if (!routineHasScheduledWorkOnDate(store, routine, date)
+      && !(date <= today && record && Object.keys(record.states).length > 0)
       && !(date < today && record && !record.archived)) return [];
     const completed = record ? routineSummary(routine, record, today).status === "complete" : false;
     return [{
@@ -193,19 +198,29 @@ export function toggleWeekCareCompletion(store: HygieneStore, date: string, rout
   if (!existing && !routineHasScheduledWorkOnDate(store, routine, date)) return store;
   const next = existing ? store : materializeHygieneDate(store, date);
   const record = next.records[date]?.[routineId];
-  if (!record || record.archived) return store;
+  if (!record) return store;
+  const canRestoreRolling = Boolean(record.archived && routine.schedule.type === "rolling"
+    && record.scheduledTasks.some(task => task.scheduleType === "rolling"
+      && Boolean(record.states[task.id])));
+  if (record.archived && !canRestoreRolling) return store;
+  const writable = canRestoreRolling
+    ? { ...next, records: { ...next.records, [date]: {
+        ...next.records[date], [routineId]: { ...record, archived: undefined },
+      } } }
+    : next;
+  const savedRecord = writable.records[date][routineId];
 
   if (taskId !== undefined) {
-    const task = record.scheduledTasks.find(item => item.id === taskId);
+    const task = savedRecord.scheduledTasks.find(item => item.id === taskId);
     if (!task) return store;
-    return setHygieneTaskStatus(next, date, routineId, taskId,
-      record.states[taskId] === "done" ? null : "done", date);
+    return setHygieneTaskStatus(writable, date, routineId, taskId,
+      savedRecord.states[taskId] === "done" ? null : "done", date);
   }
 
-  const required = record.scheduledTasks.filter(item => !item.optional);
+  const required = savedRecord.scheduledTasks.filter(item => !item.optional);
   if (!required.length) return store;
-  const allDone = required.every(item => record.states[item.id] === "done");
-  let updated = next;
+  const allDone = required.every(item => savedRecord.states[item.id] === "done");
+  let updated = writable;
   // Bulk action means "actually performed", not "skipped". Individual
   // checkboxes remain available for partial routines and corrections.
   for (const task of required) {

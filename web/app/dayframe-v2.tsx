@@ -1090,8 +1090,12 @@ export function DayframeV2() {
     : undefined;
   const editingCareStatus = editingCareRoutine && editingCareRecord
     ? routineSummary(editingCareRoutine, editingCareRecord, todayKey) : null;
+  const canRestoreArchivedRolling = Boolean(editingCareRoutine?.schedule.type === "rolling"
+    && editingCareRecord?.scheduledTasks.some(task => task.scheduleType === "rolling"
+      && Boolean(editingCareRecord.states[task.id])));
   const careCanCheck = Boolean(editingCare && editingCare.date <= todayKey
-    && care.hydrated && !care.blocked && editingCareRoutine?.active && editingCareRecord && !editingCareRecord.archived);
+    && care.hydrated && !care.blocked && editingCareRoutine?.active && editingCareRecord
+    && (!editingCareRecord.archived || canRestoreArchivedRolling));
   function toggleCareCheck(taskId?: string) {
     if (!editingCare || !careCanCheck || !care.toggleCompleted(editingCare.date, editingCare.id, taskId)) {
       setEditingCareError("Záznam se nepodařilo uložit. Původní data zůstala beze změny.");
