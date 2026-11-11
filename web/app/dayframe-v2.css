@@ -436,6 +436,15 @@
 .df2-week-help { margin-top: 14px; color: var(--muted); font-size: 11px; }
 .df2-week-care-modal .df2-week-care-help { color: var(--muted); font-size: 11px; line-height: 1.55; margin: 0; }
 .df2-week-care-modal .df2-modal-actions { flex-wrap: wrap; }
+.df2-week-care-checks { display: grid; gap: 7px; padding: 12px; background: var(--paper); border: 1px solid var(--line-strong); border-radius: 12px; }
+.df2-week-care-checks-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; }
+.df2-week-care-checks-heading span { color:var(--muted); font-size:11px; }
+.df2-week-care-checks > button:not(.df2-week-care-bulk) { display:flex; align-items:center; gap:10px; text-align:left; width:100%; min-height:32px; padding:6px; border:0; border-radius:7px; background:transparent; color:inherit; font-size:12px; cursor:pointer; }
+.df2-week-care-checks > button:not(.df2-week-care-bulk) > span:first-child { display:grid; place-items:center; flex:none; width:19px; height:19px; border:1px solid var(--line-strong); border-radius:5px; }
+.df2-week-care-checks > button.is-done > span:first-child { background:var(--accent); color:white; border-color:var(--accent); }
+.df2-week-care-checks button:disabled { opacity:.6; cursor:not-allowed; }
+.df2-week-care-bulk { margin-top:4px; border:1px solid var(--line-strong); background:transparent; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:12px; }
+
 
 
 .df2-add-view { max-width: 930px; }
