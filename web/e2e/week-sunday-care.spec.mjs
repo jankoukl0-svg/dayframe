@@ -764,3 +764,76 @@ test("Sunday reservation typography fits its actual 30-minute time geometry", as
   await expect(tile.locator("strong")).toHaveCSS("font-size", "9px");
   await expect(tile.locator("span")).toHaveCSS("font-size", "7px");
 });
+
+test("yesterday's repeated Hygiene stays in Week and can be checked retroactively without changing other dates", async ({ page }) => {
+  await fresh(page, "2026-11-11T12:00:00");
+  await page.evaluate(key => {
+    const state = JSON.parse(localStorage.getItem(key));
+    state.routines.find(item => item.id === "cleaning-daily").startsOn = "2026-11-01";
+    state.lastMaterializedDate = "2026-11-09";
+    localStorage.setItem(key, JSON.stringify(state));
+  }, HYGIENE_KEY);
+  await seedRepeatedHygiene(page);
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+
+  // Tuesday, 10 November is in the past; its recurring reservation used to
+  // disappear entirely, even though the authoritative Hygiene history remains.
+  const yesterday = page.locator(".df2-week-day").nth(1);
+  const repeated = yesterday.locator('[data-week-care="' + REPEATED_CARE_ID + '"]');
+  await expect(repeated).toBeVisible();
+  await expect(repeated).not.toHaveClass(/done/);
+  await repeated.click();
+
+  const editor = page.getByRole("dialog", { name: "Opakovaná rutina" });
+  await expect(editor.locator("[data-week-care-history]")).toBeVisible();
+  await expect(editor.getByRole("button", { name: "Uložit čas" })).toBeDisabled();
+  await editor.getByRole("button", { name: "Označit celou rutinu hotovou" }).click();
+
+  await expect(editor.getByRole("button", { name: "Vrátit celou rutinu jako nesplněnou" })).toBeVisible();
+  await expect(repeated).toHaveClass(/done/);
+  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  const record = stored.records["2026-11-10"][REPEATED_ID];
+  expect(record).toBeTruthy();
+  expect(record.scheduledTasks.filter(item => !item.optional)).not.toHaveLength(0);
+  for (const task of record.scheduledTasks.filter(item => !item.optional)) {
+    expect(record.states[task.id]).toBe("done");
+    expect(record.completedOn[task.id]).toBe("2026-11-10");
+  }
+  expect(Object.keys(stored.records["2026-11-11"]?.[REPEATED_ID]?.states ?? {})).toHaveLength(0);
+
+  const first = record.scheduledTasks.find(item => !item.optional);
+  await editor.getByRole("button", { name: "Odškrtnout " + first.title }).click();
+  await expect(repeated).not.toHaveClass(/done/);
+  await editor.getByRole("button", { name: "Označit hotovo " + first.title }).click();
+  await expect(repeated).toHaveClass(/done/);
+
+  await editor.getByRole("button", { name: "Zavřít" }).click();
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-care="' + REPEATED_CARE_ID + '"]')).toHaveClass(/done/);
+});
+
+test("past daily Cleaning can be marked complete from Week without affecting today's routine", async ({ page }) => {
+  await fresh(page, "2026-11-11T12:00:00");
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.find(item => item.id === "cleaning-daily").startsOn = "2026-11-01";
+    store.lastMaterializedDate = "2026-11-09";
+    localStorage.setItem(key, JSON.stringify(store));
+  }, HYGIENE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  await week(page);
+
+  const previous = page.locator(".df2-week-day").nth(1).locator('[data-week-care="cleaning-daily"]');
+  await expect(previous).toBeVisible();
+  await previous.click();
+  const modal = page.getByRole("dialog", { name: "Denní úklid" });
+  await modal.getByRole("button", { name: "Označit celou rutinu hotovou" }).click();
+  await expect(previous).toHaveClass(/done/);
+
+  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(stored.records["2026-11-10"]["cleaning-daily"].states["cleaning-make-bed"]).toBe("done");
+  expect(stored.records["2026-11-11"]["cleaning-daily"].states["cleaning-make-bed"]).toBeUndefined();
+  await expect(page.locator(".df2-week-day").nth(2).locator('[data-week-care="cleaning-daily"]')).not.toHaveClass(/done/);
+});
