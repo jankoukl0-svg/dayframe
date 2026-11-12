@@ -312,7 +312,7 @@ test("Sunday already covered by Hygiene Day and cannot receive a second repeated
   const dialog=page.getByRole("dialog",{name:"Opakovaná rutina"});
   await dialog.getByLabel("Den výskytu").fill("2026-10-18");
   await dialog.getByRole("button",{name:"Uložit čas"}).click();
-  await expect(dialog.getByRole("alert")).toContainText("mimo neděli");
+  await expect(dialog.getByRole("alert")).toContainText("na neděli");
   await expect(days.nth(1).locator('[data-week-care="'+REPEATED_CARE_ID+'"]')).toHaveCount(1);
 });
 
@@ -781,7 +781,7 @@ test("yesterday's repeated Hygiene stays in Week and can be checked retroactivel
 
   const editor = page.getByRole("dialog", { name: "Opakovaná rutina" });
   await expect(editor.locator("[data-week-care-history]")).toBeVisible();
-  await expect(editor.getByRole("button", { name: "Uložit čas" })).toBeDisabled();
+  await expect(editor.getByRole("button", { name: "Uložit čas" })).toBeEnabled();
   await editor.getByRole("button", { name: "Označit celou rutinu hotovou" }).click();
 
   await expect(editor.getByRole("button", { name: "Vrátit celou rutinu jako nesplněnou" })).toBeVisible();
@@ -878,16 +878,13 @@ test("Yesterday's recorded care stays completed while its calendar time can be m
   const day=page.locator(".df2-week-day").nth(1);
   const morning=day.locator('[data-week-care="morning"]');
   await expect(morning).toBeVisible();
-  await page.evaluate(key=>{
-    const store=JSON.parse(localStorage.getItem(key));
-    const record=store.records["2026-11-10"].morning;
-    if(!record?.scheduledTasks.length) throw Error("Missing past morning care");
-    const task=record.scheduledTasks[0].id;
-    record.states[task]="done";
-    record.completedOn={...(record.completedOn??{}),[task]:"2026-11-10"};
-    localStorage.setItem(key,JSON.stringify(store));
-    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
-  },HYGIENE_KEY);
+  // Use the real retroactive Week check-in; it materializes the exact
+  // historical snapshot and preserves all Hygiene invariants.
+  await morning.click();
+  const dialog=page.getByRole("dialog",{name:"Ranní hygiena"});
+  await dialog.getByRole("button",{name:"Označit celou rutinu hotovou"}).click();
+  await expect(morning).toHaveClass(/done/);
+  await dialog.getByRole("button",{name:"Zavřít"}).click();
   await expect(morning).toHaveAttribute("draggable","true");
   await dragCare(page,1,1,"morning","17:00");
   await expect(morning).toHaveAttribute("aria-label","Ranní hygiena, 17:00–17:20");
