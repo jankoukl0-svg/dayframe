@@ -7,6 +7,8 @@ export const WEEK_CARE_SYNC_EVENT = "dayframe-week-care-sync";
 export type WeekCareId = "morning" | "evening" | "cleaning-daily" | "hygiene-day" | "cleaning-sunday" | `rolling:${string}`;
 export type WeekCareTimes = Record<string, Partial<Record<WeekCareId, string>>>;
 export type WeekCareHidden = Record<string, WeekCareId[]>;
+/** Optional origin-to-destination trace, needed to validate rescheduled Sunday blocks. */
+export type WeekCareMoves = Record<string, Partial<Record<WeekCareId, string>>>;
 export type WeekCareBlock = {
   id: WeekCareId;
   routineId: string;
@@ -66,25 +68,46 @@ function validCareDate(date: string, config: (typeof DEFAULTS)[number]) {
 }
 
 /** Malformed or inaccessible saved positions must never be overwritten. */
-export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHidden; blocked: boolean } {
-  if (typeof window === "undefined") return { times: {}, hidden: {}, blocked: false };
+export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHidden; moves: WeekCareMoves; blocked: boolean } {
+  if (typeof window === "undefined") return { times: {}, hidden: {}, moves: {}, blocked: false };
   try {
     const raw = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
     if (!raw) return { times: {}, hidden: {}, blocked: false };
     const data = JSON.parse(raw);
     if (!data || data.version !== 1 || !data.times || typeof data.times !== "object" || Array.isArray(data.times)) {
-      return { times: {}, hidden: {}, blocked: true };
+      return { times: {}, hidden: {}, moves: {}, blocked: true };
     }
+    const moves: WeekCareMoves = {};
+    if (data.moves !== undefined) {
+      if (!data.moves || typeof data.moves !== "object" || Array.isArray(data.moves)) {
+        return { times: {}, hidden: {}, moves: {}, blocked: true };
+      }
+      for (const [source, byId] of Object.entries(data.moves)) {
+        if (!calendarDate(source) || !byId || typeof byId !== "object" || Array.isArray(byId)) {
+          return { times: {}, hidden: {}, moves: {}, blocked: true };
+        }
+        const validated: Partial<Record<WeekCareId,string>> = {};
+        for (const [id,destination] of Object.entries(byId)) {
+          const config = careDefinition(id);
+          if (!config || !validCareDate(source,config) || !calendarDate(destination as string)
+            || source === destination) return { times: {}, hidden: {}, moves: {}, blocked: true };
+          validated[config.id] = destination as string;
+        }
+        moves[source] = validated;
+      }
+    }
+    const shiftedTo = (date:string,id:WeekCareId) =>
+      Object.values(moves).some(byId=>byId[id]===date);
     const times: WeekCareTimes = {};
     for (const [date, values] of Object.entries(data.times)) {
       if (!calendarDate(date) || !values || typeof values !== "object" || Array.isArray(values)) {
-        return { times: {}, hidden: {}, blocked: true };
+        return { times: {}, hidden: {}, moves: {}, blocked: true };
       }
       const found: Partial<Record<WeekCareId, string>> = {};
       for (const [id, value] of Object.entries(values)) {
         const config = careDefinition(id);
-        if (!config || !validCareDate(date, config) || !validTime(value, config.duration)) {
-          return { times: {}, hidden: {}, blocked: true };
+        if (!config || !(validCareDate(date,config) || shiftedTo(date,config.id)) || !validTime(value, config.duration)) {
+          return { times: {}, hidden: {}, moves: {}, blocked: true };
         }
         found[config.id] = value as string;
       }
@@ -93,33 +116,46 @@ export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHid
     const hidden: WeekCareHidden = {};
     if (data.hidden !== undefined) {
       if (!data.hidden || typeof data.hidden !== "object" || Array.isArray(data.hidden)) {
-        return { times: {}, hidden: {}, blocked: true };
+        return { times: {}, hidden: {}, moves: {}, blocked: true };
       }
       for (const [date, ids] of Object.entries(data.hidden)) {
-        if (!calendarDate(date) || !Array.isArray(ids)) return { times: {}, hidden: {}, blocked: true };
+        if (!calendarDate(date) || !Array.isArray(ids)) return { times: {}, hidden: {}, moves: {}, blocked: true };
         const validated: WeekCareId[] = [];
         for (const id of ids) {
           const config = careDefinition(id);
-          if (!config || !validCareDate(date, config)) return { times: {}, hidden: {}, blocked: true };
+          if (!config || !(validCareDate(date,config) || shiftedTo(date,config.id))) return { times: {}, hidden: {}, moves: {}, blocked: true };
           if (!validated.includes(config.id)) validated.push(config.id);
         }
         hidden[date] = validated;
       }
     }
-    return { times, hidden, blocked: false };
+    return { times, hidden, moves, blocked: false };
   } catch {
-    return { times: {}, hidden: {}, blocked: true };
+    return { times: {}, hidden: {}, moves: {}, blocked: true };
   }
 }
 
-export function saveWeekCareTime(date: string, id: WeekCareId, start: string): boolean {
+export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fromDate?: string): boolean {
   const config = careDefinition(id);
-  if (!config || !validCareDate(date, config) || !validTime(start, config.duration)) return false;
+  if (!config || !calendarDate(date) || !validTime(start, config.duration)) return false;
   const current = readWeekCareTimes();
   if (current.blocked || typeof window === "undefined") return false;
   try {
+    const moves: WeekCareMoves = { ...current.moves };
     const times = { ...current.times, [date]: { ...(current.times[date] ?? {}), [id]: start } };
-    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times, hidden: current.hidden }));
+    if (fromDate && date !== fromDate) {
+      const origin = Object.keys(moves).find(source => moves[source]?.[id] === fromDate) ?? fromDate;
+      if (!validCareDate(origin,config)) return false;
+      moves[origin] = { ...(moves[origin] ?? {}), [id]: date };
+      if (times[fromDate]) {
+        times[fromDate] = { ...times[fromDate] };
+        delete times[fromDate][id];
+        if (!Object.keys(times[fromDate]).length) delete times[fromDate];
+      }
+    } else if (!validCareDate(date,config) && !Object.values(moves).some(byId=>byId[id]===date)) {
+      return false;
+    }
+    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times, hidden: current.hidden, moves }));
     window.dispatchEvent(new Event(WEEK_CARE_SYNC_EVENT));
     return true;
   } catch {
@@ -139,7 +175,7 @@ export function saveWeekCareHidden(date: string, id: WeekCareId, hide: boolean):
   if (next.length) hidden[date] = next;
   else delete hidden[date];
   try {
-    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times: current.times, hidden }));
+    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times: current.times, hidden, moves: current.moves }));
     window.dispatchEvent(new Event(WEEK_CARE_SYNC_EVENT));
     return true;
   } catch {
@@ -161,9 +197,15 @@ export function weekCareBlocks(store: HygieneStore | null, date: string, today: 
     })),
   ];
   return configs.flatMap(config => {
-    if (!validCareDate(date, config) || hidden[date]?.includes(config.id)) return [];
+    if (!calendarDate(date) || hidden[date]?.includes(config.id)) return [];
     const routine = store.routines.find(item => item.id === config.routineId);
     if (!routine) return [];
+    const shiftedHere = Object.entries(store.taskReschedules).some(([key,target]) =>
+      target === date && key.split("|")[1] === config.routineId);
+    if (!validCareDate(date,config) && !shiftedHere) return [];
+    // Rescheduled source days are deliberately suppressed, even when a prior
+    // empty materialized record exists on that date.
+    if ((store.suppressedDates[date] ?? []).includes(config.routineId)) return [];
     const record = store.records[date]?.[config.routineId];
     // A historical occurrence with an authoritative snapshot must survive
     // later schedule edits. Missing records can still represent a missed day.

@@ -851,25 +851,25 @@ export function DayframeV2() {
 
   function saveEditedCare(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingCare || care.blocked || !care.hydrated || editingCare.date < todayKey) return;
+    if (!editingCare || care.blocked || !care.hydrated) return;
     const date = editingCareDate || editingCare.date;
     const id = editingCare.id;
     const movedDay = date !== editingCare.date;
     const source = weekCareBlocks(care.store, editingCare.date, todayKey, care.times, care.hidden)
       .find(item => item.id === id);
-    if (editingCare.date === todayKey && source
-      && timeToMinutes(source.start) <= planningMinute(now)
-      && (source.completed || careHasRecordedProgress(editingCare.date, source.routineId))) {
-      setEditingCareError("Rozpracovanou nebo splněnou hygienu již nelze přesunout.");
+
+    if (movedDay && source && (source.completed || careHasRecordedProgress(editingCare.date,source.routineId))) {
+      setEditingCareError("U zaznamenané rutiny lze posunout čas, ale ne datum jejího splnění.");
       return;
     }
-    const movableDay = care.store?.fixedRepeatRoutineId === id.slice("rolling:".length);
-    if (movedDay && (!movableDay || date < todayKey || dateFromKey(date).getDay() === 0)) {
-      setEditingCareError("Tento výskyt lze přesunout jen na budoucí den mimo neděli.");
+    if (movedDay && care.store?.fixedRepeatRoutineId === id.slice("rolling:".length)
+      && dateFromKey(date).getDay() === 0) {
+      setEditingCareError("Tato opakovaná rutina nesmí být přesunuta na neděli.");
       return;
     }
-    if (movedDay && weekCareBlocks(care.store, date, todayKey, care.times, care.hidden).some(item => item.id === id)) {
-      setEditingCareError("Na tomto dni už máš opakovanou hygienu naplánovanou.");
+    if (movedDay && weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
+      .some(item => item.id===id)) {
+      setEditingCareError("Na tomto dni už je stejná rutina. Druhý výskyt nelze vytvořit.");
       return;
     }
     const start = editingCareStart;
@@ -877,9 +877,8 @@ export function DayframeV2() {
     const duration = editingCare.duration;
     if (!/^\d{2}:\d{2}$/.test(start)
       || minute < calendarBounds.dayStart || minute + duration > calendarBounds.dayEnd
-      || minute % calendarBounds.slot !== 0
-      || (date === todayKey && minute <= planningMinute(now))) {
-      setEditingCareError("Vyber budoucí čas v rámci dne po 15 minutách.");
+      || minute % calendarBounds.slot !== 0) {
+      setEditingCareError("Vyber čas v rámci dne po 15 minutách.");
       return;
     }
     if (!careSlotOpen(date, id, start, duration)) {
@@ -910,13 +909,19 @@ export function DayframeV2() {
 
   function nearestOpenDrop(date: string, desiredStart: number, duration: number, id: string) {
     if(dragging?.kind==="gym"&&date<todayKey)return null;
-    // Linked hygiene reservations keep their authoritative routine date; only their clock time moves.
-    if(dragging?.kind==="care"&&(date<todayKey
-      || (date!==dragging.date && (
-        care.store?.fixedRepeatRoutineId !== dragging.id.slice("rolling:".length)
-        || dateFromKey(date).getDay() === 0
-        || weekCareBlocks(care.store,date,todayKey,care.times,care.hidden).some(item=>item.id===dragging.id)
-      ))))return null;
+
+    if (dragging?.kind==="care" && date!==dragging.date) {
+      const src=weekCareBlocks(care.store,dragging.date,todayKey,care.times,care.hidden)
+        .find(item=>item.id===dragging.id);
+      const routine=care.store?.routines.find(item=>item.id===src?.routineId);
+      if (!src || !routine || src.completed || careHasRecordedProgress(dragging.date,src.routineId)
+        || (routine.startsOn && date < routine.startsOn)
+        || (care.store?.fixedRepeatRoutineId===src.routineId
+          && dateFromKey(date).getDay()===0)
+        || care.store?.records[date]?.[src.routineId]
+        || weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
+          .some(item=>item.id===dragging.id)) return null;
+    }
     const min = calendarBounds.dayStart;
     const max = calendarBounds.dayEnd - duration;
     const rounded = Math.max(min, Math.min(max, Math.round(desiredStart / calendarBounds.slot) * calendarBounds.slot));
@@ -944,7 +949,7 @@ export function DayframeV2() {
       if (Math.abs(offset) > DROP_MAGNET_RANGE) continue;
       const candidate = rounded + offset;
       if (candidate < min || candidate > max) continue;
-      if (dragging?.kind==="care"&&date===todayKey&&candidate<=planningMinute(now))continue;
+      // Historical time corrections may be placed in elapsed hours.
       // A journey follows its parent block. Check its newly projected outbound
       // and return slots against all other events, not just the dragged event.
       if(travelStore.blocks[ownerKey]){
@@ -1014,7 +1019,7 @@ export function DayframeV2() {
       const success=date===selection.date
         ? care.move(date,selection.id as WeekCareId,preview.start)
         : care.moveDate(selection.date,date,selection.id as WeekCareId,preview.start);
-      if(!success)setNotice("Čas hygienické rutiny se nepodařilo uložit. Data nebyla změněna.");
+      if(!success)setNotice("Blok nelze přesunout: na cílovém dni je rutina nebo už byl zapsán její výkon.");
       else moveSavedTrip("care",selection.id,selection.date,date,preview.start);
       return;
     }
@@ -1421,15 +1426,10 @@ export function DayframeV2() {
                           {timedCare.map(item=>{
                             const startMinute=timeToMinutes(item.start);
                             const end=minutesToTime(startMinute+item.duration);
-                            // An unhandled Hygiene block can be rescheduled after its
-                            // original time has passed today. Drop/edit validation still
-                            // requires the destination to be in the future; past dates
-                            // and saved completion history remain untouched.
-                            const elapsedToday = key===todayKey && startMinute<=planningMinute(now);
-                            const recordedProgress = elapsedToday && careHasRecordedProgress(key, item.routineId);
-                            const draggable=key>=todayKey
-                              && (!elapsedToday || (!item.completed && !recordedProgress))
-                              && care.hydrated&&!care.blocked;
+
+                            // Dragged historical/completed routines may change clock time
+                            // within their original day; completion dates remain immutable.
+                            const draggable=care.hydrated&&!care.blocked;
                             return (
                               <Fragment key={item.id}><button type="button" data-week-care={item.id}
                                 className={"df2-week-task df2-week-care"+(item.duration===20?" is-short":"")+(item.completed?" done":"")}
@@ -1631,11 +1631,11 @@ export function DayframeV2() {
               <div><h2 id="df2-week-care-title">{editingCare.title}</h2><small>{shortDate(editingCare.date)} · {editingCare.duration} min · pouze tento den</small></div>
               <button type="button" aria-label="Zavřít" onClick={() => setEditingCare(null)}>×</button>
             </header>
-            {care.store?.fixedRepeatRoutineId === editingCare.id.slice("rolling:".length) && (
-              <label>Den výskytu<input type="date" min={todayKey} value={editingCareDate || editingCare.date}
-                onChange={(event)=>{setEditingCareDate(event.target.value);setEditingCareError("");}} /></label>
-            )}
-            {editingCare.date < todayKey && <p className="df2-week-care-help">Zpětný záznam: uprav splnění právě pro {shortDate(editingCare.date)}. Čas a opakovaný plán zůstávají beze změny.</p>}
+
+            <label>Den výskytu<input type="date" value={editingCareDate || editingCare.date}
+              disabled={Boolean(editingCareRecord && Object.keys(editingCareRecord.states).length)}
+              onChange={(event)=>{setEditingCareDate(event.target.value);setEditingCareError("");}} /></label>
+            {editingCare.date < todayKey && <p className="df2-week-care-help">Zpětná úprava času platí jen pro tento den. Nesplněnou rutinu lze přesunout i na jiný volný den.</p>}
             {editingCareRecord && <section className="df2-week-care-checks" data-week-care-history>
               <div className="df2-week-care-checks-heading"><strong>Splněné kroky</strong>
                 <span>{editingCareStatus?.done ?? 0}/{editingCareRecord.scheduledTasks.filter(task => !task.optional).length} povinných</span>
@@ -1656,9 +1656,8 @@ export function DayframeV2() {
               </button>
             </section>}
             <label>Začátek bloku<input autoFocus type="time" step={900} value={editingCareStart}
-              disabled={editingCare.date < todayKey}
               onChange={(event) => { setEditingCareStart(event.target.value); setEditingCareError(""); }} /></label>
-            {editingCare.date >= todayKey && <p className="df2-week-care-help">Čas lze změnit přetažením. Opakovanou rutinu lze přesunout i na jiný den mimo neděli; úprava se týká pouze tohoto výskytu.</p>}
+            <p className="df2-week-care-help">Přetažením nebo zde měníš jen tento výskyt. Splněná rutina může změnit čas, ale datum splnění zůstane. Stejná rutina nemůže být na cílovém dni dvakrát.</p>
             {editingCareError && <p className="df2-error" role="alert">{editingCareError}</p>}
             <button type="button" className="df2-trip-in-edit"
               onClick={()=>openTrip("care",editingCare.id,editingCare.date,editingCare.title,editingCareStart,false,
@@ -1666,7 +1665,7 @@ export function DayframeV2() {
               📍 Místo konání / cesta
             </button>
             <div className="df2-modal-actions">
-              <button className="df2-primary" type="submit" disabled={care.blocked || editingCare.date < todayKey}>Uložit čas</button>
+              <button className="df2-primary" type="submit" disabled={care.blocked}>Uložit čas</button>
               <button type="button" onClick={()=>{
                 setHygieneRoutineFocus(editingCare.id.startsWith("rolling:") ? editingCare.id.slice("rolling:".length) : editingCare.id);
                 setEditingCare(null);

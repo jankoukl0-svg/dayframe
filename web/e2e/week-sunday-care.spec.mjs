@@ -211,62 +211,47 @@ test("Elapsed repeated Hygiene block remains draggable later today without chang
     .toHaveAttribute("aria-label", "Opakovaná rutina, 23:00–23:30");
 });
 
-test("An elapsed Hygiene reservation can be edited later today but never moved into an elapsed slot", async ({ page }) => {
+
+test("An elapsed care reservation can be shifted to an earlier time within its day", async ({ page }) => {
   await fresh(page, "2026-10-16T16:49:00");
   await seedRepeatedHygiene(page);
   await page.evaluate(({ key, id }) => {
-    localStorage.setItem(key, JSON.stringify({
-      version: 1, times: { "2026-10-16": { [id]: "15:15" } },
-    }));
-    window.dispatchEvent(new Event("dayframe-week-care-sync"));
+    localStorage.setItem(key, JSON.stringify({version:1,times:{"2026-10-16":{[id]:"15:15"}}}));
   }, { key: CARE_KEY, id: REPEATED_CARE_ID });
-  const days = await week(page);
-  const repeated = days.nth(4).locator('[data-week-care="' + REPEATED_CARE_ID + '"]');
-  await repeated.click();
-  const dialog = page.getByRole("dialog", { name: "Opakovaná rutina" });
+  const days=await week(page);
+  const block=days.nth(4).locator('[data-week-care="'+REPEATED_CARE_ID+'"]');
+  await block.click();
+  const dialog=page.getByRole("dialog",{name:"Opakovaná rutina"});
   await dialog.getByLabel("Začátek bloku").fill("16:00");
-  await dialog.getByRole("button", { name: "Uložit čas" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("budoucí čas");
-  await expect(repeated).toHaveAttribute("aria-label", "Opakovaná rutina, 15:15–15:45");
-  await dialog.getByLabel("Začátek bloku").fill("23:00");
-  await dialog.getByRole("button", { name: "Uložit čas" }).click();
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
   await expect(dialog).toHaveCount(0);
-  await expect(repeated).toHaveAttribute("aria-label", "Opakovaná rutina, 23:00–23:30");
+  await expect(block).toHaveAttribute("aria-label","Opakovaná rutina, 16:00–16:30");
 });
 
-test("Elapsed Hygiene block with any saved progress stays locked and cannot be rescheduled via dialog", async ({ page }) => {
-  await fresh(page, "2026-10-16T16:49:00");
+test("A completed care block may move within the same day but not change its completion date", async ({ page }) => {
+  await fresh(page,"2026-10-16T16:49:00");
   await seedRepeatedHygiene(page);
-  await page.evaluate(({ key, id }) => {
-    localStorage.setItem(key, JSON.stringify({
-      version: 1, times: { "2026-10-16": { [id]: "15:15" } },
-    }));
-    window.dispatchEvent(new Event("dayframe-week-care-sync"));
-  }, { key: CARE_KEY, id: REPEATED_CARE_ID });
-  const days = await week(page);
-  const repeated = days.nth(4).locator('[data-week-care="' + REPEATED_CARE_ID + '"]');
-  await expect(repeated).toHaveAttribute("draggable", "true");
-  await page.evaluate(({ key, id }) => {
-    const store = JSON.parse(localStorage.getItem(key));
-    const date = "2026-10-16";
-    const routine = store.routines.find(item => item.id === id);
-    const record = store.records[date]?.[id];
-    if (!routine || !record || !record.scheduledTasks.length) throw Error("Missing Friday Hygiene occurrence");
-    const taskId = record.scheduledTasks[0].id;
-    record.states[taskId] = "done";
-    record.completedOn = { ...(record.completedOn ?? {}), [taskId]: date };
-    localStorage.setItem(key, JSON.stringify(store));
+  const days=await week(page);
+  const block=days.nth(4).locator('[data-week-care="'+REPEATED_CARE_ID+'"]');
+  await page.evaluate(({key,id})=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    const record=store.records["2026-10-16"][id];
+    if(!record?.scheduledTasks.length) throw Error("Missing Friday snapshot");
+    const task=record.scheduledTasks[0].id;
+    record.states[task]="done";
+    record.completedOn={...(record.completedOn??{}),[task]:"2026-10-16"};
+    localStorage.setItem(key,JSON.stringify(store));
     window.dispatchEvent(new Event("dayframe-hygiene-sync"));
-  }, { key: HYGIENE_KEY, id: REPEATED_ID });
-  await expect(repeated).toHaveAttribute("draggable", "false");
-  await repeated.click();
-  const dialog = page.getByRole("dialog", { name: "Opakovaná rutina" });
+  },{key:HYGIENE_KEY,id:REPEATED_ID});
+  await expect(block).toHaveAttribute("draggable","true");
+  await block.click();
+  const dialog=page.getByRole("dialog",{name:"Opakovaná rutina"});
+  await expect(dialog.getByLabel("Den výskytu")).toBeDisabled();
   await dialog.getByLabel("Začátek bloku").fill("23:00");
-  await dialog.getByRole("button", { name: "Uložit čas" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("Rozpracovanou nebo splněnou");
-  await expect(repeated).toHaveAttribute("aria-label", "Opakovaná rutina, 15:15–15:45");
-  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
-  expect(stored.records["2026-10-16"][REPEATED_ID].states["repeat-e2e-0"]).toBe("done");
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(block).toHaveAttribute("aria-label","Opakovaná rutina, 23:00–23:30");
+  const store=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(store.records["2026-10-16"][REPEATED_ID].completedOn["repeat-e2e-0"]).toBe("2026-10-16");
 });
 
 test("Friday repeat can move in time or be removed just for Friday with no Restore", async ({ page }) => {
@@ -732,24 +717,26 @@ test("disabling a Hygiene source routine removes only its linked Week reservatio
   await expect(page.locator('[data-week-care="hygiene-day"]')).toHaveCount(1);
 });
 
-test("Sunday time can be moved on its day, persists, and cannot move the checklist to weekdays", async ({ page }) => {
-  await fresh(page);
-  await week(page);
-  await expect(page.locator('[data-week-care="hygiene-day"]')).toHaveAttribute("draggable", "true");
-  await dragCare(page, 6, 0, "hygiene-day", "18:00");
-  await expect(page.locator('[data-week-care="hygiene-day"]')).toContainText("10:00–10:30");
-  expect(await page.evaluate(key => localStorage.getItem(key), CARE_KEY)).toBeNull();
 
-  await dragCare(page, 6, 6, "hygiene-day", "18:00");
-  await expect(page.locator('[data-week-care="hygiene-day"]')).toContainText("18:00–18:30");
-  const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), CARE_KEY);
-  expect(stored.times["2026-10-18"]["hygiene-day"]).toBe("18:00");
-  await page.reload({ waitUntil: "networkidle" });
+test("Sunday Hygiene moves to a free weekday without duplicating recurrence or losing its origin", async ({ page }) => {
+  await fresh(page);
+  const days=await week(page);
+  await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toHaveAttribute("draggable","true");
+  await dragCare(page,6,0,"hygiene-day","18:00");
+  await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+  await expect(days.nth(0).locator('[data-week-care="hygiene-day"]'))
+    .toHaveAttribute("aria-label","Nedělní hygiena, 18:00–18:30");
+  const careStore=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(careStore.moves["2026-10-18"]["hygiene-day"]).toBe("2026-10-12");
+  const hygiene=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(hygiene.suppressedDates["2026-10-18"]).toContain("hygiene-day");
+  expect(Object.entries(hygiene.taskReschedules).some(([key,value])=>
+    key.startsWith("2026-10-18|hygiene-day|")&&value==="2026-10-12")).toBe(true);
+  await page.reload({waitUntil:"networkidle"});
   await week(page);
-  await expect(page.locator('[data-week-care="hygiene-day"]')).toContainText("18:00–18:30");
-  await expect(page.locator('[data-week-care="cleaning-sunday"]')).toContainText("10:30–11:00");
-  const record = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
-  expect(record.routines.find(item => item.id === "hygiene-day").schedule).toEqual({ type: "weekly", weekday: 0 });
+  await expect(page.locator(".df2-week-day").nth(0).locator('[data-week-care="hygiene-day"]'))
+    .toHaveAttribute("aria-label","Nedělní hygiena, 18:00–18:30");
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
 });
 
 test("corrupted placement data leaves Sunday reservations visible but read-only", async ({ page }) => {
@@ -883,4 +870,32 @@ test("completing today's custom rolling Hygiene keeps its Week block visible and
   await expect(page.locator(".df2-week-day").first().locator('[data-week-care="'+weekId+'"]')).toHaveClass(/done/);
   const retained=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
   expect(retained.records["2026-10-12"][routineId].archived).not.toBe(true);
+});
+
+test("Yesterday's recorded care stays completed while its calendar time can be moved by drag", async ({page})=>{
+  await fresh(page,"2026-11-11T12:00:00");
+  await week(page);
+  const day=page.locator(".df2-week-day").nth(1);
+  const morning=day.locator('[data-week-care="morning"]');
+  await expect(morning).toBeVisible();
+  await page.evaluate(key=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    const record=store.records["2026-11-10"].morning;
+    if(!record?.scheduledTasks.length) throw Error("Missing past morning care");
+    const task=record.scheduledTasks[0].id;
+    record.states[task]="done";
+    record.completedOn={...(record.completedOn??{}),[task]:"2026-11-10"};
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },HYGIENE_KEY);
+  await expect(morning).toHaveAttribute("draggable","true");
+  await dragCare(page,1,1,"morning","17:00");
+  await expect(morning).toHaveAttribute("aria-label","Ranní hygiena, 17:00–17:20");
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(Object.values(saved.records["2026-11-10"].morning.completedOn)).toContain("2026-11-10");
+  expect(saved.records["2026-11-11"].morning.states).toEqual({});
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-care="morning"]'))
+    .toHaveAttribute("aria-label","Ranní hygiena, 17:00–17:20");
 });

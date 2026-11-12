@@ -971,6 +971,37 @@ export function moveFixedRepeatOccurrence(store: HygieneStore, routineId: string
   };
 }
 
+/** Move one unhandled occurrence to a free date without changing recurrence.
+ * Completion history stays on its original day.
+ */
+export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string, fromDate: string, toDate: string): HygieneStore {
+  if (fromDate === toDate || !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)
+    || !Number.isFinite(dateFromKey(fromDate).getTime())
+    || !Number.isFinite(dateFromKey(toDate).getTime())) return store;
+  if (store.fixedRepeatRoutineId === routineId) {
+    return dateFromKey(toDate).getDay() === 0 ? store
+      : moveFixedRepeatOccurrence(store, routineId, fromDate, toDate);
+  }
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!routine || (routine.startsOn && toDate < routine.startsOn)
+    || !routineHasScheduledWorkOnDate(store, routine, fromDate)
+    || routineHasScheduledWorkOnDate(store, routine, toDate)
+    || store.records[toDate]?.[routineId]) return store;
+  const source = materializeHygieneDate(store, fromDate);
+  const record = source.records[fromDate]?.[routineId];
+  if (!record?.scheduledTasks.length || Object.keys(record.states).length) return store;
+  const taskReschedules = { ...store.taskReschedules };
+  for (const snapshot of record.scheduledTasks) {
+    const origin = snapshot.originDate ?? fromDate;
+    taskReschedules[origin+"|"+routineId+"|"+snapshot.id] = toDate;
+  }
+  return { ...store, taskReschedules, suppressedDates: {
+    ...store.suppressedDates,
+    [fromDate]: [...new Set([...(store.suppressedDates[fromDate] ?? []), routineId])],
+  }};
+}
+
 export function postponeHygieneTask(store: HygieneStore, fromDate: string, routineId: string, taskId: string, toDate: string): HygieneStore {
   if (toDate <= fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) return store;
   const record = store.records[fromDate]?.[routineId];
