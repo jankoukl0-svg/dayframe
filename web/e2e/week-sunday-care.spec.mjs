@@ -1117,4 +1117,24 @@ test("Moving an untouched past Sunday into older materialized history keeps exac
   const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
   expect(persisted.records["2026-11-02"]?.["hygiene-day"]).toBeDefined();
   expect(persisted.records["2026-11-08"]?.["hygiene-day"]).toBeUndefined();
+
+  // A later cancellation must restore that same unhandled historical record
+  // even though this week's dates are no longer re-materialized automatically.
+  await page.locator(".df2-week-day").nth(0).locator('[data-week-care="hygiene-day"]').click();
+  const undo=page.getByRole("dialog",{name:"Nedělní hygiena"});
+  await undo.getByLabel("Den výskytu").fill("2026-11-08");
+  await undo.getByLabel("Začátek bloku").fill("17:00");
+  await undo.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]'))
+    .toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
+  const restored=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(restored.records["2026-11-08"]?.["hygiene-day"]).toBeDefined();
+  expect(restored.records["2026-11-02"]?.["hygiene-day"]).toBeUndefined();
+  expect(restored.records["2026-11-08"]["hygiene-day"].states).toEqual({});
+  expect(Object.values(restored.records).filter(day=>day?.["hygiene-day"]).length).toBe(before);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await page.locator(".df2-week-controls button").filter({hasText:"←"}).click();
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]'))
+    .toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
 });
