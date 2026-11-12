@@ -72,7 +72,7 @@ export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHid
   if (typeof window === "undefined") return { times: {}, hidden: {}, moves: {}, blocked: false };
   try {
     const raw = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
-    if (!raw) return { times: {}, hidden: {}, blocked: false };
+    if (!raw) return { times: {}, hidden: {}, moves: {}, blocked: false };
     const data = JSON.parse(raw);
     if (!data || data.version !== 1 || !data.times || typeof data.times !== "object" || Array.isArray(data.times)) {
       return { times: {}, hidden: {}, moves: {}, blocked: true };
@@ -142,7 +142,7 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
   if (current.blocked || typeof window === "undefined") return false;
   try {
     const moves: WeekCareMoves = { ...current.moves };
-    const times = { ...current.times, [date]: { ...(current.times[date] ?? {}), [id]: start } };
+    const times: WeekCareTimes = { ...current.times, [date]: { ...(current.times[date] ?? {}), [id]: start } };
     if (fromDate && date !== fromDate) {
       const origin = Object.keys(moves).find(source => moves[source]?.[id] === fromDate) ?? fromDate;
       if (!validCareDate(origin,config)) return false;
