@@ -988,6 +988,17 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
   const record = materialized.records[fromDate]?.[routineId];
   if (!record?.scheduledTasks.length || Object.keys(record.states).length) return store;
 
+  // A rolling schedule starts at its anchor. Moving an occurrence before
+  // that anchor would let it be completed on a day hygieneRollingDueDate()
+  // intentionally excludes from cadence history, suppressing the origin
+  // without advancing the next due date. Reject only such moves; existing
+  // recorded history and the original recurrence remain untouched.
+  if (record.scheduledTasks.some(snapshot => {
+    const definition = routine.tasks.find(task => task.id === snapshot.id);
+    const schedule = definition?.schedule ?? routine.schedule;
+    return schedule.type === "rolling" && toDate < schedule.anchorDate;
+  })) return store;
+
   // An untouched historical record must not continue counting as a missed
   // occurrence after its tasks have been explicitly rescheduled to another day.
   const records = { ...store.records };
