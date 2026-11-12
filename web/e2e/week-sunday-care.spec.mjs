@@ -974,3 +974,57 @@ test("A shifted unhandled historical Sunday snapshot no longer counts as missed 
   const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
   expect(persisted.records["2026-11-08"]?.["hygiene-day"]).toBeUndefined();
 });
+
+
+test("A rolling routine cannot move before its anchor and completing the anchor still schedules the next interval", async ({page})=>{
+  await fresh(page,"2026-10-12T12:00:00");
+  const routineId="hygiene-routine-rolling-anchor-guard";
+  const blockId="rolling:"+routineId;
+  await page.evaluate(({key,id})=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    store.routines.push({
+      id,title:"Třídenní ochranná rutina",domain:"hygiene",active:true,order:85,
+      schedule:{type:"rolling",everyDays:3,unit:"days",anchorDate:"2026-10-14"},
+      tasks:[{id:"anchor-guard-task",title:"Kontrola kotvy",section:"Péče",
+        active:true,optional:false,allowSkip:false}],
+    });
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },{key:HYGIENE_KEY,id:routineId});
+  const days=await week(page);
+  const due=days.nth(2).locator('[data-week-care="'+blockId+'"]');
+  await expect(due).toBeVisible();
+  await due.click();
+  const dialog=page.getByRole("dialog",{name:"Třídenní ochranná rutina"});
+  await dialog.getByLabel("Den výskytu").fill("2026-10-12");
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(dialog.getByRole("alert")).toContainText("Přesun se nepodařilo uložit");
+  await expect(due).toBeVisible();
+  const unchanged=await page.evaluate(({key,id})=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    return {
+      reschedules:Object.entries(store.taskReschedules).filter(([origin])=>origin.includes("|"+id+"|")),
+      suppressed:store.suppressedDates["2026-10-14"]??[],
+    };
+  },{key:HYGIENE_KEY,id:routineId});
+  expect(unchanged.reschedules).toHaveLength(0);
+  expect(unchanged.suppressed).not.toContain(routineId);
+  await dialog.getByRole("button",{name:"Zavřít"}).click();
+
+  await page.clock.setFixedTime(new Date("2026-10-14T12:00:00"));
+  await page.reload({waitUntil:"networkidle"});
+  const updatedDays=await week(page);
+  await updatedDays.nth(2).locator('[data-week-care="'+blockId+'"]').click();
+  const active=page.getByRole("dialog",{name:"Třídenní ochranná rutina"});
+  await active.getByRole("button",{name:"Označit celou rutinu hotovou"}).click();
+  const recorded=await page.evaluate(({key,id})=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    return store.records["2026-10-14"]?.[id]?.states["anchor-guard-task"];
+  },{key:HYGIENE_KEY,id:routineId});
+  expect(recorded).toBe("done");
+  await active.getByRole("button",{name:"Zavřít"}).click();
+  await expect(updatedDays.nth(5).locator('[data-week-care="'+blockId+'"]')).toBeVisible();
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(5).locator('[data-week-care="'+blockId+'"]')).toBeVisible();
+});
