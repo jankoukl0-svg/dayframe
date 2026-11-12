@@ -1015,14 +1015,37 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
     task.originDate === date
     && taskReschedules[date+"|"+routineId+"|"+task.id] === fromDate);
 
+  const preserveInMaterializedHistory = (destination: string, backAtOrigin = false) => {
+    if (!store.lastMaterializedDate || destination > store.lastMaterializedDate) return;
+    records[destination] = {
+      ...(records[destination] ?? {}),
+      [routineId]: {
+        ...record,
+        date: destination,
+        scheduledTasks: record.scheduledTasks.map(task => ({
+          ...task,
+          originDate: backAtOrigin ? undefined : (task.originDate ?? fromDate),
+        })),
+        states: {},
+        completedOn: undefined,
+        archived: undefined,
+        carryToday: undefined,
+      },
+    };
+  };
+
   // Return to the original due date cancels the one-off move. Do not store
   // origin -> origin self-references or leave the original date suppressed.
   if (originatedOn(toDate) && (suppressedDates[toDate] ?? []).includes(routineId)) {
+    // Returning to the historic origin must also restore its original
+    // unhandled record: a previously materialized date will not be revisited.
+    if (store.records[toDate]?.[routineId]) return store;
     for (const task of record.scheduledTasks)
       delete taskReschedules[toDate+"|"+routineId+"|"+task.id];
     const left = (suppressedDates[toDate] ?? []).filter(id => id !== routineId);
     if (left.length) suppressedDates[toDate] = left;
     else delete suppressedDates[toDate];
+    preserveInMaterializedHistory(toDate, true);
     return { ...store, records, taskReschedules, suppressedDates };
   }
 
@@ -1043,28 +1066,9 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
     suppressedDates[fromDate] = [...new Set([...(suppressedDates[fromDate] ?? []), routineId])];
   }
 
-  // History has already been materialized through lastMaterializedDate.
-  // Moving an untouched past occurrence back into that range cannot rely on
-  // the next automatic materialization pass: it skips historical dates.
-  // Transfer only this unhandled occurrence's snapshot into the destination
-  // instead of materializing unrelated routines or counting it on two dates.
-  if (store.lastMaterializedDate && toDate <= store.lastMaterializedDate) {
-    records[toDate] = {
-      ...(records[toDate] ?? {}),
-      [routineId]: {
-        ...record,
-        date: toDate,
-        scheduledTasks: record.scheduledTasks.map(task => ({
-          ...task,
-          originDate: task.originDate ?? fromDate,
-        })),
-        states: {},
-        completedOn: undefined,
-        archived: undefined,
-        carryToday: undefined,
-      },
-    };
-  }
+  // Preserve exactly one unhandled snapshot when the moved date belongs
+  // to already-materialized history; future dates still materialize normally.
+  preserveInMaterializedHistory(toDate);
   return { ...store, records, taskReschedules, suppressedDates };
 }
 
