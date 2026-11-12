@@ -1026,7 +1026,11 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
     return { ...store, records, taskReschedules, suppressedDates };
   }
 
-  if (routineHasScheduledWorkOnDate(store,routine,toDate)
+  // A different occurrence may have been moved away from this date.
+  // Its suppression still belongs to that occurrence and must not swallow a
+  // second one. Returning the *same* occurrence to its origin was handled above.
+  if ((suppressedDates[toDate] ?? []).includes(routineId)
+    || routineHasScheduledWorkOnDate(store,routine,toDate)
     || store.records[toDate]?.[routineId]) return store;
 
   for (const task of record.scheduledTasks) {
@@ -1037,6 +1041,29 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
   // already suppressed. The intermediate date was never part of recurrence.
   if (record.scheduledTasks.some(task => !task.originDate || task.originDate===fromDate)) {
     suppressedDates[fromDate] = [...new Set([...(suppressedDates[fromDate] ?? []), routineId])];
+  }
+
+  // History has already been materialized through lastMaterializedDate.
+  // Moving an untouched past occurrence back into that range cannot rely on
+  // the next automatic materialization pass: it skips historical dates.
+  // Transfer only this unhandled occurrence's snapshot into the destination
+  // instead of materializing unrelated routines or counting it on two dates.
+  if (store.lastMaterializedDate && toDate <= store.lastMaterializedDate) {
+    records[toDate] = {
+      ...(records[toDate] ?? {}),
+      [routineId]: {
+        ...record,
+        date: toDate,
+        scheduledTasks: record.scheduledTasks.map(task => ({
+          ...task,
+          originDate: task.originDate ?? fromDate,
+        })),
+        states: {},
+        completedOn: undefined,
+        archived: undefined,
+        carryToday: undefined,
+      },
+    };
   }
   return { ...store, records, taskReschedules, suppressedDates };
 }
