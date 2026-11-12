@@ -979,27 +979,55 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
     || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)
     || !Number.isFinite(dateFromKey(fromDate).getTime())
     || !Number.isFinite(dateFromKey(toDate).getTime())) return store;
-  if (store.fixedRepeatRoutineId === routineId) {
-    return dateFromKey(toDate).getDay() === 0 ? store
-      : moveFixedRepeatOccurrence(store, routineId, fromDate, toDate);
-  }
   const routine = store.routines.find(item => item.id === routineId && item.active);
   if (!routine || (routine.startsOn && toDate < routine.startsOn)
-    || !routineHasScheduledWorkOnDate(store, routine, fromDate)
-    || routineHasScheduledWorkOnDate(store, routine, toDate)
-    || store.records[toDate]?.[routineId]) return store;
-  const source = materializeHygieneDate(store, fromDate);
-  const record = source.records[fromDate]?.[routineId];
+    || (store.fixedRepeatRoutineId === routineId && dateFromKey(toDate).getDay() === 0)
+    || !routineHasScheduledWorkOnDate(store, routine, fromDate)) return store;
+
+  const materialized = materializeHygieneDate(store, fromDate);
+  const record = materialized.records[fromDate]?.[routineId];
   if (!record?.scheduledTasks.length || Object.keys(record.states).length) return store;
-  const taskReschedules = { ...store.taskReschedules };
-  for (const snapshot of record.scheduledTasks) {
-    const origin = snapshot.originDate ?? fromDate;
-    taskReschedules[origin+"|"+routineId+"|"+snapshot.id] = toDate;
+
+  // An untouched historical record must not continue counting as a missed
+  // occurrence after its tasks have been explicitly rescheduled to another day.
+  const records = { ...store.records };
+  if (records[fromDate]?.[routineId]) {
+    const byRoutine = { ...records[fromDate] };
+    delete byRoutine[routineId];
+    if (Object.keys(byRoutine).length) records[fromDate] = byRoutine;
+    else delete records[fromDate];
   }
-  return { ...store, taskReschedules, suppressedDates: {
-    ...store.suppressedDates,
-    [fromDate]: [...new Set([...(store.suppressedDates[fromDate] ?? []), routineId])],
-  }};
+
+  const taskReschedules = { ...store.taskReschedules };
+  const suppressedDates = { ...store.suppressedDates };
+  const originatedOn = (date: string) => record.scheduledTasks.every(task =>
+    task.originDate === date
+    && taskReschedules[date+"|"+routineId+"|"+task.id] === fromDate);
+
+  // Return to the original due date cancels the one-off move. Do not store
+  // origin -> origin self-references or leave the original date suppressed.
+  if (originatedOn(toDate) && (suppressedDates[toDate] ?? []).includes(routineId)) {
+    for (const task of record.scheduledTasks)
+      delete taskReschedules[toDate+"|"+routineId+"|"+task.id];
+    const left = (suppressedDates[toDate] ?? []).filter(id => id !== routineId);
+    if (left.length) suppressedDates[toDate] = left;
+    else delete suppressedDates[toDate];
+    return { ...store, records, taskReschedules, suppressedDates };
+  }
+
+  if (routineHasScheduledWorkOnDate(store,routine,toDate)
+    || store.records[toDate]?.[routineId]) return store;
+
+  for (const task of record.scheduledTasks) {
+    const origin = task.originDate ?? fromDate;
+    taskReschedules[origin+"|"+routineId+"|"+task.id] = toDate;
+  }
+  // Once a shifted instance is moved a second time, the *original* date is
+  // already suppressed. The intermediate date was never part of recurrence.
+  if (record.scheduledTasks.some(task => !task.originDate || task.originDate===fromDate)) {
+    suppressedDates[fromDate] = [...new Set([...(suppressedDates[fromDate] ?? []), routineId])];
+  }
+  return { ...store, records, taskReschedules, suppressedDates };
 }
 
 export function postponeHygieneTask(store: HygieneStore, fromDate: string, routineId: string, taskId: string, toDate: string): HygieneStore {

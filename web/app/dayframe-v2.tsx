@@ -914,11 +914,14 @@ export function DayframeV2() {
       const src=weekCareBlocks(care.store,dragging.date,todayKey,care.times,care.hidden)
         .find(item=>item.id===dragging.id);
       const routine=care.store?.routines.find(item=>item.id===src?.routineId);
+      const returningToOrigin = (care.store?.suppressedDates[date]??[]).includes(src?.routineId??"")
+        && Object.entries(care.store?.taskReschedules??{}).some(([key,target])=>
+          target===dragging.date && key.startsWith(date+"|"+src?.routineId+"|"));
       if (!src || !routine || src.completed || careHasRecordedProgress(dragging.date,src.routineId)
         || (routine.startsOn && date < routine.startsOn)
         || (care.store?.fixedRepeatRoutineId===src.routineId
           && dateFromKey(date).getDay()===0)
-        || care.store?.records[date]?.[src.routineId]
+        || (care.store?.records[date]?.[src.routineId] && !returningToOrigin)
         || weekCareBlocks(care.store,date,todayKey,care.times,care.hidden)
           .some(item=>item.id===dragging.id)) return null;
     }

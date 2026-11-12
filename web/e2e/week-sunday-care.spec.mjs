@@ -896,3 +896,81 @@ test("Yesterday's recorded care stays completed while its calendar time can be m
   await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-care="morning"]'))
     .toHaveAttribute("aria-label","Ranní hygiena, 17:00–17:20");
 });
+
+test("Moving a Sunday occurrence back to Sunday cancels the one-off exception without corrupting care storage", async ({page})=>{
+  await fresh(page);
+  const days=await week(page);
+  await dragCare(page,6,0,"hygiene-day","18:00");
+  await expect(days.nth(0).locator('[data-week-care="hygiene-day"]')).toBeVisible();
+  await dragCare(page,0,6,"hygiene-day","17:00");
+  await expect(days.nth(0).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+  await expect(days.nth(6).locator('[data-week-care="hygiene-day"]'))
+    .toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
+  const data=await page.evaluate(()=>({
+    care:JSON.parse(localStorage.getItem("dayframe-week-care-v1")),
+    hygiene:JSON.parse(localStorage.getItem("dayframe-hygiene-v1")),
+  }));
+  expect(data.care.moves?.["2026-10-18"]?.["hygiene-day"]).toBeUndefined();
+  expect(data.hygiene.suppressedDates?.["2026-10-18"]??[]).not.toContain("hygiene-day");
+  expect(Object.keys(data.hygiene.taskReschedules).filter(key=>key.startsWith("2026-10-18|hygiene-day|"))).toHaveLength(0);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]'))
+    .toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
+  await expect(page.locator('[data-week-care="morning"]')).toHaveCount(7);
+});
+
+test("Sunday Cleaning moved to a weekday can still be removed from that day", async ({page})=>{
+  await fresh(page);
+  const days=await week(page);
+  await dragCare(page,6,0,"cleaning-sunday","19:00");
+  const moved=days.nth(0).locator('[data-week-care="cleaning-sunday"]');
+  await expect(moved).toBeVisible();
+  await moved.click();
+  const dialog=page.getByRole("dialog",{name:"Nedělní úklid"});
+  await dialog.getByRole("button",{name:"Odebrat jen tento den"}).click();
+  await expect(moved).toHaveCount(0);
+  const store=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(store.hidden["2026-10-12"]).toContain("cleaning-sunday");
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").first().locator('[data-week-care="cleaning-sunday"]')).toHaveCount(0);
+  await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="cleaning-sunday"]')).toHaveCount(0);
+  const after=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(after.hidden["2026-10-12"]).toContain("cleaning-sunday");
+});
+
+test("A shifted unhandled historical Sunday snapshot no longer counts as missed on its original date", async ({page})=>{
+  await fresh(page,"2026-11-11T12:00:00");
+  await page.evaluate(key=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    const routine=store.routines.find(item=>item.id==="hygiene-day");
+    if(!routine) throw Error("Missing Sunday routine");
+    store.records["2026-11-08"]={...(store.records["2026-11-08"]??{}),
+      "hygiene-day":{
+        date:"2026-11-08",routineId:"hygiene-day",routineTitle:routine.title,
+        domain:routine.domain,states:{},scheduledTasks:routine.tasks
+          .filter(item=>item.active).map(item=>({
+            id:item.id,title:item.title,section:item.section,optional:item.optional,
+            allowSkip:item.allowSkip,scheduleType:(item.schedule??routine.schedule).type,
+          })),
+      },
+    };
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },HYGIENE_KEY);
+  const days=await week(page);
+  await page.locator(".df2-week-controls button").filter({hasText:"←"}).click();
+  await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toBeVisible();
+  await dragCare(page,6,0,"hygiene-day","18:00");
+  await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+  const history=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(history.records["2026-11-08"]?.["hygiene-day"]).toBeUndefined();
+  expect(history.suppressedDates["2026-11-08"]).toContain("hygiene-day");
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await page.locator(".df2-week-controls button").filter({hasText:"←"}).click();
+  await expect(page.locator(".df2-week-day").first().locator('[data-week-care="hygiene-day"]')).toBeVisible();
+  const persisted=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(persisted.records["2026-11-08"]?.["hygiene-day"]).toBeUndefined();
+});
