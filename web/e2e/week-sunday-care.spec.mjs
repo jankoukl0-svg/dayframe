@@ -983,7 +983,7 @@ test("A rolling routine cannot move before its anchor and completing the anchor 
   await page.evaluate(({key,id})=>{
     const store=JSON.parse(localStorage.getItem(key));
     store.routines.push({
-      id,title:"Třídenní ochranná rutina",domain:"hygiene",active:true,order:85,
+      id,title:"Třídenní ochranná rutina",active:true,order:85,
       schedule:{type:"rolling",everyDays:3,unit:"days",anchorDate:"2026-10-14"},
       tasks:[{id:"anchor-guard-task",title:"Kontrola kotvy",section:"Péče",
         active:true,optional:false,allowSkip:false}],
