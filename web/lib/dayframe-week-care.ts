@@ -67,8 +67,26 @@ function validCareDate(date: string, config: (typeof DEFAULTS)[number]) {
   return calendarDate(date) && (!config.sundayOnly || dateFromKey(date).getDay() === 0);
 }
 
+/** Accept additional weekday projections traced by Hygiene's authoritative
+ * task reschedules; Week's moves map represents only one destination.
+ */
+function hygieneShiftedTo(store: HygieneStore | null | undefined, date: string, id: WeekCareId): boolean {
+  if (!store || !calendarDate(date)) return false;
+  const routineId = id.startsWith(ROLLING_PREFIX) ? id.slice(ROLLING_PREFIX.length) : id;
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!routine || (store.suppressedDates[date] ?? []).includes(routineId)) return false;
+  const ids = new Set(routine.tasks.map(task => task.id));
+  const traced = Object.entries(store.taskReschedules).some(([key, destination]) => {
+    if (destination !== date) return false;
+    const [origin, owner, taskId, extra] = key.split("|");
+    return extra === undefined && calendarDate(origin) && owner === routineId && ids.has(taskId);
+  });
+  return traced && (routineHasScheduledWorkOnDate(store, routine, date)
+    || Boolean(store.records[date]?.[routineId]?.scheduledTasks.length));
+}
+
 /** Malformed or inaccessible saved positions must never be overwritten. */
-export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHidden; moves: WeekCareMoves; blocked: boolean } {
+export function readWeekCareTimes(hygiene?: HygieneStore | null): { times: WeekCareTimes; hidden: WeekCareHidden; moves: WeekCareMoves; blocked: boolean } {
   if (typeof window === "undefined") return { times: {}, hidden: {}, moves: {}, blocked: false };
   try {
     const raw = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
@@ -97,7 +115,7 @@ export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHid
       }
     }
     const shiftedTo = (date:string,id:WeekCareId) =>
-      Object.values(moves).some(byId=>byId[id]===date);
+      Object.values(moves).some(byId=>byId[id]===date) || hygieneShiftedTo(hygiene,date,id);
     const times: WeekCareTimes = {};
     for (const [date, values] of Object.entries(data.times)) {
       if (!calendarDate(date) || !values || typeof values !== "object" || Array.isArray(values)) {
@@ -135,10 +153,11 @@ export function readWeekCareTimes(): { times: WeekCareTimes; hidden: WeekCareHid
   }
 }
 
-export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fromDate?: string): boolean {
+export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fromDate?: string,
+  hygiene?: HygieneStore | null, nextHygiene?: HygieneStore | null): boolean {
   const config = careDefinition(id);
   if (!config || !calendarDate(date) || !validTime(start, config.duration)) return false;
-  const current = readWeekCareTimes();
+  const current = readWeekCareTimes(hygiene);
   if (current.blocked || typeof window === "undefined") return false;
   try {
     const moves: WeekCareMoves = { ...current.moves };
@@ -146,16 +165,23 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
     const times: WeekCareTimes = { ...current.times, [date]: { ...(current.times[date] ?? {}), [id]: start } };
     if (fromDate && date !== fromDate) {
       const origin = Object.keys(moves).find(source => moves[source]?.[id] === fromDate) ?? fromDate;
-      if (!validCareDate(origin,config)) return false;
-      if (origin === date) {
-        // Moving back to the original occurrence cancels its one-off marker.
-        const original = { ...(moves[origin] ?? {}) };
-        delete original[id];
-        if (Object.keys(original).length) moves[origin] = original;
-        else delete moves[origin];
-      } else {
-        moves[origin] = { ...(moves[origin] ?? {}), [id]: date };
+      if (validCareDate(origin,config)) {
+        if (origin === date) {
+          const original = { ...(moves[origin] ?? {}) };
+          delete original[id];
+          if (Object.keys(original).length) moves[origin] = original;
+          else delete moves[origin];
+        } else {
+          moves[origin] = { ...(moves[origin] ?? {}), [id]: date };
+        }
+      } else if (!hygieneShiftedTo(hygiene,fromDate,id)) {
+        // Hygiene can postpone only some steps, retaining the Week move trace
+        // for the remaining steps at their existing destination.
+        return false;
       }
+      if (!validCareDate(date,config)
+        && !Object.values(moves).some(byId => byId[id] === date)
+        && !hygieneShiftedTo(nextHygiene ?? hygiene,date,id)) return false;
       if (hidden[fromDate]?.includes(id)) {
         const rest = hidden[fromDate].filter(item => item !== id);
         if (rest.length) hidden[fromDate] = rest;
@@ -166,10 +192,18 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
         delete times[fromDate][id];
         if (!Object.keys(times[fromDate]).length) delete times[fromDate];
       }
-    } else if (!validCareDate(date,config) && !Object.values(moves).some(byId=>byId[id]===date)) {
+    } else if (!validCareDate(date,config)
+      && !Object.values(moves).some(byId => byId[id] === date)
+      && !hygieneShiftedTo(hygiene,date,id)) {
       return false;
     }
+    const previous = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
     window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times, hidden, moves }));
+    if (readWeekCareTimes(nextHygiene ?? hygiene).blocked) {
+      if (previous === null) window.localStorage.removeItem(WEEK_CARE_STORAGE_KEY);
+      else window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, previous);
+      return false;
+    }
     window.dispatchEvent(new Event(WEEK_CARE_SYNC_EVENT));
     return true;
   } catch {
@@ -178,12 +212,14 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
 }
 
 /** Hide or restore a single calendar projection without altering any Hygiene tasks. */
-export function saveWeekCareHidden(date: string, id: WeekCareId, hide: boolean): boolean {
+export function saveWeekCareHidden(date: string, id: WeekCareId, hide: boolean,
+  hygiene?: HygieneStore | null): boolean {
   const config = careDefinition(id);
   if (!config || !calendarDate(date) || typeof window === "undefined") return false;
-  const current = readWeekCareTimes();
+  const current = readWeekCareTimes(hygiene);
   if (current.blocked || !(validCareDate(date,config)
-    || Object.values(current.moves).some(byId=>byId[id]===date))) return false;
+    || Object.values(current.moves).some(byId=>byId[id]===date)
+    || hygieneShiftedTo(hygiene,date,id))) return false;
   const previous = current.hidden[date] ?? [];
   const next = hide ? [...new Set([...previous, id])] : previous.filter(item => item !== id);
   const hidden = { ...current.hidden };

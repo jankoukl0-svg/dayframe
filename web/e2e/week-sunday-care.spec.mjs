@@ -1138,3 +1138,57 @@ test("Moving an untouched past Sunday into older materialized history keeps exac
   await expect(page.locator(".df2-week-day").nth(6).locator('[data-week-care="hygiene-day"]'))
     .toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
 });
+
+test("Hygiene-postponed Sunday step can be edited, moved and hidden on an extra weekday", async ({page}) => {
+  await fresh(page);
+  const days = await week(page);
+  await dragCare(page,6,0,"hygiene-day","18:00");
+
+  // A later postponement in Hygiene redirects just one step to Tuesday.
+  // The remaining Sunday steps retain their original Monday Week trace.
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const routine = store.routines.find(item => item.id === "hygiene-day");
+    const task = routine.tasks.find(item => item.active);
+    const trace = "2026-10-18|hygiene-day|" + task.id;
+    if (store.taskReschedules[trace] !== "2026-10-12") throw Error("Missing Sunday move");
+    store.taskReschedules[trace] = "2026-10-13";
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+
+  const tuesday = days.nth(1).locator('[data-week-care="hygiene-day"]');
+  await expect(tuesday).toBeVisible();
+  await tuesday.click();
+  let dialog = page.getByRole("dialog",{name:"Nedělní hygiena"});
+  await dialog.getByLabel("Začátek bloku").fill("17:00");
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(tuesday).toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
+
+  await tuesday.click();
+  dialog = page.getByRole("dialog",{name:"Nedělní hygiena"});
+  await dialog.getByLabel("Den výskytu").fill("2026-10-14");
+  await dialog.getByRole("button",{name:"Uložit čas"}).click();
+
+  const wednesday = days.nth(2).locator('[data-week-care="hygiene-day"]');
+  await expect(tuesday).toHaveCount(0);
+  await expect(wednesday).toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  const persisted = page.locator(".df2-week-day").nth(2).locator('[data-week-care="hygiene-day"]');
+  await expect(persisted).toHaveAttribute("aria-label","Nedělní hygiena, 17:00–17:30");
+  await persisted.click();
+  await page.getByRole("dialog",{name:"Nedělní hygiena"})
+    .getByRole("button",{name:"Odebrat jen tento den"}).click();
+  await expect(persisted).toHaveCount(0);
+
+  const data = await page.evaluate(() => ({
+    hygiene:JSON.parse(localStorage.getItem("dayframe-hygiene-v1")),
+    care:JSON.parse(localStorage.getItem("dayframe-week-care-v1")),
+  }));
+  expect(data.care.moves["2026-10-18"]["hygiene-day"]).toBe("2026-10-12");
+  expect(data.care.hidden["2026-10-14"]).toContain("hygiene-day");
+  expect(Object.entries(data.hygiene.taskReschedules)
+    .filter(([key]) => key.startsWith("2026-10-18|hygiene-day|"))
+    .some(([,destination]) => destination === "2026-10-14")).toBe(true);
+});
