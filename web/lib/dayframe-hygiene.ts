@@ -971,6 +971,124 @@ export function moveFixedRepeatOccurrence(store: HygieneStore, routineId: string
   };
 }
 
+/** Move one unhandled occurrence to a free date without changing recurrence.
+ * Completion history stays on its original day.
+ */
+export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string, fromDate: string, toDate: string): HygieneStore {
+  if (fromDate === toDate || !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)
+    || !Number.isFinite(dateFromKey(fromDate).getTime())
+    || !Number.isFinite(dateFromKey(toDate).getTime())) return store;
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!routine || (routine.startsOn && toDate < routine.startsOn)
+    || (store.fixedRepeatRoutineId === routineId && dateFromKey(toDate).getDay() === 0)
+    || !routineHasScheduledWorkOnDate(store, routine, fromDate)) return store;
+
+  const materialized = materializeHygieneDate(store, fromDate);
+  const record = materialized.records[fromDate]?.[routineId];
+  if (!record?.scheduledTasks.length || Object.keys(record.states).length) return store;
+
+  // A rolling schedule starts at its anchor. Moving an occurrence before
+  // that anchor would let it be completed on a day hygieneRollingDueDate()
+  // intentionally excludes from cadence history, suppressing the origin
+  // without advancing the next due date. Reject only such moves; existing
+  // recorded history and the original recurrence remain untouched.
+  if (record.scheduledTasks.some(snapshot => {
+    const definition = routine.tasks.find(task => task.id === snapshot.id);
+    const schedule = definition?.schedule ?? routine.schedule;
+    if (schedule.type !== "rolling") return false;
+    if (toDate < schedule.anchorDate) return true;
+    // A rolling due date is determined by the latest handled occurrence.
+    // Moving it *before* that completion and suppressing its original date
+    // would leave cadence stuck on the suppressed due date.
+    const nextDue = hygieneRollingDueDate(store, snapshot.id, schedule, fromDate);
+    const interval = schedule.everyDays * (schedule.unit === "weeks" ? 7 : 1);
+    return toDate <= addDaysKey(nextDue, -interval);
+  })) return store;
+
+  // An untouched historical record must not continue counting as a missed
+  // occurrence after its tasks have been explicitly rescheduled to another day.
+  const records = { ...store.records };
+  if (records[fromDate]?.[routineId]) {
+    const byRoutine = { ...records[fromDate] };
+    delete byRoutine[routineId];
+    if (Object.keys(byRoutine).length) records[fromDate] = byRoutine;
+    else delete records[fromDate];
+  }
+
+  const taskReschedules = { ...store.taskReschedules };
+  const suppressedDates = { ...store.suppressedDates };
+  const originatedOn = (date: string) => record.scheduledTasks.every(task =>
+    task.originDate === date
+    && taskReschedules[date+"|"+routineId+"|"+task.id] === fromDate);
+
+  const preserveInMaterializedHistory = (destination: string, backAtOrigin = false) => {
+    if (!store.lastMaterializedDate || destination > store.lastMaterializedDate) return;
+    records[destination] = {
+      ...(records[destination] ?? {}),
+      [routineId]: {
+        ...record,
+        date: destination,
+        scheduledTasks: record.scheduledTasks.map(task => ({
+          ...task,
+          originDate: backAtOrigin ? undefined : (task.originDate ?? fromDate),
+        })),
+        states: {},
+        completedOn: undefined,
+        archived: undefined,
+        carryToday: undefined,
+      },
+    };
+  };
+
+  // Return to the original due date cancels the one-off move. Do not store
+  // origin -> origin self-references or leave the original date suppressed.
+  if (originatedOn(toDate) && (suppressedDates[toDate] ?? []).includes(routineId)) {
+    // Suppression is routine-wide. Returning only one step would reactivate
+    // the entire original occurrence while other steps still live elsewhere.
+    // Keep the source and all reschedules unchanged until all tasks return.
+    const returningIds = new Set(record.scheduledTasks.map(task => task.id));
+    const otherStepsAway = Object.entries(taskReschedules).some(([key, target]) => {
+      const [origin, owner, taskId] = key.split("|");
+      return origin === toDate && owner === routineId
+        && target !== fromDate && !returningIds.has(taskId);
+    });
+    if (otherStepsAway) return store;
+    // Returning to the historic origin must also restore its original
+    // unhandled record: a previously materialized date will not be revisited.
+    if (store.records[toDate]?.[routineId]) return store;
+    for (const task of record.scheduledTasks)
+      delete taskReschedules[toDate+"|"+routineId+"|"+task.id];
+    const left = (suppressedDates[toDate] ?? []).filter(id => id !== routineId);
+    if (left.length) suppressedDates[toDate] = left;
+    else delete suppressedDates[toDate];
+    preserveInMaterializedHistory(toDate, true);
+    return { ...store, records, taskReschedules, suppressedDates };
+  }
+
+  // A different occurrence may have been moved away from this date.
+  // Its suppression still belongs to that occurrence and must not swallow a
+  // second one. Returning the *same* occurrence to its origin was handled above.
+  if ((suppressedDates[toDate] ?? []).includes(routineId)
+    || routineHasScheduledWorkOnDate(store,routine,toDate)
+    || store.records[toDate]?.[routineId]) return store;
+
+  for (const task of record.scheduledTasks) {
+    const origin = task.originDate ?? fromDate;
+    taskReschedules[origin+"|"+routineId+"|"+task.id] = toDate;
+  }
+  // Once a shifted instance is moved a second time, the *original* date is
+  // already suppressed. The intermediate date was never part of recurrence.
+  if (record.scheduledTasks.some(task => !task.originDate || task.originDate===fromDate)) {
+    suppressedDates[fromDate] = [...new Set([...(suppressedDates[fromDate] ?? []), routineId])];
+  }
+
+  // Preserve exactly one unhandled snapshot when the moved date belongs
+  // to already-materialized history; future dates still materialize normally.
+  preserveInMaterializedHistory(toDate);
+  return { ...store, records, taskReschedules, suppressedDates };
+}
+
 export function postponeHygieneTask(store: HygieneStore, fromDate: string, routineId: string, taskId: string, toDate: string): HygieneStore {
   if (toDate <= fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) return store;
   const record = store.records[fromDate]?.[routineId];

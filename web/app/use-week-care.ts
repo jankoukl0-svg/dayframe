@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { HYGIENE_STORAGE_KEY, HYGIENE_SYNC_EVENT, loadHygieneStore, moveFixedRepeatOccurrence, saveHygieneStore, type HygieneStore } from "@/lib/dayframe-hygiene";
+import { HYGIENE_STORAGE_KEY, HYGIENE_SYNC_EVENT, loadHygieneStore, moveWeekHygieneOccurrence, saveHygieneStore, type HygieneStore } from "@/lib/dayframe-hygiene";
 import { readWeekCareTimes, saveWeekCareTime, saveWeekCareHidden, toggleWeekCareCompletion, WEEK_CARE_STORAGE_KEY, WEEK_CARE_SYNC_EVENT, type WeekCareId, type WeekCareTimes, type WeekCareHidden } from "@/lib/dayframe-week-care";
 
 /** Reuses Hygiene's authoritative records; stores only movable calendar positions separately. */
@@ -15,7 +15,7 @@ export function useWeekCare(planningKey: string) {
   useEffect(() => {
     const sync = () => {
       const hygiene = loadHygieneStore(planningKey);
-      const placement = readWeekCareTimes();
+      const placement = readWeekCareTimes(hygiene.blocked ? null : hygiene.store);
       setStore(hygiene.blocked ? null : hygiene.store);
       setTimes(placement.times);
       setHidden(placement.hidden);
@@ -38,19 +38,20 @@ export function useWeekCare(planningKey: string) {
 
   const move = useCallback((date: string, id: WeekCareId, start: string) => {
     if (blocked) return false;
-    return saveWeekCareTime(date, id, start);
-  }, [blocked]);
+    const latest = loadHygieneStore(planningKey);
+    return !latest.blocked && saveWeekCareTime(date, id, start, undefined, latest.store);
+  }, [blocked, planningKey]);
 
   const moveDate = useCallback((from: string, to: string, id: WeekCareId, start: string) => {
-    if (blocked || !id.startsWith("rolling:") || from === to
-      || from < planningKey || to < planningKey) return false;
+    if (blocked || from === to) return false;
     const latest = loadHygieneStore(planningKey);
-    const placement = readWeekCareTimes();
-    if (latest.blocked || placement.blocked || latest.store.fixedRepeatRoutineId !== id.slice(8)) return false;
-    const next = moveFixedRepeatOccurrence(latest.store, id.slice(8), from, to);
+    const placement = readWeekCareTimes(latest.blocked ? null : latest.store);
+    if (latest.blocked || placement.blocked) return false;
+    const routineId = id.startsWith("rolling:") ? id.slice("rolling:".length) : id;
+    const next = moveWeekHygieneOccurrence(latest.store, routineId, from, to);
     if (next === latest.store) return false;
     const previous = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
-    if (!saveWeekCareTime(to, id, start)) return false;
+    if (!saveWeekCareTime(to, id, start, from, latest.store, next)) return false;
     if (!saveHygieneStore(next)) {
       try {
         if (previous === null) window.localStorage.removeItem(WEEK_CARE_STORAGE_KEY);
@@ -64,8 +65,9 @@ export function useWeekCare(planningKey: string) {
 
   const setHiddenForDay = useCallback((date: string, id: WeekCareId, hide: boolean) => {
     if (blocked) return false;
-    return saveWeekCareHidden(date, id, hide);
-  }, [blocked]);
+    const latest = loadHygieneStore(planningKey);
+    return !latest.blocked && saveWeekCareHidden(date, id, hide, latest.store);
+  }, [blocked, planningKey]);
 
   const toggleCompleted = useCallback((date: string, id: WeekCareId, taskId?: string) => {
     if (blocked || date > planningKey) return false;
