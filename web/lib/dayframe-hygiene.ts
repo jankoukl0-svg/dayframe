@@ -971,6 +971,48 @@ export function moveFixedRepeatOccurrence(store: HygieneStore, routineId: string
   };
 }
 
+/** Cancel exactly one calendar occurrence in both Hygiene history and Week.
+ * The routine definition and all other dates remain unchanged.
+ * Suppression prevents a past removed record from being rematerialized.
+ */
+export function removeWeekHygieneOccurrence(store: HygieneStore, routineId: string, date: string): HygieneStore {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)
+    || !Number.isFinite(dateFromKey(date).getTime())) return store;
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  if (!routine) return store;
+  const existing = store.records[date]?.[routineId];
+  if (!existing && !routineHasScheduledWorkOnDate(store, routine, date)) return store;
+  const record = existing ?? materializeHygieneDate(store, date).records[date]?.[routineId];
+  if (!record?.scheduledTasks.length) return store;
+
+  const records = { ...store.records };
+  if (records[date]?.[routineId]) {
+    const remaining = { ...records[date] };
+    delete remaining[routineId];
+    if (Object.keys(remaining).length) records[date] = remaining;
+    else delete records[date];
+  }
+
+  // A moved occurrence must not resurface from its old origin after removal.
+  // Only erase transfers that actually end at this occurrence's date.
+  const taskReschedules = { ...store.taskReschedules };
+  for (const task of record.scheduledTasks) {
+    const origin = task.originDate ?? date;
+    const key = origin + "|" + routineId + "|" + task.id;
+    if (taskReschedules[key] === date) delete taskReschedules[key];
+  }
+
+  return {
+    ...store,
+    records,
+    taskReschedules,
+    suppressedDates: {
+      ...store.suppressedDates,
+      [date]: [...new Set([...(store.suppressedDates[date] ?? []), routineId])],
+    },
+  };
+}
+
 /** Move one unhandled occurrence to a free date without changing recurrence.
  * Completion history stays on its original day.
  */

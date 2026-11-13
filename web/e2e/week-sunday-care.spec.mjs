@@ -1316,3 +1316,49 @@ test("Rolling occurrence cannot move before the latest completed interval",async
   await editor.getByRole("button",{name:"Zavřít"}).click();
   await expect(due).toBeVisible();
 });
+
+test("Past evening hygiene can be removed completely without a missed day in Hygiene", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const days = await week(page);
+  const thursday = days.nth(3);
+  const removed = thursday.locator('[data-week-care="evening"]');
+  await expect(removed).toHaveCount(1);
+  await removed.click();
+  const dialog = page.getByRole("dialog", { name: "Večerní hygiena" });
+  const remove = dialog.getByRole("button", { name: "Odebrat jen tento den" });
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await expect(removed).toHaveCount(0);
+  await expect(days.nth(4).locator('[data-week-care="evening"]')).toHaveCount(1);
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
+  expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
+
+  await page.reload({ waitUntil: "networkidle" });
+  const reloaded = await week(page);
+  await expect(reloaded.nth(3).locator('[data-week-care="evening"]')).toHaveCount(0);
+  await expect(reloaded.nth(4).locator('[data-week-care="evening"]')).toHaveCount(1);
+  const after = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(after.records["2026-11-12"]?.evening).toBeUndefined();
+});
+
+test("Removing a completed past Hygiene day asks before deleting its recorded work", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const days = await week(page);
+  const thursday = days.nth(3);
+  await thursday.locator('[data-week-care="evening"]').click();
+  const dialog = page.getByRole("dialog", { name: "Večerní hygiena" });
+  await dialog.getByRole("button", { name: "Označit celou rutinu hotovou" }).click();
+  const remove = dialog.getByRole("button", { name: "Odebrat jen tento den" });
+  page.once("dialog", confirmation => confirmation.dismiss());
+  await remove.click();
+  await expect(thursday.locator('[data-week-care="evening"]')).toHaveCount(1);
+  const preserved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(Object.keys(preserved.records["2026-11-12"].evening.states).length).toBeGreaterThan(0);
+  page.once("dialog", confirmation => confirmation.accept());
+  await remove.click();
+  await expect(thursday.locator('[data-week-care="evening"]')).toHaveCount(0);
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
+  expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
+});
