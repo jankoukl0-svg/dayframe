@@ -77,9 +77,14 @@ function hygieneShiftOrigin(store: HygieneStore | null | undefined, date: string
   const config = careDefinition(id);
   if (!config) return undefined;
   const routineId = id.startsWith(ROLLING_PREFIX) ? id.slice(ROLLING_PREFIX.length) : id;
-  const routine = store.routines.find(item => item.id === routineId && item.active);
-  if (!routine) return undefined;
-  const ids = new Set(routine.tasks.map(task => task.id));
+  const routine = store.routines.find(item => item.id === routineId);
+  const recorded = store.records[date]?.[routineId];
+  // A paused routine can still own a genuine moved historical occurrence.
+  if (!routine || (!routine.active && !recorded?.scheduledTasks.length)) return undefined;
+  const ids = new Set([
+    ...routine.tasks.map(task => task.id),
+    ...(recorded?.scheduledTasks.map(task => task.id) ?? []),
+  ]);
   for (const [key, destination] of Object.entries(store.taskReschedules)) {
     if (destination !== date) continue;
     const [origin, owner, taskId, extra] = key.split("|");
@@ -93,10 +98,11 @@ function hygieneShiftedTo(store: HygieneStore | null | undefined, date: string, 
   const origin = hygieneShiftOrigin(store,date,id);
   if (!origin || !store) return false;
   const routineId = id.startsWith(ROLLING_PREFIX) ? id.slice(ROLLING_PREFIX.length) : id;
-  const routine = store.routines.find(item => item.id === routineId && item.active);
+  const routine = store.routines.find(item => item.id === routineId);
+  const recorded = store.records[date]?.[routineId];
   return Boolean(routine && !(store.suppressedDates[date] ?? []).includes(routineId)
-    && (routineHasScheduledWorkOnDate(store,routine,date)
-      || store.records[date]?.[routineId]?.scheduledTasks.length));
+    && ((routine.active && routineHasScheduledWorkOnDate(store,routine,date))
+      || recorded?.scheduledTasks.length));
 }
 
 /** Malformed or inaccessible saved positions must never be overwritten. */

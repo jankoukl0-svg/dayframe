@@ -136,6 +136,8 @@ export type HygieneStore = {
   suppressedDates: Record<string, string[]>;
   manualTaskDates: Record<string, string[]>;
   taskReschedules: Record<string, string>;
+  /** Invisible cadence checkpoints for one-day deletions of rolling occurrences. */
+  rollingCadenceAnchors?: Record<string, string>;
   lastMaterializedDate: string | null;
   /** One-time installation marker; deleting a cleaning task/routine must stay deleted. */
   cleaningDefaultsInstalled?: boolean;
@@ -413,6 +415,7 @@ export function createDefaultHygieneStore(today: string): HygieneStore {
     suppressedDates: {},
     manualTaskDates: {},
     taskReschedules: {},
+    rollingCadenceAnchors: {},
     lastMaterializedDate: addDaysKey(today, -1),
     cleaningDefaultsInstalled: true,
   };
@@ -803,6 +806,17 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
       taskReschedules[key] = date;
     }
 
+    const rollingCadenceAnchors: Record<string, string> = {};
+    if (candidate.rollingCadenceAnchors !== undefined && (
+      !candidate.rollingCadenceAnchors || typeof candidate.rollingCadenceAnchors !== "object"
+      || Array.isArray(candidate.rollingCadenceAnchors)
+    )) return { store: createDefaultHygieneStore(today), blocked: true };
+    for (const [taskId, date] of Object.entries(candidate.rollingCadenceAnchors ?? {})) {
+      if (!taskId || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+        return { store: createDefaultHygieneStore(today), blocked: true };
+      rollingCadenceAnchors[taskId] = date;
+    }
+
     if (candidate.cleaningDefaultsInstalled !== undefined && typeof candidate.cleaningDefaultsInstalled !== "boolean")
       return { store: createDefaultHygieneStore(today), blocked: true };
     // This ID doubles as a migration tombstone; deleting the owner must remain valid.
@@ -819,6 +833,7 @@ export function parseHygieneStore(raw: string | null, today: string): { store: H
         suppressedDates,
         manualTaskDates,
         taskReschedules,
+        rollingCadenceAnchors,
         lastMaterializedDate: typeof candidate.lastMaterializedDate === "string" ? candidate.lastMaterializedDate : null,
         cleaningDefaultsInstalled: candidate.cleaningDefaultsInstalled === true,
         fixedRepeatRoutineId: candidate.fixedRepeatRoutineId,
@@ -870,11 +885,14 @@ export function taskScheduledOnDate(task: HygieneTaskDefinition, dateKey: string
   return scheduleMatches(task.schedule, dateKey);
 }
 
-export function hygieneRollingDueDate(store: HygieneStore, taskId: string, schedule: Extract<HygieneSchedule, { type: "rolling" }>, throughDate: string): string {
+export function hygieneRollingDueDate(store: HygieneStore, taskId: string, schedule: Extract<HygieneSchedule, { type: "rolling" }>, throughDate: string, routineId?: string): string {
   const handled: Array<{ date: string; performed: string }> = [];
   for (const [date, routines] of Object.entries(store.records)) {
     if (date > throughDate || date < schedule.anchorDate) continue;
-    for (const record of Object.values(routines)) {
+    // Task IDs can overlap across independently configured routines.
+    const candidates = routineId ? [routines[routineId]] : Object.values(routines);
+    for (const record of candidates) {
+      if (!record) continue;
       const status = record.states[taskId];
       if (!status || status === "deferred") continue;
       if (!record.scheduledTasks.some((task) => task.id === taskId)) continue;
@@ -882,6 +900,11 @@ export function hygieneRollingDueDate(store: HygieneStore, taskId: string, sched
       if (performed <= throughDate) handled.push({ date, performed });
     }
   }
+  // Removing one day must not erase the timing anchor of a rolling routine.
+  // This checkpoint is intentionally absent from records and statistics.
+  const remembered = store.rollingCadenceAnchors?.[routineId ? routineId + "|" + taskId : taskId];
+  if (remembered && remembered >= schedule.anchorDate && remembered <= throughDate)
+    handled.push({ date: remembered, performed: remembered });
   if (!handled.length) return schedule.anchorDate;
   const latest = handled.sort((a, b) => b.performed.localeCompare(a.performed))[0];
   const interval = schedule.everyDays * (schedule.unit === "weeks" ? 7 : 1);
@@ -905,7 +928,7 @@ function taskDueOnDate(store: HygieneStore, routine: HygieneRoutineDefinition, t
   if (schedule.type === "manual") return (store.manualTaskDates[task.id] ?? []).includes(date)
     || (!task.schedule && parentScheduled);
   if (schedule.type === "rolling") {
-    const due = hygieneRollingDueDate(store, task.id, schedule, date);
+    const due = hygieneRollingDueDate(store, task.id, schedule, date, routine.id);
     return due === date;
   }
   return taskScheduledOnDate(task, date, parentScheduled);
@@ -971,6 +994,60 @@ export function moveFixedRepeatOccurrence(store: HygieneStore, routineId: string
   };
 }
 
+/** Cancel exactly one calendar occurrence in both Hygiene history and Week.
+ * The routine definition and all other dates remain unchanged.
+ * Suppression prevents a past removed record from being rematerialized.
+ */
+export function removeWeekHygieneOccurrence(store: HygieneStore, routineId: string, date: string): HygieneStore {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)
+    || !Number.isFinite(dateFromKey(date).getTime())) return store;
+  const routine = store.routines.find(item => item.id === routineId);
+  const existing = store.records[date]?.[routineId];
+  // Pausing a routine must not lock its already-recorded history in Week.
+  if (!routine || (!routine.active && !existing)) return store;
+  if (!existing && !routineHasScheduledWorkOnDate(store, routine, date)) return store;
+  const record = existing ?? materializeHygieneDate(store, date).records[date]?.[routineId];
+  if (!record?.scheduledTasks.length) return store;
+
+  const records = { ...store.records };
+  if (records[date]?.[routineId]) {
+    const remaining = { ...records[date] };
+    delete remaining[routineId];
+    if (Object.keys(remaining).length) records[date] = remaining;
+    else delete records[date];
+  }
+
+  // A moved occurrence must not resurface from its old origin after removal.
+  // Only erase transfers that actually end at this occurrence's date.
+  const taskReschedules = { ...store.taskReschedules };
+  const rollingCadenceAnchors = { ...(store.rollingCadenceAnchors ?? {}) };
+  for (const task of record.scheduledTasks) {
+    const definition = routine.tasks.find(item => item.id === task.id);
+    const schedule = definition?.schedule ?? routine.schedule;
+    if (schedule.type === "rolling") {
+      const performed = record.states[task.id] === "done"
+        ? (record.completedOn?.[task.id] ?? date) : date;
+      const checkpoint = routineId + "|" + task.id;
+      if (performed >= schedule.anchorDate && (!rollingCadenceAnchors[checkpoint] || rollingCadenceAnchors[checkpoint] < performed))
+        rollingCadenceAnchors[checkpoint] = performed;
+    }
+    const origin = task.originDate ?? date;
+    const key = origin + "|" + routineId + "|" + task.id;
+    if (taskReschedules[key] === date) delete taskReschedules[key];
+  }
+
+  return {
+    ...store,
+    records,
+    taskReschedules,
+    rollingCadenceAnchors,
+    suppressedDates: {
+      ...store.suppressedDates,
+      [date]: [...new Set([...(store.suppressedDates[date] ?? []), routineId])],
+    },
+  };
+}
+
 /** Move one unhandled occurrence to a free date without changing recurrence.
  * Completion history stays on its original day.
  */
@@ -1001,7 +1078,7 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
     // A rolling due date is determined by the latest handled occurrence.
     // Moving it *before* that completion and suppressing its original date
     // would leave cadence stuck on the suppressed due date.
-    const nextDue = hygieneRollingDueDate(store, snapshot.id, schedule, fromDate);
+    const nextDue = hygieneRollingDueDate(store, snapshot.id, schedule, fromDate, routine.id);
     const interval = schedule.everyDays * (schedule.unit === "weeks" ? 7 : 1);
     return toDate <= addDaysKey(nextDue, -interval);
   })) return store;

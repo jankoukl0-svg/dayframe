@@ -502,7 +502,7 @@ test("Daily Cleaning can be moved later today after its original time passes, wi
   expect(stored.routines.find(r => r.id === "cleaning-daily").schedule).toEqual({ type: "daily" });
 });
 
-test("Daily Cleaning removal is only for that day, has no Restore UI and leaves its checklist untouched", async ({ page }) => {
+test("Daily Cleaning removal excludes that Hygiene day but retains the recurring routine", async ({ page }) => {
   await fresh(page);
   const days = await week(page);
   await days.nth(4).locator('[data-week-care="cleaning-daily"]').click();
@@ -1190,7 +1190,9 @@ test("Hygiene-postponed Sunday step can be edited, moved and hidden on an extra 
   expect(data.care.hidden["2026-10-14"]).toContain("hygiene-day");
   expect(Object.entries(data.hygiene.taskReschedules)
     .filter(([key]) => key.startsWith("2026-10-18|hygiene-day|"))
-    .some(([,destination]) => destination === "2026-10-14")).toBe(true);
+    .some(([,destination]) => destination === "2026-10-14")).toBe(false);
+  expect(data.hygiene.suppressedDates["2026-10-14"]).toContain("hygiene-day");
+  expect(data.hygiene.records["2026-10-14"]?.["hygiene-day"]).toBeUndefined();
 });
 
 test("Week retains valid positions after Hygiene postpones the same step again", async ({page}) => {
@@ -1315,4 +1317,205 @@ test("Rolling occurrence cannot move before the latest completed interval",async
   expect(Object.entries(saved.taskReschedules).filter(([key])=>key.includes("|"+id+"|"))).toHaveLength(0);
   await editor.getByRole("button",{name:"Zavřít"}).click();
   await expect(due).toBeVisible();
+});
+
+test("Past evening hygiene can be removed completely without a missed day in Hygiene", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const days = await week(page);
+  const thursday = days.nth(3);
+  const removed = thursday.locator('[data-week-care="evening"]');
+  await expect(removed).toHaveCount(1);
+  await removed.click();
+  const dialog = page.getByRole("dialog", { name: "Večerní hygiena" });
+  const remove = dialog.getByRole("button", { name: "Odebrat jen tento den" });
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await expect(removed).toHaveCount(0);
+  await expect(days.nth(4).locator('[data-week-care="evening"]')).toHaveCount(1);
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
+  expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
+
+  await page.reload({ waitUntil: "networkidle" });
+  const reloaded = await week(page);
+  await expect(reloaded.nth(3).locator('[data-week-care="evening"]')).toHaveCount(0);
+  await expect(reloaded.nth(4).locator('[data-week-care="evening"]')).toHaveCount(1);
+  const after = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(after.records["2026-11-12"]?.evening).toBeUndefined();
+});
+
+test("Removing a completed past Hygiene day asks before deleting its recorded work", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const days = await week(page);
+  const thursday = days.nth(3);
+  await thursday.locator('[data-week-care="evening"]').click();
+  const dialog = page.getByRole("dialog", { name: "Večerní hygiena" });
+  await dialog.getByRole("button", { name: "Označit celou rutinu hotovou" }).click();
+  const remove = dialog.getByRole("button", { name: "Odebrat jen tento den" });
+  page.once("dialog", confirmation => confirmation.dismiss());
+  await remove.click();
+  await expect(thursday.locator('[data-week-care="evening"]')).toHaveCount(1);
+  const preserved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(Object.keys(preserved.records["2026-11-12"].evening.states).length).toBeGreaterThan(0);
+  page.once("dialog", confirmation => confirmation.accept());
+  await remove.click();
+  await expect(thursday.locator('[data-week-care="evening"]')).toHaveCount(0);
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
+  expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
+});
+
+test("Deleting a completed rolling occurrence keeps the following due date", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const id = "hygiene-routine-remove-cadence";
+  const taskId = "remove-cadence-step";
+  const careId = "rolling:" + id;
+  await page.evaluate(({ key, id, taskId }) => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.push({
+      id, title: "Třídenní péče pro smazání", active: true, order: 94,
+      schedule: { type: "rolling", everyDays: 3, unit: "days", anchorDate: "2026-11-01" },
+      tasks: [{ id: taskId, title: "Ošetření", section: "Péče", active: true, optional: false, allowSkip: false }],
+    });
+    store.records["2026-11-10"] = {
+      ...(store.records["2026-11-10"] ?? {}),
+      [id]: {
+        date: "2026-11-10", routineId: id, routineTitle: "Třídenní péče pro smazání",
+        scheduledTasks: [{ id: taskId, title: "Ošetření", section: "Péče", optional: false, allowSkip: false, scheduleType: "rolling" }],
+        states: { [taskId]: "done" }, completedOn: { [taskId]: "2026-11-10" },
+      },
+    };
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, { key: HYGIENE_KEY, id, taskId });
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const past = days.nth(1).locator('[data-week-care="' + careId + '"]');
+  const next = days.nth(4).locator('[data-week-care="' + careId + '"]');
+  await expect(past).toBeVisible();
+  await expect(next).toBeVisible();
+  await past.click();
+  page.once("dialog", confirmation => confirmation.accept());
+  await page.getByRole("dialog", { name: "Třídenní péče pro smazání" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(past).toHaveCount(0);
+  await expect(next).toBeVisible();
+  await page.reload({ waitUntil: "networkidle" });
+  const after = await week(page);
+  await expect(after.nth(4).locator('[data-week-care="' + careId + '"]')).toBeVisible();
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.records["2026-11-10"]?.[id]).toBeUndefined();
+  expect(saved.suppressedDates["2026-11-10"]).toContain(id);
+  expect(saved.rollingCadenceAnchors[id + "|" + taskId]).toBe("2026-11-10");
+});
+
+test("Skipping an untouched rolling occurrence schedules its next interval", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const id = "hygiene-routine-remove-initial";
+  const taskId = "remove-initial-step";
+  await page.evaluate(({ key, id, taskId }) => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.push({
+      id, title: "Třídenní péče bez historie", active: true, order: 95,
+      schedule: { type: "rolling", everyDays: 3, unit: "days", anchorDate: "2026-11-10" },
+      tasks: [{ id: taskId, title: "Ošetření", section: "Péče", active: true, optional: false, allowSkip: false }],
+    });
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, { key: HYGIENE_KEY, id, taskId });
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const careId = "rolling:" + id;
+  const past = days.nth(1).locator('[data-week-care="' + careId + '"]');
+  const next = days.nth(4).locator('[data-week-care="' + careId + '"]');
+  await expect(past).toBeVisible();
+  await expect(next).toHaveCount(0);
+  await past.click();
+  await page.getByRole("dialog", { name: "Třídenní péče bez historie" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(past).toHaveCount(0);
+  await expect(next).toBeVisible();
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.rollingCadenceAnchors[id + "|" + taskId]).toBe("2026-11-10");
+  await page.reload({ waitUntil: "networkidle" });
+  const after = await week(page);
+  await expect(after.nth(4).locator('[data-week-care="' + careId + '"]')).toBeVisible();
+});
+
+test("A paused routine's recorded past day can still be deleted from Week and Hygiene", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const days = await week(page);
+  const past = days.nth(3).locator('[data-week-care="evening"]');
+  await past.click();
+  const editor = page.getByRole("dialog", { name: "Večerní hygiena" });
+  await editor.getByRole("button", { name: /Označit hotovo/ }).first().click();
+  await editor.getByRole("button", { name: "Zavřít" }).click();
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.find(routine => routine.id === "evening").active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const reloaded = await week(page);
+  const recorded = reloaded.nth(3).locator('[data-week-care="evening"]');
+  await expect(recorded).toBeVisible();
+  await recorded.click();
+  page.once("dialog", confirmation => confirmation.accept());
+  await page.getByRole("dialog", { name: "Večerní hygiena" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(recorded).toHaveCount(0);
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
+  expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
+  expect(saved.routines.find(routine => routine.id === "evening").active).toBe(false);
+});
+
+test("Paused Sunday Hygiene postponed to a past weekday can be removed completely", async ({ page }) => {
+  await fresh(page, "2026-10-16T12:00:00");
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const routine = store.routines.find(item => item.id === "hygiene-day");
+    const step = routine.tasks.find(item => item.active);
+    const source = "2026-10-11";
+    const date = "2026-10-14";
+    store.taskReschedules[source + "|hygiene-day|" + step.id] = date;
+    store.records[date] = {
+      ...(store.records[date] ?? {}),
+      "hygiene-day": {
+        date, routineId: "hygiene-day", routineTitle: routine.title,
+        scheduledTasks: [{
+          id: step.id, title: step.title, section: step.section,
+          optional: step.optional, allowSkip: step.allowSkip,
+          scheduleType: "weekly", originDate: source,
+        }],
+        states: {},
+      },
+    };
+    routine.active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const moved = days.nth(2).locator('[data-week-care="hygiene-day"]');
+  await expect(moved).toBeVisible();
+  await moved.click();
+  const remove = page.getByRole("dialog", { name: "Nedělní hygiena" })
+    .getByRole("button", { name: "Odebrat jen tento den" });
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await expect(moved).toHaveCount(0);
+  const saved = await page.evaluate(() => ({
+    hygiene: JSON.parse(localStorage.getItem("dayframe-hygiene-v1")),
+    week: JSON.parse(localStorage.getItem("dayframe-week-care-v1")),
+  }));
+  expect(saved.hygiene.records["2026-10-14"]?.["hygiene-day"]).toBeUndefined();
+  expect(saved.hygiene.suppressedDates["2026-10-14"]).toContain("hygiene-day");
+  expect(Object.values(saved.hygiene.taskReschedules)).not.toContain("2026-10-14");
+  expect(saved.week.hidden["2026-10-14"]).toContain("hygiene-day");
+  expect(saved.week.provenance["2026-10-14"]["hygiene-day"]).toBe("2026-10-11");
+  await page.reload({ waitUntil: "networkidle" });
+  const after = await week(page);
+  await expect(after.nth(2).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
 });

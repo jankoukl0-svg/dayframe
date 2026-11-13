@@ -896,10 +896,14 @@ export function DayframeV2() {
     setEditingCareError("");
   }
 
-  function hideEditedCare() {
-    if (!editingCare || care.blocked || editingCare.date < todayKey) return;
-    if (!care.setHiddenForDay(editingCare.date, editingCare.id, true)) {
-      setEditingCareError("Blok se nepodařilo odebrat. Data zůstala beze změny.");
+  function removeEditedCare() {
+    if (!editingCare || care.blocked) return;
+    const routineId = editingCare.id.startsWith("rolling:") ? editingCare.id.slice("rolling:".length) : editingCare.id;
+    const record = care.store?.records[editingCare.date]?.[routineId];
+    if (record && (Object.keys(record.states).length || Object.keys(record.completedOn ?? {}).length)
+      && !window.confirm("Opravdu odebrat tuto rutinu i se zaznamenanými kroky? Historie splnění pro tento den bude smazána.")) return;
+    if (!care.removeOccurrence(editingCare.date, editingCare.id)) {
+      setEditingCareError("Výskyt se nepodařilo odebrat. Data zůstala beze změny.");
       return;
     }
     removeStoredTrip(travelBlockKey("care",editingCare.id,editingCare.date));
@@ -1674,10 +1678,10 @@ export function DayframeV2() {
                 setEditingCare(null);
                 setView("hygiene");
               }}>Otevřít v Hygieně</button>
-              <button type="button" className="danger" disabled={care.blocked || editingCare.date < todayKey}
-                onClick={hideEditedCare}>Odebrat jen tento den</button>
+              <button type="button" className="danger" disabled={care.blocked}
+                onClick={removeEditedCare}>Odebrat jen tento den</button>
             </div>
-            <p className="df2-week-care-help">Odebrání odstraní blok pouze z tohoto dne v Týdnu. Úkoly a jejich stav v Hygieně se nezmění.</p>
+            <p className="df2-week-care-help">Odebrání vymaže tento jediný výskyt také z historie Hygieny. Ostatní dny a opakování zůstanou zachované.</p>
           </form>
         </div>
       )}
