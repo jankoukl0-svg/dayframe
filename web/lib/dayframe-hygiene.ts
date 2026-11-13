@@ -996,7 +996,14 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
   if (record.scheduledTasks.some(snapshot => {
     const definition = routine.tasks.find(task => task.id === snapshot.id);
     const schedule = definition?.schedule ?? routine.schedule;
-    return schedule.type === "rolling" && toDate < schedule.anchorDate;
+    if (schedule.type !== "rolling") return false;
+    if (toDate < schedule.anchorDate) return true;
+    // A rolling due date is determined by the latest handled occurrence.
+    // Moving it *before* that completion and suppressing its original date
+    // would leave cadence stuck on the suppressed due date.
+    const nextDue = hygieneRollingDueDate(store, snapshot.id, schedule, fromDate);
+    const interval = schedule.everyDays * (schedule.unit === "weeks" ? 7 : 1);
+    return toDate <= addDaysKey(nextDue, -interval);
   })) return store;
 
   // An untouched historical record must not continue counting as a missed

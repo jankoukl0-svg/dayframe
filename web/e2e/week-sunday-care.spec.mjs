@@ -1275,3 +1275,44 @@ test("Returning only a postponed Sunday step cannot restore duplicate routine ta
   await expect(tuesday).toBeVisible();
   await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
 });
+
+test("Rolling occurrence cannot move before the latest completed interval",async({page})=>{
+  await fresh(page,"2026-11-13T12:00:00");
+  const id="hygiene-routine-cadence-history";
+  const careId="rolling:"+id;
+  await page.evaluate(({key,id})=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    store.routines.push({
+      id,title:"Třídenní péče - kadence",active:true,order:91,
+      schedule:{type:"rolling",everyDays:3,unit:"days",anchorDate:"2026-11-01"},
+      tasks:[{id:"cadence-step",title:"Ošetření",section:"Péče",active:true,optional:false,allowSkip:false}],
+    });
+    for(const date of ["2026-11-01","2026-11-04","2026-11-07","2026-11-10"]){
+      store.records[date]={
+        ...(store.records[date]??{}),
+        [id]:{
+          date,routineId:id,routineTitle:"Třídenní péče - kadence",
+          scheduledTasks:[{id:"cadence-step",title:"Ošetření",section:"Péče",optional:false,allowSkip:false,scheduleType:"rolling"}],
+          states:{"cadence-step":"done"},
+          completedOn:{"cadence-step":date},
+        },
+      };
+    }
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },{key:HYGIENE_KEY,id});
+  await page.reload({waitUntil:"networkidle"});
+  const days=await week(page);
+  const due=days.nth(4).locator('[data-week-care="'+careId+'"]');
+  await expect(due).toBeVisible();
+  await due.click();
+  const editor=page.getByRole("dialog",{name:"Třídenní péče - kadence"});
+  await editor.getByLabel("Den výskytu").fill("2026-11-09");
+  await editor.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(editor.getByRole("alert")).toContainText("Přesun se nepodařilo uložit");
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(saved.suppressedDates["2026-11-13"]??[]).not.toContain(id);
+  expect(Object.entries(saved.taskReschedules).filter(([key])=>key.includes("|"+id+"|"))).toHaveLength(0);
+  await editor.getByRole("button",{name:"Zavřít"}).click();
+  await expect(due).toBeVisible();
+});
