@@ -1470,3 +1470,52 @@ test("A paused routine's recorded past day can still be deleted from Week and Hy
   expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
   expect(saved.routines.find(routine => routine.id === "evening").active).toBe(false);
 });
+
+test("Paused Sunday Hygiene postponed to a past weekday can be removed completely", async ({ page }) => {
+  await fresh(page, "2026-10-16T12:00:00");
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const routine = store.routines.find(item => item.id === "hygiene-day");
+    const step = routine.tasks.find(item => item.active);
+    const source = "2026-10-11";
+    const date = "2026-10-14";
+    store.taskReschedules[source + "|hygiene-day|" + step.id] = date;
+    store.records[date] = {
+      ...(store.records[date] ?? {}),
+      "hygiene-day": {
+        date, routineId: "hygiene-day", routineTitle: routine.title,
+        scheduledTasks: [{
+          id: step.id, title: step.title, section: step.section,
+          optional: step.optional, allowSkip: step.allowSkip,
+          scheduleType: "weekly", originDate: source,
+        }],
+        states: {},
+      },
+    };
+    routine.active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const moved = days.nth(2).locator('[data-week-care="hygiene-day"]');
+  await expect(moved).toBeVisible();
+  await moved.click();
+  const remove = page.getByRole("dialog", { name: "Nedělní hygiena" })
+    .getByRole("button", { name: "Odebrat jen tento den" });
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await expect(moved).toHaveCount(0);
+  const saved = await page.evaluate(() => ({
+    hygiene: JSON.parse(localStorage.getItem("dayframe-hygiene-v1")),
+    week: JSON.parse(localStorage.getItem("dayframe-week-care-v1")),
+  }));
+  expect(saved.hygiene.records["2026-10-14"]?.["hygiene-day"]).toBeUndefined();
+  expect(saved.hygiene.suppressedDates["2026-10-14"]).toContain("hygiene-day");
+  expect(Object.values(saved.hygiene.taskReschedules)).not.toContain("2026-10-14");
+  expect(saved.week.hidden["2026-10-14"]).toContain("hygiene-day");
+  expect(saved.week.provenance["2026-10-14"]["hygiene-day"]).toBe("2026-10-11");
+  await page.reload({ waitUntil: "networkidle" });
+  const after = await week(page);
+  await expect(after.nth(2).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+});
