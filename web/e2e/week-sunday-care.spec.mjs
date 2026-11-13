@@ -502,7 +502,7 @@ test("Daily Cleaning can be moved later today after its original time passes, wi
   expect(stored.routines.find(r => r.id === "cleaning-daily").schedule).toEqual({ type: "daily" });
 });
 
-test("Daily Cleaning removal is only for that day, has no Restore UI and leaves its checklist untouched", async ({ page }) => {
+test("Daily Cleaning removal excludes that Hygiene day but retains the recurring routine", async ({ page }) => {
   await fresh(page);
   const days = await week(page);
   await days.nth(4).locator('[data-week-care="cleaning-daily"]').click();
@@ -1190,7 +1190,9 @@ test("Hygiene-postponed Sunday step can be edited, moved and hidden on an extra 
   expect(data.care.hidden["2026-10-14"]).toContain("hygiene-day");
   expect(Object.entries(data.hygiene.taskReschedules)
     .filter(([key]) => key.startsWith("2026-10-18|hygiene-day|"))
-    .some(([,destination]) => destination === "2026-10-14")).toBe(true);
+    .some(([,destination]) => destination === "2026-10-14")).toBe(false);
+  expect(data.hygiene.suppressedDates["2026-10-14"]).toContain("hygiene-day");
+  expect(data.hygiene.records["2026-10-14"]?.["hygiene-day"]).toBeUndefined();
 });
 
 test("Week retains valid positions after Hygiene postpones the same step again", async ({page}) => {
