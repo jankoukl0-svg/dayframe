@@ -1037,6 +1037,16 @@ export function moveWeekHygieneOccurrence(store: HygieneStore, routineId: string
   // Return to the original due date cancels the one-off move. Do not store
   // origin -> origin self-references or leave the original date suppressed.
   if (originatedOn(toDate) && (suppressedDates[toDate] ?? []).includes(routineId)) {
+    // Suppression is routine-wide. Returning only one step would reactivate
+    // the entire original occurrence while other steps still live elsewhere.
+    // Keep the source and all reschedules unchanged until all tasks return.
+    const returningIds = new Set(record.scheduledTasks.map(task => task.id));
+    const otherStepsAway = Object.entries(taskReschedules).some(([key, target]) => {
+      const [origin, owner, taskId] = key.split("|");
+      return origin === toDate && owner === routineId
+        && target !== fromDate && !returningIds.has(taskId);
+    });
+    if (otherStepsAway) return store;
     // Returning to the historic origin must also restore its original
     // unhandled record: a previously materialized date will not be revisited.
     if (store.records[toDate]?.[routineId]) return store;

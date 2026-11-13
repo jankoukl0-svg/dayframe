@@ -9,6 +9,8 @@ export type WeekCareTimes = Record<string, Partial<Record<WeekCareId, string>>>;
 export type WeekCareHidden = Record<string, WeekCareId[]>;
 /** Optional origin-to-destination trace, needed to validate rescheduled Sunday blocks. */
 export type WeekCareMoves = Record<string, Partial<Record<WeekCareId, string>>>;
+/** Durable origin proof for legitimate additional Hygiene destinations. */
+export type WeekCareProvenance = Record<string, Partial<Record<WeekCareId, string>>>;
 export type WeekCareBlock = {
   id: WeekCareId;
   routineId: string;
@@ -70,23 +72,35 @@ function validCareDate(date: string, config: (typeof DEFAULTS)[number]) {
 /** Accept additional weekday projections traced by Hygiene's authoritative
  * task reschedules; Week's moves map represents only one destination.
  */
-function hygieneShiftedTo(store: HygieneStore | null | undefined, date: string, id: WeekCareId): boolean {
-  if (!store || !calendarDate(date)) return false;
+function hygieneShiftOrigin(store: HygieneStore | null | undefined, date: string, id: WeekCareId): string | undefined {
+  if (!store || !calendarDate(date)) return undefined;
+  const config = careDefinition(id);
+  if (!config) return undefined;
   const routineId = id.startsWith(ROLLING_PREFIX) ? id.slice(ROLLING_PREFIX.length) : id;
   const routine = store.routines.find(item => item.id === routineId && item.active);
-  if (!routine || (store.suppressedDates[date] ?? []).includes(routineId)) return false;
+  if (!routine) return undefined;
   const ids = new Set(routine.tasks.map(task => task.id));
-  const traced = Object.entries(store.taskReschedules).some(([key, destination]) => {
-    if (destination !== date) return false;
+  for (const [key, destination] of Object.entries(store.taskReschedules)) {
+    if (destination !== date) continue;
     const [origin, owner, taskId, extra] = key.split("|");
-    return extra === undefined && calendarDate(origin) && owner === routineId && ids.has(taskId);
-  });
-  return traced && (routineHasScheduledWorkOnDate(store, routine, date)
-    || Boolean(store.records[date]?.[routineId]?.scheduledTasks.length));
+    if (extra === undefined && owner === routineId && ids.has(taskId)
+      && validCareDate(origin,config)) return origin;
+  }
+  return undefined;
+}
+
+function hygieneShiftedTo(store: HygieneStore | null | undefined, date: string, id: WeekCareId): boolean {
+  const origin = hygieneShiftOrigin(store,date,id);
+  if (!origin || !store) return false;
+  const routineId = id.startsWith(ROLLING_PREFIX) ? id.slice(ROLLING_PREFIX.length) : id;
+  const routine = store.routines.find(item => item.id === routineId && item.active);
+  return Boolean(routine && !(store.suppressedDates[date] ?? []).includes(routineId)
+    && (routineHasScheduledWorkOnDate(store,routine,date)
+      || store.records[date]?.[routineId]?.scheduledTasks.length));
 }
 
 /** Malformed or inaccessible saved positions must never be overwritten. */
-export function readWeekCareTimes(hygiene?: HygieneStore | null): { times: WeekCareTimes; hidden: WeekCareHidden; moves: WeekCareMoves; blocked: boolean } {
+export function readWeekCareTimes(hygiene?: HygieneStore | null): { times: WeekCareTimes; hidden: WeekCareHidden; moves: WeekCareMoves; provenance?: WeekCareProvenance; blocked: boolean } {
   if (typeof window === "undefined") return { times: {}, hidden: {}, moves: {}, blocked: false };
   try {
     const raw = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
@@ -114,8 +128,27 @@ export function readWeekCareTimes(hygiene?: HygieneStore | null): { times: WeekC
         moves[source] = validated;
       }
     }
+    const provenance: WeekCareProvenance = {};
+    if (data.provenance !== undefined) {
+      if (!data.provenance || typeof data.provenance !== "object" || Array.isArray(data.provenance))
+        return { times: {}, hidden: {}, moves: {}, blocked: true };
+      for (const [destination, values] of Object.entries(data.provenance)) {
+        if (!calendarDate(destination) || !values || typeof values !== "object" || Array.isArray(values))
+          return { times: {}, hidden: {}, moves: {}, blocked: true };
+        const origins: Partial<Record<WeekCareId,string>> = {};
+        for (const [id, source] of Object.entries(values)) {
+          const config = careDefinition(id);
+          if (!config || typeof source !== "string" || !validCareDate(source,config) || source === destination)
+            return { times: {}, hidden: {}, moves: {}, blocked: true };
+          origins[config.id] = source;
+        }
+        provenance[destination] = origins;
+      }
+    }
     const shiftedTo = (date:string,id:WeekCareId) =>
-      Object.values(moves).some(byId=>byId[id]===date) || hygieneShiftedTo(hygiene,date,id);
+      Object.values(moves).some(byId=>byId[id]===date)
+      || hygieneShiftedTo(hygiene,date,id)
+      || Boolean(provenance[date]?.[id]);
     const times: WeekCareTimes = {};
     for (const [date, values] of Object.entries(data.times)) {
       if (!calendarDate(date) || !values || typeof values !== "object" || Array.isArray(values)) {
@@ -147,7 +180,7 @@ export function readWeekCareTimes(hygiene?: HygieneStore | null): { times: WeekC
         hidden[date] = validated;
       }
     }
-    return { times, hidden, moves, blocked: false };
+    return { times, hidden, moves, provenance, blocked: false };
   } catch {
     return { times: {}, hidden: {}, moves: {}, blocked: true };
   }
@@ -162,9 +195,11 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
   try {
     const moves: WeekCareMoves = { ...current.moves };
     const hidden: WeekCareHidden = { ...current.hidden };
+    const provenance: WeekCareProvenance = { ...(current.provenance ?? {}) };
     const times: WeekCareTimes = { ...current.times, [date]: { ...(current.times[date] ?? {}), [id]: start } };
     if (fromDate && date !== fromDate) {
-      const origin = Object.keys(moves).find(source => moves[source]?.[id] === fromDate) ?? fromDate;
+      const originInWeek = Object.keys(moves).find(source => moves[source]?.[id] === fromDate);
+      const origin = originInWeek ?? fromDate;
       if (validCareDate(origin,config)) {
         if (origin === date) {
           const original = { ...(moves[origin] ?? {}) };
@@ -174,7 +209,7 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
         } else {
           moves[origin] = { ...(moves[origin] ?? {}), [id]: date };
         }
-      } else if (!hygieneShiftedTo(hygiene,fromDate,id)) {
+      } else if (!hygieneShiftedTo(hygiene,fromDate,id) && !provenance[fromDate]?.[id]) {
         // Hygiene can postpone only some steps, retaining the Week move trace
         // for the remaining steps at their existing destination.
         return false;
@@ -194,11 +229,21 @@ export function saveWeekCareTime(date: string, id: WeekCareId, start: string, fr
       }
     } else if (!validCareDate(date,config)
       && !Object.values(moves).some(byId => byId[id] === date)
-      && !hygieneShiftedTo(hygiene,date,id)) {
+      && !hygieneShiftedTo(hygiene,date,id)
+      && !provenance[date]?.[id]) {
       return false;
     }
+    // Retain the verified original date even after a later postponement
+    // makes this particular weekday decoration an inert historical preference.
+    if (!validCareDate(date,config)
+      && !Object.values(moves).some(byId => byId[id] === date)
+      && hygieneShiftedTo(nextHygiene ?? hygiene,date,id)) {
+      const source = hygieneShiftOrigin(nextHygiene ?? hygiene,date,id) ?? (fromDate ? provenance[fromDate]?.[id] : undefined);
+      if (!source) return false;
+      provenance[date] = { ...(provenance[date] ?? {}), [id]: source };
+    }
     const previous = window.localStorage.getItem(WEEK_CARE_STORAGE_KEY);
-    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times, hidden, moves }));
+    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times, hidden, moves, provenance }));
     if (readWeekCareTimes(nextHygiene ?? hygiene).blocked) {
       if (previous === null) window.localStorage.removeItem(WEEK_CARE_STORAGE_KEY);
       else window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, previous);
@@ -219,14 +264,23 @@ export function saveWeekCareHidden(date: string, id: WeekCareId, hide: boolean,
   const current = readWeekCareTimes(hygiene);
   if (current.blocked || !(validCareDate(date,config)
     || Object.values(current.moves).some(byId=>byId[id]===date)
-    || hygieneShiftedTo(hygiene,date,id))) return false;
+    || hygieneShiftedTo(hygiene,date,id)
+    || current.provenance?.[date]?.[id])) return false;
   const previous = current.hidden[date] ?? [];
   const next = hide ? [...new Set([...previous, id])] : previous.filter(item => item !== id);
   const hidden = { ...current.hidden };
   if (next.length) hidden[date] = next;
   else delete hidden[date];
+  const provenance: WeekCareProvenance = { ...(current.provenance ?? {}) };
+  if (!validCareDate(date,config)
+    && !Object.values(current.moves).some(byId => byId[id] === date)
+    && hygieneShiftedTo(hygiene,date,id)) {
+    const source = hygieneShiftOrigin(hygiene,date,id);
+    if (!source) return false;
+    provenance[date] = { ...(provenance[date] ?? {}), [id]: source };
+  }
   try {
-    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times: current.times, hidden, moves: current.moves }));
+    window.localStorage.setItem(WEEK_CARE_STORAGE_KEY, JSON.stringify({ version: 1, times: current.times, hidden, moves: current.moves, provenance }));
     window.dispatchEvent(new Event(WEEK_CARE_SYNC_EVENT));
     return true;
   } catch {

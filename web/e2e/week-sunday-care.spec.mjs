@@ -1192,3 +1192,86 @@ test("Hygiene-postponed Sunday step can be edited, moved and hidden on an extra 
     .filter(([key]) => key.startsWith("2026-10-18|hygiene-day|"))
     .some(([,destination]) => destination === "2026-10-14")).toBe(true);
 });
+
+test("Week retains valid positions after Hygiene postpones the same step again", async ({page}) => {
+  await fresh(page);
+  const days = await week(page);
+  await dragCare(page,6,0,"hygiene-day","18:00");
+
+  const trace = await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    const routine = store.routines.find(item => item.id === "hygiene-day");
+    const step = routine.tasks.find(item => item.active);
+    const id = "2026-10-18|hygiene-day|" + step.id;
+    if (store.taskReschedules[id] !== "2026-10-12") throw Error("Missing move");
+    store.taskReschedules[id] = "2026-10-13";
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+    return id;
+  },HYGIENE_KEY);
+  const tuesday = days.nth(1).locator('[data-week-care="hygiene-day"]');
+  await expect(tuesday).toBeVisible();
+  await tuesday.click();
+  const editor=page.getByRole("dialog",{name:"Nedělní hygiena"});
+  await editor.getByLabel("Začátek bloku").fill("17:00");
+  await editor.getByRole("button",{name:"Uložit čas"}).click();
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(saved.provenance["2026-10-13"]["hygiene-day"]).toBe("2026-10-18");
+
+  await page.evaluate(({key,trace})=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    store.taskReschedules[trace]="2026-10-14";
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },{key:HYGIENE_KEY,trace});
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  await expect(page.locator(".df2-week-day").nth(1).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+  const wednesday=page.locator(".df2-week-day").nth(2).locator('[data-week-care="hygiene-day"]');
+  await expect(wednesday).toBeVisible();
+  await wednesday.click();
+  const next=page.getByRole("dialog",{name:"Nedělní hygiena"});
+  await expect(next.getByRole("button",{name:"Uložit čas"})).toBeEnabled();
+  await next.getByLabel("Začátek bloku").fill("19:00");
+  await next.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(wednesday).toHaveAttribute("aria-label","Nedělní hygiena, 19:00–19:30");
+  await wednesday.click();
+  await page.getByRole("dialog",{name:"Nedělní hygiena"})
+    .getByRole("button",{name:"Odebrat jen tento den"}).click();
+  await expect(wednesday).toHaveCount(0);
+  await page.reload({waitUntil:"networkidle"});
+  await week(page);
+  const state=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),CARE_KEY);
+  expect(state.hidden["2026-10-14"]).toContain("hygiene-day");
+  expect(state.provenance["2026-10-13"]["hygiene-day"]).toBe("2026-10-18");
+});
+
+test("Returning only a postponed Sunday step cannot restore duplicate routine tasks",async({page})=>{
+  await fresh(page);
+  const days=await week(page);
+  await dragCare(page,6,0,"hygiene-day","18:00");
+  await page.evaluate(key=>{
+    const store=JSON.parse(localStorage.getItem(key));
+    const step=store.routines.find(r=>r.id==="hygiene-day").tasks.find(t=>t.active);
+    const trace="2026-10-18|hygiene-day|"+step.id;
+    if (store.taskReschedules[trace]!=="2026-10-12")throw Error("Missing move");
+    store.taskReschedules[trace]="2026-10-13";
+    localStorage.setItem(key,JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  },HYGIENE_KEY);
+  const tuesday=days.nth(1).locator('[data-week-care="hygiene-day"]');
+  await expect(tuesday).toBeVisible();
+  await tuesday.click();
+  const editor=page.getByRole("dialog",{name:"Nedělní hygiena"});
+  await editor.getByLabel("Den výskytu").fill("2026-10-18");
+  await editor.getByRole("button",{name:"Uložit čas"}).click();
+  await expect(editor.getByRole("alert")).toContainText("Přesun se nepodařilo uložit");
+  const history=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),HYGIENE_KEY);
+  expect(history.suppressedDates["2026-10-18"]).toContain("hygiene-day");
+  expect(Object.entries(history.taskReschedules)
+    .filter(([key])=>key.startsWith("2026-10-18|hygiene-day|"))
+    .some(([,date])=>date==="2026-10-12")).toBe(true);
+  await editor.getByRole("button",{name:"Zavřít"}).click();
+  await expect(tuesday).toBeVisible();
+  await expect(days.nth(6).locator('[data-week-care="hygiene-day"]')).toHaveCount(0);
+});
