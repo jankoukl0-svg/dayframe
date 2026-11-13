@@ -1001,9 +1001,10 @@ export function moveFixedRepeatOccurrence(store: HygieneStore, routineId: string
 export function removeWeekHygieneOccurrence(store: HygieneStore, routineId: string, date: string): HygieneStore {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)
     || !Number.isFinite(dateFromKey(date).getTime())) return store;
-  const routine = store.routines.find(item => item.id === routineId && item.active);
-  if (!routine) return store;
+  const routine = store.routines.find(item => item.id === routineId);
   const existing = store.records[date]?.[routineId];
+  // Pausing a routine must not lock its already-recorded history in Week.
+  if (!routine || (!routine.active && !existing)) return store;
   if (!existing && !routineHasScheduledWorkOnDate(store, routine, date)) return store;
   const record = existing ?? materializeHygieneDate(store, date).records[date]?.[routineId];
   if (!record?.scheduledTasks.length) return store;

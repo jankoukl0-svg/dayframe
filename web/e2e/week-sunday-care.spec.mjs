@@ -1441,3 +1441,32 @@ test("Skipping an untouched rolling occurrence schedules its next interval", asy
   const after = await week(page);
   await expect(after.nth(4).locator('[data-week-care="' + careId + '"]')).toBeVisible();
 });
+
+test("A paused routine's recorded past day can still be deleted from Week and Hygiene", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const days = await week(page);
+  const past = days.nth(3).locator('[data-week-care="evening"]');
+  await past.click();
+  const editor = page.getByRole("dialog", { name: "Večerní hygiena" });
+  await editor.getByRole("button", { name: /Označit hotovo/ }).first().click();
+  await editor.getByRole("button", { name: "Zavřít" }).click();
+  await page.evaluate(key => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.find(routine => routine.id === "evening").active = false;
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, HYGIENE_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const reloaded = await week(page);
+  const recorded = reloaded.nth(3).locator('[data-week-care="evening"]');
+  await expect(recorded).toBeVisible();
+  await recorded.click();
+  page.once("dialog", confirmation => confirmation.accept());
+  await page.getByRole("dialog", { name: "Večerní hygiena" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(recorded).toHaveCount(0);
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
+  expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
+  expect(saved.routines.find(routine => routine.id === "evening").active).toBe(false);
+});
