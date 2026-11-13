@@ -1364,3 +1364,80 @@ test("Removing a completed past Hygiene day asks before deleting its recorded wo
   expect(saved.records["2026-11-12"]?.evening).toBeUndefined();
   expect(saved.suppressedDates["2026-11-12"]).toContain("evening");
 });
+
+test("Deleting a completed rolling occurrence keeps the following due date", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const id = "hygiene-routine-remove-cadence";
+  const taskId = "remove-cadence-step";
+  const careId = "rolling:" + id;
+  await page.evaluate(({ key, id, taskId }) => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.push({
+      id, title: "Třídenní péče pro smazání", active: true, order: 94,
+      schedule: { type: "rolling", everyDays: 3, unit: "days", anchorDate: "2026-11-01" },
+      tasks: [{ id: taskId, title: "Ošetření", section: "Péče", active: true, optional: false, allowSkip: false }],
+    });
+    store.records["2026-11-10"] = {
+      ...(store.records["2026-11-10"] ?? {}),
+      [id]: {
+        date: "2026-11-10", routineId: id, routineTitle: "Třídenní péče pro smazání",
+        scheduledTasks: [{ id: taskId, title: "Ošetření", section: "Péče", optional: false, allowSkip: false, scheduleType: "rolling" }],
+        states: { [taskId]: "done" }, completedOn: { [taskId]: "2026-11-10" },
+      },
+    };
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, { key: HYGIENE_KEY, id, taskId });
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const past = days.nth(1).locator('[data-week-care="' + careId + '"]');
+  const next = days.nth(4).locator('[data-week-care="' + careId + '"]');
+  await expect(past).toBeVisible();
+  await expect(next).toBeVisible();
+  await past.click();
+  page.once("dialog", confirmation => confirmation.accept());
+  await page.getByRole("dialog", { name: "Třídenní péče pro smazání" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(past).toHaveCount(0);
+  await expect(next).toBeVisible();
+  await page.reload({ waitUntil: "networkidle" });
+  const after = await week(page);
+  await expect(after.nth(4).locator('[data-week-care="' + careId + '"]')).toBeVisible();
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.records["2026-11-10"]?.[id]).toBeUndefined();
+  expect(saved.suppressedDates["2026-11-10"]).toContain(id);
+  expect(saved.rollingCadenceAnchors[id + "|" + taskId]).toBe("2026-11-10");
+});
+
+test("Skipping an untouched rolling occurrence schedules its next interval", async ({ page }) => {
+  await fresh(page, "2026-11-13T12:00:00");
+  const id = "hygiene-routine-remove-initial";
+  const taskId = "remove-initial-step";
+  await page.evaluate(({ key, id, taskId }) => {
+    const store = JSON.parse(localStorage.getItem(key));
+    store.routines.push({
+      id, title: "Třídenní péče bez historie", active: true, order: 95,
+      schedule: { type: "rolling", everyDays: 3, unit: "days", anchorDate: "2026-11-10" },
+      tasks: [{ id: taskId, title: "Ošetření", section: "Péče", active: true, optional: false, allowSkip: false }],
+    });
+    localStorage.setItem(key, JSON.stringify(store));
+    window.dispatchEvent(new Event("dayframe-hygiene-sync"));
+  }, { key: HYGIENE_KEY, id, taskId });
+  await page.reload({ waitUntil: "networkidle" });
+  const days = await week(page);
+  const careId = "rolling:" + id;
+  const past = days.nth(1).locator('[data-week-care="' + careId + '"]');
+  const next = days.nth(4).locator('[data-week-care="' + careId + '"]');
+  await expect(past).toBeVisible();
+  await expect(next).toHaveCount(0);
+  await past.click();
+  await page.getByRole("dialog", { name: "Třídenní péče bez historie" })
+    .getByRole("button", { name: "Odebrat jen tento den" }).click();
+  await expect(past).toHaveCount(0);
+  await expect(next).toBeVisible();
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), HYGIENE_KEY);
+  expect(saved.rollingCadenceAnchors[id + "|" + taskId]).toBe("2026-11-10");
+  await page.reload({ waitUntil: "networkidle" });
+  const after = await week(page);
+  await expect(after.nth(4).locator('[data-week-care="' + careId + '"]')).toBeVisible();
+});
