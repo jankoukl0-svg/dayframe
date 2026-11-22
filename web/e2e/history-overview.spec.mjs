@@ -225,9 +225,15 @@ test("overview shows exact time by every activity, with searchable log, filters 
   const history=page.locator(".df2-history-view");
   await expect(history.locator(".df2-overview-summary")).toContainText("2 h 45 min");
   const chart=history.locator("[data-activity-breakdown]");
-  await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(3);
-  await expect(chart.locator("[data-activity-chart-row]").first()).toContainText("Valuace");
-  await expect(chart.locator("[data-activity-chart-row]").first()).toContainText("1 h 35 min");
+  await expect(chart.locator("[data-activity-category-row]")).toHaveCount(2);
+  await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(0);
+  const finance = chart.locator('[data-activity-category="Finance"]');
+  await expect(finance.locator("[data-activity-category-row]")).toContainText("2 h 5 min");
+  await expect(finance.locator("[data-activity-category-row]")).toHaveAttribute("aria-expanded","false");
+  await finance.locator("[data-activity-category-row]").click();
+  await expect(finance.locator("[data-activity-chart-row]")).toHaveCount(2);
+  await expect(finance.locator("[data-activity-chart-row]").first()).toContainText("Valuace");
+  await expect(finance.locator("[data-activity-chart-row]").first()).toContainText("1 h 35 min");
   await expect(history.locator('.df2-overview-list-row[data-category="Finance"]')).toContainText("2 h 5 min");
   await expect(history.locator('.df2-overview-list-row[data-category="Matematika"]')).toContainText("40 min");
   const day=history.locator("[data-activity-ledger] [data-activity-day]");
@@ -238,6 +244,7 @@ test("overview shows exact time by every activity, with searchable log, filters 
   await expect(day).not.toContainText("Večeře");
   await expect(day).not.toContainText("Nedokončené");
   await chart.getByRole("combobox",{name:"Filtrovat oblast"}).selectOption("Finance");
+  await expect(chart.locator("[data-activity-category-row]")).toHaveCount(1);
   await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(2);
   await expect(day).not.toContainText("Logaritmy");
   await chart.getByRole("searchbox",{name:"Hledat činnost"}).fill("valuace");
@@ -245,7 +252,7 @@ test("overview shows exact time by every activity, with searchable log, filters 
   await expect(day).toContainText("Valuace");
   await expect(day).not.toContainText("Equity Research");
   await chart.getByRole("searchbox",{name:"Hledat činnost"}).fill("");
-  await chart.locator("[data-activity-chart-row]").first().click();
+  await finance.locator("[data-activity-chart-row]").first().click();
   await expect(chart.getByRole("button",{name:"Zrušit výběr"})).toBeVisible();
   await expect(day).not.toContainText("Equity Research");
   await history.getByRole("button",{name:"Měsíc"}).click();
@@ -253,4 +260,54 @@ test("overview shows exact time by every activity, with searchable log, filters 
   await page.setViewportSize({width:390,height:844});
   const tooWide=await chart.evaluate(node=>node.scrollWidth>node.clientWidth+3);
   expect(tooWide).toBe(false);
+});
+
+
+test("overview groups individual completed blocks under collapsed categories, including repeated titles", async ({page}) => {
+  await page.goto(process.env.DAYFRAME_BASE_URL || "http://127.0.0.1:4173",{waitUntil:"networkidle"});
+  await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem("dayframe-v1")))).toBe(true);
+  await page.evaluate(()=>{
+    const state=JSON.parse(localStorage.getItem("dayframe-v1"));
+    const now=new Date();
+    const date=[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+    const make=(id,title,category,minutes,start)=>({
+      id,title,category,date,duration:minutes,actualMinutes:minutes,start,
+      end:"23:00",requestedStart:start,source:"user",priority:"normal",
+      mode:"fixed",completed:true,createdAt:now.toISOString(),
+    });
+    state.routines=[];
+    state.plans={[date]:[
+      make("f1","Analýza firmy","Finance",60,"09:00"),
+      make("f2","Analýza firmy","Finance",120,"12:00"),
+      make("f3","Online meeting","Finance",60,"16:00"),
+      make("m1","Logaritmy","Matematika",40,"18:00"),
+      {...make("pending","Nedokončené","Finance",240,"19:00"),completed:false},
+    ]};
+    localStorage.setItem("dayframe-v1",JSON.stringify(state));
+  });
+  await page.reload({waitUntil:"networkidle"});
+  await page.getByRole("button",{name:/Přehled/}).click();
+  const chart=page.locator("[data-activity-breakdown]");
+  const finance=chart.locator('[data-activity-category="Finance"]');
+  const maths=chart.locator('[data-activity-category="Matematika"]');
+  await expect(chart.locator("[data-activity-category-row]")).toHaveCount(2);
+  await expect(chart.locator("[data-activity-chart-row]")).toHaveCount(0);
+  await expect(finance.locator("[data-activity-category-row]")).toContainText("4 h");
+  await expect(finance.locator("[data-activity-category-row]")).toContainText("3 bloky");
+  await expect(maths.locator("[data-activity-category-row]")).toContainText("40 min");
+  await finance.locator("[data-activity-category-row]").click();
+  await expect(finance.locator("[data-activity-chart-row]")).toHaveCount(3);
+  await expect(finance.locator("[data-activity-chart-row]").filter({hasText:"Analýza firmy"})).toHaveCount(2);
+  await expect(finance.locator("[data-activity-chart-row]").first()).toContainText("1 h");
+  await expect(finance.locator("[data-activity-chart-row]").nth(1)).toContainText("2 h");
+  await expect(maths.locator("[data-activity-category-row]")).toHaveAttribute("aria-expanded","false");
+  await finance.locator("[data-activity-category-row]").click();
+  await expect(finance.locator("[data-activity-chart-row]")).toHaveCount(0);
+  await chart.getByRole("searchbox",{name:"Hledat činnost"}).fill("Analýza firmy");
+  await expect(finance.locator("[data-activity-category-row]")).toContainText("3 h");
+  await expect(finance.locator("[data-activity-chart-row]")).toHaveCount(2);
+  await expect(chart.locator("[data-activity-category-row]")).toHaveCount(1);
+  await chart.getByRole("searchbox",{name:"Hledat činnost"}).fill("");
+  await page.setViewportSize({width:390,height:844});
+  expect(await chart.evaluate(node=>node.scrollWidth>node.clientWidth+3)).toBe(false);
 });
