@@ -45,7 +45,12 @@ test("overview statistics honor actual Focus minutes when they differ from sched
   await expect(history.locator(".df2-overview-summary")).toContainText("7 min");
   await expect(history.locator(".df2-overview-summary")).toContainText("1 z 1 bloků");
 
-  await expect(history.locator("[data-activity-chart-row]")).toContainText("7 min");
+  const group = history.locator('[data-activity-category="Finance"]');
+  await expect(group.locator("[data-activity-category-row]")).toContainText("7 min");
+  await expect(group.locator("[data-activity-category-row]")).toHaveAttribute("aria-expanded", "false");
+  await group.locator("[data-activity-category-row]").click();
+  await expect(group.locator("[data-activity-chart-row]")).toHaveCount(1);
+  await expect(group.locator("[data-activity-chart-row]")).toContainText("7 min");
 
   const financeCategory = history.locator('.df2-overview-list-row[data-category="Finance"]');
   await expect(financeCategory).toContainText("7 min");

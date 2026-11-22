@@ -59,7 +59,14 @@ test("overview keeps learning history while showing a minimal progress summary",
   await expect(history).toBeVisible();
   await expect(history.locator(".df2-overview-summary")).toContainText("1 h 45 min");
   await expect(history.locator(".df2-overview-summary")).toContainText("3 z 3 bloků");
-  await expect(history.locator("[data-activity-chart-row]")).toHaveCount(3);
+  await expect(history.locator("[data-activity-category-row]")).toHaveCount(2);
+  await expect(history.locator("[data-activity-chart-row]")).toHaveCount(0);
+  const finance = history.locator('[data-activity-category="Finance"]');
+  await expect(finance.locator("[data-activity-category-row]")).toContainText("1 h 20 min");
+  await finance.locator("[data-activity-category-row]").click();
+  await expect(finance.locator("[data-activity-chart-row]")).toHaveCount(2);
+  await expect(history.locator('[data-activity-category="Matika"] [data-activity-category-row]'))
+    .toHaveAttribute("aria-expanded", "false");
   const day = history.locator("[data-activity-ledger] [data-activity-day]").first();
   await expect(day).toHaveCount(1);
   await expect(day.getByRole("button")).toHaveAttribute("aria-expanded", "false");
